@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
 	import { page } from "$app/stores";
-	import { ProjectSettingsForm } from "$lib/components/projects";
+	import { ProjectSettingsForm, InstagramIntelCard } from "$lib/components/projects";
 	import { BrandSummaryCard } from "$lib/components/wizard";
 	import { Badge, Button } from "$lib/components/ui";
 	import { emptyBrandKit, type BrandKitState } from "$lib/types/brandKit";
@@ -289,6 +289,17 @@
 							{/if}
 						{/each}
 					</div>
+				</section>
+
+				<!-- Memória do Instagram (digest + captura única) -->
+				<section class="entrance-section mt-10" style="--entrance-delay: 100ms">
+					<InstagramIntelCard
+						digest={project.instagramContentDigest ?? null}
+						lastInstagramSyncAt={project.lastInstagramSyncAt}
+						lastInstagramSyncMode={project.lastInstagramSyncMode}
+						brandAccent={brandGlowColor}
+						onOpenSettings={() => (showSettings = true)}
+					/>
 				</section>
 
 				<!-- Gradient divider -->

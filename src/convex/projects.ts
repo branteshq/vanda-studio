@@ -237,6 +237,7 @@ export const updateProfileData = mutation({
         website: v.optional(v.string()),
         isFetching: v.optional(v.boolean()),
         lastInstagramSyncAt: v.optional(v.number()),
+        lastInstagramSyncMode: v.optional(v.union(v.literal("intel_only"), v.literal("full"))),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -268,6 +269,7 @@ export const updateProfileData = mutation({
         if (args.website !== undefined) patch.website = args.website;
         if (args.isFetching !== undefined) patch.isFetching = args.isFetching;
         if (args.lastInstagramSyncAt !== undefined) patch.lastInstagramSyncAt = args.lastInstagramSyncAt;
+        if (args.lastInstagramSyncMode !== undefined) patch.lastInstagramSyncMode = args.lastInstagramSyncMode;
 
         if (Object.keys(patch).length === 0) {
             return project;

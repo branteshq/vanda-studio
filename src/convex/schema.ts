@@ -42,6 +42,8 @@ export default defineSchema({
         /** LLM summary of recent synced IG captions — avoids repeating recent themes in AI posts */
         instagramContentDigest: v.optional(instagramContentDigestValidator),
         lastInstagramSyncAt: v.optional(v.number()),
+        /** How the last Instagram sync ran: captions-only vs mirrored media to storage */
+        lastInstagramSyncMode: v.optional(v.union(v.literal("intel_only"), v.literal("full"))),
     }).index("by_user_id", ["userId"]),
 
     // Context images for brand context
