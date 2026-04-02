@@ -9,6 +9,7 @@
         mergeBrandSuggestion,
         brandKitToDraftSummary,
     } from "$lib/types/brandKit";
+    import { formatUserFacingMessage } from "$lib/errors";
 
     interface Props {
         projectName: string;
@@ -55,7 +56,7 @@
             brandKit = mergeBrandSuggestion(brandKit, result as Record<string, unknown>);
             emit();
         } catch (e) {
-            sectionError = e instanceof Error ? e.message : "Erro ao sugerir com IA";
+            sectionError = formatUserFacingMessage(e);
         } finally {
             sectionLoading = null;
         }

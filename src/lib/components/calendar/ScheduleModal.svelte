@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { Button, Badge, Label, Input, Popover, PopoverTrigger, PopoverContent } from "$lib/components/ui";
 	import { Calendar } from "$lib/components/ui/calendar";
-	import { useConvexClient, useQuery } from "convex-svelte";
+	import { useConvexClient } from "convex-svelte";
 	import { api } from "../../../convex/_generated/api.js";
 	import type { Id } from "../../../convex/_generated/dataModel.js";
 	import { CalendarDate, getLocalTimeZone, today } from "@internationalized/date";
-	import { ChevronDown, X, Clock, Calendar as CalendarIcon, Download, Check, AlertTriangle } from "lucide-svelte";
+	import { ChevronDown, X, Clock, Calendar as CalendarIcon, Download } from "lucide-svelte";
 	import { generateICS } from "$lib/utils.js";
+	import { formatUserFacingMessage } from "$lib/errors";
 
 	type Props = {
 		open: boolean;
@@ -21,22 +22,12 @@
 
 	const client = useConvexClient();
 
-	// Google Calendar connection status
-	const connectionQuery = useQuery(api.googleCalendar.getConnectionStatus, () => ({}));
-	let connectionStatus = $derived(connectionQuery.data ?? { connected: false });
-	let canSyncToGoogle = $derived(
-		connectionStatus.connected &&
-		connectionStatus.syncEnabled &&
-		!connectionStatus.isExpired
-	);
-
 	// Scheduling state
 	let selectedDate = $state<CalendarDate>(today(getLocalTimeZone()).add({ days: 1 }));
 	let selectedTime = $state("12:00");
 	let reminderMinutes = $state<number | undefined>(30);
 	let isScheduling = $state(false);
 	let error = $state<string | null>(null);
-	let syncWarning = $state<string | null>(null);
 	let datePickerOpen = $state(false);
 
 	// Reminder options
@@ -92,33 +83,17 @@
 
 		isScheduling = true;
 		error = null;
-		syncWarning = null;
 
 		try {
-			// Step 1: Schedule the post (creates calendar_events with status "pending")
 			await client.mutation(api.scheduledPosts.schedulePost, {
 				postId,
 				scheduledFor: getScheduledTimestamp(),
 				...(reminderMinutes !== undefined && { reminderMinutes }),
 			});
 
-			// Step 2: If Google Calendar is connected and sync enabled, attempt sync
-			if (canSyncToGoogle) {
-				try {
-					await client.action(api.googleCalendar.createCalendarEvent, { postId });
-				} catch (syncErr) {
-					// Non-blocking: post is scheduled, but Google sync failed
-					console.warn('Google Calendar sync failed:', syncErr);
-					syncWarning = "Post agendado, mas a sincronização com Google Calendar falhou.";
-					// Don't close immediately so user sees the warning
-					setTimeout(() => onclose(), 2000);
-					return;
-				}
-			}
-
 			onclose();
 		} catch (err) {
-			error = err instanceof Error ? err.message : "Erro ao agendar post";
+			error = formatUserFacingMessage(err);
 		} finally {
 			isScheduling = false;
 		}
@@ -203,40 +178,6 @@
 
 			<!-- Right: Scheduling Options -->
 			<div class="flex-1 space-y-5">
-				<!-- Google Calendar Status -->
-				<div class="flex items-center justify-between rounded-none border border-border bg-muted/30 p-3">
-					<div class="flex items-center gap-2">
-						<svg class="h-4 w-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-							<rect x="3" y="4" width="18" height="18" rx="2"/>
-							<path d="M3 9H21"/>
-							<path d="M9 4V8" stroke-linecap="round"/>
-							<path d="M15 4V8" stroke-linecap="round"/>
-						</svg>
-						<span class="text-sm">Google Calendar</span>
-					</div>
-					{#if connectionQuery.isLoading}
-						<Badge variant="outline" class="text-xs">Verificando...</Badge>
-					{:else if connectionStatus.connected}
-						{#if connectionStatus.isExpired}
-							<Badge variant="outline" class="text-xs text-amber-600">
-								<AlertTriangle class="mr-1 h-3 w-3" />
-								Token expirado
-							</Badge>
-						{:else if connectionStatus.syncEnabled}
-							<Badge variant="secondary" class="text-xs bg-green-500/10 text-green-600">
-								<Check class="mr-1 h-3 w-3" />
-								Sincronizacao ativa
-							</Badge>
-						{:else}
-							<Badge variant="outline" class="text-xs">Sync desativado</Badge>
-						{/if}
-					{:else}
-						<a href="/calendar" class="text-xs text-primary hover:underline">
-							Conectar
-						</a>
-					{/if}
-				</div>
-
 				<!-- Date Selection -->
 				<div class="space-y-2">
 					<Label>Data</Label>
@@ -325,12 +266,6 @@
 					</div>
 				{/if}
 
-				<!-- Sync Warning -->
-				{#if syncWarning}
-					<div class="rounded-none border border-amber-500/50 bg-amber-500/10 p-3">
-						<p class="text-sm text-amber-600">{syncWarning}</p>
-					</div>
-				{/if}
 			</div>
 		</div>
 

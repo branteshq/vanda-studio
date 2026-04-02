@@ -458,14 +458,6 @@ export const generateLaunchPostsForProject = action({
                         reminderMinutes: LAUNCH_POST_REMINDER_MINUTES,
                     });
 
-                    try {
-                        await ctx.runAction(internal.googleCalendar.createCalendarEventInternal, {
-                            postId,
-                        });
-                    } catch (error) {
-                        console.warn("[LAUNCH_POSTS] Google Calendar sync failed:", error);
-                    }
-
                     createdPostIds.push(postId);
                     await ctx.runMutation(internal.projects.setLaunchPostsGenerationInternal, {
                         projectId: args.projectId,

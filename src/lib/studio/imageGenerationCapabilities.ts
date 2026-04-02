@@ -10,6 +10,9 @@ export const IMAGE_MODEL_IDS = {
 	GPT_IMAGE_1_5: "openai/gpt-5-image",
 } as const;
 
+/** Default image model for studio UI and new generations (matches Convex `DEFAULT_IMAGE_MODEL`). */
+export const DEFAULT_STUDIO_IMAGE_MODEL = IMAGE_MODEL_IDS.NANO_BANANA_2;
+
 export const ASPECT_RATIO_LIST: AspectRatio[] = ["1:1", "16:9", "9:16", "4:3", "3:4", "21:9"];
 export const RESOLUTION_LIST: Resolution[] = ["standard", "high", "ultra"];
 

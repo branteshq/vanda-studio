@@ -244,7 +244,7 @@
 					<div class="text-4xl font-serif text-primary mb-4">03</div>
 					<h3 class="text-xl font-serif mb-3 group-hover:text-primary transition-colors">Agendamento</h3>
 					<p class="text-muted-foreground leading-relaxed">
-						Integre com Google Calendar. Agende posts e mantenha consistência.
+						Agende posts no calendário do Vanda e exporte lembretes em ICS quando precisar.
 					</p>
 				</div>
 

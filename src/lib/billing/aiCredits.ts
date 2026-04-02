@@ -91,7 +91,7 @@ export const CAPTION_MODEL_CREDIT_INFO: Record<string, ModelCreditInfo> = {
     },
 };
 
-const FALLBACK_IMAGE_MODEL = "bytedance-seed/seedream-4.5";
+const FALLBACK_IMAGE_MODEL = "google/gemini-3.1-flash-image-preview";
 const FALLBACK_CAPTION_MODEL = "moonshotai/kimi-k2-0905";
 
 function roundCredits(value: number): number {

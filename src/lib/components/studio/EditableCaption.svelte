@@ -3,6 +3,7 @@
     import { api } from "../../../convex/_generated/api.js";
     import type { Id } from "../../../convex/_generated/dataModel.js";
     import { toast } from "svelte-sonner";
+    import { showUserError } from "$lib/errors";
     import { Textarea, Button, Badge } from "$lib/components/ui";
 
     interface Props {
@@ -56,7 +57,7 @@
             isEditing = false;
         } catch (err) {
             console.error("Failed to update caption:", err);
-            toast.error("Erro ao salvar legenda");
+            showUserError(err);
         } finally {
             isSaving = false;
         }

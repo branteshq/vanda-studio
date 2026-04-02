@@ -44,7 +44,6 @@ import type * as files from "../files.js";
 import type * as generatedImages from "../generatedImages.js";
 import type * as generatedPosts from "../generatedPosts.js";
 import type * as generationHistory from "../generationHistory.js";
-import type * as googleCalendar from "../googleCalendar.js";
 import type * as imageEditConversations from "../imageEditConversations.js";
 import type * as imageEditOutputs from "../imageEditOutputs.js";
 import type * as imageEditTurns from "../imageEditTurns.js";
@@ -107,7 +106,6 @@ declare const fullApi: ApiFromModules<{
   generatedImages: typeof generatedImages;
   generatedPosts: typeof generatedPosts;
   generationHistory: typeof generationHistory;
-  googleCalendar: typeof googleCalendar;
   imageEditConversations: typeof imageEditConversations;
   imageEditOutputs: typeof imageEditOutputs;
   imageEditTurns: typeof imageEditTurns;

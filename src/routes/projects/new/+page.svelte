@@ -23,6 +23,7 @@
     import { api } from "../../../convex/_generated/api.js";
     import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
     import { normalizeInstagramInput } from "$lib/utils/instagram";
+    import { formatUserFacingMessage } from "$lib/errors";
     import { Instagram, Sparkles, X, ArrowLeft } from "lucide-svelte";
 
     const client = useConvexClient();
@@ -184,7 +185,7 @@
 
             pushStep(totalSteps - 1);
         } catch (e) {
-            error = e instanceof Error ? e.message : "Falha ao analisar links";
+            error = formatUserFacingMessage(e);
         } finally {
             isIngesting = false;
             ingestStatus = "";
@@ -294,10 +295,7 @@
 
             goto(`/projects/${id}`);
         } catch (e) {
-            error =
-                e instanceof Error
-                    ? e.message
-                    : "Não foi possível criar o projeto ou sincronizar o Instagram";
+            error = formatUserFacingMessage(e);
         } finally {
             isCreating = false;
             createStatus = "";

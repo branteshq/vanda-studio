@@ -38,7 +38,7 @@ export const IMAGE_MODELS = {
 
 export type ImageModelName = (typeof IMAGE_MODELS)[keyof typeof IMAGE_MODELS];
 
-export const DEFAULT_IMAGE_MODEL = IMAGE_MODELS.SEEDREAM_4_5;
+export const DEFAULT_IMAGE_MODEL = IMAGE_MODELS.NANO_BANANA_2;
 
 /**
  * Model capabilities for image generation

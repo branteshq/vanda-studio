@@ -11,6 +11,7 @@
     import { api } from "../../../convex/_generated/api.js";
     import type { Id } from "../../../convex/_generated/dataModel.js";
     import { formatHandleForInput, normalizeInstagramInput } from "$lib/utils/instagram";
+    import { formatUserFacingMessage } from "$lib/errors";
 
     interface Project {
         _id: Id<"projects">;
@@ -129,7 +130,7 @@
             });
         } catch (err) {
             console.error("Profile picture upload failed:", err);
-            saveError = err instanceof Error ? err.message : "Erro ao fazer upload da imagem";
+            saveError = formatUserFacingMessage(err);
         } finally {
             isUploadingProfilePicture = false;
             input.value = "";
@@ -189,7 +190,7 @@
             setTimeout(() => (saveSuccess = false), 3000);
         } catch (err) {
             console.error("Failed to save:", err);
-            saveError = err instanceof Error ? err.message : "Erro ao salvar alteracoes";
+            saveError = formatUserFacingMessage(err);
         } finally {
             isSaving = false;
         }
@@ -217,7 +218,7 @@
             });
         } catch (err) {
             console.error("Profile analysis failed:", err);
-            analyzeError = err instanceof Error ? err.message : "Erro ao analisar perfil";
+            analyzeError = formatUserFacingMessage(err);
         } finally {
             isAnalyzing = false;
         }
@@ -250,7 +251,7 @@
             syncIgSuccess =
                 "Captura concluída (até 30 posts, sem baixar mídias dos posts). A memória do feed aparece na página do projeto.";
         } catch (e) {
-            syncIgError = e instanceof Error ? e.message : "Falha ao capturar o Instagram";
+            syncIgError = formatUserFacingMessage(e);
         } finally {
             igSyncBusy = false;
         }

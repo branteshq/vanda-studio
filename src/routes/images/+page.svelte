@@ -30,6 +30,7 @@
 	import { MediaLightbox } from "$lib/components/lightbox";
 	import {
 		coerceImageGenerationSettings,
+		DEFAULT_STUDIO_IMAGE_MODEL,
 		getSupportedAspectRatios,
 		getSupportedResolutions,
 		type AspectRatio,
@@ -60,6 +61,7 @@
 		formatCredits,
 		sumUsageLineItemCredits,
 	} from "$lib/billing/aiCredits";
+	import { formatUserFacingMessageFromText } from "$lib/errors";
 
 	type MediaItem = {
 		_id: Id<"media_items">;
@@ -164,7 +166,7 @@
 	const ACTIVE_GENERATION_WINDOW_MS = 5 * 60 * 1000;
 
 	let prompt = $state("");
-	let selectedModels = $state<string[]>(["bytedance-seed/seedream-4.5"]);
+	let selectedModels = $state<string[]>([DEFAULT_STUDIO_IMAGE_MODEL]);
 	let aspectRatio = $state<AspectRatio>("1:1");
 	let resolution = $state<Resolution>("standard");
 	let selectedProjectId = $state<Id<"projects"> | null>(null);
@@ -439,18 +441,18 @@
 		}
 
 		if (batchData?.status === "error") {
+			const safeDetail = formatUserFacingMessageFromText(batchData.lastErrorMessage);
 			errorState = createImageGenerationUiError(
 				isImageGenerationErrorCode(batchData.lastErrorCode)
 					? batchData.lastErrorCode
 					: "GENERATION_FAILED",
 				{
-					message:
-						batchData.lastErrorMessage ??
-						"Não foi possível gerar imagens com os modelos selecionados. Tente novamente ou troque o modelo.",
+					message: safeDetail,
+					summary: safeDetail,
 				}
 			);
 			activeBatchId = null;
-			}
+		}
 		});
 
 	$effect(() => {
@@ -1301,6 +1303,7 @@
 															</p>
 														</div>
 													</button>
+
 												{:else}
 													<div class="overflow-hidden rounded-xl border border-dashed border-primary/30 bg-card/60 shadow-sm">
 														<div class="relative bg-muted/30" style={`aspect-ratio: ${toAspectRatioValue(card.aspectRatio)};`}>

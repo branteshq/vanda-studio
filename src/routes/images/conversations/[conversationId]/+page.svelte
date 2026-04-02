@@ -18,6 +18,7 @@
 	import Logo from "$lib/components/Logo.svelte";
 	import {
 		coerceImageGenerationSettings,
+		DEFAULT_STUDIO_IMAGE_MODEL,
 		getSupportedAspectRatios,
 		getSupportedResolutions,
 		type AspectRatio,
@@ -147,7 +148,7 @@
 		turns.some((turn) => turn.status === "generating" || (turn.pendingModels?.length ?? 0) > 0)
 	);
 
-	let selectedModels = $state<string[]>(["bytedance-seed/seedream-4.5"]);
+	let selectedModels = $state<string[]>([DEFAULT_STUDIO_IMAGE_MODEL]);
 	let selectedPreset = $state<string>(DEFAULT_PRESET);
 	let aspectRatio = $state<AspectRatio>("1:1");
 	let resolution = $state<Resolution>("standard");
@@ -175,7 +176,7 @@
 
 	$effect(() => {
 		if (!conversation || settingsInitialized) return;
-		selectedModels = ["bytedance-seed/seedream-4.5"];
+		selectedModels = [DEFAULT_STUDIO_IMAGE_MODEL];
 		aspectRatio = (conversation.aspectRatio as AspectRatio | undefined) ?? "1:1";
 		resolution = (conversation.resolution as Resolution | undefined) ?? "standard";
 		settingsInitialized = true;

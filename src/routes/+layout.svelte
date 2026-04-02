@@ -68,7 +68,29 @@
 <svelte:window onkeydown={handleGlobalKeydown} />
 
 <ModeWatcher defaultMode="light" />
-<Toaster position="bottom-right" />
+<Toaster
+	position="bottom-right"
+	closeButton
+	duration={9000}
+	theme="light"
+	toastOptions={{
+		unstyled: true,
+		classes: {
+			toast:
+				"group pointer-events-auto flex w-[min(100vw-2rem,22rem)] items-start gap-3 rounded-none border border-border bg-card p-4 text-left text-card-foreground shadow-md",
+			title: "pr-7 text-sm font-semibold tracking-tight text-foreground",
+			description: "mt-1.5 whitespace-pre-line text-xs leading-relaxed text-muted-foreground",
+			closeButton:
+				"absolute right-2 top-2 rounded-none border border-transparent p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+			actionButton:
+				"mt-3 shrink-0 self-start rounded-none border border-primary bg-primary px-3 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90",
+			error: "!bg-card !text-foreground border-destructive/45",
+			success: "!bg-card border-emerald-600/25",
+			warning: "!bg-card border-amber-500/35",
+			info: "!bg-card",
+		},
+	}}
+/>
 
 <ClerkProvider appearance={clerkAppearance}>
 	<div class="ambient-glow ambient-noise min-h-screen">

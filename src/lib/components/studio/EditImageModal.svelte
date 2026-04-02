@@ -11,6 +11,7 @@
         formatCredits,
         sumUsageLineItemCredits,
     } from "$lib/billing/aiCredits";
+    import { formatUserFacingMessage } from "$lib/errors";
 
     interface GeneratedImage {
         _id: Id<"generated_images">;
@@ -220,7 +221,7 @@
             goto(`/images/conversations/${result.conversationId}?turnId=${result.turnId}`);
         } catch (err) {
             console.error("Failed to start conversation:", err);
-            error = err instanceof Error ? err.message : "Erro ao iniciar edição";
+            error = formatUserFacingMessage(err);
             isStarting = false;
         }
     }

@@ -13,14 +13,16 @@
 	import type { Id } from "../../../convex/_generated/dataModel.js";
 	import {
 		coerceImageGenerationSettings,
+		DEFAULT_STUDIO_IMAGE_MODEL,
 		getSupportedResolutions,
 		type AspectRatio,
 		type Resolution,
 	} from "$lib/studio/imageGenerationCapabilities";
 	import { STALE_COMPOSE_MS } from "$lib/studio/postComposerState";
 	import { portal } from "$lib/actions/portal";
+	import { formatUserFacingMessage } from "$lib/errors";
 
-	const DEFAULT_IMAGE_MODEL = "bytedance-seed/seedream-4.5";
+	const DEFAULT_IMAGE_MODEL = DEFAULT_STUDIO_IMAGE_MODEL;
 	const PREFERRED_POST_ASPECT: AspectRatio = "3:4";
 
 	type ProjectContextPayload = {
@@ -156,7 +158,7 @@
 			onComposePersistSuccess(result.mediaItemIds, result.caption);
 		} catch (e) {
 			onComposePersistError();
-			localError = e instanceof Error ? e.message : "Erro ao gerar post com IA";
+			localError = formatUserFacingMessage(e);
 		}
 	}
 </script>

@@ -6,16 +6,10 @@
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel.js";
 	import { goto } from "$app/navigation";
-	import { page } from "$app/stores";
 	import Navbar from "$lib/components/Navbar.svelte";
-	import { GoogleCalendarConnect } from "$lib/components/calendar";
 	import { CalendarDate, getLocalTimeZone, today, isSameDay } from "@internationalized/date";
 	import { ChevronLeft, ChevronRight, Download, Check, Clock, AlertCircle, Settings } from "lucide-svelte";
 	import { generateBulkICS } from "$lib/utils.js";
-
-	// Check for Google Calendar connection result from URL
-	let googleConnected = $derived($page.url.searchParams.get('google_connected') === 'true');
-	let googleError = $derived($page.url.searchParams.get('google_error'));
 
 	// Settings panel state
 	let settingsOpen = $state(false);
@@ -393,20 +387,9 @@
 
 		<!-- Content -->
 		<div class="flex-1 overflow-y-auto p-4">
-			<!-- Google Calendar Connection Success/Error Messages -->
-			{#if googleConnected}
-				<div class="mb-4 rounded-none border border-green-500/30 bg-green-500/10 p-3">
-					<p class="text-sm text-green-600">Google Calendar conectado com sucesso!</p>
-				</div>
-			{/if}
-			{#if googleError}
-				<div class="mb-4 rounded-none border border-red-500/30 bg-red-500/10 p-3">
-					<p class="text-sm text-red-600">Erro ao conectar: {googleError}</p>
-				</div>
-			{/if}
-
-			<!-- Google Calendar Connect -->
-			<GoogleCalendarConnect />
+			<p class="text-sm text-muted-foreground">
+				Na beta, os posts ficam só no Vanda. Use Exportar ICS no calendário ou Baixar ICS ao agendar para lembrar no seu app de agenda.
+			</p>
 		</div>
 	</div>
 {/if}

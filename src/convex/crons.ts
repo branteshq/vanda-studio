@@ -10,11 +10,4 @@ crons.interval(
     internal.scheduledPosts.markMissedPosts
 );
 
-// Sync pending calendar events to Google Calendar every 2 minutes
-crons.interval(
-    "sync pending calendar events",
-    { minutes: 2 },
-    internal.googleCalendar.syncPendingEvents
-);
-
 export default crons;

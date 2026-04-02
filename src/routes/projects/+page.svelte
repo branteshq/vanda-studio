@@ -7,6 +7,7 @@
     import { api } from "../../convex/_generated/api.js";
     import type { Id } from "../../convex/_generated/dataModel.js";
     import Navbar from "$lib/components/Navbar.svelte";
+    import { showUserError } from "$lib/errors";
 
     const client = useConvexClient();
 
@@ -34,6 +35,7 @@
             deleteConfirmId = null;
         } catch (err) {
             console.error("Failed to delete project:", err);
+            showUserError(err);
         } finally {
             isDeleting = false;
         }

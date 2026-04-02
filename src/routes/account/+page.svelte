@@ -7,6 +7,7 @@
 	import { Tabs } from "bits-ui";
 	import Navbar from "$lib/components/Navbar.svelte";
 	import { Button } from "$lib/components/ui";
+	import { formatUserFacingMessage } from "$lib/errors";
 	import {
 		AccountSidebar,
 		AccountTab,
@@ -64,8 +65,7 @@
 			);
 			billingOverview = data ?? null;
 		} catch (err) {
-			loadError =
-				err instanceof Error ? err.message : "Erro ao carregar assinatura";
+			loadError = formatUserFacingMessage(err);
 			billingOverview = null;
 		} finally {
 			isLoading = false;
@@ -169,8 +169,7 @@
 
 			goto("/billing/success");
 		} catch (err) {
-			upgradeError =
-				err instanceof Error ? err.message : "Erro ao iniciar checkout";
+			upgradeError = formatUserFacingMessage(err);
 			isUpgrading = null;
 		}
 	}
@@ -190,8 +189,7 @@
 			}
 			throw new Error("Não foi possível abrir o portal de cobrança");
 		} catch (err) {
-			portalError =
-				err instanceof Error ? err.message : "Erro ao abrir cobrança";
+			portalError = formatUserFacingMessage(err);
 			isOpeningPortal = false;
 		}
 	}

@@ -6,6 +6,7 @@
 	import { Badge, Button } from "$lib/components/ui";
 	import { ImageGenerationPulseLoader } from "$lib/components/studio";
 	import { pendingLaunchPosts } from "$lib/studio/pendingLaunchPostsStore";
+	import { formatUserFacingMessageFromText, showUserError } from "$lib/errors";
 	import { emptyBrandKit, type BrandKitState } from "$lib/types/brandKit";
 	import { loadGoogleFont, fontFamily } from "$lib/utils";
 	import { api } from "../../../convex/_generated/api.js";
@@ -13,19 +14,7 @@
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
 	import { get } from "svelte/store";
-	import {
-		ArrowLeft,
-		Settings,
-		Trash2,
-		X,
-		Sparkles,
-		Palette,
-		PenLine,
-		ImagePlus,
-		CalendarDays,
-		TrendingUp,
-		ArrowRight,
-	} from "lucide-svelte";
+	import { ArrowLeft, Settings, Trash2, X, Sparkles, CalendarDays } from "lucide-svelte";
 
 	const client = useConvexClient();
 
@@ -47,8 +36,6 @@
 	let isDeletingProject = $state(false);
 	let showSettings = $state(false);
 	let isSavingKit = $state(false);
-	let launchPostsError = $state<string | null>(null);
-
 	// ── Helpers ─────────────────────────────────────────────────────────
 	function getProfilePicture(): string | null {
 		if (!project) return null;
@@ -85,6 +72,7 @@
 			});
 		} catch (err) {
 			console.error("Failed to save brand kit:", err);
+			showUserError(err);
 		} finally {
 			isSavingKit = false;
 		}
@@ -98,6 +86,7 @@
 			goto("/projects");
 		} catch (err) {
 			console.error("Failed to delete project:", err);
+			showUserError(err);
 		} finally {
 			isDeletingProject = false;
 		}
@@ -181,64 +170,29 @@
 			return "Os 5 posts de demonstração já foram criados e colocados no calendário às 12:00.";
 		}
 		if (launchPostsState.status === "partial") {
-			return launchPostsState.errorMessage ?? "Parte da geração concluiu, mas nem todos os 5 posts ficaram prontos.";
+			return launchPostsState.errorMessage
+				? `Parte da geração concluiu. ${formatUserFacingMessageFromText(launchPostsState.errorMessage)}`
+				: "Parte da geração concluiu, mas nem todos os 5 posts ficaram prontos.";
 		}
-		return launchPostsState.errorMessage ?? "A execução foi consumida e não pode ser rodada novamente neste projeto.";
+		return launchPostsState.errorMessage
+			? formatUserFacingMessageFromText(launchPostsState.errorMessage)
+			: "A execução foi consumida e não pode ser rodada novamente neste projeto.";
 	}
 
 	function handleGenerateLaunchPosts() {
 		if (!canGenerateLaunchPosts || isLaunchPostsBusy) return;
-		launchPostsError = null;
 		pendingLaunchPosts.add(projectId);
 		void client
 			.action(api.ai.postIdeas.generateLaunchPostsForProject, { projectId })
 			.catch((error) => {
 				console.error("Failed to generate launch posts:", error);
-				launchPostsError =
-					error instanceof Error
-						? error.message
-						: "Não foi possível gerar os 5 posts automáticos.";
+				showUserError(error);
 			})
 			.finally(() => {
 				pendingLaunchPosts.delete(projectId);
 			});
 	}
 
-	// ── Vanda Sugere — mock suggestions ────────────────────────────────
-	type Suggestion = {
-		icon: typeof Palette;
-		title: string;
-		description: string;
-		href?: string;
-		comingSoon?: boolean;
-	};
-
-	let suggestions = $derived<Suggestion[]>([
-		{
-			icon: Palette,
-			title: "Criar um logo",
-			description: "Gere um logotipo que reflete sua identidade visual.",
-			comingSoon: true,
-		},
-		{
-			icon: PenLine,
-			title: "Escrever primeiro post",
-			description: "Crie conteúdo com o tom de voz da sua marca.",
-			href: `/posts/create?projectId=${projectId}`,
-		},
-		{
-			icon: ImagePlus,
-			title: "Gerar imagem",
-			description: "Produza imagens alinhadas com seu estilo.",
-			href: `/images?projectId=${projectId}`,
-		},
-		{
-			icon: TrendingUp,
-			title: "Analisar concorrentes",
-			description: "Descubra oportunidades no seu mercado.",
-			comingSoon: true,
-		},
-	]);
 </script>
 
 <svelte:head>
@@ -349,136 +303,91 @@
 						</h2>
 					</div>
 
-					<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+					<div class="max-w-sm">
 						<div
-							class="suggestion-card relative flex flex-col gap-3 border border-primary/30 bg-card p-5"
+							class="suggestion-card launch-posts-card relative flex h-full min-h-[11rem] flex-col overflow-hidden border border-primary/30 bg-card"
 							style="--card-delay: 0ms"
 						>
-							<div class="flex items-start justify-between gap-3">
-								<div class="flex h-8 w-8 items-center justify-center border border-primary/25 bg-primary/5 text-primary">
-									<CalendarDays class="h-4 w-4" />
-								</div>
-								{#if launchPostsState}
-									<Badge class="text-[9px]">
-										{launchPostsState.status === "generating"
-											? "Gerando"
-											: launchPostsState.status === "completed"
-												? "Concluído"
-												: launchPostsState.status === "partial"
-													? "Parcial"
-													: "Encerrado"}
-									</Badge>
-								{:else if pendingLaunchPostIds.has(projectId)}
-									<Badge class="text-[9px]">Processando</Badge>
-								{:else}
-									<Badge class="text-[9px]">Demo</Badge>
-								{/if}
-							</div>
-
-							<div class="min-h-[5.25rem]">
-								<h3 class="text-sm font-medium">{getLaunchPostsTitle()}</h3>
-								<p class="mt-1 text-xs leading-relaxed text-muted-foreground/70">
-									{getLaunchPostsDescription()}
-								</p>
-							</div>
-
 							{#if isLaunchPostsBusy}
 								<div
-									class="relative overflow-hidden rounded-lg border border-dashed border-primary/25 bg-muted/30"
-									style="aspect-ratio: 3 / 4;"
+									class="flex min-h-[11rem] flex-1 flex-col items-center justify-center gap-10 bg-card px-4 py-8"
+									aria-busy="true"
+									aria-label="Gerando posts automáticos"
 								>
-									<div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_35%),linear-gradient(to_bottom,rgba(255,255,255,0.02),rgba(255,255,255,0.06))]"></div>
-									<div class="relative z-[1] flex h-full w-full flex-col items-center justify-center p-3">
-										<ImageGenerationPulseLoader
-											message={launchPostsState?.status === "generating"
-												? `Gerando posts (${launchPostsState.completedPosts}/${launchPostsState.totalPosts})…`
-												: "Preparando os 5 posts…"}
-											density="compact"
-											class="pointer-events-none"
-										/>
-									</div>
-								</div>
-								{#if launchPostsState?.status === "generating"}
-									<div class="space-y-2">
-										<div class="h-1.5 overflow-hidden rounded-full bg-muted">
+									<ImageGenerationPulseLoader
+										message="Gerando o pacote de posts do projeto"
+										density="comfortable"
+										showBar={false}
+										class="pointer-events-none [&_p]:sr-only"
+									/>
+									<div class="relative h-1.5 w-full max-w-[11rem] overflow-hidden rounded-full bg-muted">
+										{#if launchPostsState?.status === "generating"}
 											<div
-												class="h-full rounded-full bg-primary transition-all duration-300"
+												class="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
 												style={`width: ${launchPostsProgressPercent}%`}
 											></div>
-										</div>
-										<p class="text-[11px] text-muted-foreground/60">
-											{launchPostsState.completedPosts} / {launchPostsState.totalPosts} posts prontos
-										</p>
+										{:else}
+											<div class="launch-posts-bar-sweep absolute inset-y-0 w-[42%] rounded-full bg-primary"></div>
+										{/if}
 									</div>
-								{/if}
-							{/if}
-
-							<div class="mt-auto space-y-2">
-								{#if canGenerateLaunchPosts}
-									<Button class="w-full" size="sm" onclick={handleGenerateLaunchPosts} disabled={isLaunchPostsBusy}>
-										{isLaunchPostsBusy ? "Gerando..." : "Gerar 5 posts"}
-									</Button>
-									<p class="text-[10px] text-muted-foreground/50">
-										Uma execução por projeto · agenda às 12:00.
-									</p>
-								{:else if !hasInstagramCapture}
-									<Button variant="outline" class="w-full" size="sm" onclick={() => (showSettings = true)} disabled={project.isFetching}>
-										{project.isFetching ? "Capturando Instagram..." : "Abrir captura do Instagram"}
-									</Button>
-								{:else}
-									<Button variant="outline" class="w-full" size="sm" onclick={() => goto("/calendar")}>
-										Ver calendário
-									</Button>
-									{#if launchPostsState?.completedAt}
-										<p class="text-[10px] text-muted-foreground/50">
-											Última atualização: {formatLaunchPostsTimestamp(launchPostsState.completedAt)}
-										</p>
-									{/if}
-								{/if}
-							</div>
-						</div>
-
-						{#each suggestions as suggestion, i}
-							{@const Icon = suggestion.icon}
-							{#if suggestion.href && !suggestion.comingSoon}
-								<a
-									href={suggestion.href}
-									class="suggestion-card group relative flex flex-col gap-3 border border-border bg-card p-5 transition-all hover:border-foreground/20"
-									style="--card-delay: {(i + 1) * 60}ms"
-								>
-									<div class="flex items-center justify-between">
-										<div class="flex h-8 w-8 items-center justify-center border border-border/50 text-muted-foreground transition-colors group-hover:border-primary/30 group-hover:text-primary">
-											<Icon class="h-4 w-4" />
-										</div>
-										<ArrowRight class="h-3 w-3 text-muted-foreground/30 transition-all group-hover:translate-x-0.5 group-hover:text-foreground" />
-									</div>
-									<div>
-										<h3 class="text-sm font-medium">{suggestion.title}</h3>
-										<p class="mt-1 text-xs leading-relaxed text-muted-foreground/70">{suggestion.description}</p>
-									</div>
-								</a>
+								</div>
 							{:else}
-								<div
-									class="suggestion-card group relative flex flex-col gap-3 border border-border/50 bg-card/50 p-5 opacity-60"
-									style="--card-delay: {(i + 1) * 60}ms"
-								>
-									<div class="flex items-center justify-between">
-										<div class="flex h-8 w-8 items-center justify-center border border-border/30 text-muted-foreground/50">
-											<Icon class="h-4 w-4" />
+								<div class="flex flex-1 flex-col gap-3 p-5">
+									<div class="flex shrink-0 items-start justify-between gap-3">
+										<div class="flex h-8 w-8 items-center justify-center border border-primary/25 bg-primary/5 text-primary">
+											<CalendarDays class="h-4 w-4" />
 										</div>
-										<Badge class="text-[9px]">Em breve</Badge>
+										{#if launchPostsState}
+											<Badge class="text-[9px]">
+												{launchPostsState.status === "generating"
+													? "Gerando"
+													: launchPostsState.status === "completed"
+														? "Concluído"
+														: launchPostsState.status === "partial"
+															? "Parcial"
+															: "Encerrado"}
+											</Badge>
+										{:else if pendingLaunchPostIds.has(projectId)}
+											<Badge class="text-[9px]">Processando</Badge>
+										{:else}
+											<Badge class="text-[9px]">Demo</Badge>
+										{/if}
 									</div>
-									<div>
-										<h3 class="text-sm font-medium text-foreground/70">{suggestion.title}</h3>
-										<p class="mt-1 text-xs leading-relaxed text-muted-foreground/50">{suggestion.description}</p>
+
+									<div class="min-h-[5.25rem] shrink-0">
+										<h3 class="text-sm font-medium">{getLaunchPostsTitle()}</h3>
+										<p class="mt-1 text-xs leading-relaxed text-muted-foreground/70 line-clamp-4">
+											{getLaunchPostsDescription()}
+										</p>
+									</div>
+
+									<div class="mt-auto shrink-0 space-y-2">
+										{#if canGenerateLaunchPosts}
+											<Button class="w-full" size="sm" onclick={handleGenerateLaunchPosts}>
+												Gerar 5 posts
+											</Button>
+											<p class="text-[10px] text-muted-foreground/50">
+												Uma execução por projeto · agenda às 12:00.
+											</p>
+										{:else if !hasInstagramCapture}
+											<Button variant="outline" class="w-full" size="sm" onclick={() => (showSettings = true)} disabled={project.isFetching}>
+												{project.isFetching ? "Capturando Instagram..." : "Abrir captura do Instagram"}
+											</Button>
+										{:else}
+											<Button variant="outline" class="w-full" size="sm" onclick={() => goto("/calendar")}>
+												Ver calendário
+											</Button>
+											{#if launchPostsState?.completedAt}
+												<p class="text-[10px] text-muted-foreground/50">
+													Última atualização: {formatLaunchPostsTimestamp(launchPostsState.completedAt)}
+												</p>
+											{/if}
+										{/if}
 									</div>
 								</div>
 							{/if}
-						{/each}
+						</div>
 					</div>
-					{#if launchPostsError}
-						<p class="mt-3 text-sm text-destructive">{launchPostsError}</p>
-					{/if}
 				</section>
 
 				<!-- Memória do Instagram (digest + captura única) -->
@@ -650,5 +559,19 @@
 	@keyframes backdropFadeIn {
 		from { opacity: 0; }
 		to { opacity: 1; }
+	}
+
+	@keyframes launchPostsBarSweep {
+		from {
+			transform: translateX(-100%);
+		}
+		to {
+			transform: translateX(320%);
+		}
+	}
+
+	.launch-posts-bar-sweep {
+		left: 0;
+		animation: launchPostsBarSweep 1.4s ease-in-out infinite;
 	}
 </style>

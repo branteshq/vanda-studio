@@ -1,3 +1,5 @@
+import { toUserFacingError } from "$lib/errors/userFacingError";
+
 export const IMAGE_GENERATION_ERROR_DOMAIN = "image_generation";
 
 export const imageGenerationErrorCodes = [
@@ -27,19 +29,6 @@ export type ImageGenerationUiError = ImageGenerationErrorPayload & {
 	surface: ImageGenerationErrorSurface;
 	summary: string;
 };
-
-const rawMessagePrefixPattern =
-	/^\[CONVEX [^\]]+\]\s*(?:\[Request ID:[^\]]+\]\s*)?Server Error Called by client\s*/i;
-
-function sanitizeRawMessage(message: string | undefined | null): string | null {
-	if (!message) return null;
-
-	const sanitized = message.replace(rawMessagePrefixPattern, "").trim();
-	if (!sanitized) return null;
-	if (sanitized.includes("Server Error Called by client")) return null;
-
-	return sanitized;
-}
 
 export function isImageGenerationErrorPayload(
 	value: unknown
@@ -148,14 +137,11 @@ export function normalizeImageGenerationError(
 	}
 
 	const fallback = createImageGenerationUiError(fallbackCode);
-	const rawMessage =
-		error instanceof Error
-			? sanitizeRawMessage(error.message)
-			: typeof error === "string"
-				? sanitizeRawMessage(error)
-				: null;
-
-	return rawMessage
-		? { ...fallback, message: rawMessage }
-		: fallback;
+	const safe = toUserFacingError(error);
+	return {
+		...fallback,
+		title: safe.title,
+		message: safe.message,
+		summary: safe.message,
+	};
 }

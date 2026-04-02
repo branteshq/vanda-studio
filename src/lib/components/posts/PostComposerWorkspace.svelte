@@ -19,19 +19,23 @@
 		savePostComposerState,
 		type PostComposerState,
 	} from "$lib/studio/postComposerState";
-	import type { Resolution } from "$lib/studio/imageGenerationCapabilities";
+	import {
+		DEFAULT_STUDIO_IMAGE_MODEL,
+		type Resolution,
+	} from "$lib/studio/imageGenerationCapabilities";
 	import {
 		estimateCaptionUsage,
 		sumUsageLineItemCredits,
 	} from "$lib/billing/aiCredits";
 	import { Badge, Button, Textarea } from "$lib/components/ui";
+	import { formatUserFacingMessage } from "$lib/errors";
 	import { api } from "../../../convex/_generated/api.js";
 	import type { Id } from "../../../convex/_generated/dataModel.js";
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import MediaLibrarySheet from "./MediaLibrarySheet.svelte";
 
 	const MAX_CAROUSEL = 10;
-	const DEFAULT_AI_IMAGE_MODEL = "bytedance-seed/seedream-4.5";
+	const DEFAULT_AI_IMAGE_MODEL = DEFAULT_STUDIO_IMAGE_MODEL;
 
 	type MediaItem = {
 		_id: Id<"media_items">;
@@ -448,7 +452,7 @@
 			caption = result.caption;
 			markComposerPersistenceReady();
 		} catch (err) {
-			error = err instanceof Error ? err.message : "Erro ao gerar legenda";
+			error = formatUserFacingMessage(err);
 		} finally {
 			isGeneratingCaption = false;
 		}
@@ -487,7 +491,7 @@
 			updateComposerUrl(savedPostId);
 			return savedPostId;
 		} catch (err) {
-			error = err instanceof Error ? err.message : "Erro ao salvar rascunho";
+			error = formatUserFacingMessage(err);
 			return null;
 		} finally {
 			isSavingDraft = false;
@@ -517,7 +521,7 @@
 				void goto("/posts");
 			}
 		} catch (err) {
-			error = err instanceof Error ? err.message : "Erro ao excluir post";
+			error = formatUserFacingMessage(err);
 		} finally {
 			isDeletingPost = false;
 		}
