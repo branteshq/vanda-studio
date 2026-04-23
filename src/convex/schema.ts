@@ -51,6 +51,7 @@ export default defineSchema({
 
     social_connections: defineTable({
         userId: v.id("users"),
+        projectId: v.optional(v.id("projects")),
         platform: v.string(), // "instagram"
         provider: v.string(), // "instagram_graph"
         status: v.string(), // "connected" | "error" | "expired"
@@ -71,6 +72,7 @@ export default defineSchema({
         updatedAt: v.number(),
     }).index("by_user_id", ["userId"])
       .index("by_user_platform", ["userId", "platform"])
+      .index("by_project_platform", ["projectId", "platform"])
       .index("by_external_account", ["provider", "externalAccountId"]),
 
     // Context images for brand context

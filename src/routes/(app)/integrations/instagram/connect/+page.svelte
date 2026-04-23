@@ -1,16 +1,19 @@
 <script lang="ts">
 	import { browser } from "$app/environment";
+	import { page } from "$app/stores";
 	import { useConvexClient } from "convex-svelte";
 	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
 	import { api } from "../../../../../convex/_generated/api.js";
 	import Navbar from "$lib/components/Navbar.svelte";
 	import { Button } from "$lib/components/ui";
 	import { formatUserFacingMessage } from "$lib/errors";
+	import type { Id } from "../../../../../convex/_generated/dataModel.js";
 
 	const client = useConvexClient();
 
 	let isConnecting = $state(false);
 	let error = $state<string | null>(null);
+	const projectId = $derived($page.url.searchParams.get("projectId") as Id<"projects"> | null);
 
 	function getRedirectUri() {
 		if (!browser) return "";
@@ -23,6 +26,7 @@
 		try {
 			const result = await client.action(api.instagramGraphActions.getConnectUrl, {
 				redirectUri: getRedirectUri(),
+				...(projectId ? { projectId } : {}),
 			});
 			window.location.href = result.url;
 		} catch (err) {
@@ -47,7 +51,7 @@
 			<h1 class="mt-3 text-3xl font-semibold">Conectar Instagram</h1>
 			<p class="mt-4 text-sm leading-6 text-muted-foreground">
 				Conecte uma conta profissional do Instagram para que a Vanda possa importar dados da conta,
-				sincronizar publicações e preparar a base de métricas.
+				sincronizar publicações e preparar a base de métricas{projectId ? " deste projeto" : ""}.
 			</p>
 
 			<SignedOut>

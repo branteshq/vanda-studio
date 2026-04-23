@@ -13,11 +13,13 @@ import {
 } from "./brandKitShape";
 import { instagramContentDigestValidator } from "./instagramDigestShape";
 import { launchPostsGenerationValidator } from "../lib/convex/launchPostsShape";
+import type { InstagramConnectionPublic } from "./instagramGraph";
 
 // Type for project with storage URL
 type ProjectWithStorageUrl = Doc<"projects"> & {
     profilePictureStorageUrl: string | null;
     logoStorageUrl: string | null;
+    instagramConnection: InstagramConnectionPublic | null;
 };
 
 type ProjectSummary = ProjectWithStorageUrl & {
@@ -50,7 +52,7 @@ async function resolveProjectsWithUrls(
     ctx: QueryCtx,
     projects: Doc<"projects">[]
 ): Promise<ProjectWithStorageUrl[]> {
-    const [profileUrls, logoUrls] = await Promise.all([
+    const [profileUrls, logoUrls, instagramConnections] = await Promise.all([
         Promise.all(
             projects.map((project) =>
                 project.profilePictureStorageId
@@ -65,13 +67,47 @@ async function resolveProjectsWithUrls(
                     : Promise.resolve(null)
             )
         ),
+        Promise.all(projects.map((project) => resolveInstagramConnection(ctx, project._id))),
     ]);
 
     return projects.map((project, index) => ({
         ...project,
         profilePictureStorageUrl: profileUrls[index] ?? null,
         logoStorageUrl: logoUrls[index] ?? null,
+        instagramConnection: instagramConnections[index] ?? null,
     }));
+}
+
+async function resolveInstagramConnection(
+    ctx: QueryCtx,
+    projectId: Doc<"projects">["_id"]
+): Promise<InstagramConnectionPublic | null> {
+    const doc = await ctx.db
+        .query("social_connections")
+        .withIndex("by_project_platform", (q) =>
+            q.eq("projectId", projectId).eq("platform", "instagram")
+        )
+        .first();
+    if (!doc) return null;
+    return {
+        _id: doc._id,
+        platform: doc.platform,
+        provider: doc.provider,
+        status: doc.status,
+        externalAccountId: doc.externalAccountId,
+        lastConnectedAt: doc.lastConnectedAt,
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt,
+        ...(doc.projectId ? { projectId: doc.projectId } : {}),
+        ...(doc.externalAccountName ? { externalAccountName: doc.externalAccountName } : {}),
+        ...(doc.handle ? { handle: doc.handle } : {}),
+        ...(doc.pageId ? { pageId: doc.pageId } : {}),
+        ...(doc.pageName ? { pageName: doc.pageName } : {}),
+        ...(doc.scopes ? { scopes: doc.scopes } : {}),
+        ...(doc.tokenExpiresAt ? { tokenExpiresAt: doc.tokenExpiresAt } : {}),
+        ...(doc.lastSyncAt ? { lastSyncAt: doc.lastSyncAt } : {}),
+        ...(doc.lastError ? { lastError: doc.lastError } : {}),
+    };
 }
 
 export const create = mutation({
@@ -343,6 +379,7 @@ export const get = query({
             ...project,
             profilePictureStorageUrl,
             logoStorageUrl,
+            instagramConnection: await resolveInstagramConnection(ctx, args.projectId),
         };
     },
 });

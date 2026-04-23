@@ -15,6 +15,7 @@
 	let message = $state("Finalizando conexão com o Instagram...");
 	let error = $state<string | null>(null);
 	let started = $state(false);
+	let connectedProjectId = $state<string | null>(null);
 
 	const code = $derived($page.url.searchParams.get("code"));
 	const oauthState = $derived($page.url.searchParams.get("state"));
@@ -49,8 +50,9 @@
 				redirectUri: getRedirectUri(),
 			});
 			status = "connected";
+			connectedProjectId = result.projectId ?? null;
 			message = result.handle
-				? `Instagram @${result.handle} conectado com sucesso.`
+				? `Instagram @${result.handle} conectado ${result.projectId ? "ao projeto" : ""} com sucesso.`
 				: "Instagram conectado com sucesso.";
 		} catch (err) {
 			console.error("[instagram-callback] completeOAuth failed", err);
@@ -109,7 +111,9 @@
 					<p class="mt-4 text-sm leading-6 text-muted-foreground">{message}</p>
 					{#if status === "connected"}
 						<div class="mt-8">
-							<Button onclick={() => goto("/account")}>Voltar para a conta</Button>
+							<Button onclick={() => goto(connectedProjectId ? `/projects/${connectedProjectId}` : "/account")}>
+								{connectedProjectId ? "Voltar para o projeto" : "Voltar para a conta"}
+							</Button>
 						</div>
 					{/if}
 				{/if}

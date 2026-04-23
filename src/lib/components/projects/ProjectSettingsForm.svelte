@@ -8,6 +8,7 @@
         type BrandKitState,
     } from "$lib/types/brandKit";
     import { useConvexClient } from "convex-svelte";
+    import { goto } from "$app/navigation";
     import { api } from "../../../convex/_generated/api.js";
     import type { Id } from "../../../convex/_generated/dataModel.js";
     import { formatHandleForInput, normalizeInstagramInput } from "$lib/utils/instagram";
@@ -38,6 +39,14 @@
         };
         lastInstagramSyncAt?: number;
         lastInstagramSyncMode?: "intel_only" | "full";
+        instagramConnection?: {
+            _id: Id<"social_connections">;
+            status: string;
+            handle?: string;
+            externalAccountName?: string;
+            lastConnectedAt: number;
+            tokenExpiresAt?: number;
+        } | null;
     }
 
     interface Props {
@@ -72,6 +81,7 @@
     let syncIgSuccess = $state<string | null>(null);
 
     const igCaptureDone = $derived(typeof project?.lastInstagramSyncAt === "number");
+    const officialInstagram = $derived(project?.instagramConnection ?? null);
 
     function seedBrandKitFromProject(p: Project): BrandKitState {
         const k: BrandKitState = { ...emptyBrandKit(), ...(p.brandKit ?? {}) };
@@ -256,6 +266,10 @@
             igSyncBusy = false;
         }
     }
+
+    function handleOfficialInstagramConnect() {
+        goto(`/integrations/instagram/connect?projectId=${projectId}`);
+    }
 </script>
 
 <div class="space-y-8">
@@ -330,6 +344,32 @@
             <PlatformSelector value={platform} onchange={(p) => (platform = p)} />
 
             <div class="space-y-3 rounded-none border border-border/80 bg-muted/10 p-4">
+                <div class="border border-primary/20 bg-primary/5 p-3">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p class="text-sm font-medium">Integração oficial do Instagram</p>
+                            {#if officialInstagram}
+                                <p class="mt-1 text-xs text-muted-foreground">
+                                    @{officialInstagram.handle ?? project.instagramHandle ?? "conta conectada"}
+                                    conectado a este projeto.
+                                </p>
+                            {:else}
+                                <p class="mt-1 text-xs text-muted-foreground">
+                                    Conecte a conta profissional para publicar pelo calendário e sincronizar métricas.
+                                </p>
+                            {/if}
+                        </div>
+                        <Button
+                            type="button"
+                            variant={officialInstagram ? "outline" : "default"}
+                            size="sm"
+                            onclick={handleOfficialInstagramConnect}
+                        >
+                            {officialInstagram ? "Reconectar" : "Conectar Instagram"}
+                        </Button>
+                    </div>
+                </div>
+
                 <div class="space-y-2">
                     <Label for="instagram-handle" class="text-sm font-medium">Instagram (opcional)</Label>
                     <Input

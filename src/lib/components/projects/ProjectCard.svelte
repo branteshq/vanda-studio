@@ -12,6 +12,10 @@
         profilePictureStorageUrl?: string | null;
         logoStorageUrl?: string | null;
         isFetching?: boolean;
+        instagramConnection?: {
+            status: string;
+            handle?: string;
+        } | null;
     }
 
     interface Props {
@@ -122,7 +126,12 @@
     </div>
 
     <!-- Post count -->
-    <Badge variant="secondary">
-        {postCount} {postCount === 1 ? "post" : "posts"}
-    </Badge>
+    <div class="flex flex-wrap justify-center gap-2">
+        <Badge variant="secondary">
+            {postCount} {postCount === 1 ? "post" : "posts"}
+        </Badge>
+        {#if project.instagramConnection?.status === "connected"}
+            <Badge variant="outline">Conectado</Badge>
+        {/if}
+    </div>
 </div>

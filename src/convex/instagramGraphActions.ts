@@ -4,6 +4,7 @@ import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { v } from "convex/values";
 import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 
 const GRAPH_VERSION = "v23.0";
 const INSTAGRAM_GRAPH_BASE = `https://graph.instagram.com/${GRAPH_VERSION}`;
@@ -58,25 +59,37 @@ function decodeBase64Url(value: string): string {
     return Buffer.from(value, "base64url").toString("utf8");
 }
 
-function buildStatePayload(clerkId: string): string {
+function buildStatePayload(clerkId: string, projectId?: Id<"projects">): string {
     const nonce = randomBytes(18).toString("base64url");
     return encodeBase64Url(JSON.stringify({
         clerkId,
+        ...(projectId ? { projectId } : {}),
         nonce,
         createdAt: Date.now(),
     }));
 }
 
-function parseStatePayload(state: string): { clerkId: string; createdAt: number } {
+function parseStatePayload(state: string): {
+    clerkId: string;
+    createdAt: number;
+    projectId?: Id<"projects">;
+} {
     try {
         const parsed = JSON.parse(decodeBase64Url(state)) as {
             clerkId?: unknown;
             createdAt?: unknown;
+            projectId?: unknown;
         };
         if (typeof parsed.clerkId !== "string" || typeof parsed.createdAt !== "number") {
             throw new Error("Invalid Instagram state");
         }
-        return { clerkId: parsed.clerkId, createdAt: parsed.createdAt };
+        return {
+            clerkId: parsed.clerkId,
+            createdAt: parsed.createdAt,
+            ...(typeof parsed.projectId === "string"
+                ? { projectId: parsed.projectId as Id<"projects"> }
+                : {}),
+        };
     } catch {
         throw new Error("Invalid Instagram state");
     }
@@ -123,6 +136,7 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 export const getConnectUrl = action({
     args: {
         redirectUri: v.string(),
+        projectId: v.optional(v.id("projects")),
     },
     handler: async (ctx, args): Promise<{ url: string }> => {
         const identity = await ctx.auth.getUserIdentity();
@@ -131,7 +145,7 @@ export const getConnectUrl = action({
         }
 
         const clientId = requireFirstEnv(["INSTAGRAM_APP_ID", "META_APP_ID"]);
-        const state = buildStatePayload(identity.subject);
+        const state = buildStatePayload(identity.subject, args.projectId);
         const scope = [
             "instagram_business_basic",
             "instagram_business_content_publish",
@@ -161,6 +175,7 @@ export const completeOAuth = action({
         handle?: string;
         pageName?: string;
         externalAccountId: string;
+        projectId?: Id<"projects">;
     }> => {
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
@@ -237,6 +252,8 @@ export const completeOAuth = action({
             ...(profile.username
                 ? { handle: profile.username }
                 : {}),
+            ...(parsedState.projectId ? { projectId: parsedState.projectId } : {}),
+            ...(profile.media_count !== undefined ? { postsCount: profile.media_count } : {}),
             ...(tokenExpiresAt ? { tokenExpiresAt } : {}),
         };
         const user = await ctx.runMutation(internal.instagramGraph.upsertConnectionInternal, connectionArgs);
@@ -244,6 +261,7 @@ export const completeOAuth = action({
         return {
             connected: true,
             externalAccountId: user.externalAccountId,
+            ...(parsedState.projectId ? { projectId: parsedState.projectId } : {}),
             ...(user.handle ? { handle: user.handle } : {}),
             ...(user.pageName ? { pageName: user.pageName } : {}),
         };
