@@ -59,38 +59,41 @@
         <Label class="text-sm font-medium">{label}</Label>
     {/if}
     <Popover bind:open={popoverOpen}>
-        <PopoverTrigger class="w-full">
-            <button
-                type="button"
-                class={`flex w-full items-center justify-between border border-border bg-background px-3 text-sm transition-colors hover:bg-muted ${
-                    compact ? "h-10 rounded-md" : "h-10"
-                } ${popoverOpen ? "ring-1 ring-ring" : ""}`}
-            >
-                <div class="flex items-center gap-2">
-                    {#if selectedProject}
-                        <!-- Profile picture -->
-                        <div class="h-6 w-6 overflow-hidden rounded-full border border-border bg-muted">
-                            {#if getProfilePicture(selectedProject)}
-                                <img
-                                    src={getProfilePicture(selectedProject)}
-                                    alt={selectedProject.name}
-                                    class="h-full w-full object-cover"
-                                />
-                            {:else}
-                                <div class="flex h-full w-full items-center justify-center text-xs font-medium text-muted-foreground">
-                                    {selectedProject.name.charAt(0).toUpperCase()}
-                                </div>
-                            {/if}
-                        </div>
-                        <span>{selectedProject.name}</span>
-                    {:else}
-                        <span class="text-muted-foreground">Sem projeto</span>
-                    {/if}
-                </div>
-                <svg class="h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" />
-                </svg>
-            </button>
+        <PopoverTrigger>
+            {#snippet child({ props })}
+                <button
+                    {...props}
+                    type="button"
+                    class={`flex w-full items-center justify-between border border-border bg-background px-3 text-sm transition-colors hover:bg-muted ${
+                        compact ? "h-10 rounded-md" : "h-10"
+                    } ${popoverOpen ? "ring-1 ring-ring" : ""}`}
+                >
+                    <div class="flex items-center gap-2">
+                        {#if selectedProject}
+                            <!-- Profile picture -->
+                            <div class="h-6 w-6 overflow-hidden rounded-full border border-border bg-muted">
+                                {#if getProfilePicture(selectedProject)}
+                                    <img
+                                        src={getProfilePicture(selectedProject)}
+                                        alt={selectedProject.name}
+                                        class="h-full w-full object-cover"
+                                    />
+                                {:else}
+                                    <div class="flex h-full w-full items-center justify-center text-xs font-medium text-muted-foreground">
+                                        {selectedProject.name.charAt(0).toUpperCase()}
+                                    </div>
+                                {/if}
+                            </div>
+                            <span>{selectedProject.name}</span>
+                        {:else}
+                            <span class="text-muted-foreground">Sem projeto</span>
+                        {/if}
+                    </div>
+                    <svg class="h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" />
+                    </svg>
+                </button>
+            {/snippet}
         </PopoverTrigger>
         <PopoverContent class="w-[var(--popover-trigger-width)] p-1" align="start">
             <!-- No project option -->

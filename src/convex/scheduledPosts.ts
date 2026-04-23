@@ -415,6 +415,67 @@ export const getUpcomingPosts = query({
     },
 });
 
+export const getProjectPosts = query({
+    args: {
+        projectId: v.id("projects"),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return [];
+        }
+
+        const project = await ctx.db.get(args.projectId);
+        if (!project) {
+            return [];
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+        if (!user || project.userId !== user._id) {
+            return [];
+        }
+
+        const limit = Math.min(100, Math.max(1, args.limit ?? 30));
+        const posts = await ctx.db
+            .query("generated_posts")
+            .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId))
+            .collect();
+
+        const visiblePosts = posts
+            .filter((post) => !post.deletedAt)
+            .sort((a, b) => {
+                const aTime = a.scheduledFor ?? a.publishedAt ?? a.createdAt;
+                const bTime = b.scheduledFor ?? b.publishedAt ?? b.createdAt;
+                return bTime - aTime;
+            })
+            .slice(0, limit);
+
+        return await Promise.all(
+            visiblePosts.map(async (post) => {
+                const images = await ctx.db
+                    .query("generated_images")
+                    .withIndex("by_generated_post_id", (q) => q.eq("generatedPostId", post._id))
+                    .take(1);
+                const firstImage = images[0];
+                const imageUrl = firstImage
+                    ? await ctx.storage.getUrl(firstImage.storageId)
+                    : post.imageStorageId
+                      ? await ctx.storage.getUrl(post.imageStorageId)
+                      : null;
+
+                return {
+                    ...post,
+                    imageUrl,
+                };
+            })
+        );
+    },
+});
+
 // Get posts scheduled for a specific day
 export const getPostsForDay = query({
     args: {
