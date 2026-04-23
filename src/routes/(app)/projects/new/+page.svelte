@@ -133,6 +133,10 @@
         error = null;
         if (step === 0) {
             if (!path) { error = "Escolha uma opção."; return; }
+            if (path === "existing") {
+                void startInstagramProject();
+                return;
+            }
             pushStep(1);
             return;
         }
@@ -150,6 +154,26 @@
         }
         if (step < totalSteps - 1) {
             pushStep(step + 1);
+        }
+    }
+
+    async function startInstagramProject() {
+        if (isCreating) return;
+        error = null;
+        isCreating = true;
+        createStatus = "Preparando conexão com Instagram…";
+        try {
+            const id = await client.mutation(api.projects.create, {
+                name: "Projeto do Instagram",
+                onboardingStatus: "draft",
+                onboardingPath: "existing",
+                accountDescription: "Projeto criado para conectar e analisar uma marca no Instagram.",
+            });
+            goto(`/integrations/instagram/connect?projectId=${id}`);
+        } catch (e) {
+            error = formatUserFacingMessage(e);
+            isCreating = false;
+            createStatus = "";
         }
     }
 
@@ -301,7 +325,7 @@
 
     // ── Step metadata ──────────────────────────────────────────────────
     function getStepTitle(): string {
-        if (step === 0) return "Como quer começar?";
+        if (step === 0) return "Como quer conectar?";
         if (isSummaryStep) {
             if (!isAutoFilling) return "Pronto. Sua marca.";
             return path === "existing" ? "Analisando sua marca…" : "Montando sua marca…";
@@ -337,12 +361,16 @@
     }
 
     function getNextLabel(): string {
+        if (step === 0 && path === "existing") {
+            return isCreating ? (createStatus || "Conectando…") : "Conectar Instagram";
+        }
         if (path === "existing" && step === 1) return "Vanda analisa";
         return "Continuar";
     }
 
     function isNextDisabled(): boolean {
         if (step === 0 && !path) return true;
+        if (step === 0 && isCreating) return true;
         if (path === "existing" && step === 1 && (!projectName.trim() || !normalizeInstagramInput(instagramHandleInput)))
             return true;
         if (path === "new" && step === 1 && !projectName.trim()) return true;
@@ -504,7 +532,7 @@
                                     </div>
                                     <h3 class="text-base font-semibold">Já tenho uma marca</h3>
                                     <p class="text-sm text-muted-foreground">
-                                        Informe o @ do Instagram e a Vanda analisa o perfil e as últimas postagens.
+                                        Conecte o Instagram e a Vanda importa posts, métricas e gera a primeira estratégia.
                                     </p>
                                 </button>
 

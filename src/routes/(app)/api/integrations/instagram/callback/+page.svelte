@@ -111,8 +111,8 @@
 					<p class="mt-4 text-sm leading-6 text-muted-foreground">{message}</p>
 					{#if status === "connected"}
 						<div class="mt-8">
-							<Button onclick={() => goto(connectedProjectId ? `/projects/${connectedProjectId}` : "/account")}>
-								{connectedProjectId ? "Voltar para o projeto" : "Voltar para a conta"}
+							<Button onclick={() => goto(connectedProjectId ? `/projects/${connectedProjectId}/setup` : "/account")}>
+								{connectedProjectId ? "Continuar configuração" : "Voltar para a conta"}
 							</Button>
 						</div>
 					{/if}

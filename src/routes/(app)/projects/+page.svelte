@@ -247,13 +247,13 @@
 		</SignedOut>
 
 		<SignedIn>
-			<section class="relative border-b border-zinc-800/90 px-8 py-8 lg:px-10">
-				<div class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+			<section class="relative border-b border-zinc-800/90 px-8 py-5 lg:px-10">
+				<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 					<div>
-						<h1 class="font-serif text-5xl font-semibold leading-none tracking-[-0.03em] text-white md:text-6xl">
+						<h1 class="font-serif text-3xl font-semibold leading-none tracking-[-0.02em] text-white md:text-4xl">
 							Projetos
 						</h1>
-						<p class="mt-4 text-base text-zinc-400">
+						<p class="mt-2 text-sm text-zinc-400">
 							Cada projeto é um workspace de marca conectado ao Instagram
 						</p>
 					</div>
