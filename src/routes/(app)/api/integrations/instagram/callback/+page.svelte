@@ -2,13 +2,14 @@
 	import { goto } from "$app/navigation";
 	import { page } from "$app/stores";
 	import { useConvexClient } from "convex-svelte";
-	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
+	import { SignedIn, SignedOut, SignInButton, useClerkContext } from "svelte-clerk";
 	import { api } from "../../../../../../convex/_generated/api.js";
 	import Navbar from "$lib/components/Navbar.svelte";
 	import { Button } from "$lib/components/ui";
 	import { formatUserFacingMessage } from "$lib/errors";
 
 	const client = useConvexClient();
+	const clerk = useClerkContext();
 
 	let status = $state<"idle" | "connecting" | "connected" | "error">("idle");
 	let message = $state("Finalizando conexão com o Instagram...");
@@ -25,6 +26,7 @@
 
 	async function complete() {
 		if (started) return;
+		if (!clerk.session) return;
 		started = true;
 
 		if (metaError) {
@@ -51,6 +53,7 @@
 				? `Instagram @${result.handle} conectado com sucesso.`
 				: "Instagram conectado com sucesso.";
 		} catch (err) {
+			console.error("[instagram-callback] completeOAuth failed", err);
 			status = "error";
 			error = formatUserFacingMessage(err);
 		}
@@ -91,6 +94,9 @@
 			<SignedIn>
 				{#if status === "error"}
 					<p class="mt-4 text-sm leading-6 text-destructive">{error}</p>
+					<p class="mt-3 text-xs leading-5 text-muted-foreground">
+						Abra o console do navegador ou os logs do Convex para ver o erro técnico detalhado.
+					</p>
 					<div class="mt-8 flex gap-3">
 						<Button onclick={() => goto("/integrations/instagram/connect")}>
 							Tentar novamente
