@@ -50,6 +50,8 @@ import type * as imageEditTurns from "../imageEditTurns.js";
 import type * as imageGenerationErrors from "../imageGenerationErrors.js";
 import type * as instagram from "../instagram.js";
 import type * as instagramDigestShape from "../instagramDigestShape.js";
+import type * as instagramGraph from "../instagramGraph.js";
+import type * as instagramGraphActions from "../instagramGraphActions.js";
 import type * as instagramPosts from "../instagramPosts.js";
 import type * as mediaGenerationBatches from "../mediaGenerationBatches.js";
 import type * as mediaItems from "../mediaItems.js";
@@ -112,6 +114,8 @@ declare const fullApi: ApiFromModules<{
   imageGenerationErrors: typeof imageGenerationErrors;
   instagram: typeof instagram;
   instagramDigestShape: typeof instagramDigestShape;
+  instagramGraph: typeof instagramGraph;
+  instagramGraphActions: typeof instagramGraphActions;
   instagramPosts: typeof instagramPosts;
   mediaGenerationBatches: typeof mediaGenerationBatches;
   mediaItems: typeof mediaItems;

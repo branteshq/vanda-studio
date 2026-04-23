@@ -275,7 +275,7 @@ function buildLaunchPostsState(args: {
         ...(args.completedAt ? { completedAt: args.completedAt } : {}),
     };
     if (args.status !== "generating") {
-        return base as const;
+        return base;
     }
     return {
         ...base,

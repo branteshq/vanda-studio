@@ -49,6 +49,30 @@ export default defineSchema({
         launchPostsGeneration: v.optional(launchPostsGenerationValidator),
     }).index("by_user_id", ["userId"]),
 
+    social_connections: defineTable({
+        userId: v.id("users"),
+        platform: v.string(), // "instagram"
+        provider: v.string(), // "instagram_graph"
+        status: v.string(), // "connected" | "error" | "expired"
+        externalAccountId: v.string(), // Instagram professional account ID
+        externalAccountName: v.optional(v.string()),
+        handle: v.optional(v.string()),
+        pageId: v.optional(v.string()),
+        pageName: v.optional(v.string()),
+        scopes: v.optional(v.array(v.string())),
+        tokenCiphertext: v.optional(v.string()),
+        tokenIv: v.optional(v.string()),
+        tokenAuthTag: v.optional(v.string()),
+        tokenExpiresAt: v.optional(v.number()),
+        lastConnectedAt: v.number(),
+        lastSyncAt: v.optional(v.number()),
+        lastError: v.optional(v.string()),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+    }).index("by_user_id", ["userId"])
+      .index("by_user_platform", ["userId", "platform"])
+      .index("by_external_account", ["provider", "externalAccountId"]),
+
     // Context images for brand context
     context_images: defineTable({
         projectId: v.id("projects"),
