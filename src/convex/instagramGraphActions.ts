@@ -40,6 +40,16 @@ function requireEnv(name: string): string {
     return value;
 }
 
+function requireFirstEnv(names: string[]): string {
+    for (const name of names) {
+        const value = process.env[name]?.trim();
+        if (value) {
+            return value;
+        }
+    }
+    throw new Error(`Missing ${names.join(" or ")}`);
+}
+
 function encodeBase64Url(value: string): string {
     return Buffer.from(value, "utf8").toString("base64url");
 }
@@ -112,7 +122,7 @@ export const getConnectUrl = action({
             throw new Error("Não autenticado");
         }
 
-        const clientId = requireEnv("META_APP_ID");
+        const clientId = requireFirstEnv(["INSTAGRAM_APP_ID", "META_APP_ID"]);
         const state = buildStatePayload(identity.subject);
         const scope = [
             "instagram_business_basic",
@@ -157,8 +167,8 @@ export const completeOAuth = action({
             throw new Error("Sessão de conexão do Instagram expirada");
         }
 
-        const clientId = requireEnv("META_APP_ID");
-        const clientSecret = requireEnv("META_APP_SECRET");
+        const clientId = requireFirstEnv(["INSTAGRAM_APP_ID", "META_APP_ID"]);
+        const clientSecret = requireFirstEnv(["INSTAGRAM_APP_SECRET", "META_APP_SECRET"]);
 
         const shortToken = await fetchJson<MetaTokenResponse>(
             "https://api.instagram.com/oauth/access_token",
