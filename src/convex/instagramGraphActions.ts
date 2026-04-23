@@ -106,7 +106,15 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 
     if (!response.ok || (data as { error?: MetaError }).error) {
         const error = (data as { error?: MetaError }).error;
-        throw new Error(error?.message ?? `Meta API request failed with ${response.status}`);
+        const message = error?.message ?? `Meta API request failed with ${response.status}`;
+        const details = error
+            ? ` (${JSON.stringify({
+                type: error.type,
+                code: error.code,
+                error_subcode: error.error_subcode,
+            })})`
+            : "";
+        throw new Error(`${message}${details}`);
     }
 
     return data;
