@@ -478,20 +478,20 @@
 				<div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_78%_8%,oklch(from var(--primary) l c h / 0.14),transparent_35%),radial-gradient(circle_at_20%_48%,oklch(from var(--foreground) l c h / 0.035),transparent_30%)]"></div>
 				<div class="pointer-events-none absolute inset-0 opacity-[0.035] [background-image:linear-gradient(rgba(255,255,255,.9)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.9)_1px,transparent_1px)] [background-size:28px_28px]"></div>
 
-				<section class="relative border-b border-border px-8 py-5 lg:px-10">
-					<div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-						<div class="flex items-center gap-5">
-							<div class="h-20 w-20 shrink-0 overflow-hidden rounded-full border border-border bg-muted">
+				<section class="relative border-b border-border px-8 py-3 lg:px-10">
+					<div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+						<div class="flex items-center gap-4">
+							<div class="h-14 w-14 shrink-0 overflow-hidden rounded-full border border-border bg-muted md:h-16 md:w-16">
 								{#if getAvatar()}
 									<img src={getAvatar() ?? ""} alt={project.name} class="h-full w-full object-cover" />
 								{:else}
-									<span class="flex h-full w-full items-center justify-center font-serif text-3xl font-semibold text-foreground/85">{project.name.charAt(0).toUpperCase()}</span>
+									<span class="flex h-full w-full items-center justify-center font-serif text-2xl font-semibold text-foreground/85">{project.name.charAt(0).toUpperCase()}</span>
 								{/if}
 							</div>
 							<div>
-								<h1 class="font-serif text-3xl font-semibold leading-none tracking-[-0.02em] text-foreground md:text-4xl">{project.name}</h1>
-								<p class="mt-2 text-sm text-muted-foreground">{getHandle() ? `@${getHandle()}` : "Instagram não conectado"}</p>
-								<div class="mt-3 flex flex-wrap items-center gap-3">
+								<h1 class="font-serif text-2xl font-semibold leading-none tracking-[-0.02em] text-foreground md:text-3xl">{project.name}</h1>
+								<p class="mt-1 text-sm text-muted-foreground">{getHandle() ? `@${getHandle()}` : "Instagram não conectado"}</p>
+								<div class="mt-2 flex flex-wrap items-center gap-2.5">
 									<Badge class={isConnected() ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-muted text-muted-foreground"}>
 										<span class="mr-2 inline-block h-2 w-2 rounded-full {isConnected() ? 'bg-pink-400' : 'bg-zinc-500'}"></span>
 										{isConnected() ? "Instagram conectado" : "Conectar Instagram"}
@@ -501,23 +501,23 @@
 							</div>
 						</div>
 
-						<div class="flex flex-wrap items-center gap-3">
+						<div class="flex flex-wrap items-center gap-2.5">
 							{#if activeTab === "strategy"}
-								<Button variant="outline" size="lg" onclick={() => project.instagramUrl ? window.open(project.instagramUrl, "_blank") : goto(`/integrations/instagram/connect?projectId=${projectId}`)}>
+								<Button variant="outline" onclick={() => project.instagramUrl ? window.open(project.instagramUrl, "_blank") : goto(`/integrations/instagram/connect?projectId=${projectId}`)}>
 									<Instagram class="h-4 w-4" /> Abrir no Instagram
 								</Button>
 								<Button variant="outline" size="icon" aria-label="Mais ações">
 									<MoreHorizontal class="h-5 w-5" />
 								</Button>
 							{:else}
-								<Button variant="outline" size="lg" onclick={syncProject} disabled={isSyncing}>
+								<Button variant="outline" onclick={syncProject} disabled={isSyncing}>
 									{#if isSyncing}<Loader2 class="h-4 w-4 animate-spin" />{:else}<RefreshCw class="h-4 w-4" />{/if}
 									Sincronizar
 								</Button>
-								<Button variant="outline" size="lg" onclick={() => project.instagramUrl ? window.open(project.instagramUrl, "_blank") : goto(`/integrations/instagram/connect?projectId=${projectId}`)}>
+								<Button variant="outline" onclick={() => project.instagramUrl ? window.open(project.instagramUrl, "_blank") : goto(`/integrations/instagram/connect?projectId=${projectId}`)}>
 									<Instagram class="h-4 w-4" /> Instagram
 								</Button>
-								<Button size="lg" onclick={() => goto(`/library?projectId=${projectId}`)}>
+								<Button onclick={() => goto(`/library?projectId=${projectId}`)}>
 									<Plus class="h-4 w-4" /> Criar post
 								</Button>
 							{/if}
@@ -527,10 +527,10 @@
 				</section>
 
 				<nav class="relative border-b border-border px-8 lg:px-10" aria-label="Seções do projeto">
-					<div class="flex min-h-14 flex-wrap items-center gap-6">
+					<div class="flex min-h-11 flex-wrap items-center gap-5">
 						{#each tabs as tab}
 							{@const Icon = tab.icon}
-							<button type="button" class="relative inline-flex h-14 items-center gap-3 text-sm font-medium transition {activeTab === tab.id ? 'text-primary' : 'text-foreground/85 hover:text-foreground'}" onclick={() => activeTab = tab.id}>
+							<button type="button" class="relative inline-flex h-11 items-center gap-2.5 text-sm font-medium transition {activeTab === tab.id ? 'text-primary' : 'text-foreground/85 hover:text-foreground'}" onclick={() => activeTab = tab.id}>
 								<Icon class="h-4 w-4" />
 								{tab.label}
 								{#if activeTab === tab.id}<span class="absolute inset-x-0 bottom-0 h-0.5 bg-primary"></span>{/if}
