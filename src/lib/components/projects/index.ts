@@ -5,3 +5,4 @@ export { default as ContextImageUploader } from "./ContextImageUploader.svelte";
 export { default as PlatformSelector } from "./PlatformSelector.svelte";
 export { default as ProjectSettingsForm } from "./ProjectSettingsForm.svelte";
 export { default as InstagramIntelCard } from "./InstagramIntelCard.svelte";
+export { default as PostIntelligencePanel } from "./PostIntelligencePanel.svelte";
