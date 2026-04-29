@@ -340,7 +340,7 @@ export const create = mutation({
         platform: v.optional(v.string()),
         title: v.optional(v.string()),
         caption: v.string(),
-        sourcePostIds: v.optional(v.array(v.id("instagram_posts"))),
+        sourcePostIds: v.optional(v.array(v.id("social_posts"))),
         reasoning: v.optional(v.string()),
         model: v.optional(v.string()),
         imageStorageId: v.optional(v.id("_storage")),

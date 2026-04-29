@@ -27,7 +27,7 @@ const LAUNCH_POST_ASPECT_RATIO = "3:4";
 const LAUNCH_POST_RESOLUTION = "standard";
 
 type InstagramSnippet = {
-    _id: Id<"instagram_posts">;
+    _id: Id<"social_posts">;
     caption: string;
     timestamp: string;
 };
@@ -216,7 +216,7 @@ async function generateIdeasWithModel(
     const project = await ctx.runQuery(api.projects.get, { projectId: args.projectId });
     if (!project) throw new Error("Projeto não encontrado");
 
-    const snippets = await ctx.runQuery(internal.instagramPosts.listCaptionSnippetsForDigestInternal, {
+    const snippets = await ctx.runQuery(internal.socialPosts.listCaptionSnippetsForDigestInternal, {
         projectId: args.projectId,
         limit: 30,
     });
@@ -381,7 +381,7 @@ export const generateIdeas = action({
             for (const idea of ideas) {
                 const sourcePostIds = (idea.sourcePostIndices ?? [])
                     .map((i) => snippets[i]?._id)
-                    .filter((id): id is Id<"instagram_posts"> => Boolean(id));
+                    .filter((id): id is Id<"social_posts"> => Boolean(id));
 
                 const id = await ctx.runMutation(api.generatedPosts.create, {
                     projectId: args.projectId,

@@ -8,6 +8,8 @@ import type { Id } from "./_generated/dataModel";
 
 const GRAPH_VERSION = "v23.0";
 const INSTAGRAM_GRAPH_BASE = `https://graph.instagram.com/${GRAPH_VERSION}`;
+const MEDIA_INSIGHT_METRICS = ["reach", "impressions", "saved", "shares", "total_interactions"] as const;
+const ACCOUNT_INSIGHT_METRICS = ["reach", "profile_views"] as const;
 
 type MetaError = {
     message?: string;
@@ -73,6 +75,15 @@ type MetaPublishMediaResponse = {
     error?: MetaError;
 };
 
+type MetaInsightValue = {
+    value?: number;
+};
+
+type MetaInsight = {
+    name?: string;
+    values?: MetaInsightValue[];
+};
+
 type ImportedSocialPost = {
     externalPostId: string;
     caption?: string;
@@ -84,6 +95,11 @@ type ImportedSocialPost = {
     publishedAt: number;
     likeCount?: number;
     commentsCount?: number;
+    reach?: number;
+    impressions?: number;
+    saved?: number;
+    shares?: number;
+    totalInteractions?: number;
     engagementScore?: number;
     children?: {
         externalPostId: string;
@@ -238,6 +254,8 @@ export const getConnectUrl = action({
         const scope = [
             "instagram_business_basic",
             "instagram_business_content_publish",
+            "instagram_business_manage_comments",
+            "instagram_business_manage_insights",
         ].join(",");
 
         const url = new URL("https://www.instagram.com/oauth/authorize");
@@ -425,6 +443,71 @@ async function fetchInstagramMedia(accessToken: string, limit: number): Promise<
     }
 }
 
+async function fetchAccountInsights(accessToken: string): Promise<{ reach?: number; profileViews?: number }> {
+    const params = new URLSearchParams({
+        metric: ACCOUNT_INSIGHT_METRICS.join(","),
+        period: "day",
+        access_token: accessToken,
+    });
+
+    try {
+        const response = await fetchJson<MetaPagingResponse<MetaInsight>>(
+            `${INSTAGRAM_GRAPH_BASE}/me/insights?${params}`
+        );
+        const values = new Map<string, number>();
+        for (const insight of response.data ?? []) {
+            const latest = insight.values?.at(-1)?.value;
+            if (insight.name && typeof latest === "number" && Number.isFinite(latest)) {
+                values.set(insight.name, latest);
+            }
+        }
+        const insights: { reach?: number; profileViews?: number } = {};
+        const reach = values.get("reach");
+        const profileViews = values.get("profile_views");
+        if (reach !== undefined) insights.reach = reach;
+        if (profileViews !== undefined) insights.profileViews = profileViews;
+        return insights;
+    } catch (error) {
+        console.warn("[instagramGraph] account insights failed", error);
+        return {};
+    }
+}
+
+async function fetchMediaInsights(accessToken: string, mediaId: string): Promise<Partial<ImportedSocialPost>> {
+    const params = new URLSearchParams({
+        metric: MEDIA_INSIGHT_METRICS.join(","),
+        access_token: accessToken,
+    });
+
+    try {
+        const response = await fetchJson<MetaPagingResponse<MetaInsight>>(
+            `${INSTAGRAM_GRAPH_BASE}/${mediaId}/insights?${params}`
+        );
+        const values = new Map<string, number>();
+        for (const insight of response.data ?? []) {
+            const value = insight.values?.[0]?.value;
+            if (insight.name && typeof value === "number" && Number.isFinite(value)) {
+                values.set(insight.name, value);
+            }
+        }
+        const insights: Partial<ImportedSocialPost> = {};
+        const reach = values.get("reach");
+        const impressions = values.get("impressions");
+        const saved = values.get("saved");
+        const shares = values.get("shares");
+        const totalInteractions = values.get("total_interactions");
+        if (reach !== undefined) insights.reach = reach;
+        if (impressions !== undefined) insights.impressions = impressions;
+        if (saved !== undefined) insights.saved = saved;
+        if (shares !== undefined) insights.shares = shares;
+        if (totalInteractions !== undefined) insights.totalInteractions = totalInteractions;
+        return insights;
+    } catch (error) {
+        console.warn(`[instagramGraph] media insights failed for ${mediaId}`, error);
+        return {};
+    }
+}
+
 function parsePublishedAt(timestamp: string | undefined): number {
     if (!timestamp) return Date.now();
     const parsed = Date.parse(timestamp);
@@ -470,30 +553,6 @@ function normalizeMediaPost(media: MetaMedia, followersCount?: number): Imported
     };
 }
 
-function toLegacyInstagramPost(post: ImportedSocialPost) {
-    const firstChild = post.children?.find((child) => child.mediaUrl || child.thumbnailUrl);
-    const mediaUrl = post.mediaUrl ?? post.thumbnailUrl ?? firstChild?.mediaUrl ?? firstChild?.thumbnailUrl ?? post.permalink;
-    return {
-        instagramId: post.externalPostId,
-        mediaUrl,
-        mediaType: post.mediaType,
-        permalink: post.permalink,
-        timestamp: new Date(post.publishedAt).toISOString(),
-        ...(post.caption ? { caption: post.caption } : {}),
-        ...(post.thumbnailUrl ? { thumbnailUrl: post.thumbnailUrl } : {}),
-        ...(post.likeCount !== undefined ? { likeCount: post.likeCount } : {}),
-        ...(post.commentsCount !== undefined ? { commentsCount: post.commentsCount } : {}),
-        ...(post.children?.length
-            ? {
-                carouselImages: post.children
-                    .map((child) => child.mediaUrl ?? child.thumbnailUrl)
-                    .filter((url): url is string => Boolean(url))
-                    .map((url) => ({ url })),
-            }
-            : {}),
-    };
-}
-
 export const importProjectPosts = action({
     args: {
         projectId: v.id("projects"),
@@ -525,16 +584,31 @@ export const importProjectPosts = action({
         try {
             const accessToken = decryptToken(importContext);
             const limit = Math.min(50, Math.max(1, args.limit ?? 30));
-            const [profile, media] = await Promise.all([
+            const [profile, media, accountInsights] = await Promise.all([
                 fetchInstagramProfile(accessToken),
                 fetchInstagramMedia(accessToken, limit),
+                fetchAccountInsights(accessToken),
             ]);
 
             const followersCount = sanitizeCount(profile.followers_count);
             const followingCount = sanitizeCount(profile.follows_count);
-            const posts = media
+            const basePosts = media
                 .map((item) => normalizeMediaPost(item, followersCount))
                 .filter((post): post is ImportedSocialPost => Boolean(post));
+            const posts = await Promise.all(basePosts.map(async (post) => {
+                const insights = await fetchMediaInsights(accessToken, post.externalPostId);
+                const totalInteractions = insights.totalInteractions ??
+                    ((post.likeCount ?? 0) + (post.commentsCount ?? 0) + (insights.saved ?? 0) + (insights.shares ?? 0));
+                const engagementScore = insights.reach && insights.reach > 0
+                    ? totalInteractions / insights.reach
+                    : post.engagementScore;
+                return {
+                    ...post,
+                    ...insights,
+                    ...(totalInteractions > 0 ? { totalInteractions } : {}),
+                    ...(engagementScore !== undefined ? { engagementScore } : {}),
+                };
+            }));
             const capturedAt = Date.now();
 
             const result = await ctx.runMutation(internal.socialPosts.importInstagramForProjectInternal, {
@@ -546,17 +620,14 @@ export const importProjectPosts = action({
                     ...(followersCount !== undefined ? { followersCount } : {}),
                     ...(followingCount !== undefined ? { followingCount } : {}),
                     ...(profile.media_count !== undefined ? { postsCount: profile.media_count } : {}),
+                    ...(accountInsights.reach !== undefined ? { reach: accountInsights.reach } : {}),
+                    ...(accountInsights.profileViews !== undefined ? { profileViews: accountInsights.profileViews } : {}),
                 },
                 posts,
                 capturedAt,
                 ...(profile.username ? { handle: profile.username } : importContext.handle ? { handle: importContext.handle } : {}),
                 ...(profile.name ? { externalAccountName: profile.name } : {}),
                 ...(profile.profile_picture_url ? { profilePictureUrl: profile.profile_picture_url } : {}),
-            });
-
-            await ctx.runMutation(api.instagramPosts.replaceForProject, {
-                projectId: args.projectId,
-                posts: posts.map(toLegacyInstagramPost),
             });
 
             if (profile.profile_picture_url) {

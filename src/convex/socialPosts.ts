@@ -13,6 +13,11 @@ const socialPostInput = v.object({
     publishedAt: v.number(),
     likeCount: v.optional(v.number()),
     commentsCount: v.optional(v.number()),
+    reach: v.optional(v.number()),
+    impressions: v.optional(v.number()),
+    saved: v.optional(v.number()),
+    shares: v.optional(v.number()),
+    totalInteractions: v.optional(v.number()),
     engagementScore: v.optional(v.float64()),
     children: v.optional(v.array(v.object({
         externalPostId: v.string(),
@@ -27,6 +32,8 @@ const accountMetricsInput = v.object({
     followersCount: v.optional(v.number()),
     followingCount: v.optional(v.number()),
     postsCount: v.optional(v.number()),
+    reach: v.optional(v.number()),
+    profileViews: v.optional(v.number()),
 });
 
 export const importInstagramForProjectInternal = internalMutation({
@@ -75,6 +82,12 @@ export const importInstagramForProjectInternal = internalMutation({
             ...(args.accountMetrics.postsCount !== undefined
                 ? { postsCount: args.accountMetrics.postsCount }
                 : {}),
+            ...(args.accountMetrics.reach !== undefined
+                ? { reach: args.accountMetrics.reach }
+                : {}),
+            ...(args.accountMetrics.profileViews !== undefined
+                ? { profileViews: args.accountMetrics.profileViews }
+                : {}),
         });
 
         for (const post of args.posts) {
@@ -104,7 +117,13 @@ export const importInstagramForProjectInternal = internalMutation({
                 ...(post.thumbnailUrl ? { thumbnailUrl: post.thumbnailUrl } : {}),
                 ...(post.likeCount !== undefined ? { likeCount: post.likeCount } : {}),
                 ...(post.commentsCount !== undefined ? { commentsCount: post.commentsCount } : {}),
+                ...(post.reach !== undefined ? { reach: post.reach } : {}),
+                ...(post.impressions !== undefined ? { impressions: post.impressions } : {}),
+                ...(post.saved !== undefined ? { saved: post.saved } : {}),
+                ...(post.shares !== undefined ? { shares: post.shares } : {}),
+                ...(post.totalInteractions !== undefined ? { totalInteractions: post.totalInteractions } : {}),
                 ...(post.engagementScore !== undefined ? { engagementScore: post.engagementScore } : {}),
+                insightsCapturedAt: args.capturedAt,
                 ...(post.children?.length ? { children: post.children } : {}),
             };
 
@@ -126,6 +145,11 @@ export const importInstagramForProjectInternal = internalMutation({
                 capturedAt: args.capturedAt,
                 ...(post.likeCount !== undefined ? { likeCount: post.likeCount } : {}),
                 ...(post.commentsCount !== undefined ? { commentsCount: post.commentsCount } : {}),
+                ...(post.reach !== undefined ? { reach: post.reach } : {}),
+                ...(post.impressions !== undefined ? { impressions: post.impressions } : {}),
+                ...(post.saved !== undefined ? { saved: post.saved } : {}),
+                ...(post.shares !== undefined ? { shares: post.shares } : {}),
+                ...(post.totalInteractions !== undefined ? { totalInteractions: post.totalInteractions } : {}),
                 ...(post.engagementScore !== undefined ? { engagementScore: post.engagementScore } : {}),
             });
         }
@@ -304,6 +328,33 @@ export const createPublishedInstagramPostInternal = internalMutation({
     },
 });
 
+export const listCaptionSnippetsForDigestInternal = internalQuery({
+    args: {
+        projectId: v.id("projects"),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const limit = Math.min(50, Math.max(1, args.limit ?? 30));
+        const posts = await ctx.db
+            .query("social_posts")
+            .withIndex("by_project_published", (q) => q.eq("projectId", args.projectId))
+            .order("desc")
+            .take(limit);
+
+        return posts
+            .filter((post) => post.caption?.trim())
+            .map((post) => ({
+                _id: post._id,
+                caption: post.caption ?? "",
+                mediaType: post.mediaType,
+                timestamp: new Date(post.publishedAt).toISOString(),
+                likeCount: post.likeCount,
+                commentsCount: post.commentsCount,
+                engagementScore: post.engagementScore,
+            }));
+    },
+});
+
 export const listRecommendationContextInternal = internalQuery({
     args: {
         projectId: v.id("projects"),
@@ -330,6 +381,11 @@ export const listRecommendationContextInternal = internalQuery({
                 publishedAt: post.publishedAt,
                 likeCount: post.likeCount,
                 commentsCount: post.commentsCount,
+                reach: post.reach,
+                impressions: post.impressions,
+                saved: post.saved,
+                shares: post.shares,
+                totalInteractions: post.totalInteractions,
                 engagementScore: post.engagementScore,
                 intelligence: post.intelligence,
             }));

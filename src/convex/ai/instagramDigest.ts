@@ -69,7 +69,7 @@ Infer only from the captions; do not invent posts.`;
 export const rebuildDigestInternal = internalAction({
     args: { projectId: v.id("projects") },
     handler: async (ctx, args) => {
-        const snippets = await ctx.runQuery(internal.instagramPosts.listCaptionSnippetsForDigestInternal, {
+        const snippets = await ctx.runQuery(internal.socialPosts.listCaptionSnippetsForDigestInternal, {
             projectId: args.projectId,
             limit: 30,
         });

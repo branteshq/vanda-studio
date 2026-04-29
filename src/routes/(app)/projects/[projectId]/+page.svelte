@@ -12,9 +12,7 @@
 	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
 	import {
 		BarChart3,
-		Ban,
 		Bookmark,
-		CalendarDays,
 		Check,
 		ChevronRight,
 		Circle,
@@ -69,7 +67,6 @@
 		commentsCount: number;
 		shares: number;
 		saves: number;
-		linkClicks: number;
 		reach: number;
 		impressions: number;
 		engagementRate: number;
@@ -140,9 +137,6 @@
 	let isGeneratingStrategy = $state(false);
 	let actionError = $state<string | null>(null);
 	let postSearch = $state("");
-	let mediaFilter = $state<MediaFilter>("Todos");
-	let performanceFilter = $state<PerformanceFilter>("Todos");
-	let statusFilter = $state<StatusFilter>("Todos");
 	let viewMode = $state<"grid" | "list">("list");
 	let selectedInstagramPostId = $state<string | null>(null);
 	let postIntelligenceOpen = $state(true);
@@ -170,7 +164,6 @@
 	let selectedInstagramPost = $derived(
 		filteredInstagramPosts.find((post) => post.id === selectedInstagramPostId) ?? filteredInstagramPosts[0] ?? instagramDisplayPosts[0] ?? null
 	);
-	let instagramStats = $derived(getInstagramStats(instagramDisplayPosts));
 
 	$effect(() => {
 		if (!selectedInstagramPost && selectedInstagramPostId !== null) {
@@ -242,22 +235,15 @@
 	}
 
 	function createInstagramDisplayPosts(posts: SocialPost[]): InstagramDisplayPost[] {
-		const source = posts.length > 0 ? posts : mockInstagramPosts();
-		return source.map((post, index) => toInstagramDisplayPost(post, index));
+		return posts.map((post, index) => toInstagramDisplayPost(post, index));
 	}
 
 	function toInstagramDisplayPost(post: SocialPost, index: number): InstagramDisplayPost {
-		const likeFallbacks = [328, 512, 278, 401, 453, 301, 367, 589];
-		const commentFallbacks = [27, 41, 18, 32, 29, 22, 24, 48];
-		const engagementFallbacks = [0.063, 0.069, 0.066, 0.061, 0.064, 0.048, 0.062, 0.068];
-		const shareFactors = [0.19, 0.25, 0.15, 0.19];
-		const saveFactors = [0.26, 0.17, 0.31, 0.22];
-		const clickFactors = [5.8, 3.7, 4.1, 5.1];
-		const impressionFactors = [1.26, 1.18, 1.34, 1.22];
-		const likeCount = post.likeCount ?? likeFallbacks[index % likeFallbacks.length] ?? 328;
-		const commentsCount = post.commentsCount ?? commentFallbacks[index % commentFallbacks.length] ?? 27;
-		const engagementRate = post.engagementScore ?? engagementFallbacks[index % engagementFallbacks.length] ?? 0.063;
-		const reach = Math.max(1200, Math.round((likeCount + commentsCount * 3) / Math.max(engagementRate, 0.01)));
+		const likeCount = post.likeCount ?? 0;
+		const commentsCount = post.commentsCount ?? 0;
+		const reach = post.reach ?? 0;
+		const totalInteractions = post.totalInteractions ?? likeCount + commentsCount + (post.saved ?? 0) + (post.shares ?? 0);
+		const engagementRate = post.engagementScore ?? (reach > 0 ? totalInteractions / reach : 0);
 		const performance: InstagramDisplayPost["performance"] = engagementRate >= 0.06 ? "Em alta" : engagementRate >= 0.052 ? "Estável" : "Abaixo do esperado";
 		const accent: InstagramDisplayPost["accent"] = performance === "Em alta" ? (index % 3 === 1 ? "emerald" : "pink") : performance === "Estável" ? "blue" : "amber";
 		const mediaLabel = getMediaLabel(post.mediaType, post.mediaProductType, index);
@@ -273,11 +259,10 @@
 			publishedAt: post.publishedAt,
 			likeCount,
 			commentsCount,
-			shares: Math.max(12, Math.round(likeCount * (shareFactors[index % shareFactors.length] ?? 0.19))),
-			saves: Math.max(18, Math.round(likeCount * (saveFactors[index % saveFactors.length] ?? 0.26))),
-			linkClicks: Math.max(8, Math.round(commentsCount * (clickFactors[index % clickFactors.length] ?? 5.8))),
+			shares: post.shares ?? 0,
+			saves: post.saved ?? 0,
 			reach,
-			impressions: Math.round(reach * (impressionFactors[index % impressionFactors.length] ?? 1.26)),
+			impressions: post.impressions ?? 0,
 			engagementRate,
 			status: "Publicado",
 			performance,
@@ -310,54 +295,7 @@
 
 	function filterInstagramPosts(posts: InstagramDisplayPost[]): InstagramDisplayPost[] {
 		const query = postSearch.trim().toLowerCase();
-		return posts.filter((post) => {
-			const matchesQuery = !query || `${post.title} ${post.caption}`.toLowerCase().includes(query);
-			const matchesMedia = mediaFilter === "Todos" || post.mediaLabel === mediaFilter;
-			const matchesPerformance = performanceFilter === "Todos" || post.performance === performanceFilter;
-			const matchesStatus =
-				statusFilter === "Todos" ||
-				(statusFilter === "Publicados" && post.status === "Publicado") ||
-				(statusFilter === "Agendados" && post.status === "Agendado") ||
-				(statusFilter === "Rascunhos" && post.status === "Rascunho");
-			return matchesQuery && matchesMedia && matchesPerformance && matchesStatus;
-		});
-	}
-
-	function getInstagramStats(posts: InstagramDisplayPost[]) {
-		const count = posts.length;
-		const avgReach = count > 0 ? posts.reduce((sum, post) => sum + post.reach, 0) / count : 0;
-		const avgEngagement = count > 0 ? posts.reduce((sum, post) => sum + post.engagementRate, 0) / count : 0;
-		return { count, avgReach, avgEngagement };
-	}
-
-	function mockInstagramPosts(): SocialPost[] {
-		const now = Date.now();
-		return [
-			"NR-1 em vigor! Entenda as mudanças e como sua empresa deve se preparar para estar em conformidade.",
-			"Nem todo risco usa capacete. Identifique os perigos ocultos antes que virem incidentes.",
-			"Compliance é base para decisões seguras e sustentáveis. Governança também protege crescimento.",
-			"Capacitar é mais que ensinar. É transformar comportamento e fortalecer a cultura.",
-			"Pequenas atitudes, grandes resultados. Segurança é cultura, rotina e liderança.",
-			"Evite armadilhas que colocam sua operação em risco. Gestão preventiva começa pelo básico bem feito.",
-			"Sustentabilidade que gera valor para o negócio e para o mundo.",
-			"Nosso time, nosso maior diferencial. Juntos por ambientes mais seguros.",
-		].map((caption, index) => ({
-			_id: `mock-${index}` as SocialPost["_id"],
-			_creationTime: now - index * 86400000,
-			userId: "mock-user" as SocialPost["userId"],
-			projectId,
-			connectionId: "mock-connection" as SocialPost["connectionId"],
-			platform: "instagram",
-			provider: "instagram_graph",
-			externalAccountId: "mock",
-			externalPostId: `mock-${index}`,
-			caption,
-			mediaType: index % 3 === 0 ? "CAROUSEL_ALBUM" : "IMAGE",
-			permalink: project?.instagramUrl ?? "#",
-			publishedAt: now - (index + 3) * 86400000,
-			importedAt: now,
-			updatedAt: now,
-		}) as SocialPost);
+		return posts.filter((post) => !query || `${post.title} ${post.caption}`.toLowerCase().includes(query));
 	}
 
 	function formatShortNumber(value: number | null | undefined): string {
@@ -678,26 +616,16 @@
 				</label>
 				<div class="flex flex-wrap items-stretch gap-2">
 					<div class="flex flex-wrap border border-border bg-card/60">
-						<div class="min-w-24 px-3 py-2"><p class="text-lg font-semibold leading-none text-foreground">{Math.max(128, instagramDisplayPosts.length)}</p><p class="mt-1 text-[11px] text-muted-foreground/70">Total</p></div>
-						<div class="min-w-24 border-l border-border px-3 py-2"><p class="text-lg font-semibold leading-none text-foreground">{Math.max(56, posts.length)}</p><p class="mt-1 text-[11px] text-muted-foreground/70">Publicados</p></div>
-						<div class="min-w-24 border-l border-border px-3 py-2"><p class="text-lg font-semibold leading-none text-foreground">34,7K</p><p class="mt-1 text-[11px] text-muted-foreground/70">Alcance</p></div>
-						<div class="min-w-24 border-l border-border px-3 py-2"><p class="text-lg font-semibold leading-none text-foreground">2,1K</p><p class="mt-1 text-[11px] text-muted-foreground/70">Interações</p></div>
+						<div class="min-w-24 px-3 py-2"><p class="text-lg font-semibold leading-none text-foreground">{instagramDisplayPosts.length}</p><p class="mt-1 text-[11px] text-muted-foreground/70">Total</p></div>
+						<div class="min-w-24 border-l border-border px-3 py-2"><p class="text-lg font-semibold leading-none text-foreground">{posts.length}</p><p class="mt-1 text-[11px] text-muted-foreground/70">Filtrados</p></div>
+						<div class="min-w-24 border-l border-border px-3 py-2"><p class="text-lg font-semibold leading-none text-foreground">{formatShortNumber(instagramDisplayPosts.reduce((sum, post) => sum + post.reach, 0))}</p><p class="mt-1 text-[11px] text-muted-foreground/70">Alcance</p></div>
+						<div class="min-w-24 border-l border-border px-3 py-2"><p class="text-lg font-semibold leading-none text-foreground">{formatShortNumber(instagramDisplayPosts.reduce((sum, post) => sum + post.likeCount + post.commentsCount + post.saves + post.shares, 0))}</p><p class="mt-1 text-[11px] text-muted-foreground/70">Interações</p></div>
 					</div>
 					<div class="flex border border-border bg-card/70 p-1">
 						<button aria-label="Grade" class="px-3 {viewMode === 'grid' ? 'bg-accent text-foreground' : 'text-muted-foreground/70'}" onclick={() => viewMode = "grid"}><Grid2X2 class="h-4 w-4" /></button>
 						<button aria-label="Lista" class="px-3 {viewMode === 'list' ? 'bg-accent text-foreground' : 'text-muted-foreground/70'}" onclick={() => viewMode = "list"}><List class="h-4 w-4" /></button>
 					</div>
 				</div>
-			</div>
-
-			<div class="mt-4 flex flex-wrap gap-2">
-				{#each [{ label: "Todos", count: 128 }, { label: "Rascunhos", count: 18 }, { label: "Agendados", count: 24 }, { label: "Publicados", count: 56 }, { label: "Importados do Instagram", count: 22 }, { label: "Falhos", count: 3 }] as chip}
-					<button class="inline-flex h-8 items-center gap-2 border px-3 text-xs font-semibold transition {statusFilter === chip.label || (chip.label === 'Importados do Instagram' && statusFilter === 'Todos') ? 'border-primary/35 bg-primary/15 text-primary' : chip.label === 'Publicados' ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300 hover:border-emerald-500/50' : 'border-border bg-card/70 text-foreground/85 hover:border-primary/50'}" onclick={() => statusFilter = (chip.label === "Importados do Instagram" || chip.label === "Falhos" ? "Todos" : chip.label) as StatusFilter}>
-						{#if chip.label === "Todos"}<Grid2X2 class="h-4 w-4" />{:else if chip.label === "Rascunhos"}<SquarePen class="h-4 w-4" />{:else if chip.label === "Agendados"}<CalendarDays class="h-4 w-4" />{:else if chip.label === "Publicados"}<Check class="h-4 w-4" />{:else if chip.label === "Falhos"}<Ban class="h-4 w-4" />{:else}<Instagram class="h-4 w-4" />{/if}
-						{chip.label}
-						<span class="rounded bg-zinc-700/70 px-1.5 py-0.5 text-[11px] text-foreground">{chip.count}</span>
-					</button>
-				{/each}
 			</div>
 
 
@@ -722,17 +650,48 @@
 						</button>
 					{/each}
 					<div class="flex items-center justify-between px-4 py-3 text-sm text-muted-foreground/70">
-						<button class="border border-border px-4 py-2">Itens por página: <span class="text-foreground">20</span></button>
-						<span>1–20 de 128 itens</span>
-						<div class="flex items-center gap-2"><button class="px-3 text-muted-foreground/50">‹</button>{#each [1,2,3,4,5] as page}<button class="h-9 w-9 border {page === 1 ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}">{page}</button>{/each}<span>…</span><button class="h-9 w-9">7</button><button class="px-3 text-foreground/85">›</button></div>
+						<span>{posts.length} posts importados</span>
+						<button class="inline-flex items-center gap-2 text-foreground/85 hover:text-foreground" onclick={onsync} disabled={syncing}>{#if syncing}<Loader2 class="h-4 w-4 animate-spin" />{:else}<RefreshCw class="h-4 w-4" />{/if}Atualizar Instagram</button>
 					</div>
 				</div>
 			{:else}
-				<div class="mt-3 grid gap-5 md:grid-cols-2 2xl:grid-cols-4">
+				<div class="mt-3 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
 					{#each posts as post}
-						<button class="overflow-hidden border bg-card/70 text-left hover:border-primary/50 {selected?.id === post.id ? 'border-primary' : 'border-border'}" onclick={() => { selectedInstagramPostId = post.id; postIntelligenceOpen = true; }}>
-							<div class="aspect-square bg-muted">{#if post.thumbnailUrl}<img src={post.thumbnailUrl} alt="" class="h-full w-full object-cover" />{:else}<div class="flex h-full items-end bg-emerald-950 p-4 text-xl font-black uppercase text-foreground">{post.title}</div>{/if}</div>
-							<div class="p-4"><p class="line-clamp-1 font-semibold text-foreground">{post.title}</p><p class="mt-1 line-clamp-2 text-sm text-muted-foreground/70">{post.caption}</p><p class="mt-3 text-xs text-muted-foreground">{formatShortNumber(post.reach)} alcance · {post.likeCount + post.commentsCount} interações</p></div>
+						<button
+							class="group relative flex flex-col overflow-hidden border bg-card/70 text-left transition-shadow hover:shadow-lg {selected?.id === post.id ? 'border-primary' : 'border-border hover:border-primary/50'}"
+							onclick={() => { selectedInstagramPostId = post.id; postIntelligenceOpen = true; }}
+						>
+							<div class="relative aspect-square overflow-hidden bg-muted">
+								{#if post.thumbnailUrl}
+									<img src={post.thumbnailUrl} alt={post.title} class="h-full w-full object-cover transition-transform group-hover:scale-105" />
+								{:else}
+									<div class="flex h-full flex-col justify-end bg-[radial-gradient(circle_at_18%_12%,rgba(20,184,166,0.24),transparent_36%),linear-gradient(135deg,rgba(6,78,59,.9),rgba(18,18,22,.98))] p-5">
+										<p class="text-lg font-black uppercase leading-tight text-foreground">{post.title}</p>
+									</div>
+								{/if}
+								<div class="absolute left-3 top-3 inline-flex items-center gap-2 bg-black/45 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+									<SquarePen class="h-3.5 w-3.5" />
+									Post
+								</div>
+							</div>
+
+							<div class="flex flex-1 flex-col p-4">
+								<p class="line-clamp-2 text-sm leading-5 text-foreground/90">{post.caption}</p>
+								<p class="mt-3 text-xs text-muted-foreground/75">{formatDate(post.publishedAt)}</p>
+
+								<div class="mt-3 grid grid-cols-3 gap-x-3 gap-y-2 border-t border-border pt-3 text-xs text-foreground/85">
+									<span class="inline-flex items-center gap-1.5"><Heart class="h-3.5 w-3.5 text-muted-foreground" />{post.likeCount}</span>
+									<span class="inline-flex items-center gap-1.5"><MessageCircle class="h-3.5 w-3.5 text-muted-foreground" />{post.commentsCount}</span>
+									<span class="inline-flex items-center gap-1.5"><Send class="h-3.5 w-3.5 text-muted-foreground" />{post.shares}</span>
+									<span class="inline-flex items-center gap-1.5"><Eye class="h-3.5 w-3.5 text-muted-foreground" />{formatShortNumber(post.reach)}</span>
+									<span class="inline-flex items-center gap-1.5"><Users class="h-3.5 w-3.5 text-muted-foreground" />{formatShortNumber(post.impressions)}</span>
+									<span class="text-right">ER {formatPercent(post.engagementRate)}</span>
+								</div>
+
+								<div class="mt-4 border px-3 py-2 text-xs font-semibold {performanceClass(post.performance)}">
+									<TrendingUp class="mr-2 inline h-3.5 w-3.5" />{post.performance}
+								</div>
+							</div>
 						</button>
 					{/each}
 				</div>

@@ -535,14 +535,6 @@ export const remove = mutation({
         }
 
         // Clean up related data when deleting a project
-        const instagramPosts = await ctx.db
-            .query("instagram_posts")
-            .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId))
-            .collect();
-        for (const doc of instagramPosts) {
-            await ctx.db.delete(doc._id);
-        }
-
         const socialPosts = await ctx.db
             .query("social_posts")
             .withIndex("by_project_platform", (q) => q.eq("projectId", args.projectId))

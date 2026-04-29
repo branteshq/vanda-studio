@@ -53,7 +53,7 @@ import type { Id } from "../../../convex/_generated/dataModel.js";
 		imageStorageId?: Id<"_storage">;
 		imagePrompt?: string;
 		model?: string;
-		sourcePostIds?: Id<"instagram_posts">[];
+		sourcePostIds?: Id<"social_posts">[];
 		reasoning?: string;
 		updatedAt: number;
 		// Scheduling fields

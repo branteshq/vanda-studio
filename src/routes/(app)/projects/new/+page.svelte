@@ -196,18 +196,8 @@
         isIngesting = true;
 
         try {
-            const igUrl = normalizeInstagramInput(instagramHandleInput);
-            ingestStatus = "Analisando perfil do Instagram…";
-            const res = await client.action(api.ai.brandOnboarding.ingestInstagramForBrand, {
-                instagramUrl: igUrl,
-            });
-            brandKit = mergeBrandSuggestion(untrack(() => brandKit), res.suggestion as Record<string, unknown>);
-            ingestWarnings = [...ingestWarnings, ...res.warnings];
-
-            ingestStatus = "Montando identidade…";
-            await new Promise((r) => setTimeout(r, 400));
-
-            pushStep(totalSteps - 1);
+            ingestStatus = "Integração por URL removida…";
+            throw new Error("A análise por URL do Instagram foi removida. Crie o projeto e conecte o Instagram oficial para sincronizar dados reais.");
         } catch (e) {
             error = formatUserFacingMessage(e);
         } finally {

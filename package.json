@@ -17,7 +17,6 @@
 		"@openrouter/ai-sdk-provider": "^1.5.4",
 		"@useautumn/convex": "^0.0.23",
 		"ai": "^5.0.0",
-		"apify-client": "^2.20.0",
 		"autumn-js": "^0.1.75",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",

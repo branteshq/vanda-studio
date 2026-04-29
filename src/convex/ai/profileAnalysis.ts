@@ -82,7 +82,7 @@ export const analyzeProfileForConfig = action({
         }
 
         // 3. Get Instagram posts
-        const posts = await ctx.runQuery(api.instagramPosts.listByProject, {
+        const posts = await ctx.runQuery(api.socialPosts.listByProject, {
             projectId: args.projectId,
         });
 

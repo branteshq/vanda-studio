@@ -92,28 +92,6 @@ export default defineSchema({
         createdAt: v.number(),
     }).index("by_project_id", ["projectId"]),
 
-    instagram_posts: defineTable({
-        projectId: v.id("projects"),
-        instagramId: v.string(), // The IG post ID
-        caption: v.optional(v.string()),
-        mediaUrl: v.string(),
-        mediaStorageId: v.optional(v.id("_storage")),
-        thumbnailUrl: v.optional(v.string()),
-        thumbnailStorageId: v.optional(v.id("_storage")),
-        mediaType: v.string(), // IMAGE, VIDEO, CAROUSEL_ALBUM
-        permalink: v.string(),
-        timestamp: v.string(), // ISO string from IG
-        likeCount: v.optional(v.number()),
-        commentsCount: v.optional(v.number()),
-        // Carousel/Sidecar child images
-        carouselImages: v.optional(v.array(v.object({
-            url: v.string(),
-            storageId: v.optional(v.id("_storage")),
-        }))),
-        // Engagement score (normalized 0-1) for weighting
-        engagementScore: v.optional(v.float64()),
-    }).index("by_project_id", ["projectId"]),
-
     social_posts: defineTable({
         userId: v.id("users"),
         projectId: v.id("projects"),
@@ -131,7 +109,13 @@ export default defineSchema({
         publishedAt: v.number(),
         likeCount: v.optional(v.number()),
         commentsCount: v.optional(v.number()),
+        reach: v.optional(v.number()),
+        impressions: v.optional(v.number()),
+        saved: v.optional(v.number()),
+        shares: v.optional(v.number()),
+        totalInteractions: v.optional(v.number()),
         engagementScore: v.optional(v.float64()),
+        insightsCapturedAt: v.optional(v.number()),
         intelligence: v.optional(v.object({
             topic: v.string(),
             hook: v.string(),
@@ -165,6 +149,8 @@ export default defineSchema({
         followersCount: v.optional(v.number()),
         followingCount: v.optional(v.number()),
         postsCount: v.optional(v.number()),
+        reach: v.optional(v.number()),
+        profileViews: v.optional(v.number()),
     }).index("by_project_captured", ["projectId", "capturedAt"])
       .index("by_connection_captured", ["connectionId", "capturedAt"]),
 
@@ -180,6 +166,11 @@ export default defineSchema({
         capturedAt: v.number(),
         likeCount: v.optional(v.number()),
         commentsCount: v.optional(v.number()),
+        reach: v.optional(v.number()),
+        impressions: v.optional(v.number()),
+        saved: v.optional(v.number()),
+        shares: v.optional(v.number()),
+        totalInteractions: v.optional(v.number()),
         engagementScore: v.optional(v.float64()),
     }).index("by_project_captured", ["projectId", "capturedAt"])
       .index("by_post_captured", ["socialPostId", "capturedAt"])
@@ -197,7 +188,7 @@ export default defineSchema({
         brandAnalysisId: v.optional(v.string()), // Legacy - no longer used
         selectedAngle: v.optional(v.any()), // Legacy - no longer used
         // Source posts used as context (optional)
-        sourcePostIds: v.optional(v.array(v.id("instagram_posts"))),
+        sourcePostIds: v.optional(v.array(v.id("social_posts"))),
         // AI reasoning
         reasoning: v.optional(v.string()),
         // Generated image
