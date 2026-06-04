@@ -1,0 +1,28 @@
+{
+  "name": "vanda-copilotkit-poc",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "latest",
+    "@clerk/nextjs": "^7.4.3",
+    "@copilotkit/react-core": "latest",
+    "@copilotkit/runtime": "latest",
+    "@next/env": "latest",
+    "convex": "^1.29.3",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "typescript": "latest"
+  }
+}
