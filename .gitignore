@@ -18,6 +18,14 @@ node_modules
 # production
 /dist
 /.output
+/.astro
+/.turbo
+apps/*/dist
+apps/*/.output
+apps/*/.astro
+apps/*/.turbo
+packages/*/dist
+packages/*/.turbo
 
 # misc
 .DS_Store

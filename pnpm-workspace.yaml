@@ -1,4 +1,24 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
 allowBuilds:
   esbuild: true
+  sharp: true
+
 onlyBuiltDependencies:
   - esbuild
+  - sharp
+
+catalog:
+  "@astrojs/check": ^0.9.4
+  "@types/node": ^24.10.13
+  "@vitejs/plugin-react": ^6.0.0
+  astro: ^5.16.4
+  oxfmt: ^0.40.0
+  oxlint: ^1.55.0
+  react: ^19.0.0
+  react-dom: ^19.0.0
+  turbo: ^2.3.3
+  typescript: ^5.9.2
+  vite: ^8.0.0

@@ -1,0 +1,65 @@
+---
+import { buttonClasses } from "@vanda-studio/ui";
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta
+			name="description"
+			content="Vanda Studio is an AI workspace for Instagram operators."
+		/>
+		<title>Vanda Studio</title>
+		<link rel="stylesheet" href="/styles.css" />
+	</head>
+	<body>
+		<main>
+			<section class="hero" aria-labelledby="hero-title">
+				<nav class="nav" aria-label="Primary">
+					<a class="brand" href="/">Vanda Studio</a>
+					<a class="nav-link" href="https://app.vandastudio.app">Open app</a>
+				</nav>
+
+				<div class="hero-copy">
+					<p class="eyebrow">Instagram operations, rebuilt</p>
+					<h1 id="hero-title">Vanda Studio</h1>
+					<p class="lede">
+						A focused workspace for creators and teams turning Instagram context into
+						repeatable publishing workflows.
+					</p>
+					<div class="actions">
+						<a class={buttonClasses({ tone: "primary" })} href="https://app.vandastudio.app">
+							Open app
+						</a>
+						<a class={buttonClasses({ tone: "secondary" })} href="mailto:hello@vandastudio.app">
+							Contact
+						</a>
+					</div>
+				</div>
+			</section>
+
+			<section class="section" aria-labelledby="platform-title">
+				<div>
+					<p class="eyebrow">Platform</p>
+					<h2 id="platform-title">Built around the publishing loop.</h2>
+				</div>
+				<div class="features">
+					<article>
+						<h3>Connect Instagram</h3>
+						<p>Bring account context into a secure workspace through the Instagram Graph API.</p>
+					</article>
+					<article>
+						<h3>Shape campaigns</h3>
+						<p>Keep brand direction, post ideas, and generated drafts close to the operator.</p>
+					</article>
+					<article>
+						<h3>Ship from the app</h3>
+						<p>The product surface stays separate on app.vandastudio.app.</p>
+					</article>
+				</div>
+			</section>
+		</main>
+	</body>
+</html>

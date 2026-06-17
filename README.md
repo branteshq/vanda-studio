@@ -1,19 +1,34 @@
 # Vanda Studio
 
-TanStack Start app backed by Clerk, Convex, Autumn, OpenRouter, Vercel, and the Instagram Graph API.
+Monorepo for Vanda Studio.
+
+- `apps/landing`: Astro static landing site for `vandastudio.app`.
+- `apps/vanda`: TanStack Start app for `app.vandastudio.app`.
+- `packages/ui`: shared UI primitives.
 
 ## Development
 
 ```bash
 corepack pnpm install
-corepack pnpm run dev
+corepack pnpm run dev:landing
+corepack pnpm run dev:vanda
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Landing runs on [http://localhost:3001](http://localhost:3001).
+The app runs on [http://localhost:3000](http://localhost:3000).
+
+## Deployment
+
+Use two Vercel projects from the same repository:
+
+- Landing project root directory: `apps/landing`, domain: `vandastudio.app`.
+- App project root directory: `apps/vanda`, domain: `app.vandastudio.app`.
+
+The app project should keep the existing Clerk, Convex, Autumn, OpenRouter, and Instagram environment variables.
 
 ## Environment
 
-Set local app variables in `.env.local`:
+Set local app variables in the repo root `.env.local`. `apps/vanda/vite.config.ts` points Vite at the repo root env directory.
 
 - `VITE_CONVEX_URL` or `PUBLIC_CONVEX_URL`: Convex deployment URL.
 - `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`: Clerk auth.
@@ -49,6 +64,7 @@ Random tunnel URLs work only until the hostname changes. Prefer a named Cloudfla
 ## Checks
 
 ```bash
-corepack pnpm run check
+corepack pnpm run typecheck
+corepack pnpm run lint
 corepack pnpm run build
 ```

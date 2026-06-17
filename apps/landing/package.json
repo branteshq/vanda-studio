@@ -1,0 +1,23 @@
+{
+	"name": "@vanda-studio/landing",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "astro dev --host 0.0.0.0 --port 3001",
+		"build": "astro check && astro build",
+		"preview": "astro preview",
+		"typecheck": "astro check",
+		"test": "pnpm run typecheck",
+		"clean": "rm -rf dist .astro"
+	},
+	"dependencies": {
+		"@vanda-studio/ui": "workspace:*",
+		"astro": "catalog:"
+	},
+	"devDependencies": {
+		"@astrojs/check": "catalog:",
+		"@types/node": "catalog:",
+		"typescript": "catalog:"
+	}
+}

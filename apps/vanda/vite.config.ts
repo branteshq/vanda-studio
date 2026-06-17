@@ -4,6 +4,7 @@ import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 
 export default defineConfig({
+	envDir: "../..",
 	envPrefix: ["VITE_", "PUBLIC_"],
 	server: {
 		port: 3000,

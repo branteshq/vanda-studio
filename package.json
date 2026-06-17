@@ -1,55 +1,30 @@
 {
-	"name": "vanda-studio",
-	"version": "0.1.0",
+	"name": "@vanda-studio/monorepo",
 	"private": true,
 	"type": "module",
-	"packageManager": "pnpm@11.7.0",
 	"scripts": {
-		"dev": "vite dev",
-		"build": "vite build",
-		"preview": "vite preview",
-		"check": "tsc --noEmit",
-		"check:watch": "tsc --noEmit --watch",
-		"prepare": "effect-language-service patch --module typescript",
-		"test": "vitest",
-		"test:run": "vitest run"
-	},
-	"dependencies": {
-		"@clerk/tanstack-react-start": "^1.4.3",
-		"@convex-dev/react-query": "^0.1.0",
-		"@openrouter/ai-sdk-provider": "^1.5.4",
-		"@tanstack/react-query": "^5.0.0",
-		"@tanstack/react-router": "^1.0.0",
-		"@tanstack/react-router-ssr-query": "^1.0.0",
-		"@tanstack/react-start": "^1.0.0",
-		"@useautumn/convex": "^0.0.23",
-		"ai": "^5.0.0",
-		"autumn-js": "^0.1.75",
-		"class-variance-authority": "^0.7.1",
-		"clsx": "^2.1.1",
-		"convex": "^1.29.3",
-		"diff": "^8.0.2",
-		"effect": "^3.19.14",
-		"jimp": "^1.6.0",
-		"lucide-react": "^0.469.0",
-		"nitro": "3.0.260610-beta",
-		"react": "^19.0.0",
-		"react-dom": "^19.0.0",
-		"tailwind-merge": "^3.4.0",
-		"zod": "^4.3.5"
+		"dev": "turbo run dev",
+		"dev:vanda": "pnpm --filter @vanda-studio/vanda dev",
+		"dev:landing": "pnpm --filter @vanda-studio/landing dev",
+		"build": "turbo run build",
+		"typecheck": "turbo run typecheck",
+		"test": "turbo run test",
+		"lint": "oxlint --ignore-pattern '**/node_modules/**' --ignore-pattern '**/dist/**' --ignore-pattern '**/.output/**' .",
+		"lint:fix": "oxlint --ignore-pattern '**/node_modules/**' --ignore-pattern '**/dist/**' --ignore-pattern '**/.output/**' . --fix",
+		"format": "oxfmt .",
+		"format:check": "oxfmt --check .",
+		"clean": "turbo run clean && rm -rf node_modules .turbo apps/*/dist apps/*/.output packages/*/dist"
 	},
 	"devDependencies": {
-		"@effect/language-service": "^0.65.0",
-		"@tailwindcss/postcss": "^4",
-		"@types/node": "^22",
-		"@types/react": "^19.0.0",
-		"@types/react-dom": "^19.0.0",
-		"@vitejs/plugin-react": "^6.0.0",
-		"eslint": "^9",
-		"tailwindcss": "^4",
-		"tw-animate-css": "^1.4.0",
-		"typescript": "^5.9.0",
-		"vite": "^8.0.0",
-		"vitest": "^4.0.17"
-	}
+		"@types/node": "^24.10.13",
+		"oxfmt": "^0.40.0",
+		"oxlint": "^1.55.0",
+		"turbo": "^2.3.3",
+		"typescript": "^5.9.2"
+	},
+	"engines": {
+		"node": ">=24.13.0",
+		"pnpm": ">=10.33.0"
+	},
+	"packageManager": "pnpm@11.7.0"
 }
