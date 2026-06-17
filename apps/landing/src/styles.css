@@ -125,26 +125,30 @@ blockquote {
 }
 
 .button {
+	--button-bg: rgba(255, 255, 255, 0.06);
+	--button-bg-hover: rgba(255, 255, 255, 0.1);
+	--button-border: rgba(255, 255, 255, 0.12);
+	--button-color: #eee4eb;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	min-height: 48px;
+	border: 1px solid var(--button-border);
 	border-radius: 11px;
+	background: var(--button-bg);
+	color: var(--button-color);
 	padding: 0 24px;
 	font-size: 15px;
 	font-weight: 600;
 	transition:
-		transform 160ms cubic-bezier(0.23, 1, 0.32, 1),
-		box-shadow 220ms ease,
-		background 200ms ease;
+		background-color 180ms ease,
+		border-color 180ms ease,
+		color 180ms ease,
+		box-shadow 180ms ease;
 }
 
 .button:hover {
-	transform: translateY(-1px);
-}
-
-.button:active {
-	transform: scale(0.98);
+	background: var(--button-bg-hover);
 }
 
 .button-small {
@@ -155,21 +159,22 @@ blockquote {
 }
 
 .button-primary {
-	background: linear-gradient(150deg, var(--rose-light), var(--rose-deep));
-	box-shadow:
-		inset 0 1px 0 rgba(255, 255, 255, 0.24),
-		0 12px 34px -12px var(--glow);
-	color: white;
+	--button-bg: var(--rose);
+	--button-bg-hover: var(--rose-deep);
+	--button-border: color-mix(in srgb, var(--rose) 86%, white);
+	--button-color: white;
+	box-shadow: 0 10px 30px -18px var(--glow);
 }
 
 .button-secondary {
-	border: 1px solid rgba(255, 255, 255, 0.12);
-	background: rgba(255, 255, 255, 0.05);
-	color: #eee4eb;
+	--button-bg: rgba(255, 255, 255, 0.055);
+	--button-bg-hover: rgba(255, 255, 255, 0.095);
+	--button-border: rgba(255, 255, 255, 0.12);
+	--button-color: #eee4eb;
 }
 
-.button-secondary:hover {
-	background: rgba(255, 255, 255, 0.09);
+.button-primary:hover {
+	--button-border: color-mix(in srgb, var(--rose-deep) 78%, white);
 }
 
 .hero {
@@ -412,12 +417,21 @@ blockquote {
 	display: inline-flex;
 	align-items: center;
 	height: 30px;
+	border: 1px solid color-mix(in srgb, var(--rose) 86%, white);
 	border-radius: 7px;
 	padding-inline: 12px;
-	background: linear-gradient(150deg, var(--rose-light), var(--rose-deep));
+	background: var(--rose);
 	color: white;
 	font-size: 12.5px;
 	font-weight: 600;
+	transition:
+		background-color 180ms ease,
+		border-color 180ms ease;
+}
+
+.dashboard-topbar span:hover {
+	border-color: color-mix(in srgb, var(--rose-deep) 78%, white);
+	background: var(--rose-deep);
 }
 
 .dashboard-content {
