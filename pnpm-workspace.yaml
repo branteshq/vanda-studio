@@ -23,3 +23,7 @@ catalog:
   turbo: ^2.3.3
   typescript: ^5.9.2
   vite: ^8.0.0
+
+minimumReleaseAgeExclude:
+  - '@base-ui/react@1.6.0'
+  - '@base-ui/utils@0.3.1'

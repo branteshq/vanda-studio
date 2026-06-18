@@ -1,17 +1,9 @@
 import type { ReactNode } from "react";
-import {
-	ClerkProvider,
-	Show,
-	SignInButton,
-	UserButton,
-	useAuth,
-} from "@clerk/tanstack-react-start";
-import { Link, Outlet, Scripts, createRootRoute, HeadContent } from "@tanstack/react-router";
+import { ClerkProvider, useAuth } from "@clerk/tanstack-react-start";
+import { Outlet, Scripts, createRootRoute, HeadContent } from "@tanstack/react-router";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
-import { getAppUrl } from "../appUrl";
 import { getConvexClient } from "../convexClient";
 import appCss from "../styles.css?url";
-import vandaMarkUrl from "@vanda-studio/ui/assets/vanda-mark.svg";
 import vandaMarkIconUrl from "@vanda-studio/ui/assets/vanda-mark.svg?url";
 
 export const Route = createRootRoute({
@@ -25,6 +17,12 @@ export const Route = createRootRoute({
 			{ rel: "stylesheet", href: appCss },
 			{ rel: "icon", type: "image/svg+xml", href: vandaMarkIconUrl },
 			{ rel: "apple-touch-icon", href: vandaMarkIconUrl },
+			{ rel: "preconnect", href: "https://fonts.googleapis.com" },
+			{ rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+			{
+				rel: "stylesheet",
+				href: "https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400;500;600&display=swap",
+			},
 		],
 	}),
 	component: RootComponent,
@@ -35,45 +33,14 @@ function RootDocument({ children }: { children: ReactNode }) {
 	const convex = getConvexClient();
 
 	return (
-		<html lang="en">
+		<html lang="pt-BR" className="dark">
 			<head>
 				<HeadContent />
 			</head>
 			<body>
 				<ClerkProvider>
 					<ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-						<div className="shell">
-							<header className="topbar">
-								<Link to="/" className="brand">
-									<img className="mark" src={vandaMarkUrl} alt="" aria-hidden="true" />
-									<span>
-										<strong>Vanda</strong> <span className="brand-muted">Studio</span>
-									</span>
-								</Link>
-								<nav className="nav" aria-label="Primary">
-									<a href={getAppUrl("/app")} className="btn secondary">
-										App
-									</a>
-									<a href={getAppUrl("/billing")} className="btn secondary">
-										Billing
-									</a>
-									<a href={getAppUrl("/instagram")} className="btn secondary">
-										Instagram
-									</a>
-									<Show when="signed-out">
-										<SignInButton mode="modal">
-											<button className="btn" type="button">
-												Sign in
-											</button>
-										</SignInButton>
-									</Show>
-									<Show when="signed-in">
-										<UserButton />
-									</Show>
-								</nav>
-							</header>
-							{children}
-						</div>
+						{children}
 					</ConvexProviderWithClerk>
 				</ClerkProvider>
 				<Scripts />

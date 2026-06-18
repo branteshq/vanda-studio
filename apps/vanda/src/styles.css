@@ -1,16 +1,6 @@
 @import "@vanda-studio/ui/styles/globals.css";
 @source "../../../packages/ui/src";
 
-:root {
-	color-scheme: light;
-	font-family:
-		var(--vanda-font-sans),
-		ui-sans-serif,
-		system-ui;
-	background: var(--background);
-	color: var(--foreground);
-}
-
 * {
 	box-sizing: border-box;
 }
@@ -19,7 +9,6 @@ body {
 	margin: 0;
 	min-width: 320px;
 	min-height: 100vh;
-	background: var(--background);
 }
 
 button,
@@ -32,219 +21,11 @@ a {
 	text-decoration: none;
 }
 
-.shell {
-	min-height: 100vh;
-	padding: 24px;
+.no-scrollbar {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
 }
 
-.topbar {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 16px;
-	border: 1px solid var(--border);
-	background: var(--card);
-	padding: 14px 16px;
-	box-shadow: var(--vanda-shadow-sm);
-}
-
-.brand {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	font-size: 19px;
-	font-weight: 400;
-	letter-spacing: -0.01em;
-}
-
-.mark {
-	display: block;
-	width: 26px;
-	height: 26px;
-	flex: 0 0 26px;
-	object-fit: contain;
-}
-
-.brand strong {
-	color: #20101a;
-	font-weight: 600;
-}
-
-.brand-muted {
-	color: #9a8490;
-}
-
-.nav {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	flex-wrap: wrap;
-}
-
-.btn {
-	display: inline-flex;
-	min-height: 38px;
-	align-items: center;
-	justify-content: center;
-	gap: 8px;
-	border: 1px solid var(--primary);
-	background: var(--primary);
-	color: var(--primary-foreground);
-	padding: 0 13px;
-	cursor: pointer;
-	border-radius: 8px;
-	box-shadow: var(--vanda-shadow-sm);
-}
-
-.btn.secondary {
-	background: var(--card);
-	color: var(--foreground);
-	border-color: var(--border);
-}
-
-.btn.instagram {
-	background: #f2719e;
-	color: #20101a;
-	border-color: #f2719e;
-}
-
-.main {
-	width: min(1120px, 100%);
-	margin: 64px auto 0;
-}
-
-.hero {
-	display: grid;
-	grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
-	gap: 28px;
-	align-items: stretch;
-}
-
-.panel {
-	border: 1px solid var(--border);
-	background: var(--card);
-	padding: 24px;
-	box-shadow: var(--vanda-shadow);
-}
-
-.panel.dark {
-	background: var(--vanda-dark);
-	color: #fbf2f7;
-}
-
-.eyebrow {
-	margin: 0 0 14px;
-	font-size: 12px;
-	font-weight: 800;
-	text-transform: uppercase;
-	letter-spacing: 0.18em;
-	color: var(--muted-foreground);
-}
-
-.panel.dark .eyebrow {
-	color: #f2719e;
-}
-
-h1 {
-	max-width: 760px;
-	margin: 0;
-	font-size: clamp(42px, 7vw, 82px);
-	line-height: 0.92;
-	letter-spacing: 0;
-}
-
-h2 {
-	margin: 0 0 10px;
-	font-size: 24px;
-	line-height: 1.05;
-}
-
-p {
-	margin: 0;
-	line-height: 1.6;
-}
-
-.lede {
-	max-width: 720px;
-	margin-top: 22px;
-	font-size: 18px;
-	color: var(--muted-foreground);
-}
-
-.actions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 10px;
-	margin-top: 26px;
-}
-
-.stack {
-	display: grid;
-	gap: 12px;
-}
-
-.check {
-	display: flex;
-	justify-content: space-between;
-	gap: 16px;
-	border-bottom: 1px solid rgba(251, 242, 247, 0.18);
-	padding: 12px 0;
-}
-
-.check:last-child {
-	border-bottom: 0;
-}
-
-.status {
-	font-weight: 800;
-	color: #f2719e;
-}
-
-.grid {
-	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
-	gap: 14px;
-	margin-top: 28px;
-}
-
-.card {
-	min-height: 144px;
-	border: 1px solid var(--border);
-	background: var(--card);
-	padding: 18px;
-	box-shadow: var(--vanda-shadow-sm);
-}
-
-.muted {
-	color: var(--muted-foreground);
-}
-
-.route-panel {
-	max-width: 760px;
-	margin: 56px auto 0;
-}
-
-.error {
-	color: var(--destructive);
-}
-
-@media (max-width: 820px) {
-	.shell {
-		padding: 14px;
-	}
-
-	.topbar,
-	.hero,
-	.grid {
-		grid-template-columns: 1fr;
-	}
-
-	.topbar {
-		align-items: flex-start;
-		flex-direction: column;
-	}
-
-	.main {
-		margin-top: 32px;
-	}
+.no-scrollbar::-webkit-scrollbar {
+	display: none;
 }

@@ -83,46 +83,67 @@
 		Consolas, "Liberation Mono", monospace;
 	--vanda-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 	--vanda-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+	--vanda-surface: #ffffff;
+	--vanda-elevated: #fcebf3;
+	--vanda-accent-soft: #c9417c;
+	--vanda-accent-soft-bg: #fcebf3;
+	--vanda-muted-2: #b9a7b1;
+	--vanda-line-2: #f1d9e6;
 }
 
 .dark {
 	color-scheme: dark;
 
-	--background: #20101a;
-	--foreground: #fbf2f7;
+	--background: #08060b;
+	--foreground: #f8f2f6;
 
-	--card: #2c1020;
+	--card: #130e18;
 	--card-foreground: var(--foreground);
-	--popover: var(--card);
+	--popover: #130e18;
 	--popover-foreground: var(--foreground);
 
-	--primary: #f2719e;
-	--primary-foreground: #20101a;
+	--primary: #e0568f;
+	--primary-foreground: #ffffff;
 
-	--secondary: #5a1b40;
+	--secondary: #1a0f17;
 	--secondary-foreground: var(--foreground);
 
-	--muted: #3a162a;
-	--muted-foreground: #dcc4d0;
+	--muted: #1a0f17;
+	--muted-foreground: #a99ca8;
 
-	--accent: #5a1b40;
-	--accent-foreground: #f0b9d2;
+	--accent: #231c26;
+	--accent-foreground: #f8f2f6;
 
 	--destructive: oklch(0.62 0.17 18);
 	--destructive-foreground: oklch(0.99 0.003 18);
 
-	--border: #5a1b40;
-	--input: var(--border);
-	--ring: #f2719e;
+	--border: #261f28;
+	--input: #2b2330;
+	--ring: #e0568f;
 
-	--sidebar: #20101a;
-	--sidebar-foreground: var(--foreground);
-	--sidebar-primary: var(--primary);
-	--sidebar-primary-foreground: var(--primary-foreground);
-	--sidebar-accent: var(--accent);
-	--sidebar-accent-foreground: var(--accent-foreground);
-	--sidebar-border: var(--border);
-	--sidebar-ring: var(--ring);
+	--chart-1: #e0568f;
+	--chart-2: #5fc88f;
+	--chart-3: #f2a0c4;
+	--chart-4: #dd5790;
+	--chart-5: #a22e61;
+
+	--sidebar: #0f0c11;
+	--sidebar-foreground: #f8f2f6;
+	--sidebar-primary: #e0568f;
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent: #231c26;
+	--sidebar-accent-foreground: #f8f2f6;
+	--sidebar-border: #221c24;
+	--sidebar-ring: #e0568f;
+
+	--vanda-surface: #0b080c;
+	--vanda-elevated: #231c26;
+	--vanda-accent-soft: #f2a0c4;
+	--vanda-accent-soft-bg: #2a1a22;
+	--vanda-muted-2: #6f6971;
+	--vanda-positive: #5fc88f;
+	--vanda-positive-bg: rgba(76, 183, 130, 0.14);
+	--vanda-line-2: #221c24;
 }
 
 @theme inline {
@@ -158,12 +179,24 @@
 	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
 	--color-sidebar-border: var(--sidebar-border);
 	--color-sidebar-ring: var(--sidebar-ring);
+	--color-vanda-surface: var(--vanda-surface);
+	--color-vanda-elevated: var(--vanda-elevated);
+	--color-vanda-accent-soft: var(--vanda-accent-soft);
+	--color-vanda-accent-soft-bg: var(--vanda-accent-soft-bg);
+	--color-vanda-muted-2: var(--vanda-muted-2);
+	--color-vanda-positive: var(--vanda-positive);
+	--color-vanda-positive-bg: var(--vanda-positive-bg);
+	--color-vanda-line-2: var(--vanda-line-2);
 	--radius-sm: calc(var(--radius) - 4px);
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-lg: var(--radius);
 	--radius-xl: calc(var(--radius) + 4px);
 	--font-sans: var(--vanda-font-sans);
 	--font-mono: var(--vanda-font-mono);
+	--font-weight-normal: 400;
+	--font-weight-medium: 510;
+	--font-weight-semibold: 590;
+	--font-weight-bold: 680;
 }
 
 @layer base {
@@ -177,6 +210,8 @@
 
 	body {
 		@apply bg-background text-foreground;
+		font-size: 0.8125rem;
+		letter-spacing: -0.012em;
 		-webkit-font-smoothing: antialiased;
 		text-rendering: optimizeLegibility;
 		font-feature-settings: "cv05", "ss01";

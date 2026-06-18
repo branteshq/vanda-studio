@@ -9,37 +9,48 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as InstagramRouteImport } from './routes/instagram'
-import { Route as BillingRouteImport } from './routes/billing'
-import { Route as AppRouteImport } from './routes/app'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as DashboardRouteImport } from './routes/_dashboard'
+import { Route as DashboardIndexRouteImport } from './routes/_dashboard.index'
 import { Route as InstagramCallbackRouteImport } from './routes/instagram.callback'
+import { Route as DashboardPerfilRouteImport } from './routes/_dashboard.perfil'
+import { Route as DashboardGaleriaRouteImport } from './routes/_dashboard.galeria'
+import { Route as DashboardCalendarioRouteImport } from './routes/_dashboard.calendario'
+import { Route as DashboardAutomaticoRouteImport } from './routes/_dashboard.automatico'
 import { Route as ApiIntegrationsInstagramCallbackRouteImport } from './routes/api.integrations.instagram.callback'
 
-const InstagramRoute = InstagramRouteImport.update({
-  id: '/instagram',
-  path: '/instagram',
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/_dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
-const BillingRoute = BillingRouteImport.update({
-  id: '/billing',
-  path: '/billing',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AppRoute = AppRouteImport.update({
-  id: '/app',
-  path: '/app',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IndexRoute = IndexRouteImport.update({
+const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => DashboardRoute,
 } as any)
 const InstagramCallbackRoute = InstagramCallbackRouteImport.update({
-  id: '/callback',
-  path: '/callback',
-  getParentRoute: () => InstagramRoute,
+  id: '/instagram/callback',
+  path: '/instagram/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardPerfilRoute = DashboardPerfilRouteImport.update({
+  id: '/perfil',
+  path: '/perfil',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardGaleriaRoute = DashboardGaleriaRouteImport.update({
+  id: '/galeria',
+  path: '/galeria',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardCalendarioRoute = DashboardCalendarioRouteImport.update({
+  id: '/calendario',
+  path: '/calendario',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardAutomaticoRoute = DashboardAutomaticoRouteImport.update({
+  id: '/automatico',
+  path: '/automatico',
+  getParentRoute: () => DashboardRoute,
 } as any)
 const ApiIntegrationsInstagramCallbackRoute =
   ApiIntegrationsInstagramCallbackRouteImport.update({
@@ -49,101 +60,121 @@ const ApiIntegrationsInstagramCallbackRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/app': typeof AppRoute
-  '/billing': typeof BillingRoute
-  '/instagram': typeof InstagramRouteWithChildren
+  '/': typeof DashboardIndexRoute
+  '/automatico': typeof DashboardAutomaticoRoute
+  '/calendario': typeof DashboardCalendarioRoute
+  '/galeria': typeof DashboardGaleriaRoute
+  '/perfil': typeof DashboardPerfilRoute
   '/instagram/callback': typeof InstagramCallbackRoute
   '/api/integrations/instagram/callback': typeof ApiIntegrationsInstagramCallbackRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/app': typeof AppRoute
-  '/billing': typeof BillingRoute
-  '/instagram': typeof InstagramRouteWithChildren
+  '/automatico': typeof DashboardAutomaticoRoute
+  '/calendario': typeof DashboardCalendarioRoute
+  '/galeria': typeof DashboardGaleriaRoute
+  '/perfil': typeof DashboardPerfilRoute
   '/instagram/callback': typeof InstagramCallbackRoute
+  '/': typeof DashboardIndexRoute
   '/api/integrations/instagram/callback': typeof ApiIntegrationsInstagramCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/app': typeof AppRoute
-  '/billing': typeof BillingRoute
-  '/instagram': typeof InstagramRouteWithChildren
+  '/_dashboard': typeof DashboardRouteWithChildren
+  '/_dashboard/automatico': typeof DashboardAutomaticoRoute
+  '/_dashboard/calendario': typeof DashboardCalendarioRoute
+  '/_dashboard/galeria': typeof DashboardGaleriaRoute
+  '/_dashboard/perfil': typeof DashboardPerfilRoute
   '/instagram/callback': typeof InstagramCallbackRoute
+  '/_dashboard/': typeof DashboardIndexRoute
   '/api/integrations/instagram/callback': typeof ApiIntegrationsInstagramCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/app'
-    | '/billing'
-    | '/instagram'
+    | '/automatico'
+    | '/calendario'
+    | '/galeria'
+    | '/perfil'
     | '/instagram/callback'
     | '/api/integrations/instagram/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
-    | '/app'
-    | '/billing'
-    | '/instagram'
+    | '/automatico'
+    | '/calendario'
+    | '/galeria'
+    | '/perfil'
     | '/instagram/callback'
+    | '/'
     | '/api/integrations/instagram/callback'
   id:
     | '__root__'
-    | '/'
-    | '/app'
-    | '/billing'
-    | '/instagram'
+    | '/_dashboard'
+    | '/_dashboard/automatico'
+    | '/_dashboard/calendario'
+    | '/_dashboard/galeria'
+    | '/_dashboard/perfil'
     | '/instagram/callback'
+    | '/_dashboard/'
     | '/api/integrations/instagram/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AppRoute: typeof AppRoute
-  BillingRoute: typeof BillingRoute
-  InstagramRoute: typeof InstagramRouteWithChildren
+  DashboardRoute: typeof DashboardRouteWithChildren
+  InstagramCallbackRoute: typeof InstagramCallbackRoute
   ApiIntegrationsInstagramCallbackRoute: typeof ApiIntegrationsInstagramCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/instagram': {
-      id: '/instagram'
-      path: '/instagram'
-      fullPath: '/instagram'
-      preLoaderRoute: typeof InstagramRouteImport
+    '/_dashboard': {
+      id: '/_dashboard'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/billing': {
-      id: '/billing'
-      path: '/billing'
-      fullPath: '/billing'
-      preLoaderRoute: typeof BillingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/app': {
-      id: '/app'
-      path: '/app'
-      fullPath: '/app'
-      preLoaderRoute: typeof AppRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
+    '/_dashboard/': {
+      id: '/_dashboard/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof DashboardIndexRouteImport
+      parentRoute: typeof DashboardRoute
     }
     '/instagram/callback': {
       id: '/instagram/callback'
-      path: '/callback'
+      path: '/instagram/callback'
       fullPath: '/instagram/callback'
       preLoaderRoute: typeof InstagramCallbackRouteImport
-      parentRoute: typeof InstagramRoute
+      parentRoute: typeof rootRouteImport
+    }
+    '/_dashboard/perfil': {
+      id: '/_dashboard/perfil'
+      path: '/perfil'
+      fullPath: '/perfil'
+      preLoaderRoute: typeof DashboardPerfilRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/galeria': {
+      id: '/_dashboard/galeria'
+      path: '/galeria'
+      fullPath: '/galeria'
+      preLoaderRoute: typeof DashboardGaleriaRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/calendario': {
+      id: '/_dashboard/calendario'
+      path: '/calendario'
+      fullPath: '/calendario'
+      preLoaderRoute: typeof DashboardCalendarioRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/automatico': {
+      id: '/_dashboard/automatico'
+      path: '/automatico'
+      fullPath: '/automatico'
+      preLoaderRoute: typeof DashboardAutomaticoRouteImport
+      parentRoute: typeof DashboardRoute
     }
     '/api/integrations/instagram/callback': {
       id: '/api/integrations/instagram/callback'
@@ -155,23 +186,29 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface InstagramRouteChildren {
-  InstagramCallbackRoute: typeof InstagramCallbackRoute
+interface DashboardRouteChildren {
+  DashboardAutomaticoRoute: typeof DashboardAutomaticoRoute
+  DashboardCalendarioRoute: typeof DashboardCalendarioRoute
+  DashboardGaleriaRoute: typeof DashboardGaleriaRoute
+  DashboardPerfilRoute: typeof DashboardPerfilRoute
+  DashboardIndexRoute: typeof DashboardIndexRoute
 }
 
-const InstagramRouteChildren: InstagramRouteChildren = {
-  InstagramCallbackRoute: InstagramCallbackRoute,
+const DashboardRouteChildren: DashboardRouteChildren = {
+  DashboardAutomaticoRoute: DashboardAutomaticoRoute,
+  DashboardCalendarioRoute: DashboardCalendarioRoute,
+  DashboardGaleriaRoute: DashboardGaleriaRoute,
+  DashboardPerfilRoute: DashboardPerfilRoute,
+  DashboardIndexRoute: DashboardIndexRoute,
 }
 
-const InstagramRouteWithChildren = InstagramRoute._addFileChildren(
-  InstagramRouteChildren,
+const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
+  DashboardRouteChildren,
 )
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  AppRoute: AppRoute,
-  BillingRoute: BillingRoute,
-  InstagramRoute: InstagramRouteWithChildren,
+  DashboardRoute: DashboardRouteWithChildren,
+  InstagramCallbackRoute: InstagramCallbackRoute,
   ApiIntegrationsInstagramCallbackRoute: ApiIntegrationsInstagramCallbackRoute,
 }
 export const routeTree = rootRouteImport
