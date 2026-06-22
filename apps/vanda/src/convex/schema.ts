@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { signalColumns } from "./pipeline/storage";
+import { accountModes, beliefKinds, beliefStatuses, momenta } from "./pipeline/constants";
 
 export default defineSchema({
   users: defineTable({
@@ -58,4 +59,56 @@ export default defineSchema({
     "accountExternalId",
     "externalId",
   ]),
+
+  // ----- Phase 1 memory model (persistence projection of pipeline/memory.ts) -----
+  // Account-scoped tables for the discernment core. `accounts` is populated when a
+  // connection is promoted (Phase 3); until then these are declared but empty, and
+  // `signals` keeps its Phase 0 `accountExternalId`. brandCanon / outcomes /
+  // memoryNotes land with the stages that consume them, where their shapes can be
+  // designed against real usage.
+
+  accounts: defineTable({
+    connectionId: v.optional(v.id("instagramConnections")),
+    mode: v.union(...accountModes.map((mode) => v.literal(mode))),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }),
+
+  beliefs: defineTable({
+    accountId: v.id("accounts"),
+    statement: v.string(),
+    kind: v.union(...beliefKinds.map((kind) => v.literal(kind))),
+    confidence: v.number(),
+    // The deduplicated evidence set. A long-lived, high-volume belief grows this
+    // unbounded; Phase 4 (consolidate) revisits with a bounded window or join
+    // table, and the ids become `v.id("signals")` once signals are account-scoped.
+    supportingSignalIds: v.array(v.string()),
+    firstSeenAt: v.number(),
+    lastReinforcedAt: v.number(),
+    status: v.union(...beliefStatuses.map((status) => v.literal(status))),
+  }).index("by_account_status", ["accountId", "status"]),
+
+  themes: defineTable({
+    accountId: v.id("accounts"),
+    name: v.string(),
+    summary: v.string(),
+    momentum: v.union(...momenta.map((m) => v.literal(m))),
+    lastPostedAt: v.optional(v.number()),
+    postCount: v.number(),
+    signalCount: v.number(),
+  }).index("by_account", ["accountId"]),
+
+  policies: defineTable({
+    accountId: v.id("accounts"),
+    minConfidence: v.number(),
+    minEvidence: v.number(),
+    decayHalfLifeMs: v.number(),
+    cadenceWindowMs: v.number(),
+    learningRate: v.number(),
+    contradictionFactor: v.number(),
+    retireBelow: v.number(),
+    decayingBelow: v.number(),
+    momentumRisingRatio: v.number(),
+    momentumFallingRatio: v.number(),
+  }).index("by_account", ["accountId"]),
 });

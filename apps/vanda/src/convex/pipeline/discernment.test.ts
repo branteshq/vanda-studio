@@ -1,0 +1,247 @@
+import { describe, expect, it } from "@effect/vitest";
+import * as Schema from "effect/Schema";
+import * as FastCheck from "effect/testing/FastCheck";
+import {
+  contradictBelief,
+  decayBelief,
+  isThemeSaturated,
+  meetsEvidenceThreshold,
+  recomputeMomentum,
+  reinforceBelief,
+  statusFor,
+} from "./discernment";
+import { Belief, defaultPolicy, type Theme } from "./memory";
+
+const policy = defaultPolicy;
+// Raw beliefs (confidence and status independent): the functions must normalize
+// status on every path, so the generator deliberately explores inconsistent
+// inputs rather than hiding the asymmetry behind a pre-normalized generator.
+const beliefArb = Schema.toArbitrary(Belief);
+const ts = FastCheck.integer({ min: 0, max: 4_000_000_000_000 });
+const elapsed = FastCheck.integer({ min: 0, max: 10 * policy.decayHalfLifeMs });
+const id = FastCheck.string();
+
+const beliefBase: Belief = {
+  accountId: "acct",
+  statement: "customers love the winter combo",
+  kind: "audience",
+  confidence: 0.9,
+  supportingSignalIds: ["s1", "s2", "s3"],
+  firstSeenAt: 0,
+  lastReinforcedAt: 0,
+  status: "active",
+};
+
+const themeBase: Omit<Theme, "lastPostedAt"> = {
+  accountId: "acct",
+  name: "Dog content",
+  summary: "the resident golden retriever",
+  momentum: "steady",
+  postCount: 0,
+  signalCount: 0,
+};
+
+describe("reinforceBelief", () => {
+  it.prop("keeps confidence within [0,1]", [beliefArb, id, ts], ([belief, signalId, now]) => {
+    const c = reinforceBelief(belief, signalId, now, policy).confidence;
+    expect(c).toBeGreaterThanOrEqual(0);
+    expect(c).toBeLessThanOrEqual(1);
+  });
+
+  it.prop("never lowers confidence", [beliefArb, id, ts], ([belief, signalId, now]) => {
+    expect(reinforceBelief(belief, signalId, now, policy).confidence).toBeGreaterThanOrEqual(
+      belief.confidence,
+    );
+  });
+
+  it.prop(
+    "is idempotent per signal id",
+    [beliefArb, id, ts, ts],
+    ([belief, signalId, now1, now2]) => {
+      const once = reinforceBelief(belief, signalId, now1, policy);
+      const twice = reinforceBelief(once, signalId, now2, policy);
+      expect(twice.confidence).toBe(once.confidence);
+      expect(twice.supportingSignalIds.length).toBe(once.supportingSignalIds.length);
+    },
+  );
+
+  it.prop("counts a new signal exactly once", [beliefArb, id, ts], ([belief, signalId, now]) => {
+    if (belief.supportingSignalIds.includes(signalId)) return; // only new ids are evidence
+    const next = reinforceBelief(belief, signalId, now, policy);
+    expect(next.supportingSignalIds).toContain(signalId);
+    expect(next.supportingSignalIds.length).toBe(belief.supportingSignalIds.length + 1);
+    expect(next.lastReinforcedAt).toBe(now);
+  });
+
+  it.prop(
+    "always derives status from confidence",
+    [beliefArb, id, ts],
+    ([belief, signalId, now]) => {
+      const next = reinforceBelief(belief, signalId, now, policy);
+      expect(next.status).toBe(statusFor(next.confidence, policy));
+    },
+  );
+
+  it("moves confidence by learningRate of the remaining gap", () => {
+    const next = reinforceBelief(
+      { ...beliefBase, confidence: 0.5, supportingSignalIds: [] },
+      "x",
+      1,
+      policy,
+    );
+    expect(next.confidence).toBeCloseTo(0.5 + (1 - 0.5) * policy.learningRate, 10); // 0.65
+  });
+
+  it("normalizes status even on the idempotent no-op path", () => {
+    // confidence 0.05 is below retireBelow (0.1) but status is falsely "active".
+    const stale: Belief = {
+      ...beliefBase,
+      confidence: 0.05,
+      status: "active",
+      supportingSignalIds: ["dup"],
+    };
+    const next = reinforceBelief(stale, "dup", 999, policy); // duplicate id => no-op path
+    expect(next.confidence).toBe(0.05);
+    expect(next.status).toBe("retired");
+  });
+});
+
+describe("decayBelief", () => {
+  it.prop("keeps confidence within [0,1]", [beliefArb, elapsed], ([belief, dt]) => {
+    const c = decayBelief(belief, belief.lastReinforcedAt + dt, policy).confidence;
+    expect(c).toBeGreaterThanOrEqual(0);
+    expect(c).toBeLessThanOrEqual(1);
+  });
+
+  it.prop("never raises confidence", [beliefArb, elapsed], ([belief, dt]) => {
+    expect(
+      decayBelief(belief, belief.lastReinforcedAt + dt, policy).confidence,
+    ).toBeLessThanOrEqual(belief.confidence);
+  });
+
+  it.prop(
+    "is monotonic non-increasing in elapsed time",
+    [beliefArb, elapsed, elapsed],
+    ([belief, a, b]) => {
+      const lo = Math.min(a, b);
+      const hi = Math.max(a, b);
+      const cLo = decayBelief(belief, belief.lastReinforcedAt + lo, policy).confidence;
+      const cHi = decayBelief(belief, belief.lastReinforcedAt + hi, policy).confidence;
+      expect(cHi).toBeLessThanOrEqual(cLo);
+    },
+  );
+
+  it.prop(
+    "is identity at or before the last reinforcement",
+    [beliefArb, elapsed],
+    ([belief, back]) => {
+      const now = Math.max(0, belief.lastReinforcedAt - back);
+      expect(decayBelief(belief, now, policy).confidence).toBe(belief.confidence);
+    },
+  );
+
+  it.prop("always derives status from confidence", [beliefArb, elapsed], ([belief, dt]) => {
+    const next = decayBelief(belief, belief.lastReinforcedAt + dt, policy);
+    expect(next.status).toBe(statusFor(next.confidence, policy));
+  });
+
+  it("halves confidence after exactly one half-life", () => {
+    const next = decayBelief(
+      { ...beliefBase, confidence: 0.8, lastReinforcedAt: 0 },
+      policy.decayHalfLifeMs,
+      policy,
+    );
+    expect(next.confidence).toBeCloseTo(0.4, 10);
+  });
+});
+
+describe("contradictBelief", () => {
+  it.prop("lowers confidence, stays in [0,1], status consistent", [beliefArb], ([belief]) => {
+    const next = contradictBelief(belief, policy);
+    expect(next.confidence).toBeGreaterThanOrEqual(0);
+    expect(next.confidence).toBeLessThanOrEqual(belief.confidence);
+    expect(next.status).toBe(statusFor(next.confidence, policy));
+  });
+
+  it("scales confidence by contradictionFactor", () => {
+    expect(contradictBelief({ ...beliefBase, confidence: 0.8 }, policy).confidence).toBeCloseTo(
+      0.8 * policy.contradictionFactor,
+      10,
+    ); // 0.4
+  });
+});
+
+describe("meetsEvidenceThreshold", () => {
+  it.prop("implies each of its conditions", [beliefArb], ([belief]) => {
+    if (!meetsEvidenceThreshold(belief, policy)) return;
+    expect(belief.status).toBe("active");
+    expect(belief.confidence).toBeGreaterThanOrEqual(policy.minConfidence);
+    expect(belief.supportingSignalIds.length).toBeGreaterThanOrEqual(policy.minEvidence);
+  });
+
+  it("accepts a belief exactly at the confidence and evidence bar", () => {
+    expect(
+      meetsEvidenceThreshold(
+        { ...beliefBase, confidence: policy.minConfidence, supportingSignalIds: ["a", "b", "c"] },
+        policy,
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a hair under the confidence bar", () => {
+    expect(
+      meetsEvidenceThreshold({ ...beliefBase, confidence: policy.minConfidence - 1e-6 }, policy),
+    ).toBe(false);
+  });
+
+  it("rejects one signal short of the evidence bar", () => {
+    expect(meetsEvidenceThreshold({ ...beliefBase, supportingSignalIds: ["a", "b"] }, policy)).toBe(
+      false,
+    );
+  });
+
+  it("rejects a non-active belief regardless of evidence", () => {
+    expect(meetsEvidenceThreshold({ ...beliefBase, status: "decaying" }, policy)).toBe(false);
+  });
+});
+
+describe("isThemeSaturated", () => {
+  it("is not saturated when never posted", () => {
+    expect(isThemeSaturated({ ...themeBase }, 1_000_000, policy)).toBe(false);
+  });
+
+  it.prop(
+    "is saturated within the cadence window and free after it",
+    [ts, elapsed],
+    ([postedAt, gap]) => {
+      const theme: Theme = { ...themeBase, lastPostedAt: postedAt };
+      expect(isThemeSaturated(theme, postedAt + gap, policy)).toBe(gap < policy.cadenceWindowMs);
+    },
+  );
+});
+
+describe("recomputeMomentum", () => {
+  it("is steady exactly at the rising ratio (strict comparison)", () => {
+    expect(recomputeMomentum(120, 100, policy)).toBe("steady"); // 120 > 100*1.2 is false
+  });
+
+  it("is rising just above the rising ratio", () => {
+    expect(recomputeMomentum(121, 100, policy)).toBe("rising");
+  });
+
+  it("is steady exactly at the falling ratio (strict comparison)", () => {
+    expect(recomputeMomentum(80, 100, policy)).toBe("steady"); // 80 < 100*0.8 is false
+  });
+
+  it("is falling just below the falling ratio", () => {
+    expect(recomputeMomentum(79, 100, policy)).toBe("falling");
+  });
+
+  it("is rising from a zero baseline with any activity", () => {
+    expect(recomputeMomentum(1, 0, policy)).toBe("rising");
+  });
+
+  it("is steady from a zero baseline with no activity", () => {
+    expect(recomputeMomentum(0, 0, policy)).toBe("steady");
+  });
+});
