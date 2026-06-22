@@ -6,3 +6,8 @@ export const beliefKinds = ["audience", "product", "competitor", "sentiment", "t
 export const beliefStatuses = ["active", "decaying", "retired"] as const;
 export const momenta = ["rising", "steady", "falling"] as const;
 export const accountModes = ["auto", "needs_approval", "manual"] as const;
+
+export const imageOrigins = ["generated", "uploaded", "gallery"] as const;
+export const postTypes = ["feed", "reel", "story", "tweet", "image"] as const;
+export const postStatuses = ["draft", "ready", "scheduled", "published"] as const;
+export const scheduledStatuses = ["scheduled", "publishing", "published", "failed"] as const;

@@ -1,7 +1,16 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { signalColumns } from "./pipeline/storage";
-import { accountModes, beliefKinds, beliefStatuses, momenta } from "./pipeline/constants";
+import {
+  accountModes,
+  beliefKinds,
+  beliefStatuses,
+  imageOrigins,
+  momenta,
+  postStatuses,
+  postTypes,
+  scheduledStatuses,
+} from "./pipeline/constants";
 
 export default defineSchema({
   users: defineTable({
@@ -111,4 +120,40 @@ export default defineSchema({
     momentumRisingRatio: v.number(),
     momentumFallingRatio: v.number(),
   }).index("by_account", ["accountId"]),
+
+  // ----- Phase 2 composable media + calendar -----
+  // Images are atomic units; posts compose ordered image sets; scheduledPosts
+  // pin a post to a datetime (the calendar) and carry the publish lifecycle.
+
+  images: defineTable({
+    accountId: v.id("accounts"),
+    origin: v.union(...imageOrigins.map((origin) => v.literal(origin))),
+    storageId: v.optional(v.id("_storage")),
+    externalUrl: v.optional(v.string()),
+    width: v.optional(v.number()),
+    height: v.optional(v.number()),
+    prompt: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_account", ["accountId"]),
+
+  posts: defineTable({
+    accountId: v.id("accounts"),
+    type: v.union(...postTypes.map((type) => v.literal(type))),
+    imageIds: v.array(v.id("images")),
+    caption: v.string(),
+    platform: v.string(),
+    status: v.union(...postStatuses.map((status) => v.literal(status))),
+    createdAt: v.number(),
+  }).index("by_account", ["accountId"]),
+
+  scheduledPosts: defineTable({
+    accountId: v.id("accounts"),
+    postId: v.id("posts"),
+    scheduledFor: v.number(),
+    status: v.union(...scheduledStatuses.map((status) => v.literal(status))),
+    externalPostId: v.optional(v.string()),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_account_scheduledFor", ["accountId", "scheduledFor"]),
 });
