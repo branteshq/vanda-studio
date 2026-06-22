@@ -1,7 +1,18 @@
 import type { ComponentType } from "react";
-import { UserButton, useUser } from "@clerk/tanstack-react-start";
-import { Link, useRouterState } from "@tanstack/react-router";
-import { Calendar, ChevronsUpDown, LayoutGrid, Plus, RefreshCw, Sparkles, User } from "lucide-react";
+import { useClerk, useUser } from "@clerk/tanstack-react-start";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  BadgeCheckIcon,
+  Calendar,
+  ChevronsUpDown,
+  LayoutGrid,
+  LogOutIcon,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  User,
+} from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@vanda-studio/ui/components/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -119,9 +130,65 @@ function WorkspaceSwitcher() {
   );
 }
 
+function getInitials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+function AccountMenu() {
+  const { user } = useUser();
+  const clerk = useClerk();
+  const navigate = useNavigate();
+  const name = user?.fullName ?? user?.username ?? "Minha conta";
+  const email = user?.primaryEmailAddress?.emailAddress ?? "";
+  const initials = getInitials(name) || "MC";
+  const handleSignOut = async () => {
+    await clerk.signOut();
+    await navigate({ to: "/login" });
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <SidebarMenuButton
+            size="lg"
+            className="h-auto gap-[10px] rounded-[10px] px-1.5 py-1 text-sidebar-foreground/90 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-0!"
+          />
+        }
+      >
+        <Avatar className="size-[30px]">
+          <AvatarImage src={user?.imageUrl} alt={name} />
+          <AvatarFallback className="text-[11px] font-semibold">{initials}</AvatarFallback>
+        </Avatar>
+        <span className="min-w-0 flex-1 text-left group-data-[collapsible=icon]:hidden">
+          <span className="block truncate text-[12.5px] font-semibold">{name}</span>
+          <span className="block truncate text-[11px] text-vanda-muted-2">{email}</span>
+        </span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="min-w-56 rounded-lg" align="end" side="right" sideOffset={4}>
+        <DropdownMenuGroup>
+          <DropdownMenuItem className="gap-2 p-2" onClick={() => clerk.openUserProfile()}>
+            <BadgeCheckIcon className="size-4" />
+            Gerenciar conta
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="gap-2 p-2" onClick={() => void handleSignOut()}>
+          <LogOutIcon className="size-4" />
+          Sair
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { user } = useUser();
 
   return (
     <Sidebar collapsible="icon" className="border-sidebar-border">
@@ -181,23 +248,8 @@ export function AppSidebar() {
           </div>
         </div>
 
-        <div className="flex items-center gap-[10px] border-t border-vanda-line-2 px-1.5 pt-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0">
-          <UserButton
-            appearance={{
-              elements: {
-                userButtonAvatarBox: "size-[30px]",
-                userButtonTrigger: "rounded-full focus:shadow-none",
-              },
-            }}
-          />
-          <span className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-            <span className="block truncate text-[12.5px] font-semibold">
-              {user?.fullName ?? user?.username ?? "Minha conta"}
-            </span>
-            <span className="block truncate text-[11px] text-vanda-muted-2">
-              {user?.primaryEmailAddress?.emailAddress ?? ""}
-            </span>
-          </span>
+        <div className="border-t border-vanda-line-2 px-1.5 pt-3 group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0">
+          <AccountMenu />
         </div>
       </SidebarFooter>
     </Sidebar>
