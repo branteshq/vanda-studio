@@ -5,6 +5,7 @@ import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from "@vanda-studio/ui/components/sidebar";
 import { TooltipProvider } from "@vanda-studio/ui/components/tooltip";
 import { AppSidebar } from "../components/app-sidebar";
@@ -24,9 +25,7 @@ function DashboardLayout() {
           <SidebarProvider style={{ "--sidebar-width": "15rem" } as CSSProperties}>
             <AppSidebar />
             <SidebarInset className="flex h-svh flex-col overflow-hidden bg-vanda-surface">
-              <header className="flex h-14 shrink-0 items-start px-3 pt-3">
-                <SidebarTrigger className="size-7 text-vanda-muted-2 hover:bg-sidebar-accent hover:text-sidebar-foreground" />
-              </header>
+              <DashboardSidebarTrigger />
               <Outlet />
             </SidebarInset>
           </SidebarProvider>
@@ -35,3 +34,19 @@ function DashboardLayout() {
     </>
   );
 }
+function DashboardSidebarTrigger() {
+  const { state } = useSidebar();
+
+  return (
+    <header
+      className={
+        state === "collapsed"
+          ? "flex h-14 shrink-0 items-start px-3 pt-3.5"
+          : "flex h-[72px] shrink-0 items-start px-3 pt-[22px]"
+      }
+    >
+      <SidebarTrigger className="size-7 text-vanda-muted-2 hover:bg-sidebar-accent hover:text-sidebar-foreground" />
+    </header>
+  );
+}
+
