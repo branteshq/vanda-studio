@@ -146,9 +146,12 @@ export function AppSidebar() {
                     <Icon className="size-4" />
                     <span className="flex-1 group-data-[collapsible=icon]:hidden">{item.label}</span>
                     {item.live ? (
-                      <span className="flex items-center gap-1.5 whitespace-nowrap text-[10px] font-semibold text-vanda-positive group-data-[collapsible=icon]:hidden">
+                      <span
+                        className="flex items-center group-data-[collapsible=icon]:hidden"
+                        aria-label="ao vivo"
+                        title="ao vivo"
+                      >
                         <span className="size-1.5 rounded-full bg-vanda-positive shadow-[0_0_6px_var(--vanda-positive)]" />
-                        ao vivo
                       </span>
                     ) : null}
                   </SidebarMenuButton>
