@@ -19,7 +19,12 @@ const signal = (id: string, text: string): StoredSignal => ({
   observedAt: 1,
 });
 const fixed = (judgment: SignalJudgment) => () => judgment;
-const empty: MemorySnapshot = { beliefs: [], themes: [], policy: defaultPolicy };
+const empty: MemorySnapshot = {
+  beliefs: [],
+  themes: [],
+  policy: defaultPolicy,
+  mode: "needs_approval",
+};
 
 /** A marker-keyed judge: keys only on the signal text after SIGNAL_MARKER. */
 const routeJudge = (prompt: string): SignalJudgment => {
@@ -56,7 +61,7 @@ describe("foldConsolidation (pure)", () => {
     // one half-life later, with no new evidence for it
     const result = foldConsolidation(
       "acct_1",
-      { beliefs: [stale], themes: [], policy: defaultPolicy },
+      { beliefs: [stale], themes: [], policy: defaultPolicy, mode: "needs_approval" },
       [],
       defaultPolicy.decayHalfLifeMs,
     );
@@ -78,7 +83,7 @@ describe("foldConsolidation (pure)", () => {
     // pass 1 at one half-life (no signals): 0.8 -> 0.4, anchor advances to hl
     const pass1 = foldConsolidation(
       "acct_1",
-      { beliefs: [belief], themes: [], policy: defaultPolicy },
+      { beliefs: [belief], themes: [], policy: defaultPolicy, mode: "needs_approval" },
       [],
       hl,
     );
@@ -86,7 +91,7 @@ describe("foldConsolidation (pure)", () => {
     // pass 2 at two half-lives, feeding pass 1 back: 0.8*0.5^2 = 0.2, NOT 0.4*0.5^2 = 0.1
     const pass2 = foldConsolidation(
       "acct_1",
-      { beliefs: pass1.beliefs, themes: [], policy: defaultPolicy },
+      { beliefs: pass1.beliefs, themes: [], policy: defaultPolicy, mode: "needs_approval" },
       [],
       2 * hl,
     );
@@ -164,7 +169,7 @@ describe("foldConsolidation (pure)", () => {
       const entries = pairs.map(([signal, { judgment }]) => ({ signal, judgment }));
       const result = foldConsolidation(
         "acct_1",
-        { beliefs, themes, policy: defaultPolicy },
+        { beliefs, themes, policy: defaultPolicy, mode: "needs_approval" },
         entries,
         now,
       );

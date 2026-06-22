@@ -1,5 +1,12 @@
 import * as Schema from "effect/Schema";
-import { beliefKinds, beliefStatuses, momenta } from "./constants";
+import {
+  accountModes,
+  beliefKinds,
+  beliefStatuses,
+  momenta,
+  postTypes,
+  suggestionStatuses,
+} from "./constants";
 
 // ---------------------------------------------------------------------------
 // Value types — shared, checked primitives. The checks make schema-derived
@@ -27,6 +34,18 @@ export type BeliefStatus = typeof BeliefStatus.Type;
 
 export const Momentum = Schema.Literals(momenta);
 export type Momentum = typeof Momentum.Type;
+
+/** Per-account autonomy setting; drives a suggestion's initial control status. */
+export const AccountMode = Schema.Literals(accountModes);
+export type AccountMode = typeof AccountMode.Type;
+
+/** The semantically-distinct media kinds (a feed post, reel, story, tweet, image). */
+export const PostType = Schema.Literals(postTypes);
+export type PostType = typeof PostType.Type;
+
+/** A suggestion's control status (the per-item states from the canonical control model). */
+export const SuggestionStatus = Schema.Literals(suggestionStatuses);
+export type SuggestionStatus = typeof SuggestionStatus.Type;
 
 // ---------------------------------------------------------------------------
 // Memory entities
@@ -129,3 +148,25 @@ export const MemoryNote = Schema.Struct({
   createdAt: Timestamp,
 });
 export type MemoryNote = typeof MemoryNote.Type;
+
+/**
+ * The output of plan: a composed post idea grounded in specific beliefs (and the
+ * signals behind them), with a reasoning trace and a control status. Rejected
+ * candidates are persisted too (status "rejected" + reason) so the owner can see
+ * what Vanda considered and skipped — inspectable autonomy.
+ */
+export const Suggestion = Schema.Struct({
+  accountId: Schema.String,
+  title: Schema.String,
+  rationale: Schema.String,
+  /** A format hint when the model proposed one; plan is otherwise format-agnostic (create decides). */
+  format: Schema.optionalKey(PostType),
+  themeName: Schema.String,
+  beliefStatements: Schema.Array(Schema.String),
+  signalIds: Schema.Array(Schema.String),
+  status: SuggestionStatus,
+  requiresApproval: Schema.Boolean,
+  rejectionReason: Schema.optionalKey(Schema.String),
+  createdAt: Timestamp,
+});
+export type Suggestion = typeof Suggestion.Type;

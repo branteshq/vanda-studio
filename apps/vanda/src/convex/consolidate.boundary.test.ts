@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { internal } from "./_generated/api";
 import { consolidate, type SignalJudgment } from "./pipeline/consolidate";
 import { makeStubConsolidator } from "./pipeline/consolidate.testing";
-import { memoryStoreLive } from "./pipeline/liveConsolidate";
+import { memoryStoreLive } from "./pipeline/liveMemory";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");

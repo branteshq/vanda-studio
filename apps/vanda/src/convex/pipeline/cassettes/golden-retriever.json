@@ -1,0 +1,97 @@
+[
+  {
+    "prompt": "You maintain a small business's brand memory. Given a new signal and the beliefs already held, decide which belief the signal bears on.\nReuse a belief's EXACT wording when the signal supports or contradicts it; otherwise write one new concise belief statement. Also return its kind, an importance from 0 to 1, and a short recurring-theme name. Do not propose any post or action.\n\nKnown beliefs:\n(none yet)\n\nSIGNAL >>> (comments) your golden retriever is the cutest, i come to this cafe just to see the dog",
+    "value": {
+      "kind": "audience",
+      "salience": 0.7,
+      "relation": "novel",
+      "beliefStatement": "People are attracted to this cafe because of its friendly atmosphere and the presence of cute dogs.",
+      "themeName": "cafe appeal"
+    }
+  },
+  {
+    "prompt": "You maintain a small business's brand memory. Given a new signal and the beliefs already held, decide which belief the signal bears on.\nReuse a belief's EXACT wording when the signal supports or contradicts it; otherwise write one new concise belief statement. Also return its kind, an importance from 0 to 1, and a short recurring-theme name. Do not propose any post or action.\n\nKnown beliefs:\n- People are attracted to this cafe because of its friendly atmosphere and the presence of cute dogs.\n\nSIGNAL >>> (comments) please give the golden retriever a treat from me next time!",
+    "value": {
+      "kind": "audience",
+      "salience": 0.8,
+      "relation": "supports",
+      "beliefStatement": "People are attracted to this cafe because of its friendly atmosphere and the presence of cute dogs.",
+      "themeName": "customer engagement"
+    }
+  },
+  {
+    "prompt": "You maintain a small business's brand memory. Given a new signal and the beliefs already held, decide which belief the signal bears on.\nReuse a belief's EXACT wording when the signal supports or contradicts it; otherwise write one new concise belief statement. Also return its kind, an importance from 0 to 1, and a short recurring-theme name. Do not propose any post or action.\n\nKnown beliefs:\n- People are attracted to this cafe because of its friendly atmosphere and the presence of cute dogs.\n\nSIGNAL >>> (mentions) tagged you — the resident golden retriever totally made my day at the cafe",
+    "value": {
+      "kind": "sentiment",
+      "salience": 0.9,
+      "relation": "supports",
+      "beliefStatement": "People are attracted to this cafe because of its friendly atmosphere and the presence of cute dogs.",
+      "themeName": "customer experience"
+    }
+  },
+  {
+    "prompt": "You maintain a small business's brand memory. Given a new signal and the beliefs already held, decide which belief the signal bears on.\nReuse a belief's EXACT wording when the signal supports or contradicts it; otherwise write one new concise belief statement. Also return its kind, an importance from 0 to 1, and a short recurring-theme name. Do not propose any post or action.\n\nKnown beliefs:\n- People are attracted to this cafe because of its friendly atmosphere and the presence of cute dogs.\n\nSIGNAL >>> (comments) the golden retriever at this cafe is adorable, bring him to the front more",
+    "value": {
+      "kind": "audience",
+      "salience": 0.7,
+      "relation": "supports",
+      "beliefStatement": "People are attracted to this cafe because of its friendly atmosphere and the presence of cute dogs.",
+      "themeName": "Dog Attraction"
+    }
+  },
+  {
+    "prompt": "You are a brand's social-media strategist. From the well-evidenced beliefs below, propose up to 3 concrete Instagram post ideas this brand should make. Ground each idea in one or more of the listed beliefs (reuse their EXACT wording in beliefStatements), choose a format (feed, reel, story, tweet, image), name the theme it serves, and give a one-sentence rationale. Propose nothing that isn't supported by a listed belief.\n\nBeliefs:\n- [audience] People are attracted to this cafe because of its friendly atmosphere and the presence of cute dogs. (confidence 76%)\n\nThemes:\n- cafe appeal (steady)\n- customer engagement (steady)\n- customer experience (steady)\n- Dog Attraction (steady)",
+    "value": {
+      "ideas": [
+        {
+          "title": "Meet the Dogs of Our Cafe",
+          "themeName": "Dog Attraction",
+          "beliefStatements": [
+            "People are attracted to this cafe because of its friendly atmosphere and the presence of cute dogs."
+          ],
+          "rationale": "A series of Instagram Reels showcasing the cute dogs that frequent the cafe will not only highlight their charm but also reinforce the cafe's friendly and inviting atmosphere."
+        },
+        {
+          "title": "Friendly Vibes Only: Customer Testimonials",
+          "themeName": "customer engagement",
+          "beliefStatements": [
+            "People are attracted to this cafe because of its friendly atmosphere and the presence of cute dogs."
+          ],
+          "rationale": "Posting images of happy customers enjoying their time at the cafe, accompanied by their testimonials about the friendly atmosphere, will enhance engagement and showcase the positive experiences patrons have."
+        },
+        {
+          "title": "Paws & Coffee Moments",
+          "themeName": "cafe appeal",
+          "beliefStatements": [
+            "People are attracted to this cafe because of its friendly atmosphere and the presence of cute dogs."
+          ],
+          "rationale": "Sharing Instagram Stories that feature customers enjoying coffee alongside their dogs will highlight the unique appeal of the cafe while fostering a connection with dog lovers."
+        }
+      ]
+    }
+  },
+  {
+    "prompt": "You are a skeptical editor reviewing ONE proposed Instagram post for a small business. Reject it if it is off-brand, generic, unsupported, or risky; accept only when it is specific and clearly worth posting. Flag it sensitive if it touches negative sentiment, a competitor, or anything needing owner sign-off.\n\nTitle: Meet the Dogs of Our Cafe\nTheme: Dog Attraction\nRationale: A series of Instagram Reels showcasing the cute dogs that frequent the cafe will not only highlight their charm but also reinforce the cafe's friendly and inviting atmosphere.",
+    "value": {
+      "verdict": "accept",
+      "reason": "The proposed post aligns well with the cafe's brand by showcasing a friendly atmosphere and targeting dog owners and pet lovers. It has the potential to attract new customers and engage with the community while highlighting a unique selling point of the cafe—its dog-friendly environment. The format of Instagram Reels is also suitable for visual content.",
+      "sensitive": false
+    }
+  },
+  {
+    "prompt": "You are a skeptical editor reviewing ONE proposed Instagram post for a small business. Reject it if it is off-brand, generic, unsupported, or risky; accept only when it is specific and clearly worth posting. Flag it sensitive if it touches negative sentiment, a competitor, or anything needing owner sign-off.\n\nTitle: Friendly Vibes Only: Customer Testimonials\nTheme: customer engagement\nRationale: Posting images of happy customers enjoying their time at the cafe, accompanied by their testimonials about the friendly atmosphere, will enhance engagement and showcase the positive experiences patrons have.",
+    "value": {
+      "verdict": "reject",
+      "reason": "The proposed post is generic and lacks specificity. While showcasing customer testimonials is a good idea, it needs to include concrete details about the customers, specific experiences, or unique aspects of the cafe that set it apart. Generic happy customer images and testimonials could easily apply to any cafe and therefore won't stand out. Additionally, without specific content, it could feel insincere or contrived, which may not align with the brand's authentic and friendly image.",
+      "sensitive": false
+    }
+  },
+  {
+    "prompt": "You are a skeptical editor reviewing ONE proposed Instagram post for a small business. Reject it if it is off-brand, generic, unsupported, or risky; accept only when it is specific and clearly worth posting. Flag it sensitive if it touches negative sentiment, a competitor, or anything needing owner sign-off.\n\nTitle: Paws & Coffee Moments\nTheme: cafe appeal\nRationale: Sharing Instagram Stories that feature customers enjoying coffee alongside their dogs will highlight the unique appeal of the cafe while fostering a connection with dog lovers.",
+    "value": {
+      "verdict": "accept",
+      "reason": "The proposed post aligns well with the cafe's branding as a dog-friendly establishment and taps into the growing trend of pet-friendly spaces. It promotes customer engagement and fosters community among dog lovers, which is a key part of the cafe's appeal. By featuring real customers, it adds authenticity and relatability to the brand. The suggestion to use Instagram Stories is also appropriate for reaching a wider audience.",
+      "sensitive": false
+    }
+  }
+]

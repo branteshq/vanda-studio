@@ -1,6 +1,12 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { beliefColumns, memoryNoteColumns, signalColumns, themeColumns } from "./pipeline/storage";
+import {
+  beliefColumns,
+  memoryNoteColumns,
+  signalColumns,
+  suggestionColumns,
+  themeColumns,
+} from "./pipeline/storage";
 import {
   accountModes,
   imageOrigins,
@@ -100,6 +106,12 @@ export default defineSchema({
 
   // The consolidation journal: one reflection note per pass, newest-first by account.
   memoryNotes: defineTable(memoryNoteColumns).index("by_account", ["accountId"]),
+
+  // Suggestions (plan stage): composed post ideas with control status + provenance.
+  // Rejected candidates are kept (status "rejected" + rejectionReason) for inspectable autonomy.
+  suggestions: defineTable(suggestionColumns)
+    .index("by_account_status", ["accountId", "status"])
+    .index("by_account_created", ["accountId", "createdAt"]),
 
   // ----- Phase 2 composable media + calendar -----
   // Images are atomic units; posts compose ordered image sets; scheduledPosts

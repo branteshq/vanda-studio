@@ -1,13 +1,14 @@
 import type * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
-import type { Belief, Policy, Theme } from "./memory";
+import type { AccountMode, Belief, Policy, Theme } from "./memory";
 
-/** A consistent read of an account's discernment memory. */
+/** A consistent read of an account's discernment memory + autonomy setting. */
 export interface MemorySnapshot {
   readonly beliefs: ReadonlyArray<Belief>;
   readonly themes: ReadonlyArray<Theme>;
   readonly policy: Policy;
+  readonly mode: AccountMode;
 }
 
 /**

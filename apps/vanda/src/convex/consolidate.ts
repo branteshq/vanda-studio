@@ -59,7 +59,13 @@ export const loadSnapshot = internalQuery({
       .query("policies")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .first();
-    return { beliefs, themes, policy: policyRow ?? defaultPolicy };
+    const account = await ctx.db.get(accountId);
+    return {
+      beliefs,
+      themes,
+      policy: policyRow ?? defaultPolicy,
+      mode: account?.mode ?? "needs_approval",
+    };
   },
 });
 

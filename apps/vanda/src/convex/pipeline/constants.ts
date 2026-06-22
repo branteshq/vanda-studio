@@ -12,3 +12,12 @@ export const postTypes = ["feed", "reel", "story", "tweet", "image"] as const;
 export const postStatuses = ["draft", "ready", "scheduled", "published"] as const;
 export const scheduledStatuses = ["scheduled", "publishing", "published", "failed"] as const;
 export const signalSources = ["comments", "mentions", "competitors", "trends", "posts"] as const;
+export const suggestionStatuses = [
+  "suggestion",
+  "needs_you",
+  "approved",
+  "creating",
+  "scheduled",
+  "dismissed",
+  "rejected",
+] as const;

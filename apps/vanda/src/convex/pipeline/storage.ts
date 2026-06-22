@@ -1,5 +1,12 @@
 import { v } from "convex/values";
-import { beliefKinds, beliefStatuses, momenta, signalSources } from "./constants";
+import {
+  beliefKinds,
+  beliefStatuses,
+  momenta,
+  postTypes,
+  signalSources,
+  suggestionStatuses,
+} from "./constants";
 
 /**
  * The Convex storage contract for `signals`, shared by the table definition
@@ -56,5 +63,24 @@ export const memoryNoteColumns = {
   accountId: v.id("accounts"),
   note: v.string(),
   signalCount: v.number(),
+  createdAt: v.number(),
+};
+
+/**
+ * Storage contract for `suggestions` — the output of plan. Accepted ideas carry
+ * a control status + reasoning + provenance (the beliefs/signals behind them);
+ * rejected candidates are persisted with status "rejected" + `rejectionReason`.
+ */
+export const suggestionColumns = {
+  accountId: v.id("accounts"),
+  title: v.string(),
+  rationale: v.string(),
+  format: v.optional(v.union(...postTypes.map((t) => v.literal(t)))),
+  themeName: v.string(),
+  beliefStatements: v.array(v.string()),
+  signalIds: v.array(v.string()),
+  status: v.union(...suggestionStatuses.map((s) => v.literal(s))),
+  requiresApproval: v.boolean(),
+  rejectionReason: v.optional(v.string()),
   createdAt: v.number(),
 };
