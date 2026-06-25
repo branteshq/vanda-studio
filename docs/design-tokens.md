@@ -11,17 +11,17 @@ build on raw color, so this isn't a guideline you can forget.
 Every token is both a CSS variable (`var(--surface)`) and a Tailwind utility
 (`bg-surface`). Use the utility in markup.
 
-| Group | Tokens | Utility examples |
-| --- | --- | --- |
-| Surfaces | `--app --surface --sidebar --inset` | `bg-app` `bg-surface` `bg-inset` |
-| Borders | `--border --border-strong` | `border-border` `border-border-strong` |
-| Text (1→6, primary→metadata) | `--text --text-2 … --text-6` | `text-text` `text-text-3` `text-text-5` |
-| Brand (magenta, constant) | `--brand-accent --brand-soft` | `bg-brand-accent` `text-brand-accent` |
-| Status (each = a state) | `--green --amber --peri` | `text-green` `text-amber` `text-peri` |
-| Status surfaces | `--needs-bg/-border` `--creating-bg/-border` | `bg-needs-bg` `bg-creating-bg` |
-| Radii (chip·btn·card·lg·pill) | `7 · 9 · 12 · 16 · ∞` | `rounded-sm` `rounded-md` `rounded-lg` `rounded-xl` `rounded-full` |
-| Elevation | `--shadow-sm --shadow --shadow-lg` | `shadow-sm` `shadow` |
-| Motion | `--ease-out --ease-in-out` | `ease-[var(--ease-out)]` |
+| Group                         | Tokens                                       | Utility examples                                                   |
+| ----------------------------- | -------------------------------------------- | ------------------------------------------------------------------ |
+| Surfaces                      | `--app --surface --sidebar --inset`          | `bg-app` `bg-surface` `bg-inset`                                   |
+| Borders                       | `--border --border-strong`                   | `border-border` `border-border-strong`                             |
+| Text (1→6, primary→metadata)  | `--text --text-2 … --text-6`                 | `text-text` `text-text-3` `text-text-5`                            |
+| Brand (magenta, constant)     | `--brand-accent --brand-soft`                | `bg-brand-accent` `text-brand-accent`                              |
+| Status (each = a state)       | `--green --amber --peri`                     | `text-green` `text-amber` `text-peri`                              |
+| Status surfaces               | `--needs-bg/-border` `--creating-bg/-border` | `bg-needs-bg` `bg-creating-bg`                                     |
+| Radii (chip·btn·card·lg·pill) | `7 · 9 · 12 · 16 · ∞`                        | `rounded-sm` `rounded-md` `rounded-lg` `rounded-xl` `rounded-full` |
+| Elevation                     | `--shadow-sm --shadow --shadow-lg`           | `shadow-sm` `shadow`                                               |
+| Motion                        | `--ease-out --ease-in-out`                   | `ease-[var(--ease-out)]`                                           |
 
 shadcn names (`bg-background`, `text-foreground`, `bg-primary`, `text-muted-foreground`,
 `bg-card`, `bg-accent`, …) still work — they're mapped onto the tokens above, so
@@ -33,14 +33,14 @@ vendored components stay consistent. `text-foreground` = `--text`; `bg-primary` 
 Recurring patterns are components, not ad-hoc classes — import from
 `@vanda-studio/ui/components/*`:
 
-| Component | Use |
-| --- | --- |
+| Component                                                             | Use                                                                  |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | `Button` (`variant` brand·outline·ghost·subtle·soft·destructive·link) | actions; **solid brand, never gradient**; presses with `scale(0.97)` |
-| `StatusPill` (`tone` live·needs·creating·suggestion·scheduled·done) | item/stage state |
-| `Tag` (`tone` signal·neutral·brand) | signal categories, trends, counts (periwinkle) |
-| `StatusRing` (`state` done·active·pending) | Linear-style step rings |
-| `Card` (`variant` base·inset·needs·creating) | suggestion/plan cards |
-| `Toggle` | on/off (auto vs manual, etc.) |
+| `StatusPill` (`tone` live·needs·creating·suggestion·scheduled·done)   | item/stage state                                                     |
+| `Tag` (`tone` signal·neutral·brand)                                   | signal categories, trends, counts (periwinkle)                       |
+| `StatusRing` (`state` done·active·pending)                            | Linear-style step rings                                              |
+| `Card` (`variant` base·inset·needs·creating)                          | suggestion/plan cards                                                |
+| `Toggle`                                                              | on/off (auto vs manual, etc.)                                        |
 
 ## Rules
 

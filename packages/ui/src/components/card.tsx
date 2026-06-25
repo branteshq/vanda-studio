@@ -16,11 +16,7 @@ const card = cva("rounded-lg border", {
   defaultVariants: { variant: "base" },
 });
 
-function Card({
-  variant,
-  className,
-  ...props
-}: ComponentProps<"div"> & VariantProps<typeof card>) {
+function Card({ variant, className, ...props }: ComponentProps<"div"> & VariantProps<typeof card>) {
   return <div data-slot="card" className={cn(card({ variant }), className)} {...props} />;
 }
 

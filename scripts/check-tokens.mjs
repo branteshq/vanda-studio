@@ -20,8 +20,14 @@ import { join, relative } from "node:path";
 const ROOTS = ["apps/vanda/src/components", "apps/vanda/src/routes", "packages/ui/src/components"];
 
 const RULES = [
-  { re: /-\[(?:#|rgb|rgba|hsl|hsla|oklch|oklab)/, why: "arbitrary color class — use a token utility (bg-surface, text-text-3, …)" },
-  { re: /(?:linear|radial|conic)-gradient\(/, why: "raw gradient — tokens only (the brand mark is the lone gradient)" },
+  {
+    re: /-\[(?:#|rgb|rgba|hsl|hsla|oklch|oklab)/,
+    why: "arbitrary color class — use a token utility (bg-surface, text-text-3, …)",
+  },
+  {
+    re: /(?:linear|radial|conic)-gradient\(/,
+    why: "raw gradient — tokens only (the brand mark is the lone gradient)",
+  },
   { re: /:\s*["']#[0-9a-fA-F]{3,8}\b/, why: "hex in an inline style — use a token" },
 ];
 
@@ -45,7 +51,12 @@ function walk(dir) {
         if (line.includes("token-guard-ignore")) continue;
         for (const { re, why } of RULES) {
           if (re.test(line)) {
-            offenders.push({ file: relative(process.cwd(), full), line: i + 1, why, text: line.trim() });
+            offenders.push({
+              file: relative(process.cwd(), full),
+              line: i + 1,
+              why,
+              text: line.trim(),
+            });
             break;
           }
         }
@@ -57,7 +68,9 @@ function walk(dir) {
 for (const root of ROOTS) walk(root);
 
 if (offenders.length > 0) {
-  console.error("\n✗ Design-token guard — raw color in markup. Use tokens (docs/design-tokens.md).\n");
+  console.error(
+    "\n✗ Design-token guard — raw color in markup. Use tokens (docs/design-tokens.md).\n",
+  );
   for (const o of offenders) {
     console.error(`  ${o.file}:${o.line}  ${o.why}`);
     console.error(`    ${o.text.slice(0, 130)}`);

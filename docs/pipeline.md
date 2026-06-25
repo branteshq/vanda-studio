@@ -22,16 +22,16 @@ graph LR
   Pub -.learnings.-> C
 ```
 
-| Stage | What happens | Output | Cadence |
-|---|---|---|---|
-| **Observe** | Pull raw signals from IG (comments, mentions, …), dedup, persist | `signals` | every 30 min |
-| **Consolidate** | LLM folds new signals into belief/theme memory (reinforce / decay / contradict); writes a journal note | `beliefs`, `themes`, `memoryNotes` | hourly |
-| **Plan** | LLM generates post ideas from well-evidenced beliefs, then a skeptical critique accepts/rejects each | `suggestions` | daily |
-| **Create** | Durable workflow: retrieve brand context (RAG) → caption + image prompts → generate images → compose post | `posts`, `images` | hourly |
-| **Publish** | Pin a post to a date → IG Graph container → poll → publish | `scheduledPosts` | on schedule |
+| Stage           | What happens                                                                                              | Output                             | Cadence      |
+| --------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------ |
+| **Observe**     | Pull raw signals from IG (comments, mentions, …), dedup, persist                                          | `signals`                          | every 30 min |
+| **Consolidate** | LLM folds new signals into belief/theme memory (reinforce / decay / contradict); writes a journal note    | `beliefs`, `themes`, `memoryNotes` | hourly       |
+| **Plan**        | LLM generates post ideas from well-evidenced beliefs, then a skeptical critique accepts/rejects each      | `suggestions`                      | daily        |
+| **Create**      | Durable workflow: retrieve brand context (RAG) → caption + image prompts → generate images → compose post | `posts`, `images`                  | hourly       |
+| **Publish**     | Pin a post to a date → IG Graph container → poll → publish                                                | `scheduledPosts`                   | on schedule  |
 
 **Key idea — perception is split from deliberation.** A raw signal can never
-directly cause a post. Consolidate turns signals into *beliefs* (with
+directly cause a post. Consolidate turns signals into _beliefs_ (with
 confidence + evidence); only beliefs that cross an evidence threshold reach
 Plan. This is why a single "someone mentioned a dog" comment doesn't spawn a
 dog post — it nudges a belief; sustained evidence across signals is what posts.
@@ -56,19 +56,19 @@ dog post — it nudges a belief; sustained evidence across signals is what posts
 
 Account-scoped tables. `*` = the fields a screen most likely renders.
 
-| Entity | Key fields | Notes |
-|---|---|---|
-| **account** | `mode`*, `connectionId` | the autonomy setting (see §4) |
-| **signal** | `source`*, `text`*, `authorHandle`, `permalink`, `observedAt`*, `consolidatedAt` | raw observation; `source ∈ comments · mentions · competitors · trends · posts` |
-| **belief** | `statement`*, `kind`*, `confidence`*, `status`*, `supportingSignalIds`, `confidenceAsOf` | what Vanda holds; `kind ∈ audience · product · competitor · sentiment · trend` |
-| **theme** | `name`*, `summary`*, `momentum`*, `postCount`, `signalCount` | recurring topic; `momentum ∈ rising · steady · falling` |
-| **memoryNote** | `note`*, `signalCount`, `createdAt`* | "what Vanda is thinking" journal, one per consolidation |
-| **suggestion** | `title`*, `rationale`*, `themeName`*, `format`, `status`*, `beliefStatements`, `signalIds`, `requiresApproval`*, `rejectionReason`* | a post idea + its provenance + control status |
-| **image** | `origin`*, `externalUrl`/`storageId`*, `prompt`, `width`/`height` | atomic media unit; `origin ∈ generated · uploaded · gallery` |
-| **post** | `type`*, `imageIds`*, `caption`*, `status`*, `platform`, `suggestionId` | composed media; `type ∈ feed · reel · story · tweet · image` |
-| **scheduledPost** | `scheduledFor`*, `status`*, `externalPostId`, `lastError` | a post pinned to a date; `status ∈ scheduled · publishing · published · failed` |
+| Entity            | Key fields                                                                                                                          | Notes                                                                           |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| **account**       | `mode`\*, `connectionId`                                                                                                            | the autonomy setting (see §4)                                                   |
+| **signal**        | `source`_, `text`_, `authorHandle`, `permalink`, `observedAt`\*, `consolidatedAt`                                                   | raw observation; `source ∈ comments · mentions · competitors · trends · posts`  |
+| **belief**        | `statement`_, `kind`_, `confidence`_, `status`_, `supportingSignalIds`, `confidenceAsOf`                                            | what Vanda holds; `kind ∈ audience · product · competitor · sentiment · trend`  |
+| **theme**         | `name`_, `summary`_, `momentum`\*, `postCount`, `signalCount`                                                                       | recurring topic; `momentum ∈ rising · steady · falling`                         |
+| **memoryNote**    | `note`_, `signalCount`, `createdAt`_                                                                                                | "what Vanda is thinking" journal, one per consolidation                         |
+| **suggestion**    | `title`_, `rationale`_, `themeName`_, `format`, `status`_, `beliefStatements`, `signalIds`, `requiresApproval`_, `rejectionReason`_ | a post idea + its provenance + control status                                   |
+| **image**         | `origin`_, `externalUrl`/`storageId`_, `prompt`, `width`/`height`                                                                   | atomic media unit; `origin ∈ generated · uploaded · gallery`                    |
+| **post**          | `type`_, `imageIds`_, `caption`_, `status`_, `platform`, `suggestionId`                                                             | composed media; `type ∈ feed · reel · story · tweet · image`                    |
+| **scheduledPost** | `scheduledFor`_, `status`_, `externalPostId`, `lastError`                                                                           | a post pinned to a date; `status ∈ scheduled · publishing · published · failed` |
 
-**Composability**: an image is one unit; a post composes an *ordered set* of
+**Composability**: an image is one unit; a post composes an _ordered set_ of
 images + caption + platform. An image can be generated, uploaded, or pulled
 from the gallery — all interchangeable.
 
@@ -84,11 +84,11 @@ whole pipeline."
 
 **Account mode** (`account.mode`):
 
-| mode | behaviour |
-|---|---|
-| `auto` | Vanda creates + schedules on its own; ideas land `approved` |
-| `needs_approval` | ideas land `needs_you` and wait for the owner |
-| `manual` | ideas land as `suggestion`; the owner drives |
+| mode             | behaviour                                                   |
+| ---------------- | ----------------------------------------------------------- |
+| `auto`           | Vanda creates + schedules on its own; ideas land `approved` |
+| `needs_approval` | ideas land `needs_you` and wait for the owner               |
+| `manual`         | ideas land as `suggestion`; the owner drives                |
 
 **Suggestion lifecycle** (`suggestion.status`):
 
@@ -112,12 +112,12 @@ stateDiagram-v2
 
 **Per-item actions** (the canonical control surface — map to transitions):
 
-| Action | Meaning | Transition |
-|---|---|---|
-| **Vanda faz** | hand it to Vanda | → `approved` → create runs |
-| **Eu faço / Assumir** | owner takes it over | → owner composes (manual) |
-| **Dispensar** | dismiss | → `dismissed` |
-| **Precisa de você** | flagged for approval | `needs_you` |
+| Action                | Meaning              | Transition                 |
+| --------------------- | -------------------- | -------------------------- |
+| **Vanda faz**         | hand it to Vanda     | → `approved` → create runs |
+| **Eu faço / Assumir** | owner takes it over  | → owner composes (manual)  |
+| **Dispensar**         | dismiss              | → `dismissed`              |
+| **Precisa de você**   | flagged for approval | `needs_you`                |
 
 > The read side (list suggestions/beliefs/posts) exists today. The
 > owner-triggered mutations (dismiss, take-over, approve-from-`needs_you`) are
@@ -130,16 +130,17 @@ stateDiagram-v2
 The pipeline lives in the backend; the user navigates a handful of surfaces over
 it. (Sidebar: Início · Automático · Assistente · Galeria · Calendário · Perfil.)
 
-| Screen | Reads | Renders | Controls |
-|---|---|---|---|
+| Screen                | Reads                                                                      | Renders                                                                                                                                                 | Controls                                                       |
+| --------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | **Automático** (live) | `signals` (recent, by source), `suggestions` (newest-first), `memoryNotes` | "Observando agora" feed (each source + latest item + time); "O plano da Vanda" cards: trigger → idea → destination + status badge; the thinking journal | per-item: Vanda faz · Eu faço · Dispensar; account mode toggle |
-| **Galeria** | `posts`, `images` | masonry grid, filterable by type (Tudo · Posts · Imagens · Reels · Stories · Tweets) with counts; every card has **Editar** | create ("Ask Vanda"), batch-gen, Editar (contextual chat) |
-| **Calendário** | `scheduledPosts` + `posts` | posts pinned to dates; auto-scheduled suggestions appear here | drag to (re)schedule → publish |
-| **Perfil** | `account.mode`, `beliefs`, `themes` | "what Vanda knows" — beliefs (confidence/status), themes (momentum); the autonomy setting | toggle mode; **correct/retire a belief** (the trust feature) |
-| **Assistente** | conversations (Phase 7) | generalist chat doing tool-calls over all of the above | natural-language everything |
+| **Galeria**           | `posts`, `images`                                                          | masonry grid, filterable by type (Tudo · Posts · Imagens · Reels · Stories · Tweets) with counts; every card has **Editar**                             | create ("Ask Vanda"), batch-gen, Editar (contextual chat)      |
+| **Calendário**        | `scheduledPosts` + `posts`                                                 | posts pinned to dates; auto-scheduled suggestions appear here                                                                                           | drag to (re)schedule → publish                                 |
+| **Perfil**            | `account.mode`, `beliefs`, `themes`                                        | "what Vanda knows" — beliefs (confidence/status), themes (momentum); the autonomy setting                                                               | toggle mode; **correct/retire a belief** (the trust feature)   |
+| **Assistente**        | conversations (Phase 7)                                                    | generalist chat doing tool-calls over all of the above                                                                                                  | natural-language everything                                    |
 
 **Design notes that fall out of the model**:
-- A suggestion card *already carries everything it needs*: the **trigger**
+
+- A suggestion card _already carries everything it needs_: the **trigger**
   (`signalIds` → the comments), the **idea** (`title` + `rationale`), the
   **destination** (`themeName`, `format`), the **status**, and — when rejected —
   the **reason**. No extra fetch to explain a card.
@@ -172,17 +173,17 @@ truth is the `scheduledPost.status`).
 
 When mocking screens, know what's live vs scaffolded:
 
-| Piece | State |
-|---|---|
-| observe → consolidate → plan → create loop | **real**, runs live on crons |
-| belief reinforcement / decay / thresholds | **real** (pure, property-tested) |
-| plan generate-then-critique (+ rejections) | **real** (live, with reasons) |
-| create durable workflow + compose | **real** (live) |
-| RAG context retrieval | **real but lexical** (vector swap is a port away) |
-| image generation | **placeholder** (on-brand SVG; real AI generator is a port away — won't be IG-publishable until then) |
-| observe pulling from real Instagram | built + tested; **needs a connected IG account** to run live |
-| publish to Instagram | built; **not run live** (destructive; needs hosted images) |
-| the screens above + Assistente | **not built yet** — this doc is the spec to build them against |
+| Piece                                      | State                                                                                                 |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| observe → consolidate → plan → create loop | **real**, runs live on crons                                                                          |
+| belief reinforcement / decay / thresholds  | **real** (pure, property-tested)                                                                      |
+| plan generate-then-critique (+ rejections) | **real** (live, with reasons)                                                                         |
+| create durable workflow + compose          | **real** (live)                                                                                       |
+| RAG context retrieval                      | **real but lexical** (vector swap is a port away)                                                     |
+| image generation                           | **placeholder** (on-brand SVG; real AI generator is a port away — won't be IG-publishable until then) |
+| observe pulling from real Instagram        | built + tested; **needs a connected IG account** to run live                                          |
+| publish to Instagram                       | built; **not run live** (destructive; needs hosted images)                                            |
+| the screens above + Assistente             | **not built yet** — this doc is the spec to build them against                                        |
 
 ---
 
