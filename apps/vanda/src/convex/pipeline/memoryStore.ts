@@ -14,14 +14,15 @@ export interface MemorySnapshot {
 /**
  * The belief/theme/journal deltas one consolidation pass produces. `beliefs` and
  * `themes` are the full post-pass sets (existing rows decayed/updated + any
- * created), so `apply` is a straight upsert. `consumedSignalIds` are the signals
- * folded in — marked consolidated so they're never re-counted.
+ * created), so `apply` is a straight upsert. `consumedSignals` are the signals
+ * folded in — each with the salience the model gave it — marked consolidated (so
+ * never re-counted) and stamped with that salience for the lineage.
  */
 export interface ConsolidationResult {
   readonly beliefs: ReadonlyArray<Belief>;
   readonly themes: ReadonlyArray<Theme>;
   readonly note: string;
-  readonly consumedSignalIds: ReadonlyArray<string>;
+  readonly consumedSignals: ReadonlyArray<{ readonly id: string; readonly salience: number }>;
 }
 
 /**

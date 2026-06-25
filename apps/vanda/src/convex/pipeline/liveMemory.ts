@@ -35,7 +35,7 @@ export const memoryStoreLive = (ctx: ActionCtx): Layer.Layer<Memory> =>
           beliefs: result.beliefs as unknown as Mutable<ConsolidationResult["beliefs"]>,
           themes: result.themes as unknown as Mutable<ConsolidationResult["themes"]>,
           note: result.note,
-          consumedSignalIds: [...result.consumedSignalIds],
+          consumedSignals: result.consumedSignals.map((s) => ({ id: s.id, salience: s.salience })),
         }),
       ).pipe(Effect.asVoid),
   } satisfies MemoryShape);

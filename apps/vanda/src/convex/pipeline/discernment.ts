@@ -45,6 +45,35 @@ export const reinforceBelief = (
 };
 
 /**
+ * Remove one signal's evidence from a belief: peel exactly one reinforcement off
+ * the CURRENT confidence — the algebraic inverse of reinforceBelief's
+ * `c → c + (1−c)·r`, i.e. `c → (c − r)/(1 − r)` — and drop it from the support
+ * set. Reinforcement is order-independent, so this recovers "as if this signal
+ * never supported it" without an event log, while any decay/contradiction already
+ * baked into the current value is preserved. Confidence only decreases and stays
+ * in 0..1. A no-op (just re-normalizes status) when the signal isn't held.
+ */
+export const dropSignal = (
+  belief: Belief,
+  signalId: string,
+  now: number,
+  policy: Policy,
+): Belief => {
+  if (!belief.supportingSignalIds.includes(signalId)) {
+    return withConfidence(belief, belief.confidence, policy);
+  }
+  // Policy guarantees learningRate < 1, so (1 − r) > 0; withConfidence still
+  // clamps any non-finite result defensively.
+  const r = policy.learningRate;
+  const raw = (belief.confidence - r) / (1 - r);
+  return {
+    ...withConfidence(belief, raw, policy),
+    supportingSignalIds: belief.supportingSignalIds.filter((id) => id !== signalId),
+    confidenceAsOf: now,
+  };
+};
+
+/**
  * Apply time decay since the belief's confidence was last set. Confidence halves
  * every `decayHalfLifeMs`, so it is non-increasing in elapsed time and never
  * leaves 0..1. The decay anchor (`confidenceAsOf`) advances to `now`, so the

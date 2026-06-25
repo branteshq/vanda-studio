@@ -116,7 +116,7 @@ describe("foldConsolidation (pure)", () => {
       ],
       0,
     );
-    expect(Object.keys(result)).toEqual(["beliefs", "themes", "note", "consumedSignalIds"]);
+    expect(Object.keys(result)).toEqual(["beliefs", "themes", "note", "consumedSignals"]);
   });
 
   const beliefArb = Schema.toArbitrary(Belief);

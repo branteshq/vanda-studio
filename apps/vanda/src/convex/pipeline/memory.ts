@@ -115,9 +115,13 @@ export const Policy = Schema.Struct({
   momentumFallingRatio: UnitInterval,
 }).check(
   Schema.makeFilter((p) =>
-    p.retireBelow <= p.decayingBelow && p.decayingBelow <= p.minConfidence
+    p.retireBelow <= p.decayingBelow &&
+    p.decayingBelow <= p.minConfidence &&
+    // learningRate must be < 1: at 1 a single signal saturates confidence to 1,
+    // making reinforcement non-invertible (dropSignal could not recover evidence).
+    p.learningRate < 1
       ? undefined
-      : "policy thresholds must be ordered: retireBelow <= decayingBelow <= minConfidence",
+      : "policy invalid: need retireBelow <= decayingBelow <= minConfidence and learningRate < 1",
   ),
 );
 export type Policy = typeof Policy.Type;

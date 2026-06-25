@@ -78,6 +78,8 @@ export const listUnconsolidatedSignals = internalQuery({
       .withIndex("by_account_consolidated", (q) =>
         q.eq("accountId", accountId).eq("consolidatedAt", undefined),
       )
+      // A signal the owner flagged as noise must never be folded into memory.
+      .filter((q) => q.neq(q.field("noise"), true))
       .take(limit ?? 100),
 });
 
@@ -97,9 +99,9 @@ export const applyConsolidation = internalMutation({
     beliefs: v.array(v.object(beliefArg)),
     themes: v.array(v.object(themeArg)),
     note: v.string(),
-    consumedSignalIds: v.array(v.string()),
+    consumedSignals: v.array(v.object({ id: v.string(), salience: v.number() })),
   },
-  handler: async (ctx, { accountId, beliefs, themes, note, consumedSignalIds }) => {
+  handler: async (ctx, { accountId, beliefs, themes, note, consumedSignals }) => {
     const now = Date.now();
 
     const existingBeliefs = await ctx.db
@@ -129,12 +131,12 @@ export const applyConsolidation = internalMutation({
     await ctx.db.insert("memoryNotes", {
       accountId,
       note,
-      signalCount: consumedSignalIds.length,
+      signalCount: consumedSignals.length,
       createdAt: now,
     });
 
-    for (const signalId of consumedSignalIds) {
-      await ctx.db.patch(signalId as Id<"signals">, { consolidatedAt: now });
+    for (const { id, salience } of consumedSignals) {
+      await ctx.db.patch(id as Id<"signals">, { consolidatedAt: now, salience });
     }
   },
 });

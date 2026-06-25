@@ -144,4 +144,43 @@ describe("create — compose + promote through the ctx-backed store", () => {
     await t.mutation(internal.create.releaseCreate, { suggestionId: approvedId });
     expect((await t.run((ctx) => ctx.db.get(approvedId)))!.status).toBe("approved");
   });
+
+  it("refuses to compose an idea steered out of creating mid-flight", async () => {
+    const t = convexTest(schema, modules);
+    const now = Date.now();
+    const accountId = await t.run((ctx) =>
+      ctx.db.insert("accounts", { mode: "auto", createdAt: now, updatedAt: now }),
+    );
+    // The owner paused it (needs_you) while the create was already running.
+    const suggestionId = await t.run((ctx) =>
+      ctx.db.insert("suggestions", {
+        accountId,
+        title: "t",
+        rationale: "r",
+        themeName: "Dogs",
+        beliefStatements: [],
+        signalIds: [],
+        status: "needs_you",
+        requiresApproval: true,
+        createdAt: now,
+      }),
+    );
+
+    await expect(
+      t.mutation(internal.create.composePost, {
+        accountId,
+        suggestionId,
+        type: "feed",
+        caption: "x",
+        images: [{ prompt: "p", width: 1024, height: 1024, externalUrl: "mock://a" }],
+      }),
+    ).rejects.toThrow();
+    const posts = await t.run((ctx) =>
+      ctx.db
+        .query("posts")
+        .withIndex("by_account", (q) => q.eq("accountId", accountId))
+        .collect(),
+    );
+    expect(posts).toHaveLength(0);
+  });
 });

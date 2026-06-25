@@ -147,7 +147,15 @@ export const foldConsolidation = (
     `Consolidated ${entries.length} signal(s): ${created} new, ${reinforced} reinforced, ` +
     `${contradicted} contradicted. Tracking ${themes.length} theme(s).`;
 
-  return { beliefs, themes, note, consumedSignalIds: entries.map((entry) => entry.signal.id) };
+  return {
+    beliefs,
+    themes,
+    note,
+    consumedSignals: entries.map((entry) => ({
+      id: entry.signal.id,
+      salience: entry.judgment.salience,
+    })),
+  };
 };
 
 /**

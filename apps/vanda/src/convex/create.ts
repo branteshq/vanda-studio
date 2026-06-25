@@ -108,6 +108,12 @@ export const composePost = internalMutation({
     ctx,
     { accountId, suggestionId, type, caption, images },
   ): Promise<ComposedPost> => {
+    // The owner may have steered this idea to needs_you mid-create (the manual
+    // path runs synchronously and can't be canceled like the workflow). Never
+    // compose a paused idea.
+    const claimed = await ctx.db.get(suggestionId);
+    if (claimed === null || claimed.status !== "creating")
+      throw new Error("suggestion is no longer creating — create superseded");
     const now = Date.now();
     const imageIds: Array<Id<"images">> = [];
     for (const image of images) {
@@ -218,6 +224,12 @@ export const workflow = new WorkflowManager(components.workflow, {
   workpoolOptions: { maxParallelism: IMAGE_CONCURRENCY },
 });
 
+/** Update a creating suggestion's progress (0..1) — the Vanda fazendo cards read it. */
+export const setCreateProgress = internalMutation({
+  args: { suggestionId: v.id("suggestions"), progress: v.number() },
+  handler: (ctx, { suggestionId, progress }) => ctx.db.patch(suggestionId, { progress }),
+});
+
 /**
  * The create stage as a durable workflow: plan the composition, generate every
  * image as its own retried step (so a failure on image 3 never redoes the
@@ -231,11 +243,13 @@ export const createWorkflow = workflow.define({
       { suggestionId },
       { retry: true },
     );
+    await step.runMutation(internal.create.setCreateProgress, { suggestionId, progress: 0.4 });
     const images = await Promise.all(
       plan.imagePrompts.map((prompt) =>
         step.runAction(internal.create.generateImage, { prompt }, { retry: true }),
       ),
     );
+    await step.runMutation(internal.create.setCreateProgress, { suggestionId, progress: 0.9 });
     await step.runMutation(internal.create.composePost, {
       accountId: plan.accountId as Id<"accounts">,
       suggestionId,
@@ -243,6 +257,7 @@ export const createWorkflow = workflow.define({
       caption: plan.caption,
       images,
     });
+    await step.runMutation(internal.create.setCreateProgress, { suggestionId, progress: 1 });
   },
 });
 
@@ -278,7 +293,7 @@ export const createAllAccounts = internalMutation({
         .collect();
       for (const suggestion of approved) {
         if (!(await claim(ctx, suggestion._id))) continue;
-        await workflow.start(
+        const workflowId = await workflow.start(
           ctx,
           internal.create.createWorkflow,
           { suggestionId: suggestion._id },
@@ -287,6 +302,7 @@ export const createAllAccounts = internalMutation({
             context: { suggestionId: suggestion._id },
           },
         );
+        await ctx.db.patch(suggestion._id, { workflowId });
       }
     }
   },

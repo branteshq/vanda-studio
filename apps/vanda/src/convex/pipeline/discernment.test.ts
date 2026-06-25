@@ -4,13 +4,14 @@ import * as FastCheck from "effect/testing/FastCheck";
 import {
   contradictBelief,
   decayBelief,
+  dropSignal,
   isThemeSaturated,
   meetsEvidenceThreshold,
   recomputeMomentum,
   reinforceBelief,
   statusFor,
 } from "./discernment";
-import { Belief, defaultPolicy, type Theme } from "./memory";
+import { Belief, defaultPolicy, Policy, type Theme } from "./memory";
 
 const policy = defaultPolicy;
 // Raw beliefs (confidence and status independent): the functions must normalize
@@ -258,5 +259,72 @@ describe("recomputeMomentum", () => {
 
   it("is steady from a zero baseline with no activity", () => {
     expect(recomputeMomentum(0, 0, policy)).toBe("steady");
+  });
+});
+
+describe("dropSignal", () => {
+  it.prop(
+    "dropping an unheld signal leaves confidence and support unchanged",
+    [beliefArb, id, ts],
+    ([belief, signalId, now]) => {
+      if (belief.supportingSignalIds.includes(signalId)) return;
+      const out = dropSignal(belief, signalId, now, policy);
+      expect(out.confidence).toBeCloseTo(belief.confidence, 10);
+      expect(out.supportingSignalIds).toEqual(belief.supportingSignalIds);
+    },
+  );
+
+  it.prop(
+    "reinforce then drop restores confidence and support",
+    [beliefArb, ts],
+    ([belief, now]) => {
+      const signalId = "drop-roundtrip";
+      if (belief.supportingSignalIds.includes(signalId)) return;
+      const reinforced = reinforceBelief(belief, signalId, now, policy);
+      const dropped = dropSignal(reinforced, signalId, now, policy);
+      expect(dropped.confidence).toBeCloseTo(belief.confidence, 6);
+      expect(dropped.supportingSignalIds).toEqual(belief.supportingSignalIds);
+    },
+  );
+
+  it.prop(
+    "dropping a held signal removes it and never raises confidence",
+    [beliefArb, ts],
+    ([belief, now]) => {
+      if (belief.supportingSignalIds.length === 0) return;
+      const signalId = belief.supportingSignalIds[0]!;
+      const out = dropSignal(belief, signalId, now, policy);
+      expect(out.supportingSignalIds).not.toContain(signalId);
+      expect(out.confidence).toBeLessThanOrEqual(belief.confidence + 1e-9);
+      expect(out.confidence).toBeGreaterThanOrEqual(0);
+      expect(out.confidence).toBeLessThanOrEqual(1);
+    },
+  );
+
+  it.prop(
+    "always derives status from confidence",
+    [beliefArb, id, ts],
+    ([belief, signalId, now]) => {
+      const out = dropSignal(belief, signalId, now, policy);
+      expect(out.status).toBe(statusFor(out.confidence, policy));
+    },
+  );
+
+  it("inverts a single reinforcement exactly", () => {
+    const base: Belief = { ...beliefBase, confidence: 0.5, supportingSignalIds: [] };
+    const reinforced = reinforceBelief(base, "x", 1, policy); // 0.5 + 0.5*0.3 = 0.65
+    const dropped = dropSignal(reinforced, "x", 2, policy);
+    expect(dropped.confidence).toBeCloseTo(0.5, 10);
+    expect(dropped.supportingSignalIds).toEqual([]);
+  });
+});
+
+describe("Policy", () => {
+  it("accepts the default policy", () => {
+    expect(() => Schema.decodeUnknownSync(Policy)(defaultPolicy)).not.toThrow();
+  });
+
+  it("rejects a saturated learning rate (>= 1) — reinforcement must stay invertible", () => {
+    expect(() => Schema.decodeUnknownSync(Policy)({ ...defaultPolicy, learningRate: 1 })).toThrow();
   });
 });

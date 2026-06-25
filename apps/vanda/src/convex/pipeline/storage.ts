@@ -24,6 +24,12 @@ export const signalColumns = {
   permalink: v.optional(v.string()),
   observedAt: v.number(),
   consolidatedAt: v.optional(v.number()),
+  // Importance the consolidate model gave this signal (0..1), stamped when folded;
+  // drives the lineage's salient-vs-noise split.
+  salience: v.optional(v.number()),
+  // Owner-flagged as noise from the lineage — dropped from belief support and
+  // excluded from future evidence.
+  noise: v.optional(v.boolean()),
 };
 
 /**
@@ -82,5 +88,9 @@ export const suggestionColumns = {
   status: v.union(...suggestionStatuses.map((s) => v.literal(s))),
   requiresApproval: v.boolean(),
   rejectionReason: v.optional(v.string()),
+  // 0..1 create-workflow progress while status is "creating" (Vanda fazendo cards).
+  progress: v.optional(v.number()),
+  // The durable create workflow's id while creating — lets a re-think cancel it.
+  workflowId: v.optional(v.string()),
   createdAt: v.number(),
 };
