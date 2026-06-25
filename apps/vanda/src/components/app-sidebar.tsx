@@ -86,18 +86,18 @@ function WorkspaceSwitcher() {
             render={
               <SidebarMenuButton
                 size="lg"
-                className="gap-[9px] border border-[#261f28] bg-[#161117] px-2 transition-colors duration-200 hover:bg-[#1b1620] data-popup-open:bg-[#1b1620] group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent"
+                className="gap-[9px] border border-border-strong bg-inset px-2 transition-colors duration-200 hover:bg-accent data-popup-open:bg-accent group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent"
               />
             }
           >
-            <span className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-[7px] bg-[#2a2330] text-[11px] font-semibold text-[#ccc6cc]">
+            <span className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-sm bg-border-strong text-[11px] font-semibold text-text-2">
               {WORKSPACE.initials}
             </span>
             <span className="grid flex-1 text-left leading-tight">
               <span className="truncate text-[13px] font-semibold">{WORKSPACE.name}</span>
-              <span className="truncate text-[11px] text-vanda-muted-2">{WORKSPACE.plan}</span>
+              <span className="truncate text-[11px] text-text-4">{WORKSPACE.plan}</span>
             </span>
-            <ChevronsUpDown className="ml-auto size-4 text-vanda-muted-2" />
+            <ChevronsUpDown className="ml-auto size-4 text-text-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="min-w-56 rounded-lg"
@@ -110,7 +110,7 @@ function WorkspaceSwitcher() {
                 Negócios
               </DropdownMenuLabel>
               <DropdownMenuItem className="gap-2 p-2">
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-[#2a2330] text-[10px] font-semibold text-[#ccc6cc]">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-border-strong text-[10px] font-semibold text-text-2">
                   {WORKSPACE.initials}
                 </span>
                 {WORKSPACE.name}
@@ -169,7 +169,7 @@ function AccountMenu() {
         </Avatar>
         <span className="min-w-0 flex-1 text-left group-data-[collapsible=icon]:hidden">
           <span className="block truncate text-[12.5px] font-semibold">{name}</span>
-          <span className="block truncate text-[11px] text-vanda-muted-2">{email}</span>
+          <span className="block truncate text-[11px] text-text-4">{email}</span>
         </span>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="min-w-56 rounded-lg" align="end" side="right" sideOffset={4}>
@@ -222,12 +222,12 @@ export function AppSidebar() {
                         aria-label="ao vivo"
                         title="ao vivo"
                       >
-                        <span className="size-1.5 rounded-full bg-vanda-positive shadow-[0_0_6px_var(--vanda-positive)]" />
+                        <span className="size-1.5 rounded-full bg-green shadow-[0_0_6px_var(--green)]" />
                       </span>
                     ) : null}
                   </SidebarMenuButton>
                   {item.badge ? (
-                    <SidebarMenuBadge className="rounded-full bg-vanda-accent-soft-bg text-[11px] font-semibold text-vanda-accent-soft">
+                    <SidebarMenuBadge className="rounded-full bg-brand-accent/12 text-[11px] font-semibold text-brand-accent">
                       {item.badge}
                     </SidebarMenuBadge>
                   ) : null}
@@ -239,20 +239,20 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="gap-0 px-3 pb-3 group-data-[collapsible=icon]:px-2">
-        <div className="mb-3 rounded-[10px] border border-[#261f28] bg-card p-3 group-data-[collapsible=icon]:hidden">
+        <div className="mb-3 rounded-lg border border-border bg-surface p-3 group-data-[collapsible=icon]:hidden">
           <div className="mb-[9px] flex items-center justify-between">
-            <span className="flex items-center gap-[7px] text-[12.5px] font-semibold text-[#ccc6cc]">
-              <Sparkles className="size-[15px] text-vanda-accent-soft" />
+            <span className="flex items-center gap-[7px] text-[12.5px] font-semibold text-text-2">
+              <Sparkles className="size-[15px] text-brand-accent" />
               Vanda IA
             </span>
-            <span className="text-[12px] font-semibold text-vanda-muted-2">62%</span>
+            <span className="text-[12px] font-semibold text-text-4">62%</span>
           </div>
-          <div className="h-[5px] overflow-hidden rounded-full bg-[#261f28]">
+          <div className="h-[5px] overflow-hidden rounded-full bg-border">
             <div className="h-full rounded-full bg-primary" style={{ width: "62%" }} />
           </div>
         </div>
 
-        <div className="border-t border-vanda-line-2 px-1.5 pt-3 group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0">
+        <div className="border-t border-border px-1.5 pt-3 group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0">
           <AccountMenu />
         </div>
       </SidebarFooter>

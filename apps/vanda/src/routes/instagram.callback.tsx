@@ -45,7 +45,7 @@ export function InstagramCallbackRoute() {
   return (
     <main className="grid min-h-svh place-items-center bg-background px-6">
       <div className="w-full max-w-md rounded-xl border border-border bg-card p-8 text-center">
-        <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-vanda-muted-2">
+        <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-4">
           Instagram
         </p>
         <Show when="signed-out">

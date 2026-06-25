@@ -3,155 +3,131 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Vanda Studio — design tokens. THE single source of visual truth.
+ *
+ * Dark is the native mode (<html class="dark">); light is the derived pair.
+ * Author UI against these tokens only — never hardcode hex/rgb/oklch in markup.
+ * The `pnpm lint` token guard (scripts/check-tokens.mjs) enforces this.
+ * Reference: docs/design-tokens.md.
+ *
+ * .dark overrides only the base literals (surfaces, text, status, shadows);
+ * every mapping below (shadcn names + color-mix surfaces) is `var()`-based and
+ * re-resolves per mode automatically.
+ */
+
 :root {
   color-scheme: light;
 
-  --background: #fbf2f7;
-  --foreground: #20101a;
+  /* Surfaces & borders */
+  --app: #faf9f8;
+  --surface: #ffffff;
+  --sidebar: #f5f2f5;
+  --inset: #f6f4f6;
+  --border: #e8e3e8;
+  --border-strong: #dad4db;
 
-  --card: oklch(1 0 0);
-  --card-foreground: var(--foreground);
-  --popover: oklch(1 0 0);
-  --popover-foreground: var(--foreground);
+  /* Text hierarchy — primary → metadata */
+  --text: #1a1418;
+  --text-2: #433c43;
+  --text-3: #6b646c;
+  --text-4: #8a838b;
+  --text-5: #a8a1a9;
+  --text-6: #c6c0c7;
 
-  --primary: #c9417c;
+  /* Brand — constant across modes (the orchid magenta) */
+  --brand-soft: #ee7aaa;
+  --brand-accent: #c4277f;
+  --brand: var(--brand-accent);
+
+  /* Semantic status — each carries meaning, never decoration */
+  --green: #1f9d5b;
+  --amber: #a9781d;
+  --peri: #5b62c9;
+
+  /* Elevation — light leans on shadow */
+  --shadow-sm: 0 1px 2px rgba(20, 16, 22, 0.05);
+  --shadow: 0 1px 3px rgba(20, 16, 22, 0.06), 0 8px 24px rgba(20, 16, 22, 0.06);
+  --shadow-lg: 0 16px 40px rgba(20, 16, 22, 0.12), 0 2px 8px rgba(20, 16, 22, 0.06);
+
+  /* Motion curves (design-eng: strong custom easings, never ease-in for UI) */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+  /* Derived surfaces (re-resolve per mode via the tokens above) */
+  --accent: color-mix(in srgb, var(--text) 6%, var(--surface));
+  --needs-bg: color-mix(in srgb, var(--amber) 10%, var(--surface));
+  --needs-border: color-mix(in srgb, var(--amber) 30%, var(--border));
+  --creating-bg: color-mix(in srgb, var(--brand-accent) 9%, var(--surface));
+  --creating-border: color-mix(in srgb, var(--brand-accent) 30%, var(--border));
+
+  /* Destructive (UI affordance, not a status color) */
+  --destructive: #c2334a;
+  --destructive-foreground: #ffffff;
+
+  /* shadcn semantic names → mapped onto Vanda tokens so vendored components work */
+  --background: var(--app);
+  --foreground: var(--text);
+  --card: var(--surface);
+  --card-foreground: var(--text);
+  --popover: var(--surface);
+  --popover-foreground: var(--text);
+  --primary: var(--brand-accent);
   --primary-foreground: #ffffff;
-
-  --secondary: #fcebf3;
-  --secondary-foreground: #5a1b40;
-
-  --muted: #f8d2e3;
-  --muted-foreground: #9a8490;
-
-  --accent: #fbe3ef;
-  --accent-foreground: #c9417c;
-
-  --destructive: oklch(0.57 0.17 18);
-  --destructive-foreground: oklch(0.99 0.003 18);
-
-  --border: #f3dde8;
-  --input: var(--border);
-  --ring: #f2719e;
-
-  --chart-1: #c9417c;
-  --chart-2: oklch(0.66 0.12 155);
-  --chart-3: #f2719e;
-  --chart-4: oklch(0.62 0.15 18);
-  --chart-5: #a22e61;
-
-  --sidebar: #ffffff;
-  --sidebar-foreground: var(--foreground);
-  --sidebar-primary: var(--primary);
-  --sidebar-primary-foreground: var(--primary-foreground);
+  --secondary: var(--inset);
+  --secondary-foreground: var(--text-2);
+  --muted: var(--inset);
+  --muted-foreground: var(--text-3);
+  --accent-foreground: var(--text);
+  --input: var(--border-strong);
+  --ring: var(--brand-accent);
+  --chart-1: var(--brand-accent);
+  --chart-2: var(--green);
+  --chart-3: var(--peri);
+  --chart-4: var(--amber);
+  --chart-5: var(--brand-soft);
+  --sidebar-foreground: var(--text);
+  --sidebar-primary: var(--brand-accent);
+  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: var(--accent);
-  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-accent-foreground: var(--text);
   --sidebar-border: var(--border);
-  --sidebar-ring: var(--ring);
+  --sidebar-ring: var(--brand-accent);
 
   --radius: 0.75rem;
-
-  --vanda-brand: #c9417c;
-  --vanda-brand-50: #fcebf3;
-  --vanda-brand-100: #f8d2e3;
-  --vanda-brand-200: #f2a9c8;
-  --vanda-brand-300: #ea7fac;
-  --vanda-brand-600: #dd5790;
-  --vanda-brand-700: #c9417c;
-  --vanda-brand-800: #a22e61;
-  --vanda-ink: #20101a;
-  --vanda-ink-2: #5a1b40;
-  --vanda-ink-3: #9a8490;
-  --vanda-ink-4: #a8929c;
-  --vanda-gold: #b08a3a;
-  --vanda-gold-bg: #f6f0e2;
-  --vanda-paper: #fbf2f7;
-  --vanda-canvas: #fcebf3;
-  --vanda-line: #f3dde8;
-  --vanda-line-2: #fbeff6;
-  --vanda-dark: #20101a;
-  --vanda-dark-2: #2c1020;
-  --vanda-positive: oklch(0.56 0.12 155);
-  --vanda-positive-bg: oklch(0.95 0.035 155);
-  --vanda-negative: oklch(0.57 0.17 18);
-  --vanda-negative-bg: oklch(0.95 0.035 18);
-  --vanda-shadow-sm: 0 1px 2px rgba(32, 16, 26, 0.05);
-  --vanda-shadow: 0 1px 3px rgba(32, 16, 26, 0.05), 0 8px 24px rgba(32, 16, 26, 0.06);
-  --vanda-shadow-lg: 0 16px 40px rgba(32, 16, 26, 0.12), 0 2px 8px rgba(32, 16, 26, 0.06);
-  --vanda-font-sans:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --vanda-font-mono:
-    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-    monospace;
-  --vanda-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --vanda-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-  --vanda-surface: #ffffff;
-  --vanda-elevated: #fcebf3;
-  --vanda-accent-soft: #c9417c;
-  --vanda-accent-soft-bg: #fcebf3;
-  --vanda-muted-2: #b9a7b1;
-  --vanda-line-2: #f1d9e6;
-  --vanda-rose-deep: #a22e61;
-  --vanda-glow: rgba(201, 65, 124, 0.3);
 }
 
 .dark {
   color-scheme: dark;
 
-  --background: #08060b;
-  --foreground: #f8f2f6;
-
-  --card: #130e18;
-  --card-foreground: var(--foreground);
-  --popover: #130e18;
-  --popover-foreground: var(--foreground);
-
-  --primary: #c9417c;
-  --primary-foreground: #ffffff;
-
-  --secondary: #1a0f17;
-  --secondary-foreground: var(--foreground);
-
-  --muted: #1a0f17;
-  --muted-foreground: #a99ca8;
-
-  --accent: #231c26;
-  --accent-foreground: #f8f2f6;
-
-  --destructive: oklch(0.62 0.17 18);
-  --destructive-foreground: oklch(0.99 0.003 18);
-
-  --border: #261f28;
-  --input: #2b2330;
-  --ring: #c9417c;
-
-  --chart-1: #c9417c;
-  --chart-2: #5fc88f;
-  --chart-3: #f2a0c4;
-  --chart-4: #dd5790;
-  --chart-5: #a22e61;
-
+  --app: #070509;
+  --surface: #0c0b0e;
   --sidebar: #0f0c11;
-  --sidebar-foreground: #f8f2f6;
-  --sidebar-primary: #c9417c;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #231c26;
-  --sidebar-accent-foreground: #f8f2f6;
-  --sidebar-border: #221c24;
-  --sidebar-ring: #c9417c;
+  --inset: #100d13;
+  --border: #1f2024;
+  --border-strong: #2a2730;
 
-  --vanda-surface: #0b080c;
-  --vanda-elevated: #231c26;
-  --vanda-accent-soft: #f2a0c4;
-  --vanda-accent-soft-bg: #2a1a22;
-  --vanda-muted-2: #6f6971;
-  --vanda-positive: #5fc88f;
-  --vanda-positive-bg: rgba(76, 183, 130, 0.14);
-  --vanda-line-2: #221c24;
-  --vanda-rose-deep: #a22e61;
-  --vanda-glow: rgba(201, 65, 124, 0.48);
+  --text: #f7f8f8;
+  --text-2: #c6c9d0;
+  --text-3: #8a8f98;
+  --text-4: #6a6e76;
+  --text-5: #52555c;
+  --text-6: #3d3f47;
+
+  --green: #5fc88f;
+  --amber: #d6a756;
+  --peri: #9aa2ef;
+
+  /* Dark leans on the border for depth; shadow only on floating layers */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 24px 56px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.35);
+
+  --destructive: #e26d6d;
 }
 
 @theme inline {
+  /* shadcn semantic (names kept; values point at Vanda tokens) */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -184,20 +160,41 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --color-vanda-surface: var(--vanda-surface);
-  --color-vanda-elevated: var(--vanda-elevated);
-  --color-vanda-accent-soft: var(--vanda-accent-soft);
-  --color-vanda-accent-soft-bg: var(--vanda-accent-soft-bg);
-  --color-vanda-muted-2: var(--vanda-muted-2);
-  --color-vanda-positive: var(--vanda-positive);
-  --color-vanda-positive-bg: var(--vanda-positive-bg);
-  --color-vanda-line-2: var(--vanda-line-2);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --font-sans: var(--vanda-font-sans);
-  --font-mono: var(--vanda-font-mono);
+
+  /* Vanda tokens → Tailwind utilities (bg-surface, text-text-3, text-amber, …) */
+  --color-app: var(--app);
+  --color-surface: var(--surface);
+  --color-inset: var(--inset);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-text-4: var(--text-4);
+  --color-text-5: var(--text-5);
+  --color-text-6: var(--text-6);
+  --color-brand: var(--brand);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-soft: var(--brand-soft);
+  --color-green: var(--green);
+  --color-amber: var(--amber);
+  --color-peri: var(--peri);
+  --color-needs-bg: var(--needs-bg);
+  --color-needs-border: var(--needs-border);
+  --color-creating-bg: var(--creating-bg);
+  --color-creating-border: var(--creating-border);
+
+  /* Radii — the spec ladder (chips 7 · buttons 9 · cards 12 · large 16 · pill ∞) */
+  --radius-sm: 7px;
+  --radius-md: 9px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Type */
+  --font-sans:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
   --font-weight-normal: 400;
   --font-weight-medium: 510;
   --font-weight-semibold: 590;
@@ -210,7 +207,7 @@
   }
 
   html {
-    font-family: var(--vanda-font-sans);
+    font-family: var(--font-sans);
   }
 
   body {

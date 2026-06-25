@@ -24,7 +24,7 @@ function DashboardLayout() {
         <TooltipProvider>
           <SidebarProvider style={{ "--sidebar-width": "15rem" } as CSSProperties}>
             <AppSidebar />
-            <SidebarInset className="flex h-svh flex-col overflow-hidden bg-vanda-surface">
+            <SidebarInset className="flex h-svh flex-col overflow-hidden bg-app">
               <DashboardSidebarTrigger />
               <Outlet />
             </SidebarInset>
@@ -45,7 +45,7 @@ function DashboardSidebarTrigger() {
           : "flex h-[72px] shrink-0 items-start px-3 pt-[22px]"
       }
     >
-      <SidebarTrigger className="size-7 text-vanda-muted-2 hover:bg-sidebar-accent hover:text-sidebar-foreground" />
+      <SidebarTrigger className="size-7 text-text-4 hover:bg-sidebar-accent hover:text-sidebar-foreground" />
     </header>
   );
 }
