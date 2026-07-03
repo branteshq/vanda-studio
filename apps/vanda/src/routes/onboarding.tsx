@@ -2,6 +2,7 @@ import { RedirectToSignIn, Show } from "@clerk/tanstack-react-start";
 import { Navigate, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
+import { Spinner } from "@vanda-studio/ui/components/spinner";
 import { ConfirmStep } from "../components/onboarding/confirm-step";
 import { ConnectStep } from "../components/onboarding/connect-step";
 import { ModeStep, type Mode } from "../components/onboarding/mode-step";
@@ -11,7 +12,6 @@ import {
   type EditableAnalysis,
   toEditable,
 } from "../components/onboarding/types";
-import { OrchidAperture } from "../components/orchid-aperture";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 
@@ -35,9 +35,7 @@ function OnboardingPage() {
 function OnboardingLoading() {
   return (
     <div className="grid min-h-svh place-items-center bg-app">
-      <div className="size-40 opacity-60">
-        <OrchidAperture />
-      </div>
+      <Spinner className="size-6 text-text-3" />
     </div>
   );
 }
