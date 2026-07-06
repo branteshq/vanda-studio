@@ -15,27 +15,27 @@ export function AgendadoCard({
   const body = (
     <>
       <div className="mb-2.5 flex items-center gap-2">
-        <span className="font-mono text-[10px] tracking-[0.06em] text-text-5">
+        <span className="font-mono text-micro tracking-widest text-text-5">
           {formatTag(card.format)}
         </span>
         {card.status === "publishing" ? (
-          <span className="font-mono text-[9px] tracking-[0.1em] text-brand-soft uppercase">
+          <span className="font-mono text-tiny tracking-widest text-brand-soft uppercase">
             publicando
           </span>
         ) : null}
       </div>
-      <p className="mb-2.5 line-clamp-2 text-[13.5px] font-medium leading-[1.4] text-pretty text-text">
+      <p className="mb-2.5 line-clamp-2 text-card-title font-medium text-pretty text-text">
         {card.title}
       </p>
       {card.belief ? (
-        <span className="mb-2.5 inline-flex max-w-full items-center gap-1.5 rounded-sm border border-peri/20 bg-peri/8 px-2 py-1 text-[10.5px] text-peri">
+        <span className="mb-2.5 inline-flex max-w-full items-center gap-1.5 rounded-sm border border-peri/20 bg-peri/8 px-2 py-1 text-fine text-peri">
           <Link2 className="size-3 shrink-0" />
           <span className="truncate">
             crença: {card.belief.statement} · {confidencePct(card.belief.confidence)}%
           </span>
         </span>
       ) : null}
-      <div className="flex items-center gap-1.5 text-[11.5px] text-text-4">
+      <div className="flex items-center gap-1.5 text-caption text-text-4">
         <Calendar className="size-3.5 text-text-5" />
         {scheduleLabel(card.scheduledFor)}
       </div>

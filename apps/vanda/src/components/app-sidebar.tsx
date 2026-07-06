@@ -8,6 +8,8 @@ import {
   ChevronsUpDown,
   LayoutGrid,
   LogOutIcon,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   RefreshCw,
   Sparkles,
@@ -236,6 +238,7 @@ function AccountMenu() {
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { state, toggleSidebar } = useSidebar();
 
   return (
     <Sidebar collapsible="icon" className="border-sidebar-border">
@@ -300,6 +303,19 @@ export function AppSidebar() {
         <div className="border-t border-border px-1.5 pt-3 group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0">
           <AccountMenu />
         </div>
+
+        <SidebarMenuButton
+          onClick={toggleSidebar}
+          tooltip={state === "collapsed" ? "Expandir" : "Recolher"}
+          className="mt-3 h-[32px] gap-[11px] px-2.5 text-[13px] font-medium text-sidebar-foreground/55 transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+        >
+          {state === "collapsed" ? (
+            <PanelLeftOpen className="size-4" />
+          ) : (
+            <PanelLeftClose className="size-4" />
+          )}
+          <span className="group-data-[collapsible=icon]:hidden">Recolher</span>
+        </SidebarMenuButton>
       </SidebarFooter>
     </Sidebar>
   );

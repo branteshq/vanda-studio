@@ -17,10 +17,10 @@ function SignalRow({ signal, onMarkNoise }: { signal: LineageSignal; onMarkNoise
   const meta = SIGNAL_META[signal.source];
   const Icon = meta.icon;
   return (
-    <div className="flex items-center gap-2.5 rounded-[10px] border border-border bg-surface px-3 py-2.5">
+    <div className="flex items-center gap-2.5 rounded-md border border-border bg-surface px-3 py-2.5">
       <SalienceMeter value={signal.salience} />
       <Icon className={cn("size-3.5 shrink-0", meta.tone)} />
-      <p className="min-w-0 flex-1 truncate text-[12px] text-text-2">
+      <p className="min-w-0 flex-1 truncate text-xs text-text-2">
         {signal.authorHandle ? <span className="text-text-3">@{signal.authorHandle}: </span> : null}
         {signal.text}
       </p>
@@ -69,15 +69,15 @@ function LineageBody({ suggestionId }: { suggestionId: Id<"suggestions"> }) {
 
   return (
     <>
-      <p className="mb-4 text-[13px] font-medium text-pretty text-text-2">
+      <p className="mb-4 text-body font-medium text-pretty text-text-2">
         {data.suggestion.title}
       </p>
 
       {belief ? (
-        <section className="rounded-xl border border-peri/30 bg-peri/[0.04] p-4">
+        <section className="rounded-xl border border-peri/30 bg-peri/5 p-4">
           <div className="mb-3 flex items-center gap-2">
             <Brain className="size-3.5 shrink-0 text-peri" />
-            <span className="font-mono text-[10px] tracking-[0.12em] text-peri uppercase">
+            <span className="font-mono text-micro tracking-widest text-peri uppercase">
               Crença
             </span>
             <span className="flex-1" />
@@ -104,7 +104,7 @@ function LineageBody({ suggestionId }: { suggestionId: Id<"suggestions"> }) {
                 aria-label="Corrigir crença"
                 autoFocus
               />
-              {error ? <p className="text-[11.5px] text-destructive">{error}</p> : null}
+              {error ? <p className="text-caption text-destructive">{error}</p> : null}
               <div className="flex items-center gap-1.5">
                 <Button
                   variant="brand"
@@ -128,22 +128,22 @@ function LineageBody({ suggestionId }: { suggestionId: Id<"suggestions"> }) {
               </div>
             </div>
           ) : (
-            <p className="mb-3 text-[16px] font-medium leading-[1.35] text-pretty text-text">
+            <p className="mb-3 text-base font-medium leading-snug text-pretty text-text">
               {belief.statement}
             </p>
           )}
 
           <div className="flex items-center gap-2.5">
             <ConfidenceBar value={belief.confidence} tone="peri" />
-            <span className="font-mono text-[11px] text-peri">
+            <span className="font-mono text-note text-peri">
               {confidencePct(belief.confidence)}%
             </span>
           </div>
-          <div className="mt-2.5 flex items-center gap-2 text-[11.5px] text-text-4">
+          <div className="mt-2.5 flex items-center gap-2 text-caption text-text-4">
             sustentada por {data.salientSignals.length}{" "}
             {data.salientSignals.length === 1 ? "sinal saliente" : "sinais salientes"}
             {recomputed ? (
-              <span className="ml-auto inline-flex items-center gap-1 font-mono text-[10px] text-amber">
+              <span className="ml-auto inline-flex items-center gap-1 font-mono text-micro text-amber">
                 <span className="line-through opacity-70">{confidencePct(priorConfidence)}%</span>→{" "}
                 {confidencePct(confidence)}%
               </span>
@@ -151,12 +151,12 @@ function LineageBody({ suggestionId }: { suggestionId: Id<"suggestions"> }) {
           </div>
         </section>
       ) : (
-        <p className="text-[13px] text-text-4">Esta ideia ainda não tem uma crença ligada.</p>
+        <p className="text-body text-text-4">Esta ideia ainda não tem uma crença ligada.</p>
       )}
 
       {data.salientSignals.length > 0 ? (
         <>
-          <div className="mt-6 mb-2.5 font-mono text-[10px] tracking-[0.14em] text-text-5 uppercase">
+          <div className="mt-6 mb-2.5 font-mono text-micro tracking-widest text-text-5 uppercase">
             Sinais que a sustentam
           </div>
           <div className="flex flex-col gap-2">
@@ -168,7 +168,7 @@ function LineageBody({ suggestionId }: { suggestionId: Id<"suggestions"> }) {
       ) : null}
 
       {data.discardedCount > 0 ? (
-        <p className="mt-4 flex items-center gap-2 text-[11px] text-text-5">
+        <p className="mt-4 flex items-center gap-2 text-note text-text-5">
           <Layers className="size-3 shrink-0 text-text-6" />+{data.discardedCount} outros sinais não
           usados nesta ideia
         </p>
@@ -199,10 +199,10 @@ export function LineageSheet({
     >
       <SheetContent
         side="right"
-        className="w-full gap-0 border-l border-border bg-app p-0 sm:max-w-[460px]"
+        className="w-full gap-0 border-l border-border bg-app p-0 sm:max-w-automatico-lineage"
       >
         <SheetHeader className="shrink-0 gap-0 border-b border-border py-4 pr-12 pl-5">
-          <SheetTitle className="font-mono text-[10px] tracking-[0.1em] text-text-5 uppercase">
+          <SheetTitle className="font-mono text-micro tracking-widest text-text-5 uppercase">
             Linhagem
           </SheetTitle>
         </SheetHeader>

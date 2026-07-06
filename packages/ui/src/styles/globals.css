@@ -54,6 +54,14 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 
+  /* Automático layout */
+  --automatico-board-gap: 0.8125rem;
+  --automatico-header-height: 3.625rem;
+  --automatico-rail-width: 21.75rem;
+  --automatico-lineage-width: 28.75rem;
+  --automatico-auto-grid: repeat(3, minmax(0, 1fr));
+  --automatico-focus-grid: minmax(0, 1.6fr) minmax(0, 1fr);
+
   /* Derived surfaces (re-resolve per mode via the tokens above) */
   --accent: color-mix(in srgb, var(--text) 6%, var(--surface));
   --needs-bg: color-mix(in srgb, var(--amber) 10%, var(--surface));
@@ -190,6 +198,22 @@
   --radius-xl: 16px;
 
   /* Type */
+  --text-tiny: 0.5625rem;
+  --text-tiny--line-height: 0.75rem;
+  --text-micro: 0.625rem;
+  --text-micro--line-height: 0.875rem;
+  --text-fine: 0.65625rem;
+  --text-fine--line-height: 0.875rem;
+  --text-note: 0.6875rem;
+  --text-note--line-height: 1rem;
+  --text-caption: 0.71875rem;
+  --text-caption--line-height: 1rem;
+  --text-body-sm: 0.78125rem;
+  --text-body-sm--line-height: 1.125rem;
+  --text-body: 0.8125rem;
+  --text-body--line-height: 1.125rem;
+  --text-card-title: 0.84375rem;
+  --text-card-title--line-height: 1.2rem;
   --font-sans:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono:
@@ -199,6 +223,30 @@
   --font-weight-medium: 510;
   --font-weight-semibold: 590;
   --font-weight-bold: 680;
+}
+
+@utility gap-automatico-board {
+  gap: var(--automatico-board-gap);
+}
+
+@utility h-automatico-header {
+  height: var(--automatico-header-height);
+}
+
+@utility w-automatico-rail {
+  width: var(--automatico-rail-width);
+}
+
+@utility grid-automatico-auto {
+  grid-template-columns: var(--automatico-auto-grid);
+}
+
+@utility max-w-automatico-lineage {
+  max-width: var(--automatico-lineage-width);
+}
+
+@utility grid-automatico-focus {
+  grid-template-columns: var(--automatico-focus-grid);
 }
 
 @layer base {

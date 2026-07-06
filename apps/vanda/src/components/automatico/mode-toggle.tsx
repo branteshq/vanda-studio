@@ -35,7 +35,7 @@ export function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (mode: Mo
       role="radiogroup"
       aria-label="Modo de autonomia"
       onKeyDown={onKeyDown}
-      className="flex items-center gap-0.5 rounded-md border border-border bg-inset p-[3px]"
+      className="flex items-center gap-0.5 rounded-md border border-border bg-inset p-1"
     >
       {MODES.map((option) => {
         const selected = option.value === mode;
@@ -48,7 +48,7 @@ export function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (mode: Mo
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(option.value)}
             className={cn(
-              "inline-flex h-[26px] items-center rounded-sm px-2.5 text-xs font-medium outline-none transition-colors duration-150 ease-[var(--ease-out)] focus-visible:ring-2 focus-visible:ring-ring/40",
+              "inline-flex h-7 items-center rounded-sm px-2.5 text-xs font-medium outline-none transition-colors duration-150 ease-[var(--ease-out)] focus-visible:ring-2 focus-visible:ring-ring/40",
               selected ? "bg-border-strong text-text" : "text-text-4 hover:text-text-2",
             )}
           >

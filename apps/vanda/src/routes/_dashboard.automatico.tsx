@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "convex/react";
 import { CheckCircle2, PencilLine, Plus } from "lucide-react";
@@ -23,12 +23,6 @@ export const Route = createFileRoute("/_dashboard/automatico")({
   component: AutomaticoPage,
 });
 
-const MODE_HINT: Record<Mode, string> = {
-  auto: "A Vanda cria e agenda sozinha. Você só entra quando ela te chama.",
-  needs_approval: "Toda ideia espera sua aprovação antes de virar post.",
-  manual: "A Vanda propõe; você escolhe o que criar.",
-};
-
 function AutomaticoPage() {
   const { welcome } = Route.useSearch();
   const navigate = useNavigate();
@@ -43,11 +37,22 @@ function AutomaticoPage() {
   const dismiss = useMutation(api.board.dismiss);
 
   const [selected, setSelected] = useState<Id<"suggestions"> | null>(null);
+  const [optimisticMode, setOptimisticMode] = useState<Mode | null>(null);
+
+  useEffect(() => {
+    setOptimisticMode(null);
+  }, [active?.mode]);
 
   if (accounts === undefined) return <div className="flex-1 bg-app" />;
   if (!active) return null; // the dashboard gate handles the no-account case
 
-  const mode = active.mode;
+  const mode = optimisticMode ?? active.mode;
+
+  const changeMode = (next: Mode) => {
+    if (next === mode) return;
+    setOptimisticMode(next);
+    void setMode({ accountId: active.id, mode: next }).catch(() => setOptimisticMode(null));
+  };
 
   const cardHandlers = {
     onDelegate: (id: Id<"suggestions">) => void delegate({ suggestionId: id }),
@@ -63,30 +68,22 @@ function AutomaticoPage() {
           <StatusPill tone="done" dot>
             Pronto
           </StatusPill>
-          <span className="text-[13px] text-text-2">A Vanda já está observando.</span>
-          <span className="text-[13px] text-text-4">
+          <span className="text-body text-text-2">A Vanda já está observando.</span>
+          <span className="text-body text-text-4">
             Você está no controle — ela só te chama quando precisar.
           </span>
         </div>
       ) : null}
 
-      <header className="flex h-[58px] shrink-0 items-center gap-3 border-b border-border px-6">
-        <h1 className="text-[16px] font-semibold tracking-[-0.01em] text-text">Automático</h1>
+      <header className="h-automatico-header flex shrink-0 items-center gap-3 border-b border-border px-6">
+        <h1 className="text-base font-semibold tracking-tight text-text">Automático</h1>
         <span className="inline-flex items-center gap-1.5 text-xs text-green">
-          <span className="size-1.5 rounded-full bg-green shadow-[0_0_6px] shadow-green motion-safe:animate-pulse" />
+          <span className="size-1.5 rounded-full bg-green shadow-sm motion-safe:animate-pulse" />
           ao vivo
         </span>
         <span className="flex-1" />
-        <ModeToggle
-          mode={mode}
-          onChange={(next) => void setMode({ accountId: active.id, mode: next })}
-        />
+        <ModeToggle mode={mode} onChange={changeMode} />
       </header>
-
-      <div className="flex h-[46px] shrink-0 items-center gap-2 border-b border-border bg-inset px-6">
-        <span className="size-1.5 rounded-full bg-green" />
-        <span className="text-[12.5px] text-text-3">{MODE_HINT[mode]}</span>
-      </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <div className="min-w-0 flex-1 overflow-hidden p-5">
@@ -199,7 +196,7 @@ function BoardGrid({
   // Aprovação/Manual share a two-region split: a widened, focused primary column
   // and a thin rail stacking the two secondary stages.
   const secondaryRail = (
-    <div className="grid min-h-0 grid-rows-2 gap-[13px]">
+    <div className="gap-automatico-board grid min-h-0 grid-rows-2">
       {vandaFazendo}
       {agendado}
     </div>
@@ -208,7 +205,7 @@ function BoardGrid({
   if (mode === "auto") {
     const queued = [...board.creating, ...board.pool];
     return (
-      <div className="grid h-full grid-cols-3 gap-[13px]">
+      <div className="gap-automatico-board grid-automatico-auto grid h-full">
         <BoardColumn
           name="Precisa de você"
           count={board.needsYou.length}
@@ -247,7 +244,7 @@ function BoardGrid({
   if (mode === "needs_approval") {
     const queue = [...board.needsYou, ...board.pool];
     return (
-      <div className="grid h-full grid-cols-[1.7fr_1fr] gap-[13px]">
+      <div className="gap-automatico-board grid-automatico-focus grid h-full">
         <BoardColumn
           name="Fila de revisão"
           count={queue.length}
@@ -278,7 +275,7 @@ function BoardGrid({
 
   const proposals = [...board.pool, ...board.needsYou];
   return (
-    <div className="grid h-full grid-cols-[1.5fr_1fr] gap-[13px]">
+    <div className="gap-automatico-board grid-automatico-focus grid h-full">
       <BoardColumn
         name="Propostas da Vanda"
         count={proposals.length}
@@ -308,7 +305,7 @@ function BoardGrid({
 
 function BoardSkeleton() {
   return (
-    <div className="grid h-full grid-cols-3 gap-[13px]">
+    <div className="gap-automatico-board grid-automatico-auto grid h-full">
       {[0, 1, 2].map((column) => (
         <div key={column} className="flex flex-col gap-2.5">
           <Skeleton className="mb-1 h-4 w-32" />

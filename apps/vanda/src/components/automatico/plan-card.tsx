@@ -69,17 +69,17 @@ export function PlanCard({
         className="block w-full cursor-pointer rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
       >
         <div className="mb-2.5 flex items-center gap-2">
-          <span className="font-mono text-[10px] tracking-[0.06em] text-text-5">
+          <span className="font-mono text-micro tracking-widest text-text-5">
             {formatTag(card.format)}
           </span>
           <span className="flex-1" />
           <Sparkles className="size-3 text-brand-soft" />
         </div>
-        <p className="mb-2.5 line-clamp-2 text-[13.5px] font-medium leading-[1.4] text-pretty text-text">
+        <p className="mb-2.5 line-clamp-2 text-card-title font-medium text-pretty text-text">
           {card.title}
         </p>
         {card.belief ? (
-          <span className="inline-flex max-w-full items-center gap-1.5 rounded-sm border border-peri/20 bg-peri/8 px-2 py-1 text-[10.5px] text-peri">
+          <span className="inline-flex max-w-full items-center gap-1.5 rounded-sm border border-peri/20 bg-peri/8 px-2 py-1 text-fine text-peri">
             <Link2 className="size-3 shrink-0" />
             <span className="truncate">
               crença: {card.belief.statement} · {confidencePct(card.belief.confidence)}%
@@ -91,7 +91,7 @@ export function PlanCard({
       {isCreating ? (
         <div className="mt-2.5 flex items-center gap-2">
           <ConfidenceBar value={card.progress ?? 0} tone="brand" />
-          <span className="inline-flex shrink-0 items-center gap-1 text-[10.5px] text-brand-soft">
+          <span className="inline-flex shrink-0 items-center gap-1 text-fine text-brand-soft">
             <Spinner className="size-3" />
             {confidencePct(card.progress ?? 0)}%
           </span>
@@ -111,7 +111,7 @@ export function PlanCard({
           </Button>
         </div>
       ) : (
-        <div className="mt-2.5 font-mono text-[10px] tracking-[0.1em] text-text-5 uppercase">
+        <div className="mt-2.5 font-mono text-micro tracking-widest text-text-5 uppercase">
           na fila da Vanda
         </div>
       )}
