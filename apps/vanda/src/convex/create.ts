@@ -205,7 +205,7 @@ export const generateImage = internalAction({
 const claim = async (ctx: MutationCtx, suggestionId: Id<"suggestions">): Promise<boolean> => {
   const suggestion = await ctx.db.get(suggestionId);
   if (suggestion === null || suggestion.status !== "approved") return false;
-  await ctx.db.patch(suggestionId, { status: "creating" });
+  await ctx.db.patch(suggestionId, { status: "creating", progress: 0 });
   return true;
 };
 
@@ -385,19 +385,27 @@ export const delegate = mutation({
   },
 });
 
-/** Aprovar todas: hand the whole review pool to Vanda at once (Aprovação mode). */
+/**
+ * Aprovar todas: hand the whole review queue to Vanda at once (Aprovação mode).
+ * The queue is the fresh pool (suggestion|approved) plus plan's awaiting-approval
+ * ideas (needs_you with no pause reason); belief-weakened needs_you (a
+ * rejectionReason set by rethink) is left for individual review. Scans only these
+ * statuses via the index — never the growing dismissed/rejected piles.
+ */
 export const approveAll = mutation({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<{ started: number }> => {
     await requireOwnedAccount(ctx, accountId);
-    const suggestions = await ctx.db
-      .query("suggestions")
-      .withIndex("by_account_created", (q) => q.eq("accountId", accountId))
-      .collect();
     let started = 0;
-    for (const s of suggestions) {
-      if (s.status !== "suggestion" && s.status !== "approved") continue;
-      if (await startCreate(ctx, s._id)) started++;
+    for (const status of ["suggestion", "approved", "needs_you"] as const) {
+      const rows = await ctx.db
+        .query("suggestions")
+        .withIndex("by_account_status", (q) => q.eq("accountId", accountId).eq("status", status))
+        .collect();
+      for (const s of rows) {
+        if (s.status === "needs_you" && s.rejectionReason !== undefined) continue;
+        if (await startCreate(ctx, s._id)) started++;
+      }
     }
     return { started };
   },

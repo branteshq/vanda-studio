@@ -12,11 +12,13 @@ type CardId = PlanCardData["id"];
  * A plan card — one composed idea. Its treatment reads its status at a glance:
  * `needs_you` wears the amber "precisa de você" surface, `creating` the magenta
  * "Vanda fazendo" surface with a live progress bar. The body opens the lineage;
- * `actionable` cards carry the three per-item intents (Vanda faz / Eu faço / Dispensar).
+ * `actionable` cards carry the three per-item intents. `primary` follows the mode:
+ * Vanda-led (auto/aprovação) leads with "Vanda faz"; Manual leads with "Eu faço".
  */
 export function PlanCard({
   card,
   actionable = true,
+  primary = "vanda",
   onDelegate,
   onTakeOver,
   onDismiss,
@@ -24,6 +26,7 @@ export function PlanCard({
 }: {
   card: PlanCardData;
   actionable?: boolean;
+  primary?: "vanda" | "voce";
   onDelegate: (id: CardId) => void;
   onTakeOver: (id: CardId) => void;
   onDismiss: (id: CardId) => void;
@@ -31,6 +34,26 @@ export function PlanCard({
 }) {
   const isCreating = card.status === "creating";
   const isNeedsYou = card.status === "needs_you";
+
+  const vandaFaz = (
+    <Button
+      variant={primary === "vanda" ? "soft" : "ghost"}
+      size="sm"
+      onClick={() => onDelegate(card.id)}
+    >
+      Vanda faz
+    </Button>
+  );
+  const euFaco = (
+    <Button
+      variant={primary === "voce" ? "soft" : "ghost"}
+      size="sm"
+      onClick={() => onTakeOver(card.id)}
+    >
+      Eu faço
+    </Button>
+  );
+
   return (
     <div
       className={cn(
@@ -43,7 +66,7 @@ export function PlanCard({
       <button
         type="button"
         onClick={() => onOpen(card.id)}
-        className="block w-full cursor-pointer text-left outline-none focus-visible:opacity-80"
+        className="block w-full cursor-pointer rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
       >
         <div className="mb-2.5 flex items-center gap-2">
           <span className="font-mono text-[10px] tracking-[0.06em] text-text-5">
@@ -52,7 +75,7 @@ export function PlanCard({
           <span className="flex-1" />
           <Sparkles className="size-3 text-brand-soft" />
         </div>
-        <p className="mb-2.5 line-clamp-2 text-[13.5px] font-medium leading-[1.4] text-text">
+        <p className="mb-2.5 line-clamp-2 text-[13.5px] font-medium leading-[1.4] text-pretty text-text">
           {card.title}
         </p>
         {card.belief ? (
@@ -75,12 +98,8 @@ export function PlanCard({
         </div>
       ) : actionable ? (
         <div className="mt-2.5 flex items-center gap-1.5">
-          <Button variant="soft" size="sm" onClick={() => onDelegate(card.id)}>
-            Vanda faz
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => onTakeOver(card.id)}>
-            Eu faço
-          </Button>
+          {primary === "voce" ? euFaco : vandaFaz}
+          {primary === "voce" ? vandaFaz : euFaco}
           <span className="flex-1" />
           <Button
             variant="ghost"
@@ -92,7 +111,7 @@ export function PlanCard({
           </Button>
         </div>
       ) : (
-        <div className="mt-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-text-5">
+        <div className="mt-2.5 font-mono text-[10px] tracking-[0.1em] text-text-5 uppercase">
           na fila da Vanda
         </div>
       )}

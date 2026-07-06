@@ -26,6 +26,8 @@ apps/*/.astro
 apps/*/.turbo
 packages/*/dist
 packages/*/.turbo
+apps/*/.tanstack
+.tanstack
 
 # misc
 .DS_Store

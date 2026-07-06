@@ -41,6 +41,7 @@ export interface PlanCard {
 /** A scheduled post projected to the Agendado card. */
 export interface ScheduledCard {
   id: Id<"scheduledPosts">;
+  suggestionId: Id<"suggestions"> | null;
   title: string;
   format: PostType | null;
   scheduledFor: number;
@@ -115,13 +116,34 @@ export interface Lineage {
   discardedCount: number;
 }
 
-/** Map an account's beliefs by their statement — the provenance key suggestions cite. */
+/** Map an account's beliefs by statement — the provenance key suggestions cite. A
+ * non-retired belief always wins the chip; a retired one only fills a gap. */
 const beliefsByStatement = async (ctx: QueryCtx, accountId: Id<"accounts">) => {
   const beliefs = await ctx.db
     .query("beliefs")
     .withIndex("by_account_status", (q) => q.eq("accountId", accountId))
     .collect();
-  return new Map(beliefs.map((b) => [b.statement, b] as const));
+  const map = new Map<string, Doc<"beliefs">>();
+  for (const belief of beliefs) {
+    if (!map.has(belief.statement) || belief.status !== "retired")
+      map.set(belief.statement, belief);
+  }
+  return map;
+};
+
+/** The non-terminal suggestions the board & rail read — never scans the growing
+ * dismissed/rejected piles (per-status index reads, not a full table scan). */
+const ACTIVE_STATUSES = ["needs_you", "creating", "suggestion", "approved", "scheduled"] as const;
+const activeSuggestions = async (ctx: QueryCtx, accountId: Id<"accounts">) => {
+  const perStatus = await Promise.all(
+    ACTIVE_STATUSES.map((status) =>
+      ctx.db
+        .query("suggestions")
+        .withIndex("by_account_status", (q) => q.eq("accountId", accountId).eq("status", status))
+        .collect(),
+    ),
+  );
+  return perStatus.flat();
 };
 
 /** A suggestion projected to the plan-card shape the board renders. */
@@ -157,12 +179,10 @@ export const board = query({
     await requireOwnedAccount(ctx, accountId);
     const beliefs = await beliefsByStatement(ctx, accountId);
 
-    const suggestions = await ctx.db
-      .query("suggestions")
-      .withIndex("by_account_created", (q) => q.eq("accountId", accountId))
-      .order("desc")
-      .collect();
-    const cards = suggestions.map((s) => toPlanCard(s, beliefs));
+    const active = await activeSuggestions(ctx, accountId);
+    const cards = active
+      .map((s) => toPlanCard(s, beliefs))
+      .sort((a, b) => b.createdAt - a.createdAt);
     const needsYou = cards.filter((c) => c.status === "needs_you");
     const creating = cards.filter((c) => c.status === "creating");
     const pool = cards.filter((c) => c.status === "suggestion" || c.status === "approved");
@@ -182,6 +202,7 @@ export const board = query({
           const belief = primary ? beliefs.get(primary) : undefined;
           return {
             id: r._id,
+            suggestionId: post?.suggestionId ?? null,
             title: suggestion?.title ?? "Post agendado",
             format: post?.type ?? null,
             scheduledFor: r.scheduledFor,
@@ -213,14 +234,21 @@ export const observing = query({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<ObservingSnapshot> => {
     await requireOwnedAccount(ctx, accountId);
+    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
     const recent = await ctx.db
       .query("signals")
       .withIndex("by_account_observedAt", (q) => q.eq("accountId", accountId))
       .order("desc")
       .take(200);
-
-    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
-    const totalToday = recent.filter((s) => s.observedAt >= dayAgo).length;
+    // Accurate daily count via an indexed range (not the 200-window slice), capped for safety.
+    const totalToday = (
+      await ctx.db
+        .query("signals")
+        .withIndex("by_account_observedAt", (q) =>
+          q.eq("accountId", accountId).gte("observedAt", dayAgo),
+        )
+        .take(1000)
+    ).length;
 
     // The rail surfaces the salient few; the rest fold into "+N rotineiros".
     const live = recent.filter((s) => s.noise !== true);
@@ -242,10 +270,7 @@ export const observing = query({
       .query("beliefs")
       .withIndex("by_account_status", (q) => q.eq("accountId", accountId))
       .collect();
-    const suggestions = await ctx.db
-      .query("suggestions")
-      .withIndex("by_account_created", (q) => q.eq("accountId", accountId))
-      .collect();
+    const suggestions = await activeSuggestions(ctx, accountId);
     const learned: LearnedBelief[] = beliefs
       .filter((b) => b.status !== "retired")
       .sort((a, b) => b.confidence - a.confidence)
@@ -304,11 +329,12 @@ export const lineage = query({
         }));
     }
 
-    const total = (
+    // Bound the scan: a rough count of other recent signals not backing this idea.
+    const seen = (
       await ctx.db
         .query("signals")
         .withIndex("by_account_observedAt", (q) => q.eq("accountId", suggestion.accountId))
-        .collect()
+        .take(500)
     ).length;
 
     return {
@@ -322,7 +348,7 @@ export const lineage = query({
           }
         : null,
       salientSignals,
-      discardedCount: Math.max(0, total - salientSignals.length),
+      discardedCount: Math.max(0, seen - salientSignals.length),
     };
   },
 });

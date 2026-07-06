@@ -2,6 +2,7 @@ import { Brain, Layers } from "lucide-react";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import type { LearnedBelief, NotableSignal, ObservingSnapshot } from "../../convex/board";
 import { ConfidenceBar } from "./confidence-bar";
+import { SalienceMeter } from "./salience-meter";
 import { SIGNAL_META, confidencePct, relativeTime } from "./meta";
 
 const HINT_LABEL: Record<string, string> = {
@@ -9,22 +10,6 @@ const HINT_LABEL: Record<string, string> = {
   agenda: "→ agenda",
   needs_you: "→ precisa de você",
 };
-
-/** A 3-bar salience glyph — how much weight the consolidate step gave a signal. */
-function SalienceMeter({ value }: { value: number | null }) {
-  const level = value === null ? 1 : value >= 0.66 ? 3 : value >= 0.33 ? 2 : 1;
-  return (
-    <span className="flex h-3.5 shrink-0 items-end gap-[2px] pt-0.5" aria-hidden>
-      {[4, 8, 12].map((height, i) => (
-        <span
-          key={height}
-          className={cn("w-[3px] rounded-[1px]", i < level ? "bg-peri" : "bg-border-strong")}
-          style={{ height: `${height}px` }}
-        />
-      ))}
-    </span>
-  );
-}
 
 function SignalRow({ signal }: { signal: NotableSignal }) {
   const meta = SIGNAL_META[signal.source];
@@ -37,7 +22,7 @@ function SignalRow({ signal }: { signal: NotableSignal }) {
           <Icon className={cn("size-3 shrink-0", meta.tone)} />
           <span className={cn("text-[10px] font-semibold", meta.tone)}>{meta.label}</span>
           <span className="flex-1" />
-          <span className="font-mono text-[9px] text-text-6">
+          <span className="font-mono text-[10px] text-text-5">
             {relativeTime(signal.observedAt)}
           </span>
         </div>

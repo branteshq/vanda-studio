@@ -117,13 +117,19 @@ interface CardHandlers {
   onOpen: (id: Id<"suggestions">) => void;
 }
 
-/** Render a pool of plan cards with the shared handlers, honoring per-column actionability. */
-function planCards(cards: PlanCardData[], actionable: boolean, handlers: CardHandlers) {
+/** Render a pool of plan cards with the shared handlers, honoring actionability + the mode's primary intent. */
+function planCards(
+  cards: PlanCardData[],
+  actionable: boolean,
+  handlers: CardHandlers,
+  primary: "vanda" | "voce" = "vanda",
+) {
   return cards.map((card) => (
     <PlanCard
       key={card.id}
       card={card}
       actionable={actionable}
+      primary={primary}
       onDelegate={handlers.onDelegate}
       onTakeOver={handlers.onTakeOver}
       onDismiss={handlers.onDismiss}
@@ -135,7 +141,8 @@ function planCards(cards: PlanCardData[], actionable: boolean, handlers: CardHan
 /**
  * The board — the same pipeline pools, re-balanced by mode. Auto spreads the
  * three stages evenly; Aprovação widens the review queue (where the work lands);
- * Manual widens the proposals (the owner composes). The columns never go crooked.
+ * Manual widens the proposals (the owner composes). Aprovação/Manual stack the
+ * two secondary stages in a thin rail so the columns never go crooked.
  */
 function BoardGrid({
   mode,
@@ -153,7 +160,9 @@ function BoardGrid({
   const agendado = (
     <BoardColumn name="Agendado" count={board.scheduled.length} tone="green">
       {board.scheduled.length > 0 ? (
-        board.scheduled.map((card) => <AgendadoCard key={card.id} card={card} />)
+        board.scheduled.map((card) => (
+          <AgendadoCard key={card.id} card={card} onOpen={handlers.onOpen} />
+        ))
       ) : (
         <EmptyState
           icon={CheckCircle2}
@@ -187,11 +196,24 @@ function BoardGrid({
     </BoardColumn>
   );
 
+  // Aprovação/Manual share a two-region split: a widened, focused primary column
+  // and a thin rail stacking the two secondary stages.
+  const secondaryRail = (
+    <div className="grid min-h-0 grid-rows-2 gap-[13px]">
+      {vandaFazendo}
+      {agendado}
+    </div>
+  );
+
   if (mode === "auto") {
     const queued = [...board.creating, ...board.pool];
     return (
       <div className="grid h-full grid-cols-3 gap-[13px]">
-        <BoardColumn name="Precisa de você" count={board.needsYou.length} tone="amber">
+        <BoardColumn
+          name="Precisa de você"
+          count={board.needsYou.length}
+          tone={board.needsYou.length > 0 ? "amber" : "green"}
+        >
           {board.needsYou.length > 0 ? (
             planCards(board.needsYou, true, handlers)
           ) : (
@@ -225,13 +247,14 @@ function BoardGrid({
   if (mode === "needs_approval") {
     const queue = [...board.needsYou, ...board.pool];
     return (
-      <div className="grid h-full grid-cols-[2fr_1fr_1fr] gap-[13px]">
+      <div className="grid h-full grid-cols-[1.7fr_1fr] gap-[13px]">
         <BoardColumn
           name="Fila de revisão"
           count={queue.length}
           tone="amber"
+          className="rounded-xl bg-inset/40 p-2.5"
           action={
-            board.pool.length > 0 ? (
+            queue.length > 0 ? (
               <Button variant="subtle" size="xs" onClick={onApproveAll}>
                 Aprovar todas
               </Button>
@@ -248,19 +271,19 @@ function BoardGrid({
             />
           )}
         </BoardColumn>
-        {vandaFazendo}
-        {agendado}
+        {secondaryRail}
       </div>
     );
   }
 
   const proposals = [...board.pool, ...board.needsYou];
   return (
-    <div className="grid h-full grid-cols-[2fr_1fr_1fr] gap-[13px]">
+    <div className="grid h-full grid-cols-[1.5fr_1fr] gap-[13px]">
       <BoardColumn
         name="Propostas da Vanda"
         count={proposals.length}
         tone="peri"
+        className="rounded-xl bg-inset/40 p-2.5"
         action={
           <Button variant="subtle" size="xs" onClick={onStartFromScratch}>
             <Plus /> Começar do zero
@@ -268,7 +291,7 @@ function BoardGrid({
         }
       >
         {proposals.length > 0 ? (
-          planCards(proposals, true, handlers)
+          planCards(proposals, true, handlers, "voce")
         ) : (
           <EmptyState
             icon={PencilLine}
@@ -278,8 +301,7 @@ function BoardGrid({
           />
         )}
       </BoardColumn>
-      {vandaFazendo}
-      {agendado}
+      {secondaryRail}
     </div>
   );
 }
