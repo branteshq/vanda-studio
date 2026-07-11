@@ -4,6 +4,7 @@ import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { v } from "convex/values";
 import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 
 const GRAPH_VERSION = "v23.0";
 const INSTAGRAM_GRAPH_BASE = `https://graph.instagram.com/${GRAPH_VERSION}`;
@@ -146,7 +147,12 @@ export const completeOAuth = action({
   handler: async (
     ctx,
     args,
-  ): Promise<{ connected: boolean; externalAccountId: string; handle?: string }> => {
+  ): Promise<{
+    connected: boolean;
+    accountId: Id<"accounts">;
+    externalAccountId: string;
+    handle?: string;
+  }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
@@ -224,10 +230,13 @@ export const completeOAuth = action({
 
     // Bridge the connection into the pipeline: a business `accounts` row the
     // observe cron can pick up. Idempotent, so reconnecting never duplicates.
-    await ctx.runMutation(internal.observe.promoteConnection, { connectionId: connection._id });
+    const accountId = await ctx.runMutation(internal.observe.promoteConnection, {
+      connectionId: connection._id,
+    });
 
     return {
       connected: true,
+      accountId,
       externalAccountId: connection.externalAccountId,
       ...(connection.handle ? { handle: connection.handle } : {}),
     };

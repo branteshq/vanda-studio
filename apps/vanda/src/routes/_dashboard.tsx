@@ -1,11 +1,10 @@
 import type { CSSProperties } from "react";
 import { RedirectToSignIn, Show } from "@clerk/tanstack-react-start";
 import { Navigate, Outlet, createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "convex/react";
 import { SidebarInset, SidebarProvider } from "@vanda-studio/ui/components/sidebar";
 import { TooltipProvider } from "@vanda-studio/ui/components/tooltip";
 import { AppSidebar } from "../components/app-sidebar";
-import { api } from "../convex/_generated/api";
+import { ActiveAccountProvider, useActiveAccount } from "../components/active-account";
 
 export const Route = createFileRoute("/_dashboard")({
   component: DashboardLayout,
@@ -18,7 +17,9 @@ function DashboardLayout() {
         <RedirectToSignIn />
       </Show>
       <Show when="signed-in">
-        <DashboardGate />
+        <ActiveAccountProvider>
+          <DashboardGate />
+        </ActiveAccountProvider>
       </Show>
     </>
   );
@@ -30,7 +31,7 @@ function DashboardLayout() {
  * sidebar, so this adds no extra round-trip.
  */
 function DashboardGate() {
-  const accounts = useQuery(api.accounts.listMine);
+  const { accounts } = useActiveAccount();
   if (accounts === undefined) return <div className="min-h-svh bg-app" />;
   if (!accounts.some((account) => account.onboardedAt != null)) {
     return <Navigate to="/onboarding" />;

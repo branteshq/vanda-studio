@@ -1,7 +1,7 @@
 import { RedirectToSignIn, Show } from "@clerk/tanstack-react-start";
 import { Navigate, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "convex/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Spinner } from "@vanda-studio/ui/components/spinner";
 import { ConfirmStep } from "../components/onboarding/confirm-step";
 import { ConnectStep } from "../components/onboarding/connect-step";
@@ -16,6 +16,10 @@ import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 
 export const Route = createFileRoute("/onboarding")({
+  validateSearch: (search: Record<string, unknown>): { flow?: "add"; accountId?: string } => ({
+    ...(search.flow === "add" ? { flow: "add" as const } : {}),
+    ...(typeof search.accountId === "string" ? { accountId: search.accountId } : {}),
+  }),
   component: OnboardingPage,
 });
 
@@ -42,19 +46,34 @@ function OnboardingLoading() {
 
 /**
  * The onboarding gate, aligned with `DashboardGate`: once any business is
- * onboarded the user is past first-time setup (-> dashboard); a second pending
- * account is a future add-business flow, not this gate. With no onboarded account
- * yet: connect the first, or resume analyzing the pending one (after the OAuth
- * round-trip and on refresh — `analyzeAccount` is idempotent).
+ * onboarded the user is past first-time setup (-> dashboard). Explicit search
+ * state targets add-business and resume flows; without it, first-time setup either
+ * connects the first account or resumes its pending analysis.
  */
 function OnboardingFlow() {
+  const { flow, accountId } = Route.useSearch();
   const accounts = useQuery(api.accounts.listMine);
   if (accounts === undefined) return <OnboardingLoading />;
+  const requested = accounts.find((account) => account.id === accountId);
+  if (requested?.onboardedAt != null) return <ActivateAndRedirect accountId={requested.id} />;
+  if (requested) return <AnalyzeFlow accountId={requested.id} />;
+  if (flow === "add") return <ConnectStep />;
   if (accounts.some((account) => account.onboardedAt != null)) {
     return <Navigate to="/automatico" />;
   }
   const pending = accounts.find((account) => account.onboardedAt == null);
   return pending === undefined ? <ConnectStep /> : <AnalyzeFlow accountId={pending.id} />;
+}
+
+function ActivateAndRedirect({ accountId }: { accountId: Id<"accounts"> }) {
+  const selectActive = useMutation(api.accounts.selectActive);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    void selectActive({ accountId }).then(() => navigate({ to: "/automatico" }));
+  }, [accountId, navigate, selectActive]);
+
+  return <OnboardingLoading />;
 }
 
 type Step = "observing" | "confirm" | "mode";

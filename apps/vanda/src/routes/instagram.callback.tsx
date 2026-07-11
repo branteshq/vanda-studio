@@ -1,7 +1,7 @@
 import { Show, SignInButton } from "@clerk/tanstack-react-start";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAction } from "convex/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { api } from "../convex/_generated/api";
 import { getInstagramRedirectUri } from "../instagramRedirect";
@@ -15,8 +15,11 @@ export function InstagramCallbackRoute() {
   const navigate = useNavigate();
   const [message, setMessage] = useState("Finalizando conexão com o Instagram...");
   const [error, setError] = useState<string | null>(null);
+  const started = useRef(false);
 
   useEffect(() => {
+    if (started.current) return;
+    started.current = true;
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
     const state = params.get("state");
@@ -35,10 +38,9 @@ export function InstagramCallbackRoute() {
       state,
       redirectUri: getInstagramRedirectUri(),
     })
-      .then(() => {
+      .then(({ accountId }) => {
         setMessage("Instagram conectado. Levando você pra Vanda…");
-        // The account now exists; onboarding resumes at the analyze step.
-        void navigate({ to: "/onboarding" });
+        void navigate({ to: "/onboarding", search: { accountId } });
       })
       .catch((err) => setError(err instanceof Error ? err.message : String(err)));
   }, [completeOAuth, navigate]);

@@ -15,6 +15,7 @@ import { LineageSheet } from "../components/automatico/lineage-sheet";
 import { type Mode, ModeToggle } from "../components/automatico/mode-toggle";
 import { ObservingRail } from "../components/automatico/observing-rail";
 import { PlanCard } from "../components/automatico/plan-card";
+import { useActiveAccount } from "../components/active-account";
 
 export const Route = createFileRoute("/_dashboard/automatico")({
   // `welcome` is set once, right after onboarding, to show the handoff banner.
@@ -26,8 +27,7 @@ export const Route = createFileRoute("/_dashboard/automatico")({
 function AutomaticoPage() {
   const { welcome } = Route.useSearch();
   const navigate = useNavigate();
-  const accounts = useQuery(api.accounts.listMine);
-  const active = accounts?.find((account) => account.onboardedAt != null) ?? accounts?.[0];
+  const { accounts, activeAccount: active } = useActiveAccount();
   const board = useQuery(api.board.board, active ? { accountId: active.id } : "skip");
   const observing = useQuery(api.board.observing, active ? { accountId: active.id } : "skip");
 
@@ -41,7 +41,8 @@ function AutomaticoPage() {
 
   useEffect(() => {
     setOptimisticMode(null);
-  }, [active?.mode]);
+    setSelected(null);
+  }, [active?.id, active?.mode]);
 
   if (accounts === undefined) return <div className="flex-1 bg-app" />;
   if (!active) return null; // the dashboard gate handles the no-account case

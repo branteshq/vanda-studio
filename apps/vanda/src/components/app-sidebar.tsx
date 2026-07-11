@@ -1,7 +1,7 @@
 import { useState, type ComponentType } from "react";
 import { useClerk, useUser } from "@clerk/tanstack-react-start";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import {
   BadgeCheckIcon,
   Calendar,
@@ -39,6 +39,7 @@ import {
   useSidebar,
 } from "@vanda-studio/ui/components/sidebar";
 import { api } from "../convex/_generated/api";
+import { useActiveAccount } from "./active-account";
 
 type DashboardPath = "/" | "/automatico" | "/galeria" | "/calendario" | "/perfil";
 
@@ -87,9 +88,10 @@ const MODE_LABEL: Record<string, string> = {
 function WorkspaceSwitcher() {
   const { isMobile } = useSidebar();
   const navigate = useNavigate();
-  const accounts = useQuery(api.accounts.listMine);
+  const { accounts, activeAccount: active, selectAccount } = useActiveAccount();
   const removeAccount = useMutation(api.accounts.remove);
   const [removing, setRemoving] = useState(false);
+  const [switching, setSwitching] = useState<string | null>(null);
 
   // No business connected yet → point at setup (the Perfil/onboarding surface).
   if (accounts !== undefined && accounts.length === 0) {
@@ -114,7 +116,6 @@ function WorkspaceSwitcher() {
     );
   }
 
-  const active = accounts?.[0];
   const name = active?.name ?? "Vanda Studio";
   const initials = getInitials(name) || "VS";
   const subtitle = active
@@ -133,9 +134,26 @@ function WorkspaceSwitcher() {
     setRemoving(true);
     try {
       await removeAccount({ accountId: active.id });
-      await navigate({ to: "/onboarding" });
+      const hasRemainingBusiness = accounts?.some(
+        (account) => account.id !== active.id && account.onboardedAt !== null,
+      );
+      if (!hasRemainingBusiness) await navigate({ to: "/onboarding" });
     } finally {
       setRemoving(false);
+    }
+  };
+
+  const handleSelect = async (account: NonNullable<typeof accounts>[number]) => {
+    if (account.id === active?.id || switching !== null) return;
+    if (account.onboardedAt === null) {
+      await navigate({ to: "/onboarding", search: { accountId: account.id } });
+      return;
+    }
+    setSwitching(account.id);
+    try {
+      await selectAccount(account.id);
+    } finally {
+      setSwitching(null);
     }
   };
 
@@ -171,11 +189,24 @@ function WorkspaceSwitcher() {
                 Negócios
               </DropdownMenuLabel>
               {accounts?.map((account) => (
-                <DropdownMenuItem key={account.id} className="gap-2 p-2">
+                <DropdownMenuItem
+                  key={account.id}
+                  className="gap-2 p-2"
+                  disabled={switching !== null}
+                  onClick={() => void handleSelect(account)}
+                >
                   <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-border-strong text-[10px] font-semibold text-text-2">
                     {getInitials(account.name) || "?"}
                   </span>
-                  {account.name}
+                  <span className="min-w-0 flex-1 truncate">
+                    {account.name}
+                    {account.onboardedAt === null ? (
+                      <span className="block text-[10px] text-muted-foreground">
+                        Configuração pendente
+                      </span>
+                    ) : null}
+                  </span>
+                  {account.id === active?.id ? <BadgeCheckIcon className="size-4" /> : null}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuGroup>
@@ -183,7 +214,7 @@ function WorkspaceSwitcher() {
             <DropdownMenuGroup>
               <DropdownMenuItem
                 className="gap-2 p-2"
-                onClick={() => void navigate({ to: "/perfil" })}
+                onClick={() => void navigate({ to: "/onboarding", search: { flow: "add" } })}
               >
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-md border">
                   <Plus className="size-4" />
