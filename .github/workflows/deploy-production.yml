@@ -1,7 +1,9 @@
 name: Deploy production
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -11,27 +13,14 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  verify-main:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require main
-        run: |
-          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
-            echo "Production can only be deployed from main." >&2
-            exit 1
-          fi
-
   deploy:
-    needs: verify-main
     runs-on: ubuntu-latest
     environment:
       name: production
       url: https://app.vandastudio.app
     steps:
-      - name: Check out main
+      - name: Check out production revision
         uses: actions/checkout@v4
-        with:
-          ref: main
 
       - name: Set up workspace
         uses: ./.github/actions/setup
