@@ -7,6 +7,7 @@ import { requireOwnedAccount } from "./authz";
 import { independentEvidenceCount } from "./pipeline/discernment";
 import { correctBeliefImpl, markSignalNoiseImpl } from "./steer";
 import { defaultPolicy } from "./pipeline/memory";
+import { loadPipelineReceipt, type PipelineReceipt } from "./pipelineDiagnostics";
 
 // ============================================================================
 // The public app-API for the Automático screen. Everything is auth-gated on the
@@ -216,6 +217,15 @@ export const board = query({
     );
 
     return { needsYou, creating, pool, scheduled };
+  },
+});
+
+/** Durable receipt for the latest observation → learning → planning pass. */
+export const diagnostics = query({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }): Promise<PipelineReceipt> => {
+    await requireOwnedAccount(ctx, accountId);
+    return await loadPipelineReceipt(ctx, accountId);
   },
 });
 

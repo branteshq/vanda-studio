@@ -384,6 +384,110 @@ describe("board.observing — the Observando rail", () => {
   });
 });
 
+describe("board.diagnostics — latest pipeline receipt", () => {
+  it("explains when learned evidence produced ideas that quality review rejected", async () => {
+    const t = convexTest(schema, modules);
+    const accountId = await seedOwnedAccount(t);
+    const now = Date.now();
+
+    await t.run(async (ctx) => {
+      const signalIds: Id<"signals">[] = [];
+      for (const externalId of ["price", "treatment", "appointment"]) {
+        signalIds.push(
+          await ctx.db.insert("signals", {
+            accountId,
+            source: "comments",
+            externalId,
+            text: externalId,
+            observedAt: now,
+            actionable: true,
+            consolidatedAt: now + 10,
+          }),
+        );
+      }
+      await ctx.db.insert("signals", {
+        accountId,
+        source: "comments",
+        externalId: "generic",
+        text: "legal",
+        observedAt: now,
+        actionable: false,
+        discardedReason: "reação genérica",
+        consolidatedAt: now + 10,
+      });
+      await ctx.db.insert("beliefs", {
+        accountId,
+        statement: "Pessoas procuram informações sobre melasma",
+        kind: "audience",
+        confidence: 0.657,
+        supportingSignalIds: signalIds,
+        supportingEvidence: signalIds.map((signalId) => ({
+          signalId,
+          evidenceKey: `signal:${signalId}`,
+        })),
+        firstSeenAt: now,
+        confidenceAsOf: now,
+        status: "active",
+      });
+      await ctx.db.insert("modelRuns", {
+        accountId,
+        stage: "consolidate",
+        model: "openai/gpt-5-nano",
+        promptVersion: "consolidate/test",
+        inputIds: signalIds,
+        status: "succeeded",
+        outputSummary: "1 crença; 4 sinais",
+        startedAt: now,
+        completedAt: now + 100,
+      });
+      await ctx.db.insert("modelRuns", {
+        accountId,
+        stage: "plan",
+        model: "openai/gpt-5-nano",
+        promptVersion: "plan/test",
+        inputIds: [],
+        status: "succeeded",
+        outputSummary: "3 propostas",
+        startedAt: now + 101,
+        completedAt: now + 200,
+      });
+      for (const title of ["Guia", "Reel", "Story"]) {
+        await ctx.db.insert("suggestions", {
+          accountId,
+          title,
+          rationale: "responder às dúvidas",
+          themeName: "Melasma",
+          beliefStatements: ["Pessoas procuram informações sobre melasma"],
+          signalIds,
+          status: "rejected",
+          requiresApproval: false,
+          rejectionReason: "A proposta ainda está genérica.",
+          createdAt: now + 150,
+        });
+      }
+    });
+
+    const receipt = await t
+      .withIdentity({ subject: OWNER })
+      .query(api.board.diagnostics, { accountId });
+
+    expect(receipt.state).toBe("filtered");
+    expect(receipt.signals).toEqual({ total: 4, actionable: 3, discarded: 1, pending: 0 });
+    expect(receipt.beliefs).toEqual({ total: 1, eligible: 1 });
+    expect(receipt.proposals).toMatchObject({ generated: 3, accepted: 0, rejected: 3 });
+    expect(receipt.proposals.rejectedItems).toHaveLength(3);
+    expect(receipt.stages.map((stage) => stage.status)).toEqual(["succeeded", "succeeded"]);
+  });
+
+  it("rejects a non-owner", async () => {
+    const t = convexTest(schema, modules);
+    const accountId = await seedOwnedAccount(t);
+    await expect(
+      t.withIdentity({ subject: INTRUDER }).query(api.board.diagnostics, { accountId }),
+    ).rejects.toThrow(/account not found/);
+  });
+});
+
 describe("board.lineage — intervir na linhagem", () => {
   it("resolves the primary belief, salient-first noise-flagged signals, and the discarded count", async () => {
     const t = convexTest(schema, modules);

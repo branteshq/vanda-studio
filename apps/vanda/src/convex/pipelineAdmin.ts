@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
+import { loadPipelineReceipt, type PipelineReceipt } from "./pipelineDiagnostics";
 
 export const authorize = internalQuery({
   args: { accountId: v.id("accounts"), clerkId: v.string() },
@@ -13,6 +14,11 @@ export const authorize = internalQuery({
       throw new Error("account not found");
     return true;
   },
+});
+
+export const receipt = internalQuery({
+  args: { accountId: v.id("accounts") },
+  handler: (ctx, { accountId }): Promise<PipelineReceipt> => loadPipelineReceipt(ctx, accountId),
 });
 
 export const resetDerived = internalMutation({

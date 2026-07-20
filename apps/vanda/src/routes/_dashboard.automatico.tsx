@@ -1,19 +1,21 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAction, useMutation, useQuery } from "convex/react";
-import { CheckCircle2, PencilLine, Plus, RefreshCw } from "lucide-react";
+import { CheckCircle2, ListChecks, PencilLine, Plus, RefreshCw } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { StatusPill } from "@vanda-studio/ui/components/status-pill";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import type { AutomaticoBoard, PlanCard as PlanCardData } from "../convex/board";
+import type { PipelineReceipt } from "../convex/pipelineDiagnostics";
 import { AgendadoCard } from "../components/automatico/agendado-card";
 import { BoardColumn } from "../components/automatico/board-column";
 import { EmptyState } from "../components/automatico/empty-state";
 import { LineageSheet } from "../components/automatico/lineage-sheet";
 import { type Mode, ModeToggle } from "../components/automatico/mode-toggle";
 import { ObservingRail } from "../components/automatico/observing-rail";
+import { PipelineDiagnosticsSheet } from "../components/automatico/pipeline-diagnostics-sheet";
 import { PlanCard } from "../components/automatico/plan-card";
 import { useActiveAccount } from "../components/active-account";
 
@@ -30,6 +32,7 @@ function AutomaticoPage() {
   const { accounts, activeAccount: active } = useActiveAccount();
   const board = useQuery(api.board.board, active ? { accountId: active.id } : "skip");
   const observing = useQuery(api.board.observing, active ? { accountId: active.id } : "skip");
+  const diagnostics = useQuery(api.board.diagnostics, active ? { accountId: active.id } : "skip");
 
   const setMode = useMutation(api.accounts.setMode);
   const delegate = useMutation(api.create.delegate);
@@ -41,11 +44,13 @@ function AutomaticoPage() {
   const [optimisticMode, setOptimisticMode] = useState<Mode | null>(null);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [reanalyzeError, setReanalyzeError] = useState(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
 
   useEffect(() => {
     setOptimisticMode(null);
     setSelected(null);
     setReanalyzeError(false);
+    setDiagnosticsOpen(false);
   }, [active?.id, active?.mode]);
 
   if (accounts === undefined) return <div className="flex-1 bg-app" />;
@@ -96,6 +101,16 @@ function AutomaticoPage() {
           type="button"
           variant="ghost"
           size="icon-sm"
+          title="Ver última análise"
+          aria-label="Ver última análise"
+          onClick={() => setDiagnosticsOpen(true)}
+        >
+          <ListChecks />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
           title="Reanalisar agora"
           aria-label="Reanalisar agora"
           disabled={reanalyzing}
@@ -103,6 +118,7 @@ function AutomaticoPage() {
             setReanalyzing(true);
             setReanalyzeError(false);
             void reanalyze({ accountId: active.id })
+              .then(() => setDiagnosticsOpen(true))
               .catch(() => setReanalyzeError(true))
               .finally(() => setReanalyzing(false));
           }}
@@ -120,6 +136,7 @@ function AutomaticoPage() {
             <BoardGrid
               mode={mode}
               board={board}
+              diagnostics={diagnostics}
               handlers={cardHandlers}
               onApproveAll={() => void approveAll({ accountId: active.id })}
               onStartFromScratch={() => void navigate({ to: "/galeria" })}
@@ -130,6 +147,11 @@ function AutomaticoPage() {
       </div>
 
       <LineageSheet suggestionId={selected} onClose={() => setSelected(null)} />
+      <PipelineDiagnosticsSheet
+        open={diagnosticsOpen}
+        onOpenChange={setDiagnosticsOpen}
+        receipt={diagnostics}
+      />
     </div>
   );
 }
@@ -171,16 +193,21 @@ function planCards(
 function BoardGrid({
   mode,
   board,
+  diagnostics,
   handlers,
   onApproveAll,
   onStartFromScratch,
 }: {
   mode: Mode;
   board: AutomaticoBoard;
+  diagnostics: PipelineReceipt | undefined;
   handlers: CardHandlers;
   onApproveAll: () => void;
   onStartFromScratch: () => void;
 }) {
+  const filtered = diagnostics?.state === "filtered";
+  const filteredTitle = `${diagnostics?.proposals.rejected ?? 0} ideias não passaram pela revisão`;
+  const filteredBody = "Abra Última análise para ver por que foram barradas.";
   const agendado = (
     <BoardColumn name="Agendado" count={board.scheduled.length} tone="green">
       {board.scheduled.length > 0 ? (
@@ -211,10 +238,12 @@ function BoardGrid({
         />
       ) : (
         <EmptyState
-          icon={CheckCircle2}
+          icon={filtered ? ListChecks : CheckCircle2}
           tone="muted"
-          title="Nada em produção"
-          body="Quando a Vanda pega uma ideia, o progresso aparece aqui."
+          title={filtered ? filteredTitle : "Nada em produção"}
+          body={
+            filtered ? filteredBody : "Quando a Vanda pega uma ideia, o progresso aparece aqui."
+          }
         />
       )}
     </BoardColumn>
@@ -256,10 +285,12 @@ function BoardGrid({
             </>
           ) : (
             <EmptyState
-              icon={CheckCircle2}
+              icon={filtered ? ListChecks : CheckCircle2}
               tone="muted"
-              title="Nada em produção"
-              body="Quando a Vanda pega uma ideia, o progresso aparece aqui."
+              title={filtered ? filteredTitle : "Nada em produção"}
+              body={
+                filtered ? filteredBody : "Quando a Vanda pega uma ideia, o progresso aparece aqui."
+              }
             />
           )}
         </BoardColumn>
@@ -289,9 +320,13 @@ function BoardGrid({
             planCards(queue, true, handlers)
           ) : (
             <EmptyState
-              icon={CheckCircle2}
-              title="Fila vazia"
-              body="Nada esperando você. Novas ideias entram aqui pra revisão."
+              icon={filtered ? ListChecks : CheckCircle2}
+              title={filtered ? filteredTitle : "Fila vazia"}
+              body={
+                filtered
+                  ? filteredBody
+                  : "Nada esperando você. Novas ideias entram aqui pra revisão."
+              }
             />
           )}
         </BoardColumn>
@@ -318,10 +353,14 @@ function BoardGrid({
           planCards(proposals, true, handlers, "voce")
         ) : (
           <EmptyState
-            icon={PencilLine}
+            icon={filtered ? ListChecks : PencilLine}
             tone="muted"
-            title="Sem propostas ainda"
-            body="A Vanda traz ideias conforme observa. Ou comece uma do zero."
+            title={filtered ? filteredTitle : "Sem propostas ainda"}
+            body={
+              filtered
+                ? filteredBody
+                : "A Vanda traz ideias conforme observa. Ou comece uma do zero."
+            }
           />
         )}
       </BoardColumn>
