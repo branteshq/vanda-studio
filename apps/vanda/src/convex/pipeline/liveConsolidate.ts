@@ -14,9 +14,10 @@ import type { Memory } from "./memoryStore";
 export const consolidateLayer = (
   ctx: ActionCtx,
   apiKey: string,
+  memory: Layer.Layer<Memory> = memoryStoreLive(ctx),
 ): Layer.Layer<Memory | BrandContext | LanguageModel.LanguageModel> =>
   Layer.mergeAll(
-    memoryStoreLive(ctx),
+    memory,
     brandContextLive(ctx),
     languageModelLayer(apiKey, PIPELINE_MODELS.consolidate),
   );

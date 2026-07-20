@@ -14,6 +14,23 @@ import {
 
 export const accountKey = (id: string): Id<"accounts"> => id as Id<"accounts">;
 
+const applyResult = (
+  ctx: ActionCtx,
+  accountId: string,
+  result: ConsolidationResult,
+): Promise<unknown> =>
+  ctx.runMutation(internal.consolidate.applyConsolidation, {
+    accountId: accountKey(accountId),
+    beliefs: result.beliefs as unknown as Mutable<ConsolidationResult["beliefs"]>,
+    themes: result.themes as unknown as Mutable<ConsolidationResult["themes"]>,
+    note: result.note,
+    consumedSignals: result.consumedSignals.map((signal) => ({
+      id: signal.id,
+      salience: signal.salience,
+      ...(signal.discardedReason === undefined ? {} : { discardedReason: signal.discardedReason }),
+    })),
+  });
+
 /**
  * `Memory` backed by the Convex action `ctx` — the canonical binding shared by
  * consolidate (read snapshot + write deltas) and plan (read snapshot). Explicit
@@ -29,13 +46,27 @@ export const memoryStoreLive = (ctx: ActionCtx): Layer.Layer<Memory> =>
       accountId: string,
       result: ConsolidationResult,
     ): Effect.Effect<void, Cause.UnknownError> =>
-      Effect.tryPromise(() =>
-        ctx.runMutation(internal.consolidate.applyConsolidation, {
+      Effect.tryPromise(() => applyResult(ctx, accountId, result)).pipe(Effect.asVoid),
+  } satisfies MemoryShape);
+
+/** Build replacement memory first; only clear the previous derivation after success. */
+export const memoryRebuildLive = (ctx: ActionCtx): Layer.Layer<Memory> =>
+  Layer.succeed(Memory, {
+    loadSnapshot: (accountId: string): Effect.Effect<MemorySnapshot, Cause.UnknownError> =>
+      Effect.map(
+        Effect.tryPromise(() =>
+          ctx.runQuery(internal.consolidate.loadSnapshot, { accountId: accountKey(accountId) }),
+        ),
+        (snapshot) => ({ ...snapshot, beliefs: [], themes: [] }),
+      ),
+    apply: (
+      accountId: string,
+      result: ConsolidationResult,
+    ): Effect.Effect<void, Cause.UnknownError> =>
+      Effect.tryPromise(async () => {
+        await ctx.runMutation(internal.pipelineAdmin.resetDerived, {
           accountId: accountKey(accountId),
-          beliefs: result.beliefs as unknown as Mutable<ConsolidationResult["beliefs"]>,
-          themes: result.themes as unknown as Mutable<ConsolidationResult["themes"]>,
-          note: result.note,
-          consumedSignals: result.consumedSignals.map((s) => ({ id: s.id, salience: s.salience })),
-        }),
-      ).pipe(Effect.asVoid),
+        });
+        await applyResult(ctx, accountId, result);
+      }).pipe(Effect.asVoid),
   } satisfies MemoryShape);

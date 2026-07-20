@@ -40,10 +40,12 @@ function AutomaticoPage() {
   const [selected, setSelected] = useState<Id<"suggestions"> | null>(null);
   const [optimisticMode, setOptimisticMode] = useState<Mode | null>(null);
   const [reanalyzing, setReanalyzing] = useState(false);
+  const [reanalyzeError, setReanalyzeError] = useState(false);
 
   useEffect(() => {
     setOptimisticMode(null);
     setSelected(null);
+    setReanalyzeError(false);
   }, [active?.id, active?.mode]);
 
   if (accounts === undefined) return <div className="flex-1 bg-app" />;
@@ -85,6 +87,11 @@ function AutomaticoPage() {
           ao vivo
         </span>
         <span className="flex-1" />
+        {reanalyzeError ? (
+          <span className="text-xs text-destructive" role="alert">
+            Falha ao atualizar
+          </span>
+        ) : null}
         <Button
           type="button"
           variant="ghost"
@@ -94,7 +101,10 @@ function AutomaticoPage() {
           disabled={reanalyzing}
           onClick={() => {
             setReanalyzing(true);
-            void reanalyze({ accountId: active.id }).finally(() => setReanalyzing(false));
+            setReanalyzeError(false);
+            void reanalyze({ accountId: active.id })
+              .catch(() => setReanalyzeError(true))
+              .finally(() => setReanalyzing(false));
           }}
         >
           <RefreshCw className={reanalyzing ? "animate-spin" : undefined} />

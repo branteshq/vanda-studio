@@ -28,7 +28,7 @@ export const runTracked = async <A>(
       }),
     ).pipe(
       Effect.flatMap((runId) =>
-        Effect.tryPromise(run).pipe(
+        Effect.tryPromise({ try: run, catch: (error) => error }).pipe(
           Effect.tap((value) =>
             Effect.tryPromise(() =>
               ctx.runMutation(internal.modelTelemetry.finish, {
@@ -43,10 +43,11 @@ export const runTracked = async <A>(
               ctx.runMutation(internal.modelTelemetry.finish, {
                 runId,
                 status: "failed",
-                error: error instanceof Error ? error.message : String(error),
+                error: String(error),
               }),
             ).pipe(Effect.ignore),
           ),
+          Effect.mapError((error) => new Error(String(error))),
         ),
       ),
     ),

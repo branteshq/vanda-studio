@@ -15,8 +15,7 @@ export const reanalyze = action({
       clerkId: identity.subject,
     });
     await ctx.runAction(internal.observeNode.observeAccount, { accountId });
-    await ctx.runMutation(internal.pipelineAdmin.resetDerived, { accountId });
-    await ctx.runAction(internal.consolidateAction.consolidateAccount, { accountId });
+    await ctx.runAction(internal.consolidateAction.rebuildAccount, { accountId });
     await ctx.runAction(internal.planAction.planAccount, { accountId });
     return { completed: true };
   },

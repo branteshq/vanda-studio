@@ -22,12 +22,18 @@ export const PROMPT_VERSIONS = {
   embedding: "knowledge/openai-embedding-v1",
 } as const;
 
+const MODEL_CONFIG = {
+  strictJsonSchema: true,
+  provider: { require_parameters: true },
+  reasoning: { effort: "minimal" as const },
+} as const;
+
 /** OpenRouter-backed `LanguageModel`, wired over the platform fetch client. */
 export const languageModelLayer = (
   apiKey: string,
   model: string = DEFAULT_MODEL,
 ): Layer.Layer<LanguageModel.LanguageModel> =>
-  OpenRouterLanguageModel.layer({ model }).pipe(
+  OpenRouterLanguageModel.layer({ model, config: MODEL_CONFIG }).pipe(
     Layer.provide(OpenRouterClient.layer({ apiKey: Redacted.make(apiKey) })),
     Layer.provide(FetchHttpClient.layer),
   );

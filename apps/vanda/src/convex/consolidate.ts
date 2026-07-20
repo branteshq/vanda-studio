@@ -85,6 +85,18 @@ export const listUnconsolidatedSignals = internalQuery({
       .take(limit ?? 100),
 });
 
+/** Full raw corpus for an owner-triggered clean rebuild. */
+export const listSignalsForRebuild = internalQuery({
+  args: { accountId: v.id("accounts"), limit: v.optional(v.number()) },
+  handler: (ctx, { accountId, limit }) =>
+    ctx.db
+      .query("signals")
+      .withIndex("by_account_observedAt", (q) => q.eq("accountId", accountId))
+      .filter((q) => q.neq(q.field("noise"), true))
+      .order("desc")
+      .take(limit ?? 100),
+});
+
 /**
  * Apply one consolidation pass atomically (single transaction): upsert the full
  * belief + theme sets, append the journal note, and mark the consumed signals
