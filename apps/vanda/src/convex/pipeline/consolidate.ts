@@ -104,7 +104,9 @@ export const evidenceKeyForSignal = (signal: StoredSignal): string => {
   if (author !== undefined && signal.mediaExternalId !== undefined)
     return `author:${author}:media:${signal.mediaExternalId}`;
   if (author !== undefined) return `author:${author}`;
-  if (signal.mediaExternalId !== undefined) return `media:${signal.mediaExternalId}`;
+  // Meta can return a comment without its author even when the comment itself is
+  // visible. The persisted signal is deduplicated by Instagram's comment id, so
+  // it is the narrowest reliable evidence identity available in that case.
   return `signal:${signal.id}`;
 };
 

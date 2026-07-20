@@ -292,6 +292,32 @@ describe("consolidate (program, stub model)", () => {
     expect(result.beliefs[0]!.confidence).toBeCloseTo(defaultPolicy.learningRate);
   });
 
+  it("counts distinct anonymous comments on one post as independent evidence", () => {
+    const entries = ["s1", "s2", "s3"].map((id) => ({
+      signal: {
+        ...signal(id, "quero saber mais sobre melasma"),
+        mediaExternalId: "post-1",
+      },
+      judgment: {
+        kind: "audience" as const,
+        salience: 0.8,
+        relation: "supports" as const,
+        beliefStatement: "Clientes procuram informações sobre tratamento de melasma",
+        themeName: "Melasma",
+      },
+    }));
+
+    const result = foldConsolidation("acct_1", empty, entries, 1);
+
+    expect(result.beliefs[0]!.supportingEvidence?.map(({ evidenceKey }) => evidenceKey)).toEqual([
+      "signal:s1",
+      "signal:s2",
+      "signal:s3",
+    ]);
+    expect(result.beliefs[0]!.confidence).toBeCloseTo(0.657);
+    expect(result.beliefs[0]!.status).toBe("active");
+  });
+
   it.effect("lowers confidence when a signal contradicts a held belief", () =>
     Effect.gen(function* () {
       const seeded: Belief = {
