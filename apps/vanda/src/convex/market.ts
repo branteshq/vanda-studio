@@ -195,6 +195,7 @@ export const saveSelectedCreators = internalMutation({
   handler: async (ctx, { accountId, creators }) => {
     const now = Date.now();
     const ids = [];
+    const selectedHandles = new Set(creators.map((creator) => creator.handle.toLocaleLowerCase()));
     for (const creator of creators) {
       const handle = creator.handle.toLocaleLowerCase();
       const existing = await ctx.db
@@ -223,6 +224,18 @@ export const saveSelectedCreators = internalMutation({
           }),
         );
       }
+    }
+    const accountCreators = await ctx.db
+      .query("marketCreators")
+      .withIndex("by_account", (q) => q.eq("accountId", accountId))
+      .collect();
+    for (const creator of accountCreators) {
+      if (
+        creator.status === "active" &&
+        creator.feedback !== "relevant" &&
+        !selectedHandles.has(creator.handle)
+      )
+        await ctx.db.patch(creator._id, { status: "paused", updatedAt: now });
     }
     return ids;
   },
