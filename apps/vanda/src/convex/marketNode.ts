@@ -519,7 +519,7 @@ export const directOpportunity = internalAction({
       dossier: Doc<"sourceDossiers">;
       brandSnapshot: Doc<"brandSnapshots">;
       brandFacts: ReadonlyArray<{ id: string; kind: string; text: string }>;
-      referenceAssetCount: number;
+      authorizedAssets: ReadonlyArray<{ id: string; kind: string }>;
     } | null = await ctx.runQuery(internal.market.loadCreativeDirectorInput, { opportunityId });
     if (!input) throw new Error("qualified creative input not found");
     if (input.opportunity.creativeBriefId) return input.opportunity.creativeBriefId;
@@ -542,9 +542,10 @@ export const directOpportunity = internalAction({
     const brand: CreativeDirectorBrand = {
       context: input.brandSnapshot.context,
       facts: input.brandFacts,
-      referenceAssetCount: input.referenceAssetCount,
+      authorizedAssets: input.authorizedAssets,
     };
     const allowedBrandFactIds = new Set(input.brandFacts.map((fact) => fact.id));
+    const allowedAssetIds = new Set(input.authorizedAssets.map((asset) => asset.id));
 
     try {
       await ctx.runMutation(internal.market.setOpportunityStatus, {
@@ -687,7 +688,7 @@ export const directOpportunity = internalAction({
         selection,
         review,
         allowedBrandFactIds,
-        referenceAssetCount: input.referenceAssetCount,
+        allowedAssetIds,
       });
       return await ctx.runMutation(internal.market.saveCreativeBrief, {
         opportunityId,

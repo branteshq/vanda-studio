@@ -173,6 +173,7 @@ const assetRequirementArg = v.object({
     v.literal("needs_owner"),
     v.literal("not_needed"),
   ),
+  assetIds: v.array(v.string()),
 });
 
 const creativeAnalysisArg = {
@@ -765,7 +766,10 @@ export const loadCreativeDirectorInput = internalQuery({
       dossier,
       brandSnapshot,
       brandFacts: facts,
-      referenceAssetCount: referenceAssets.length,
+      authorizedAssets: referenceAssets.map((asset) => ({
+        id: String(asset._id),
+        kind: "reference_image",
+      })),
     };
   },
 });

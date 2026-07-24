@@ -67,6 +67,7 @@ export const CreativeDirection = Schema.Struct({
       kind: Schema.String,
       description: Schema.String,
       strategy: Schema.Literals(["available", "generate", "needs_owner", "not_needed"]),
+      assetIds: Schema.Array(Schema.String),
     }),
   ),
   retainedMechanisms: Schema.Array(Schema.String),
@@ -114,6 +115,7 @@ export const CreativeBrief = Schema.Struct({
       kind: Schema.String,
       description: Schema.String,
       strategy: Schema.Literals(["available", "generate", "needs_owner", "not_needed"]),
+      assetIds: Schema.Array(Schema.String),
     }),
   ),
   restrictionsApplied: Schema.Array(Schema.String),
@@ -170,7 +172,7 @@ export interface BrandFactInput {
 export interface CreativeDirectorBrand {
   readonly facts: ReadonlyArray<BrandFactInput>;
   readonly context: string;
-  readonly referenceAssetCount: number;
+  readonly authorizedAssets: ReadonlyArray<{ readonly id: string; readonly kind: string }>;
 }
 
 const sourceBlock = (source: CreativeDirectorSource): string =>
@@ -192,7 +194,11 @@ const sourceBlock = (source: CreativeDirectorSource): string =>
 const brandBlock = (brand: CreativeDirectorBrand): string =>
   `${brand.context}\n\nFatos permitidos com IDs:\n${brand.facts
     .map((fact) => `- [${fact.id}] ${fact.kind}: ${fact.text}`)
-    .join("\n")}\n\nAtivos visuais de referência disponíveis: ${brand.referenceAssetCount}`;
+    .join("\n")}\n\nAtivos autorizados com IDs:\n${
+    brand.authorizedAssets.length
+      ? brand.authorizedAssets.map((asset) => `- [${asset.id}] ${asset.kind}`).join("\n")
+      : "(nenhum)"
+  }`;
 
 export const analyzeSourceMechanism = (input: { readonly source: CreativeDirectorSource }) =>
   LanguageModel.generateObject({
@@ -222,7 +228,9 @@ export const generateCreativeDirections = (input: {
       `brandFactIds. Retenha mecanismos abstratos úteis, mas não reutilize frases, personagem, ` +
       `história, imagens ou identidade da fonte. Todo ativo deve declarar strategy: available somente ` +
       `quando a lista de ativos permite, generate para produção autorizada, needs_owner quando depende ` +
-      `do proprietário ou not_needed. Dê notas honestas de 0 a 1. Responda em português do Brasil.\n\n` +
+      `do proprietário ou not_needed. strategy=available exige assetIds com IDs exatos da lista; ` +
+      `qualquer outro strategy exige assetIds vazio. Não presuma que uma imagem de referência é ` +
+      `vídeo, voz, apresentador ou produto. Dê notas honestas de 0 a 1. Responda em português do Brasil.\n\n` +
       `FONTE\n${sourceBlock(input.source)}\n\nANÁLISE\n${JSON.stringify(input.analysis)}\n\n` +
       `MARCA\n${brandBlock(input.brand)}`,
   }).pipe(Effect.map((response) => response.value));
@@ -256,9 +264,12 @@ export const reviewCreativeBrief = (input: {
     schema: BriefReview,
     prompt:
       `Você é uma revisora editorial independente. Procure motivos para rejeitar este brief. ` +
-      `Verifique: uso de fatos inexistentes, afirmações sem suporte, proximidade excessiva com ` +
-      `expressão/identidade/história da fonte, contradições de marca, ativos obrigatórios ausentes e ` +
-      `instruções insuficientes para produção. Aprove somente quando não houver unsupportedClaims, ` +
+      `Verifique: uso de fatos inexistentes no BRIEF, afirmações feitas pelo BRIEF sem suporte, ` +
+      `proximidade excessiva com palavras, identidade, história ou expressão distintiva da fonte, ` +
+      `contradições de marca e ativos obrigatórios ausentes. Hipóteses cautelosas da análise não são ` +
+      `claims do brief. Compartilhar tópico, formato de lista ou mecanismo abstrato não é similaridade ` +
+      `por si só. Não exija especificações de renderização que pertencem à produção. Aprove somente ` +
+      `quando não houver unsupportedClaims, ` +
       `similarityRisks ou issues bloqueantes. brandGrounding deve ligar cada fato realmente usado ao ` +
       `ID confirmado. Não tente corrigir o brief silenciosamente. Responda em português do Brasil.\n\n` +
       `FONTE\n${sourceBlock(input.source)}\n\nANÁLISE\n${JSON.stringify(input.analysis)}\n\n` +
@@ -341,7 +352,7 @@ export const validateCreativePackage = (input: {
   readonly selection: BriefSelection;
   readonly review: BriefReview;
   readonly allowedBrandFactIds: ReadonlySet<string>;
-  readonly referenceAssetCount: number;
+  readonly allowedAssetIds: ReadonlySet<string>;
 }): CreativePackageValidation => {
   const issues = [...validateDirectionSet(input.directions)];
   const selectedIndex = input.selection.selectedDirectionNumber - 1;
@@ -353,19 +364,25 @@ export const validateCreativePackage = (input: {
   for (const direction of input.directions) {
     for (const factId of direction.brandFactIds)
       if (!input.allowedBrandFactIds.has(factId)) issues.push(`unknown_direction_fact:${factId}`);
-    if (
-      input.referenceAssetCount === 0 &&
-      direction.requiredAssets.some((asset) => asset.strategy === "available")
-    )
-      issues.push("direction_claims_unavailable_asset");
+    for (const asset of direction.requiredAssets) {
+      if (asset.strategy === "available" && asset.assetIds.length === 0)
+        issues.push("direction_available_asset_has_no_id");
+      if (asset.assetIds.some((id) => !input.allowedAssetIds.has(id)))
+        issues.push("direction_claims_unavailable_asset");
+      if (asset.strategy !== "available" && asset.assetIds.length > 0)
+        issues.push("direction_nonavailable_asset_has_id");
+    }
   }
   for (const factId of input.selection.brief.brandFactIds)
     if (!input.allowedBrandFactIds.has(factId)) issues.push(`unknown_brand_fact:${factId}`);
-  if (
-    input.referenceAssetCount === 0 &&
-    input.selection.brief.assetRequirements.some((asset) => asset.strategy === "available")
-  )
-    issues.push("brief_claims_unavailable_asset");
+  for (const asset of input.selection.brief.assetRequirements) {
+    if (asset.strategy === "available" && asset.assetIds.length === 0)
+      issues.push("brief_available_asset_has_no_id");
+    if (asset.assetIds.some((id) => !input.allowedAssetIds.has(id)))
+      issues.push("brief_claims_unavailable_asset");
+    if (asset.strategy !== "available" && asset.assetIds.length > 0)
+      issues.push("brief_nonavailable_asset_has_id");
+  }
   for (const grounding of input.review.brandGrounding)
     if (!input.allowedBrandFactIds.has(grounding.factId))
       issues.push(`unknown_review_fact:${grounding.factId}`);

@@ -22,7 +22,9 @@ const direction = (title: string, angle: string, hook: string): CreativeDirectio
   visualDirection: "Tipografia editorial e diagramas abstratos",
   callToAction: "Conheça o processo",
   brandFactIds: ["fact-1"],
-  requiredAssets: [{ kind: "illustration", description: "Diagrama", strategy: "generate" }],
+  requiredAssets: [
+    { kind: "illustration", description: "Diagrama", strategy: "generate", assetIds: [] },
+  ],
   retainedMechanisms: ["contraste inicial"],
   avoidedSourceElements: ["história pessoal do criador"],
   brandFitScore: 0.9,
@@ -89,7 +91,9 @@ const selection: BriefSelection = {
     brandFactIds: ["fact-1"],
     sourceMechanisms: ["contraste inicial"],
     excludedSourceElements: ["história pessoal"],
-    assetRequirements: [{ kind: "illustration", description: "Diagrama", strategy: "generate" }],
+    assetRequirements: [
+      { kind: "illustration", description: "Diagrama", strategy: "generate", assetIds: [] },
+    ],
     restrictionsApplied: ["não prometer resultado"],
     productionNotes: ["usar somente fatos confirmados"],
     confidence: 0.85,
@@ -135,7 +139,7 @@ describe("creative director validation", () => {
         selection,
         review: approvedReview,
         allowedBrandFactIds: new Set(["fact-1"]),
-        referenceAssetCount: 0,
+        allowedAssetIds: new Set(),
       }),
     ).toMatchObject({ valid: true });
   });
@@ -154,7 +158,7 @@ describe("creative director validation", () => {
         unsupportedClaims: ["resultado garantido"],
       },
       allowedBrandFactIds: new Set(["fact-1"]),
-      referenceAssetCount: 0,
+      allowedAssetIds: new Set(),
     });
     expect(result.valid).toBe(false);
     expect(result.issues).toEqual(
