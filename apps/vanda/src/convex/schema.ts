@@ -291,7 +291,8 @@ export default defineSchema({
     evaluatedAt: v.number(),
   })
     .index("by_market_post", ["marketPostId"])
-    .index("by_opportunity", ["opportunityId"]),
+    .index("by_opportunity", ["opportunityId"])
+    .index("by_account_evaluated", ["accountId", "evaluatedAt"]),
 
   metricSnapshots: defineTable({
     accountId: v.id("accounts"),

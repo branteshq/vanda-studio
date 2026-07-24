@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
 import { marketRunKinds, marketRunStatuses, opportunityStatuses } from "./pipeline/constants";
@@ -810,6 +811,21 @@ export const dashboard = query({
       .withIndex("by_account_started", (q) => q.eq("accountId", accountId))
       .order("desc")
       .take(1);
+    const assessments = await ctx.db
+      .query("inputAssessments")
+      .withIndex("by_account_evaluated", (q) => q.eq("accountId", accountId))
+      .order("desc")
+      .take(200);
+    const latestFinalByPost = new Map<Id<"marketPosts">, (typeof assessments)[number]>();
+    for (const assessment of assessments) {
+      if (assessment.stage === "final" && !latestFinalByPost.has(assessment.marketPostId))
+        latestFinalByPost.set(assessment.marketPostId, assessment);
+    }
+    const finalAssessments = [...latestFinalByPost.values()];
+    const rejectionReasons: Record<string, number> = {};
+    for (const assessment of finalAssessments)
+      for (const code of assessment.rejectionCodes)
+        rejectionReasons[code] = (rejectionReasons[code] ?? 0) + 1;
     const creatorById = new Map(creators.map((creator) => [creator._id, creator]));
     const postById = new Map(posts.map((post) => [post._id, post]));
     const latestPostByCreator = new Map<string, (typeof posts)[number]>();
@@ -872,6 +888,11 @@ export const dashboard = query({
         posts: posts.length,
         opportunities: opportunityCards.length,
         ready: opportunityCards.filter((item) => item.status === "awaiting_approval").length,
+      },
+      inputQuality: {
+        qualified: finalAssessments.filter((item) => item.decision === "qualified").length,
+        rejected: finalAssessments.filter((item) => item.decision === "rejected").length,
+        rejectionReasons,
       },
       creators: [...creators]
         .sort((a, b) => b.relevanceScore - a.relevanceScore)
