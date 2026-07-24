@@ -124,7 +124,9 @@ export const planCarouselDocument = (input: {
       `de carrossel pronto para produção. Escreva o copy final em português do Brasil. Produza de ` +
       `3 a 7 slides, com IDs estáveis slide-1, slide-2 etc. O primeiro slide deve ser cover e o ` +
       `último cta. Cada slide deve ter uma única função, headline curta, leitura rápida e progressão ` +
-      `clara. kicker/body podem ser vazios; não preencha campos só por preencher. Cite em factIds ` +
+      `clara. Não compacte conteúdo prometido no slide de CTA: crie um slide adicional quando preciso. ` +
+      `O CTA deve estar no copy visível (headline, body ou bullets), nunca apenas no prompt visual. ` +
+      `kicker/body podem ser vazios; não preencha campos só por preencher. Cite em factIds ` +
       `cada fato de marca usado naquele slide e não invente fatos, números, resultados, depoimentos ` +
       `ou garantias. A legenda deve complementar o carrossel, não repeti-lo. ` +
       `Use somente os layouts e tokens do schema. referenceAssetIds servem apenas para orientar o ` +
@@ -132,7 +134,9 @@ export const planCarouselDocument = (input: {
       `slide como rosto, produto ou local. Para visuais novos use strategy=generate, prompt concreto e ` +
       `assetIds vazio. strategy=available exige IDs exatos de ativos cujo conteúdo descrito realmente ` +
       `atende ao slide. needs_owner somente quando a ideia não pode ser produzida honestamente sem ` +
-      `material do proprietário. Respeite todas as restrições.\n\n` +
+      `material do proprietário. Nunca invente ou gere logotipo, assinatura, selo, embalagem ou ` +
+      `identidade proprietária; quando não houver logo autorizado, use somente texto simples. ` +
+      `Respeite todas as restrições.\n\n` +
       `BRIEF APROVADO\n${JSON.stringify(input.brief)}\n\nMARCA\n${brandBlock(input.brand)}`,
   }).pipe(Effect.map((response) => response.value));
 
@@ -168,9 +172,17 @@ export const reviewCarouselDocument = (input: {
       `motivos concretos para rejeitar: fatos ou claims sem suporte, contradições da marca, cópia de ` +
       `palavras ou expressão distintiva da fonte, promessa além do brief, ativo usado sem autorização, ` +
       `texto incompreensível ou instrução impossível de produzir. Compartilhar tema, formato ou ` +
-      `mecanismo abstrato não é cópia. Não rejeite por preferências estilísticas e não exija detalhes ` +
-      `que pertencem ao renderer. corrections são sugestões explícitas; nunca corrija silenciosamente. ` +
-      `Aprove somente sem problemas bloqueantes. Responda em português do Brasil.\n\n` +
+      `mecanismo abstrato não é cópia. A FONTE serve apenas para avaliar transformação; sua legenda ` +
+      `não é a legenda final e não precisa ser harmonizada com o documento. Todos os fatos e ativos ` +
+      `listados em MARCA já estão autorizados pelo proprietário; não peça uma segunda confirmação. ` +
+      `reference_image pode orientar estilo, mas não conteúdo. Não rejeite por preferências estilísticas ` +
+      `e não exija detalhes que pertencem ao renderer. Erros gramaticais, typos, palavras truncadas e ` +
+      `frases ambíguas são bloqueantes. Rejeite também quando o slide final mistura conteúdo novo com ` +
+      `CTA ou deixa a chamada para ação apenas na instrução visual, sem copy visível. productionIssues ` +
+      `contém somente bloqueios que impedem produção; ` +
+      `qualquer item ali exige decision=rejected. Sugestões não bloqueantes ficam em ` +
+      `corrections. Nunca corrija silenciosamente. Aprove somente sem problemas bloqueantes. Responda ` +
+      `em português do Brasil.\n\n` +
       `FONTE\n${sourceBlock(input.source)}\n\nBRIEF\n${JSON.stringify(input.brief)}\n\n` +
       `DOCUMENTO\n${JSON.stringify(input.document)}\n\nMARCA\n${brandBlock(input.brand)}`,
   }).pipe(Effect.map((response) => response.value));
