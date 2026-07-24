@@ -32,7 +32,13 @@ const slides = [1, 2, 3].map((position) => ({
 const seedRenderableProject = async (t: ReturnType<typeof convexTest>) =>
   t.run(async (ctx) => {
     const now = Date.now();
+    const ownerUserId = await ctx.db.insert("users", {
+      clerkId: "render-owner",
+      name: "Render Owner",
+      email: "render@example.com",
+    });
     const accountId = await ctx.db.insert("accounts", {
+      ownerUserId,
       mode: "needs_approval",
       createdAt: now,
       updatedAt: now,
@@ -184,6 +190,41 @@ describe("content studio persistence", () => {
     expect(new Set(items.map((item) => item.entity))).toEqual(
       new Set(["content_project", "post", "image"]),
     );
+  });
+
+  it("keeps owner edits as immutable versions that require a fresh review", async () => {
+    const t = convexTest(schema, modules);
+    const { projectId, documentId } = await seedRenderableProject(t);
+    const original = await t.run((ctx) => ctx.db.get(documentId));
+    if (!original) throw new Error("missing fixture document");
+    const authed = t.withIdentity({ subject: "render-owner" });
+    const editedId = await authed.mutation(api.contentStudio.saveOwnerDraft, {
+      projectId,
+      parentDocumentId: documentId,
+      title: "Carrossel revisado",
+      caption: original.caption,
+      accessibilityDescription: original.accessibilityDescription,
+      canvas: original.canvas,
+      style: original.style,
+      brandFactIds: original.brandFactIds,
+      slides: original.slides.map((slide, index) =>
+        index === 0 ? { ...slide, headline: "Nova abertura" } : slide,
+      ),
+    });
+    const state = await t.run(async (ctx) => ({
+      original: await ctx.db.get(documentId),
+      edited: await ctx.db.get(editedId),
+      project: await ctx.db.get(projectId),
+    }));
+    expect(state.original?.title).toBe("Carrossel");
+    expect(state.edited).toMatchObject({
+      version: 2,
+      parentDocumentId: documentId,
+      changeKind: "manual_edit",
+      reviewStatus: "pending",
+      status: "draft",
+    });
+    expect(state.project).toMatchObject({ activeDocumentId: editedId, latestVersion: 2 });
   });
 
   it("does not accept incomplete render output", async () => {
