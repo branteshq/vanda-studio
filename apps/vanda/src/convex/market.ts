@@ -1188,7 +1188,9 @@ export const dashboard = query({
     const opportunityCards = await Promise.all(
       opportunities
         .filter(
-          (opportunity) => opportunity.status !== "dismissed" && opportunity.status !== "rejected",
+          (opportunity) =>
+            opportunity.status !== "dismissed" &&
+            (opportunity.status !== "rejected" || opportunity.creativeAnalysisId !== undefined),
         )
         .sort((a, b) => b.score - a.score)
         .map(async (opportunity) => {
@@ -1201,6 +1203,15 @@ export const dashboard = query({
             ? await ctx.db.get(opportunity.scheduledPostId)
             : null;
           const dossier = opportunity.dossierId ? await ctx.db.get(opportunity.dossierId) : null;
+          const creativeAnalysis = opportunity.creativeAnalysisId
+            ? await ctx.db.get(opportunity.creativeAnalysisId)
+            : null;
+          const creativeDirections = opportunity.creativeDirectionIds
+            ? await Promise.all(opportunity.creativeDirectionIds.map((id) => ctx.db.get(id)))
+            : [];
+          const creativeBrief = opportunity.creativeBriefId
+            ? await ctx.db.get(opportunity.creativeBriefId)
+            : null;
           const sourcePreviewUrl = dossier?.thumbnailStorageId
             ? await ctx.storage.getUrl(dossier.thumbnailStorageId)
             : null;
@@ -1227,6 +1238,9 @@ export const dashboard = query({
             metrics: snapshots[0] ?? null,
             publicationMetrics: publicationSnapshots[0] ?? null,
             dossier,
+            creativeAnalysis,
+            creativeDirections: creativeDirections.filter((item) => item !== null),
+            creativeBrief,
             sourcePreviewUrl,
             scheduled,
           };

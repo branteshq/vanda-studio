@@ -391,7 +391,10 @@ function OpportunityCard({
                 @{creator?.handle ?? "conta observada"}
               </div>
               <h3 className="mt-1 line-clamp-2 text-card-title font-semibold leading-5 text-text">
-                {opportunity.adaptedHook ?? post?.caption ?? "Vídeo ganhando tração"}
+                {opportunity.creativeBrief?.hook ??
+                  opportunity.adaptedHook ??
+                  post?.caption ??
+                  "Vídeo ganhando tração"}
               </h3>
             </div>
             <StatusPill tone={visibleState.tone} dot={visibleState.tone === "creating"}>
@@ -423,6 +426,34 @@ function OpportunityCard({
           <TrendingUp className="mt-0.5 size-3.5 shrink-0 text-brand-soft" />
           <p className="leading-5">{opportunity.triggerReason}</p>
         </div>
+        {opportunity.creativeRejectionReason ? (
+          <p className="mt-2.5 rounded-md border border-destructive/20 bg-destructive/8 px-2.5 py-2 text-caption leading-5 text-destructive">
+            {opportunity.creativeRejectionReason}
+          </p>
+        ) : null}
+        {opportunity.creativeAnalysis ? (
+          <p className="mt-2.5 line-clamp-2 text-caption leading-5 text-text-4">
+            <span className="font-medium text-text-3">Mecanismo:</span>{" "}
+            {opportunity.creativeAnalysis.hook.mechanism}
+          </p>
+        ) : null}
+        {opportunity.creativeDirections.length ? (
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            {opportunity.creativeDirections.map((direction) => (
+              <span
+                key={direction._id}
+                className={cn(
+                  "max-w-full truncate rounded-md border px-2 py-1 text-caption",
+                  opportunity.creativeBrief?.selectedDirectionId === direction._id
+                    ? "border-brand-accent/30 bg-creating-bg text-brand-soft"
+                    : "border-border bg-surface text-text-4",
+                )}
+              >
+                {direction.ordinal}. {direction.title} · {direction.totalScore}
+              </span>
+            ))}
+          </div>
+        ) : null}
         {opportunity.adaptedSlides?.length ? (
           <div className="mt-2.5 flex flex-wrap gap-1.5">
             {opportunity.adaptedSlides.slice(0, 3).map((slide, index) => (
