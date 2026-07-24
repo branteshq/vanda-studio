@@ -774,6 +774,25 @@ export const loadCreativeDirectorInput = internalQuery({
   },
 });
 
+export const retryCreativeDirector = internalMutation({
+  args: { opportunityId: v.id("opportunities") },
+  handler: async (ctx, { opportunityId }) => {
+    const opportunity = await ctx.db.get(opportunityId);
+    if (!opportunity?.dossierId) throw new Error("opportunity not found");
+    const dossier = await ctx.db.get(opportunity.dossierId);
+    if (!dossier || dossier.status !== "ready") throw new Error("source dossier is not ready");
+    await ctx.db.patch(opportunityId, {
+      status: "ready_for_analysis",
+      creativeAnalysisId: undefined,
+      creativeDirectionIds: undefined,
+      creativeBriefId: undefined,
+      creativeRejectionReason: undefined,
+      lastError: undefined,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 export const rejectCreativeDirector = internalMutation({
   args: { opportunityId: v.id("opportunities"), reason: v.string() },
   handler: async (ctx, { opportunityId, reason }) => {

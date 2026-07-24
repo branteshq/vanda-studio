@@ -221,5 +221,11 @@ describe("creative director persistence", () => {
     const opportunity = await t.run((ctx) => ctx.db.get(opportunityId));
     expect(opportunity?.status).toBe("rejected");
     expect(opportunity?.creativeRejectionReason).toContain("história pessoal");
+
+    await t.mutation(internal.market.retryCreativeDirector, { opportunityId });
+    const retried = await t.run((ctx) => ctx.db.get(opportunityId));
+    expect(retried?.status).toBe("ready_for_analysis");
+    expect(retried?.creativeAnalysisId).toBeUndefined();
+    expect(retried?.creativeRejectionReason).toBeUndefined();
   });
 });

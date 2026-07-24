@@ -481,7 +481,8 @@ function OpportunityCard({
         <span className="flex-1" />
         {(opportunity.status === "detected" ||
           opportunity.status === "ready_for_analysis" ||
-          opportunity.status === "failed") &&
+          opportunity.status === "failed" ||
+          (opportunity.status === "rejected" && opportunity.creativeAnalysis !== null)) &&
         !published ? (
           <Button size="sm" disabled={actionBusy} onClick={onAdapt}>
             {actionBusy ? <RefreshCw className="animate-spin" /> : <Sparkles />}

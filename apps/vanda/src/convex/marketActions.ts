@@ -37,6 +37,8 @@ export const adaptNow = action({
       dossier: { status: string } | null;
     } | null = await ctx.runQuery(internal.market.loadQualificationSource, { opportunityId });
     if (!source) throw new Error("opportunity not found");
+    if (source.opportunity.status === "rejected" && source.dossier?.status === "ready")
+      await ctx.runMutation(internal.market.retryCreativeDirector, { opportunityId });
     if (
       source.dossier?.status !== "ready" &&
       (source.opportunity.status === "qualifying" ||
