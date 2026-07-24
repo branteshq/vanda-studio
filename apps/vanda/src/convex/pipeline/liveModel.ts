@@ -12,6 +12,10 @@ export const PIPELINE_MODELS = {
   create: "openai/gpt-5-nano",
   marketDiscovery: "openai/gpt-5-nano",
   marketSource: "google/gemini-2.5-flash",
+  marketMechanism: "openai/gpt-5-mini",
+  marketDirections: "openai/gpt-5-mini",
+  marketSelection: "openai/gpt-5-mini",
+  marketBriefReview: "openai/gpt-5-mini",
   marketAdapt: "openai/gpt-5-nano",
 } as const;
 
@@ -26,6 +30,10 @@ export const PROMPT_VERSIONS = {
   marketDiscovery: "market/discovery-pt-br-v1",
   marketRanking: "market/ranking-pt-br-v1",
   marketSource: "market/source-evidence-v1",
+  marketMechanism: "market/mechanism-analysis-pt-br-v1",
+  marketDirections: "market/creative-directions-pt-br-v1",
+  marketSelection: "market/brief-selection-pt-br-v1",
+  marketBriefReview: "market/brief-review-pt-br-v1",
   marketAdapt: "market/adapt-carousel-pt-br-v1",
 } as const;
 

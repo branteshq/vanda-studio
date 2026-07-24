@@ -40,6 +40,7 @@ import type * as pipeline_cassette from "../pipeline/cassette.js";
 import type * as pipeline_consolidate from "../pipeline/consolidate.js";
 import type * as pipeline_constants from "../pipeline/constants.js";
 import type * as pipeline_create from "../pipeline/create.js";
+import type * as pipeline_creativeDirector from "../pipeline/creativeDirector.js";
 import type * as pipeline_discernment from "../pipeline/discernment.js";
 import type * as pipeline_domain from "../pipeline/domain.js";
 import type * as pipeline_embeddings from "../pipeline/embeddings.js";
@@ -117,6 +118,7 @@ declare const fullApi: ApiFromModules<{
   "pipeline/consolidate": typeof pipeline_consolidate;
   "pipeline/constants": typeof pipeline_constants;
   "pipeline/create": typeof pipeline_create;
+  "pipeline/creativeDirector": typeof pipeline_creativeDirector;
   "pipeline/discernment": typeof pipeline_discernment;
   "pipeline/domain": typeof pipeline_domain;
   "pipeline/embeddings": typeof pipeline_embeddings;

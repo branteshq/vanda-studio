@@ -48,6 +48,10 @@ export const modelStages = [
   "embedding",
   "market_discovery",
   "market_source",
+  "market_mechanism",
+  "market_directions",
+  "market_selection",
+  "market_brief_review",
   "market_adapt",
 ] as const;
 
@@ -82,6 +86,10 @@ export const opportunityStatuses = [
   "ready_for_analysis",
   "rejected",
   "analyzing",
+  "directing",
+  "selecting_direction",
+  "reviewing_brief",
+  "ready_for_production",
   "adapting",
   "awaiting_approval",
   "publishing",
