@@ -70,7 +70,8 @@ source post
 → metric evidence
 → reason it was flagged
 → creative analysis
-→ adaptation
+→ selected creative brief
+→ rendered artifact
 → selected channel
 → publication
 → measured result
@@ -88,23 +89,29 @@ The primary loop is:
 
 ```mermaid
 graph LR
-  S[Scout] --> M[Measure]
-  M --> D[Detect]
-  D --> A[Adapt]
-  A --> X[Distribute]
+  U[Understand] --> D[Discover]
+  D --> C[Decide]
+  C --> R[Create]
+  R --> X[Distribute]
   X --> L[Learn]
-  L -.better decisions.-> D
-  L -.patterns and context.-> A
+  L -.better market decisions.-> D
+  L -.account evidence.-> C
+  L -.creative patterns.-> R
 ```
 
-| Stage          | Responsibility                                                                             | Primary output                            |
-| -------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------- |
-| **Scout**      | Maintain a relevant set of creators, channels, and newly published posts                   | monitored creators and source posts       |
-| **Measure**    | Capture performance snapshots over the lifetime of each post and account                   | immutable metric snapshots                |
-| **Detect**     | Find posts performing unusually well for their age, creator size, and baseline             | ranked opportunities                      |
-| **Adapt**      | Understand the creative mechanism and produce a meaningfully transformed, on-brand version | analysis, script, and rendered adaptation |
-| **Distribute** | Select an authorized channel, obtain required approval, publish, and verify delivery       | publication                               |
-| **Learn**      | Compare source and adapted performance and update evidence-backed patterns                 | outcomes and pattern evidence             |
+| Stage          | Responsibility                                                                      | Primary output                                |
+| -------------- | ----------------------------------------------------------------------------------- | --------------------------------------------- |
+| **Understand** | Maintain confirmed brand context, constraints, channels, and authorized assets      | brand model and authorization envelope        |
+| **Discover**   | Scout creators, measure posts, and deterministically detect unusual performance     | monitored market and ranked opportunities     |
+| **Decide**     | Explain the transferable mechanism and select an original, brand-relevant direction | creative analysis and production-ready brief  |
+| **Create**     | Produce and validate the complete artifact and publication package                  | rendered media, caption, and editorial review |
+| **Distribute** | Obtain required approval, publish to an authorized channel, and verify delivery     | externally verified publication               |
+| **Learn**      | Compare results with appropriate baselines and update evidence-backed patterns      | outcomes, evidence, and better future inputs  |
+
+The Discover stage contains the mechanical subloop `Scout → Measure → Detect`. The
+Decide and Create stages deliberately separate creative judgment from artifact
+production; combining them causes the system to jump from a weak signal directly
+to generic content.
 
 This is different from a generic content calendar. The system begins with observed
 market performance and closes the loop with measured results.
@@ -648,84 +655,337 @@ Long-term memory still matters for:
 - accumulated pattern evidence;
 - recurring comment and sentiment themes.
 
-### 8.1 Current gaps relative to this vision
+### 8.1 Current state relative to this vision
 
-The current implementation does not yet provide the core target loop:
+The first market-intelligence spike has now proved that Vanda can:
 
-- `instagramPosts` is scoped to the user's connected Instagram account rather than
-  a set of monitored creators;
-- likes and comments are mutable fields rather than append-only metric history;
-- view velocity and acceleration are not represented;
-- `competitors` exists as a signal source literal but has no production observation
-  adapter;
-- source media, transcripts, and structured creative analyses are not first-class;
-- original and adapted posts have no explicit relationship;
-- authorized channel networks and channel selection are not modeled;
-- the pattern library and outcome evidence are not modeled;
-- post composition is currently image-oriented and real video generation is not
-  implemented;
-- daily planning and hourly creation do not react directly to a breakout event.
+- derive discovery queries from the connected account's brand context;
+- discover and rank small public accounts in the same market;
+- persist monitored creators, source posts, snapshots, opportunities, and run
+  receipts;
+- observe public videos and apply deterministic audience-ratio, velocity, and
+  absolute-view rules;
+- identify real breakout candidates from accounts with fewer than 1,000 followers;
+- pass one opportunity into a brand-grounded adaptation workflow;
+- generate hosted carousel-shaped assets and prepare a post for approval;
+- reuse the existing owned-account publishing boundary;
+- begin collecting official metrics for an adaptation after publication.
 
-The system is therefore close in infrastructure but not yet close to proving the
-product promise.
+This proves the feasibility of the discovery-to-draft data path. It does not yet
+prove the product promise. The current adaptation is scaffolding: generic slide
+copy and placeholder rendering are evidence that the workflow can move data, not
+that Vanda can create excellent content.
+
+The remaining product gaps are:
+
+- creator relevance, source freshness, transcript quality, and breakout quality are
+  not yet consistently good enough;
+- creative analysis does not yet deeply explain why a source worked;
+- Vanda jumps from a breakout directly to an adaptation instead of producing and
+  selecting among strong creative briefs;
+- generated artifacts are not yet polished enough to publish without substantial
+  human editing;
+- the Instagram publisher is wired but has not been validated through a controlled
+  live publication and recovery test;
+- autonomous publishing policy is intentionally absent;
+- publication measurement exists as plumbing, but account baselines, comparisons,
+  pattern evidence, and learning do not;
+- authorized channel networks and richer authorized asset libraries are not yet
+  modeled.
+
+The honest current position is therefore:
+
+```text
+Understand:  partial
+Discover:    MVP feasibility proven
+Decide:      early scaffold
+Create:      workflow scaffold, not a product capability
+Distribute:  wired, not operationally proven
+Learn:       metric plumbing only
+```
 
 ---
 
-## 9. MVP vertical slice
+## 9. Staged MVP product
 
-The MVP should prove one complete loop before attempting broad autonomy.
+Vanda should be built as a sequence of product capabilities, not as one large claim
+of autonomy. Each stage must produce something a user can inspect and must have an
+explicit graduation gate. Persisting a new status row is not evidence that the
+stage works.
 
-### 9.1 In scope
+The product loop is:
 
-1. A user connects one owned professional Instagram account.
-2. The user manually supplies up to 10 relevant creator handles.
-3. Vanda detects new videos from those creators where platform access permits.
-4. Vanda records metric snapshots on a defined schedule.
-5. Deterministic rules flag unusual traction.
-6. Vanda transcribes and creates a structured creative analysis.
-7. Vanda produces a meaningfully transformed script in the user's brand voice.
-8. The user reviews and approves the adaptation.
-9. Vanda renders through one constrained, reliable video template or produces a
-   complete export package for manual finalization.
-10. Vanda publishes to one owned channel where API access permits.
-11. Vanda tracks source and adapted performance.
-12. Vanda produces a daily growth report and creates candidate patterns from
-    successful outcomes.
+```text
+Understand → Discover → Decide → Create → Distribute → Learn
+```
+
+### Stage 0 — Connected brand: Understand
+
+**User promise:** Vanda understands enough about the business to make bounded,
+brand-specific decisions.
+
+Build:
+
+- owned Instagram connection and permission health;
+- inspectable brand canon: audience, offers, positioning, voice, restrictions, and
+  location;
+- owner corrections and explicit unknowns;
+- authorized logos, colors, fonts, product media, footage, face, and voice assets;
+- publication policy and approval requirements.
+
+Graduation gate:
+
+- the owner can inspect and correct the brand model;
+- generated briefs consistently use confirmed facts rather than inferred ones;
+- every asset and channel has an explicit authorization scope;
+- missing context remains visible rather than being silently invented.
+
+Current status: **partially implemented**. Account connection and brand context
+exist, but corrections, asset authorization, and confidence boundaries need to
+become first-class product surfaces.
+
+### Stage 1 — Market radar: Discover
+
+**User promise:** Vanda finds small, relevant creators and identifies recent content
+receiving unusual attention.
+
+Build:
+
+- brand-derived creator search and deterministic eligibility filters;
+- monitored-creator lifecycle and replacement of irrelevant or inactive accounts;
+- recent post ingestion and immutable metric snapshots;
+- age-aware breakout detection with exact rule and snapshot provenance;
+- an opportunity dossier containing the source, evidence, freshness, and relevance;
+- a way for the owner to correct irrelevant creators and opportunities.
+
+Graduation gate:
+
+- an initial run reliably produces up to 10 genuinely relevant creators;
+- a human evaluator judges at least 80% of retained creators relevant;
+- recent videos are detected within the stated observation window;
+- the same snapshots produce the same breakout decision;
+- stale posts, tiny-denominator artifacts, and unavailable metrics do not flood the
+  opportunity queue;
+- every opportunity explains exactly why it was selected.
+
+Current status: **MVP feasibility proven, not production-grade**. A real run found
+89 candidates, retained 10 creators, observed 81 videos, and detected eight
+opportunities. Quality, freshness, correction, and baseline handling remain open.
+
+### Stage 2 — Creative director: Decide
+
+**User promise:** Vanda turns market evidence into a strong, original creative plan
+for this particular brand.
+
+This is the missing bridge between discovery and creation. Vanda must not jump
+straight from a Reel to generic slide copy.
+
+Build:
+
+- multimodal source analysis using the video, frames, audio, transcript, caption,
+  comments where available, and performance trajectory;
+- structured decomposition of hook, tension, promise, pacing, proof, payoff, call to
+  action, visual grammar, and audience emotion;
+- separation of reusable mechanisms from creator-specific expression;
+- an explicit explanation of what likely contributed to performance and what is
+  merely uncertain;
+- retrieval of relevant brand facts, previous publications, and supported patterns;
+- three materially different creative directions per strong opportunity;
+- a scored selection with format, objective, audience, angle, hook, content beats,
+  required assets, and expected reason to work;
+- dismissal when no honest, brand-relevant adaptation exists.
+
+The primary artifact is a `creativeBrief`, not a rendered post:
+
+```text
+opportunity evidence
+→ source mechanism
+→ brand relevance
+→ creative directions
+→ selected brief
+→ production specification
+```
+
+Graduation gate:
+
+- reviewers can understand the source mechanism without watching the original;
+- proposed directions are meaningfully different rather than paraphrases;
+- the selected direction is grounded in confirmed brand context;
+- transformation review finds no copied wording, identity, or source media;
+- pilot users judge a majority of selected briefs worth producing;
+- uncertainty and weak source material result in dismissal, not hallucinated
+  confidence.
+
+Current status: **early scaffold**. Some analysis fields and adaptation prompts
+exist, but there is no reliable multimodal dossier, direction generation, or brief
+selection stage.
+
+### Stage 3 — Content studio: Create
+
+**User promise:** Vanda produces a finished artifact the owner would confidently
+publish, not a description of an artifact.
+
+Constrain the first version to one excellent format: a branded Instagram carousel.
+Do not expand to generated Reels until this path is consistently good.
+
+Build:
+
+- a structured carousel document model rather than free-form slide strings;
+- strong hook and narrative generation from the selected creative brief;
+- a deterministic 1080×1350 renderer with typography, hierarchy, spacing, brand
+  colors, safe zones, and reusable layout grammars;
+- authorized photography, product assets, illustration, or generated visual assets;
+- caption, cover, alt text, and call-to-action generation;
+- accurate, durable preview assets;
+- editable copy and controlled regeneration at the slide or asset level;
+- automated checks for clipping, contrast, factual claims, prohibited topics,
+  brand violations, source similarity, and missing assets;
+- a final editorial review that can fail the draft rather than always returning an
+  approval-ready result.
+
+Graduation gate:
+
+- every draft is a real publishable media package with no placeholder assets;
+- rendered files pass technical Instagram requirements;
+- no source media is reused without authorization;
+- pilot users approve at least 60% of drafts with no or minor edits;
+- all factual claims are traceable to brand context or explicitly marked input;
+- the preview matches the bytes that will be published.
+
+Current status: **workflow scaffold only**. Hosted placeholder images and generic
+slide copy prove orchestration and storage, not content quality.
+
+### Stage 4 — Reliable operator: Distribute
+
+**User promise:** Vanda safely gets approved work onto Instagram at the intended
+time and can prove what happened.
+
+Build:
+
+- explicit preview, approval, rejection, editing, scheduling, and cancellation;
+- idempotent Instagram carousel publication;
+- container processing, retry, timeout, and reconciliation handling;
+- externally verified publication ID and permalink;
+- token and permission degradation recovery;
+- immutable publication receipt connecting source, brief, assets, approval, and
+  external result;
+- notifications for approval requests, success, and actionable failure;
+- policy-scoped automatic publishing only after manual operation is reliable.
+
+Graduation gate:
+
+- controlled tests publish repeatedly to an owned test account;
+- retries never create duplicate posts;
+- scheduled posts publish inside a defined service window;
+- external publication is verified rather than inferred from a request succeeding;
+- failed and ambiguous states can be safely recovered;
+- nothing publishes outside the account's configured approval policy.
+
+Current status: **wired, not operationally proven**. Existing image and carousel
+publishing primitives are connected to approval, but the new end-to-end path has
+not been exercised with a controlled live publication.
+
+### Stage 5 — Growth learner: Learn
+
+**User promise:** Vanda measures whether its work helped and improves future
+creative decisions from account-specific evidence.
+
+Build:
+
+- publication snapshots at useful age checkpoints such as 1, 6, 24, and 72 hours;
+- comparison with the account's posts at the same age and format;
+- source-versus-adaptation trajectories without pretending they are a controlled
+  causal experiment;
+- outcome breakdown by hook, topic, structure, format, audience promise, and call to
+  action;
+- candidate patterns backed by linked publication evidence;
+- supported, disproven, and retired pattern states;
+- feedback from approval, edits, rejection, publication, and measured performance;
+- a concise report explaining what happened, what Vanda learned, and what it will
+  try differently.
+
+Graduation gate:
+
+- every publication has traceable outcome windows or an explicit measurement error;
+- comparisons use appropriate post-age and format baselines;
+- measured facts, derived metrics, estimates, and hypotheses are clearly separated;
+- future briefs retrieve relevant account-specific evidence;
+- a pattern cannot become supported from one successful post;
+- pilot accounts show that the loop changes subsequent decisions rather than merely
+  generating reports.
+
+Current status: **metric plumbing only**. Official owned-post measurement has begun,
+but baseline comparison and evidence-backed learning are not implemented.
+
+### Stage 6 — Bounded autonomy
+
+**User promise:** Vanda can run the proven loop with less supervision while staying
+inside explicit business, creative, and spending constraints.
+
+Build only after Stages 0–5 work manually:
+
+- per-account policies for topics, formats, cadence, channels, timing, and risk;
+- approval requirements based on novelty, claim type, confidence, and brand risk;
+- automatic publication only for content inside the trusted policy envelope;
+- anomaly detection, kill switches, budgets, and complete decision receipts;
+- automatic creator replacement and monitoring cadence;
+- exploration versus exploitation across supported creative patterns.
+
+Graduation gate:
+
+- manual operation has established a reliable quality and publication baseline;
+- automatic decisions are reproducible from persisted policy and evidence;
+- the owner can preview, constrain, pause, and audit autonomy;
+- errors and quality regressions stop the loop instead of compounding;
+- increased autonomy improves time-to-publication without reducing content quality
+  or account safety.
+
+### 9.1 Product milestones
+
+These stages create four useful milestones:
+
+| Milestone          | Included stages | Meaning                                                                    |
+| ------------------ | --------------- | -------------------------------------------------------------------------- |
+| **Demoable MVP**   | 0–3             | Finds an opportunity and produces one genuinely publishable carousel       |
+| **Pilotable MVP**  | 0–4             | A real business can approve and reliably publish the carousel              |
+| **Sellable MVP**   | 0–5             | Vanda can show outcomes and make its next decision from measured evidence  |
+| **Autonomous MVP** | 0–6             | The proven loop can operate inside explicit owner policies and constraints |
+
+The immediate objective is the **Demoable MVP**:
+
+> One real breakout opportunity becomes one original, on-brand carousel that the
+> owner would publish without rewriting it.
+
+The next objective is the **Pilotable MVP**:
+
+> Publish that carousel through a controlled live test, verify delivery, and recover
+> correctly from failure without creating duplicates.
 
 ### 9.2 Explicitly deferred
 
-- automatic category-wide creator discovery;
+Until the sellable loop works, defer:
+
 - a 10M+ follower multi-channel optimizer;
 - fully autonomous publishing by default;
 - arbitrary user-provided agents;
 - multi-agent orchestration;
 - unconstrained video generation;
 - broad cross-platform support;
-- causal claims that cannot be supported by the available data;
-- automatic promotion of one winning post into a universal pattern.
-
-### 9.3 MVP success criteria
-
-The vertical slice is credible when Vanda can repeatedly demonstrate:
-
-- new source videos are detected within the stated observation window;
-- metric snapshots are complete enough to detect a breakout;
-- the same input snapshots produce the same breakout decision;
-- a flagged source can be transformed into an inspectable draft;
-- no draft publishes without the configured approval and permissions;
-- publication is idempotent and externally verified;
-- source and adapted metrics remain comparable and traceable;
-- the user can identify what Vanda did and why from the UI;
-- the growth report distinguishes measured outcomes from estimates.
+- causal claims that cannot be supported by available data;
+- automatic promotion of one winning post into a universal pattern;
+- optimization for infrastructure cost at the expense of proving product quality.
 
 ---
 
-## 10. Data-access feasibility gate
+## 10. Data-access reliability gate
 
-The largest near-term product risk is platform data access, not model capability or
-agent orchestration.
+The discovery spike proved that a third-party provider can return enough public
+Instagram data to exercise the loop. It did not prove long-term completeness,
+compliance, freshness, or operational reliability. Data access remains a permanent
+product dependency even though creative quality is now the largest immediate risk.
 
-Instagram APIs should not be assumed to provide all of the following:
+Instagram APIs and public-data providers should not be assumed to provide all of
+the following consistently:
 
 - discovery of arbitrary accounts by category;
 - reliable discovery of accounts below a follower threshold;
@@ -739,13 +999,14 @@ but that does not by itself prove category discovery or complete competitor
 telemetry. API capabilities, app review requirements, account eligibility, metric
 definitions, and retention rules can change.
 
-Before expanding the architecture, run a focused feasibility spike:
+Before calling the Market Radar production-grade, complete a focused reliability
+study:
 
 > Given 10 known professional Instagram handles, can Vanda reliably detect each new
 > Reel and collect enough permitted measurements over 48 hours to rank their
 > traction?
 
-The spike must record:
+The study must record:
 
 - which account types are observable;
 - which post fields and metrics are available;
@@ -863,41 +1124,52 @@ attribution data is available.
 
 ## 14. Recommended implementation order
 
-### Phase 0 — prove data access
+The discovery spike has moved the primary product risk. The next risk is not whether
+Vanda can find public content; it is whether Vanda can turn that evidence into work
+that deserves to be published.
 
-Run the 10-account, 48-hour feasibility spike. Do not build generalized agent
-infrastructure before this is answered.
+### Now — complete the Creative Director
 
-### Phase 1 — build the market telemetry foundation
+1. Tighten opportunity freshness and relevance so weak inputs do not reach
+   production.
+2. Persist a real source dossier with usable transcript, frames, caption, metric
+   evidence, and uncertainty.
+3. Implement structured mechanism analysis.
+4. Generate three genuinely distinct creative directions.
+5. Select and persist one production-ready creative brief.
+6. Add transformation and factual-grounding review.
 
-Add monitored creators, source posts, and immutable metric snapshots. Implement
-new-post detection, snapshot scheduling, provider telemetry, and a basic monitoring
-UI.
+### Next — build one excellent Content Studio path
 
-### Phase 2 — detect opportunities
+1. Define a structured carousel document and layout grammar.
+2. Build the real branded 1080×1350 renderer.
+3. Add authorized image and brand asset retrieval.
+4. Add editing, targeted regeneration, and reliable previews.
+5. Add technical, editorial, factual, and similarity preflight checks.
+6. Iterate until pilot users approve most drafts with no or minor edits.
 
-Implement versioned breakout rules, creator baselines, opportunity lifecycle, and
-an inspectable explanation backed by exact metric snapshots.
+### Then — prove the Reliable Operator
 
-### Phase 3 — analyze and adapt
+1. Publish controlled carousels to an owned test account.
+2. Verify external IDs, processing state, media, caption, and permalink.
+3. Exercise retries, ambiguous responses, expired tokens, and cancellation.
+4. Prove that idempotency prevents duplicate posts.
+5. Keep explicit approval as the default during the pilot.
 
-Add transcription, structured creative analysis, brand-grounded script generation,
-transformation review, and per-item approval.
+### Then — close the learning loop
 
-### Phase 4 — render and publish one reliable format
+1. Capture owned-post metrics at fixed outcome windows.
+2. Establish age- and format-matched account baselines.
+3. Compare results and create candidate pattern evidence.
+4. Feed supported and disproven evidence into future creative briefs.
+5. Report how later decisions changed because of measured outcomes.
 
-Use authorized assets and one constrained rendering path. Publish idempotently to
-one owned channel and verify the external result.
+### Last — increase autonomy and breadth
 
-### Phase 5 — measure and learn
-
-Track post-publication snapshots, compare against appropriate baselines, produce the
-growth report, and add evidence-backed candidate patterns.
-
-### Phase 6 — broaden only from demonstrated demand
-
-Consider automatic discovery, more channels, richer rendering, increased autonomy,
-and a generalized agent harness only after the core loop produces reliable value.
+Only after the complete loop creates reliable value should Vanda add automatic
+publishing policies, additional formats, native Reel production, more channels,
+more sophisticated market telemetry, generalized agents, or aggressive cost
+optimization.
 
 ---
 
@@ -907,20 +1179,30 @@ Vanda should not be designed as a model continuously thinking about social media
 It should be designed as a durable growth system that gives models excellent,
 well-scoped tools at the moments where reasoning is useful.
 
-The current infrastructure is a meaningful foundation, but the product's center of
-gravity must move from belief-driven content planning to performance-driven
-opportunity detection and learning:
+The current infrastructure and Market Radar are meaningful foundations, but the
+product's center of gravity must move from workflow completion to creative quality
+and measured growth:
 
 ```text
-Current emphasis:
+Legacy emphasis:
 comments → beliefs → suggestions → posts
 
-Target emphasis:
-market posts → metric trajectories → opportunities → adaptations → outcomes
+Current proof:
+market posts → metric trajectories → opportunities → placeholder drafts
+
+Target product:
+brand understanding
+→ market evidence
+→ creative decision
+→ finished artifact
+→ verified publication
+→ measured outcome
+→ better next decision
 ```
 
-Keep Convex, durable workflows, brand context, approval controls, model telemetry,
-and publishing boundaries. Add the missing market telemetry and opportunity model.
-Prove one complete loop before adopting a generalized harness.
+Keep Convex, durable workflows, brand context, market telemetry, approval controls,
+model telemetry, and publishing boundaries. Build the missing creative-decision and
+content-production capabilities, then prove reliable distribution and learning
+before adopting a generalized harness.
 
 That loop—not the agent framework—is Vanda's product.
