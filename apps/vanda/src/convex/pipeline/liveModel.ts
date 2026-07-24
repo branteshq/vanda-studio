@@ -16,9 +16,13 @@ export const PIPELINE_MODELS = {
   marketDirections: "openai/gpt-5-mini",
   marketSelection: "openai/gpt-5-mini",
   marketBriefReview: "openai/gpt-5-mini",
+  studioVisualBrand: "openai/gpt-5-mini",
   studioCarouselPlan: "openai/gpt-5-mini",
   studioCarouselReview: "openai/gpt-5-mini",
   studioSlideRegeneration: "openai/gpt-5-mini",
+  studioAssetGeneration: "bytedance-seed/seedream-4.5",
+  studioAssetReview: "google/gemini-2.5-flash",
+  studioRender: "vanda/carousel-renderer-v1",
   marketAdapt: "openai/gpt-5-nano",
 } as const;
 
@@ -37,9 +41,15 @@ export const PROMPT_VERSIONS = {
   marketDirections: "market/creative-directions-pt-br-v1",
   marketSelection: "market/brief-selection-pt-br-v1",
   marketBriefReview: "market/brief-review-pt-br-v1",
+  studioVisualBrand: "studio/visual-brand-pt-br-v1",
+  studioLegacyBrief: "studio/legacy-brief-pt-br-v1",
+  studioAssetInspection: "studio/asset-inspection-v1",
   studioCarouselPlan: "studio/carousel-plan-pt-br-v1",
   studioCarouselReview: "studio/carousel-review-pt-br-v1",
   studioSlideRegeneration: "studio/slide-regeneration-pt-br-v1",
+  studioAssetGeneration: "studio/asset-generation-v1",
+  studioAssetReview: "studio/asset-review-v1",
+  studioRender: "studio/render-v1",
   marketAdapt: "market/adapt-carousel-pt-br-v1",
 } as const;
 

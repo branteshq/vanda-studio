@@ -21,6 +21,7 @@ import type * as consolidateAction from "../consolidateAction.js";
 import type * as contentStudio from "../contentStudio.js";
 import type * as contentStudioActions from "../contentStudioActions.js";
 import type * as contentStudioNode from "../contentStudioNode.js";
+import type * as contentStudioRender from "../contentStudioRender.js";
 import type * as create from "../create.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
@@ -39,6 +40,7 @@ import type * as observeNode from "../observeNode.js";
 import type * as pipeline_brand from "../pipeline/brand.js";
 import type * as pipeline_brandContext from "../pipeline/brandContext.js";
 import type * as pipeline_brandProfile from "../pipeline/brandProfile.js";
+import type * as pipeline_carouselRenderer from "../pipeline/carouselRenderer.js";
 import type * as pipeline_cassette from "../pipeline/cassette.js";
 import type * as pipeline_consolidate from "../pipeline/consolidate.js";
 import type * as pipeline_constants from "../pipeline/constants.js";
@@ -49,6 +51,7 @@ import type * as pipeline_discernment from "../pipeline/discernment.js";
 import type * as pipeline_domain from "../pipeline/domain.js";
 import type * as pipeline_embeddings from "../pipeline/embeddings.js";
 import type * as pipeline_igGraph from "../pipeline/igGraph.js";
+import type * as pipeline_imageGeneration from "../pipeline/imageGeneration.js";
 import type * as pipeline_inputQuality from "../pipeline/inputQuality.js";
 import type * as pipeline_liveBrand from "../pipeline/liveBrand.js";
 import type * as pipeline_liveBrandContext from "../pipeline/liveBrandContext.js";
@@ -73,6 +76,7 @@ import type * as pipeline_sourceUnderstanding from "../pipeline/sourceUnderstand
 import type * as pipeline_storage from "../pipeline/storage.js";
 import type * as pipeline_suggestions from "../pipeline/suggestions.js";
 import type * as pipeline_testLanguageModel from "../pipeline/testLanguageModel.js";
+import type * as pipeline_visualBrand from "../pipeline/visualBrand.js";
 import type * as pipelineAdmin from "../pipelineAdmin.js";
 import type * as pipelineAdminActions from "../pipelineAdminActions.js";
 import type * as pipelineDiagnostics from "../pipelineDiagnostics.js";
@@ -82,6 +86,8 @@ import type * as publishScheduled from "../publishScheduled.js";
 import type * as publishScheduledNode from "../publishScheduledNode.js";
 import type * as steer from "../steer.js";
 import type * as users from "../users.js";
+import type * as visualBrand from "../visualBrand.js";
+import type * as visualBrandNode from "../visualBrandNode.js";
 
 import type {
   ApiFromModules,
@@ -103,6 +109,7 @@ declare const fullApi: ApiFromModules<{
   contentStudio: typeof contentStudio;
   contentStudioActions: typeof contentStudioActions;
   contentStudioNode: typeof contentStudioNode;
+  contentStudioRender: typeof contentStudioRender;
   create: typeof create;
   crons: typeof crons;
   http: typeof http;
@@ -121,6 +128,7 @@ declare const fullApi: ApiFromModules<{
   "pipeline/brand": typeof pipeline_brand;
   "pipeline/brandContext": typeof pipeline_brandContext;
   "pipeline/brandProfile": typeof pipeline_brandProfile;
+  "pipeline/carouselRenderer": typeof pipeline_carouselRenderer;
   "pipeline/cassette": typeof pipeline_cassette;
   "pipeline/consolidate": typeof pipeline_consolidate;
   "pipeline/constants": typeof pipeline_constants;
@@ -131,6 +139,7 @@ declare const fullApi: ApiFromModules<{
   "pipeline/domain": typeof pipeline_domain;
   "pipeline/embeddings": typeof pipeline_embeddings;
   "pipeline/igGraph": typeof pipeline_igGraph;
+  "pipeline/imageGeneration": typeof pipeline_imageGeneration;
   "pipeline/inputQuality": typeof pipeline_inputQuality;
   "pipeline/liveBrand": typeof pipeline_liveBrand;
   "pipeline/liveBrandContext": typeof pipeline_liveBrandContext;
@@ -155,6 +164,7 @@ declare const fullApi: ApiFromModules<{
   "pipeline/storage": typeof pipeline_storage;
   "pipeline/suggestions": typeof pipeline_suggestions;
   "pipeline/testLanguageModel": typeof pipeline_testLanguageModel;
+  "pipeline/visualBrand": typeof pipeline_visualBrand;
   pipelineAdmin: typeof pipelineAdmin;
   pipelineAdminActions: typeof pipelineAdminActions;
   pipelineDiagnostics: typeof pipelineDiagnostics;
@@ -164,6 +174,8 @@ declare const fullApi: ApiFromModules<{
   publishScheduledNode: typeof publishScheduledNode;
   steer: typeof steer;
   users: typeof users;
+  visualBrand: typeof visualBrand;
+  visualBrandNode: typeof visualBrandNode;
 }>;
 
 /**

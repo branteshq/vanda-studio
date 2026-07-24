@@ -22,13 +22,11 @@ import {
 } from "./pipeline/creativeDirector";
 import {
   MarketDataProvider,
-  adaptMarketOpportunity,
   apifyMarketDataLayer,
   planMarketSearch,
   rankCandidates,
   type MarketProfile,
   type MarketSearchPlan,
-  type OpportunityAdaptation,
   type RankedMarketProfile,
   type ReelDetail,
 } from "./pipeline/market";
@@ -334,21 +332,6 @@ export const observeAccount = internalAction({
     })) as ObservationResult;
   },
 });
-
-const wrapSlide = (text: string, max = 24): string => {
-  const lines: string[] = [];
-  let line = "";
-  for (const word of text.split(/\s+/)) {
-    const next = line ? `${line} ${word}` : word;
-    if (next.length <= max) line = next;
-    else {
-      if (line) lines.push(line);
-      line = word;
-    }
-  }
-  if (line) lines.push(line);
-  return lines.slice(0, 7).join("\n");
-};
 
 const downloadSourceAsset = async (
   url: string | undefined,
@@ -731,98 +714,6 @@ export const directOpportunity = internalAction({
   },
 });
 
-const renderSlides = (slides: ReadonlyArray<string>): Promise<ReadonlyArray<Blob>> =>
-  Promise.all(
-    slides.map(async (slide, index) => {
-      // Intentionally constrained MVP renderer: a hosted PNG service turns the model's
-      // copy into a real Instagram-compatible image. Swap this boundary for the branded
-      // renderer later without touching opportunity or publishing state.
-      const text = `${String(index + 1).padStart(2, "0")} / ${slides.length}\n\n${wrapSlide(slide)}`;
-      const url = new URL("https://placehold.co/1080x1350/1b1424/ffffff.png");
-      url.searchParams.set("text", text);
-      url.searchParams.set("font", "roboto");
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`slide render failed: HTTP ${response.status}`);
-      return response.blob();
-    }),
-  );
-
-/** Analyze one breakout, transform it to the brand, and persist a hosted carousel. */
-export const analyzeOpportunity = internalAction({
-  args: { opportunityId: v.id("opportunities") },
-  handler: async (ctx, { opportunityId }): Promise<Id<"posts">> => {
-    const modelKey = process.env.OPENROUTER_API_KEY;
-    if (!modelKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
-    const source: {
-      opportunity: Doc<"opportunities">;
-      post: Doc<"marketPosts">;
-      creator: Doc<"marketCreators"> | null;
-      dossier: Doc<"sourceDossiers"> | null;
-      brandContext: string;
-    } | null = await ctx.runQuery(internal.market.loadOpportunity, { opportunityId });
-    if (!source) throw new Error("opportunity source not found");
-    if (
-      source.opportunity.status !== "ready_for_analysis" &&
-      source.opportunity.status !== "failed"
-    )
-      throw new Error("opportunity input is not qualified");
-    if (!source.dossier || source.dossier.status !== "ready")
-      throw new Error("source dossier is not ready");
-    const dossier = source.dossier;
-
-    try {
-      await ctx.runMutation(internal.market.setOpportunityStatus, {
-        opportunityId,
-        status: "analyzing",
-      });
-      await ctx.runMutation(internal.market.setOpportunityStatus, {
-        opportunityId,
-        status: "adapting",
-      });
-      const adaptation: OpportunityAdaptation = await runTracked(
-        ctx,
-        {
-          accountId: source.opportunity.accountId,
-          stage: "market_adapt",
-          model: PIPELINE_MODELS.marketAdapt,
-          promptVersion: PROMPT_VERSIONS.marketAdapt,
-          inputIds: [source.post.externalPostId],
-        },
-        () =>
-          Effect.runPromise(
-            adaptMarketOpportunity({
-              transcript: dossier.transcript,
-              caption: dossier.caption ?? source.post.caption,
-              triggerReason: source.opportunity.triggerReason,
-              brandContext: source.brandContext,
-            }).pipe(Effect.provide(languageModelLayer(modelKey, PIPELINE_MODELS.marketAdapt))),
-          ),
-        (result: OpportunityAdaptation) => `${result.adaptedSlides.length} slides`,
-      );
-      const slides = adaptation.adaptedSlides.length
-        ? adaptation.adaptedSlides
-        : [adaptation.adaptedHook];
-      const blobs = await renderSlides(slides);
-      const storageIds = await Promise.all(blobs.map((blob) => ctx.storage.store(blob)));
-      return await ctx.runMutation(internal.market.saveAdaptation, {
-        opportunityId,
-        ...(dossier.transcript ? { transcript: dossier.transcript } : {}),
-        ...adaptation,
-        adaptedSlides: [...slides],
-        creatorSpecificElements: [...adaptation.creatorSpecificElements],
-        storageIds,
-      });
-    } catch (error) {
-      await ctx.runMutation(internal.market.setOpportunityStatus, {
-        opportunityId,
-        status: "failed",
-        lastError: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-});
-
 const metricNumber = (value: unknown, key: string): number | undefined => {
   if (typeof value !== "object" || value === null) return undefined;
   const metric = (value as Record<string, unknown>)[key];
@@ -880,6 +771,22 @@ export const runAllAccounts = internalAction({
     for (const account of accounts) {
       await ctx.scheduler.runAfter(0, internal.marketNode.runAccount, { accountId: account._id });
     }
+  },
+});
+
+export const measureAllPublications = internalAction({
+  args: {},
+  handler: async (ctx): Promise<number> => {
+    const accounts: Array<{ _id: Id<"accounts"> }> = await ctx.runQuery(
+      internal.market.listOnboardedAccounts,
+      {},
+    );
+    let measured = 0;
+    for (const account of accounts)
+      measured += await ctx.runAction(internal.marketNode.measurePublications, {
+        accountId: account._id,
+      });
+    return measured;
   },
 });
 

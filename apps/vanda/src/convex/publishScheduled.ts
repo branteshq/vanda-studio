@@ -54,12 +54,44 @@ export const setScheduledStatus = internalMutation({
     lastError: v.optional(v.string()),
   },
   handler: async (ctx, { scheduledPostId, status, externalPostId, lastError }) => {
+    const scheduled = await ctx.db.get(scheduledPostId);
+    if (!scheduled) return;
+    const now = Date.now();
     await ctx.db.patch(scheduledPostId, {
       status,
       ...(externalPostId !== undefined ? { externalPostId } : {}),
       ...(lastError !== undefined ? { lastError } : {}),
-      updatedAt: Date.now(),
+      updatedAt: now,
     });
+    const post = await ctx.db.get(scheduled.postId);
+    if (!post) return;
+    if (status === "published") await ctx.db.patch(post._id, { status: "published" });
+    const project = post.contentProjectId ? await ctx.db.get(post.contentProjectId) : null;
+    if (project) {
+      if (status === "published")
+        await ctx.db.patch(project._id, { status: "published", lastError: undefined, updatedAt: now });
+      else if (status === "failed")
+        await ctx.db.patch(project._id, {
+          status: "ready",
+          lastError: lastError ?? "publication failed",
+          updatedAt: now,
+        });
+    }
+    const opportunity = post.opportunityId ? await ctx.db.get(post.opportunityId) : null;
+    if (opportunity) {
+      if (status === "published")
+        await ctx.db.patch(opportunity._id, {
+          status: "published",
+          lastError: undefined,
+          updatedAt: now,
+        });
+      else if (status === "failed")
+        await ctx.db.patch(opportunity._id, {
+          status: "awaiting_approval",
+          lastError: lastError ?? "publication failed",
+          updatedAt: now,
+        });
+    }
   },
 });
 

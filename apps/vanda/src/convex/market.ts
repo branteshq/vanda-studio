@@ -971,32 +971,6 @@ export const saveCreativeBrief = internalMutation({
   },
 });
 
-export const loadOpportunity = internalQuery({
-  args: { opportunityId: v.id("opportunities") },
-  handler: async (ctx, { opportunityId }) => {
-    const opportunity = await ctx.db.get(opportunityId);
-    if (!opportunity) return null;
-    const post = await ctx.db.get(opportunity.marketPostId);
-    if (!post) return null;
-    const creator = await ctx.db.get(post.creatorId);
-    const dossier = opportunity.dossierId ? await ctx.db.get(opportunity.dossierId) : null;
-    const canon = await ctx.db
-      .query("brandCanon")
-      .withIndex("by_account", (q) => q.eq("accountId", opportunity.accountId))
-      .collect();
-    return {
-      opportunity,
-      post,
-      creator,
-      dossier,
-      brandContext: canon
-        .filter((item) => item.confirmedByOwner)
-        .map((item) => `${item.kind}: ${item.text}`)
-        .join("\n"),
-    };
-  },
-});
-
 export const setOpportunityStatus = internalMutation({
   args: {
     opportunityId: v.id("opportunities"),
@@ -1009,74 +983,6 @@ export const setOpportunityStatus = internalMutation({
       ...(lastError !== undefined ? { lastError } : {}),
       updatedAt: Date.now(),
     }),
-});
-
-export const saveAdaptation = internalMutation({
-  args: {
-    opportunityId: v.id("opportunities"),
-    transcript: v.optional(v.string()),
-    coreIdea: v.string(),
-    hook: v.string(),
-    structure: v.string(),
-    pacing: v.string(),
-    visualConcept: v.string(),
-    whyItWorks: v.string(),
-    creatorSpecificElements: v.array(v.string()),
-    adaptedHook: v.string(),
-    adaptedSlides: v.array(v.string()),
-    adaptedCaption: v.string(),
-    transformationNotes: v.string(),
-    storageIds: v.array(v.id("_storage")),
-  },
-  handler: async (ctx, args) => {
-    const opportunity = await ctx.db.get(args.opportunityId);
-    if (!opportunity) throw new Error("opportunity not found");
-    const now = Date.now();
-    const imageIds = [];
-    for (let index = 0; index < args.storageIds.length; index += 1) {
-      imageIds.push(
-        await ctx.db.insert("images", {
-          accountId: opportunity.accountId,
-          origin: "generated",
-          purpose: "post",
-          storageId: args.storageIds[index]!,
-          width: 1080,
-          height: 1350,
-          prompt: `market adaptation slide ${index + 1}`,
-          createdAt: now,
-        }),
-      );
-    }
-    const postId = await ctx.db.insert("posts", {
-      accountId: opportunity.accountId,
-      type: "feed",
-      imageIds,
-      caption: args.adaptedCaption,
-      platform: "instagram",
-      status: "ready",
-      opportunityId: opportunity._id,
-      createdAt: now,
-    });
-    await ctx.db.patch(opportunity._id, {
-      status: "awaiting_approval",
-      ...(args.transcript !== undefined ? { sourceTranscript: args.transcript } : {}),
-      coreIdea: args.coreIdea,
-      hook: args.hook,
-      structure: args.structure,
-      pacing: args.pacing,
-      visualConcept: args.visualConcept,
-      whyItWorks: args.whyItWorks,
-      creatorSpecificElements: args.creatorSpecificElements,
-      adaptedHook: args.adaptedHook,
-      adaptedSlides: args.adaptedSlides,
-      adaptedCaption: args.adaptedCaption,
-      transformationNotes: args.transformationNotes,
-      postId,
-      lastError: undefined,
-      updatedAt: now,
-    });
-    return postId;
-  },
 });
 
 export const approveOpportunity = mutation({

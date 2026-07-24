@@ -315,6 +315,59 @@ export default defineSchema({
     .index("by_creator_external", ["creatorId", "externalPostId"])
     .index("by_account_published", ["accountId", "publishedAt"]),
 
+  brandVisualProfiles: defineTable({
+    accountId: v.id("accounts"),
+    status: v.union(v.literal("ready"), v.literal("failed")),
+    name: v.string(),
+    rationale: v.string(),
+    palette: v.object({
+      background: v.string(),
+      surface: v.string(),
+      text: v.string(),
+      muted: v.string(),
+      accent: v.string(),
+      accentContrast: v.string(),
+    }),
+    typography: v.object({
+      headline: v.union(
+        v.literal("modern_sans"),
+        v.literal("humanist_sans"),
+        v.literal("editorial_serif"),
+      ),
+      body: v.union(
+        v.literal("modern_sans"),
+        v.literal("humanist_sans"),
+        v.literal("editorial_serif"),
+      ),
+      weight: v.union(
+        v.literal("regular"),
+        v.literal("medium"),
+        v.literal("bold"),
+        v.literal("black"),
+      ),
+    }),
+    artDirection: v.string(),
+    motifs: v.array(v.string()),
+    photoTreatment: v.union(
+      v.literal("natural"),
+      v.literal("warm"),
+      v.literal("cool"),
+      v.literal("duotone"),
+      v.literal("none"),
+    ),
+    avoid: v.array(v.string()),
+    referenceImageIds: v.array(v.id("images")),
+    validationIssues: v.array(v.string()),
+    textContrast: v.number(),
+    accentContrast: v.number(),
+    model: v.string(),
+    promptVersion: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_account_updated", ["accountId", "updatedAt"])
+    .index("by_account_status", ["accountId", "status"]),
+
   brandSnapshots: defineTable({
     accountId: v.id("accounts"),
     context: v.string(),
@@ -522,8 +575,11 @@ export default defineSchema({
     accountId: v.id("accounts"),
     creativeBriefId: v.optional(v.id("creativeBriefs")),
     opportunityId: v.optional(v.id("opportunities")),
+    visualProfileId: v.optional(v.id("brandVisualProfiles")),
+    briefSnapshotJson: v.optional(v.string()),
+    sourceSnapshotJson: v.optional(v.string()),
     kind: v.literal("carousel"),
-    origin: v.union(v.literal("creative_director"), v.literal("manual")),
+    origin: v.union(v.literal("creative_director"), v.literal("manual"), v.literal("legacy_run")),
     title: v.string(),
     status: v.union(...contentProjectStatuses.map((status) => v.literal(status))),
     activeDocumentId: v.optional(v.id("carouselDocuments")),
@@ -745,6 +801,20 @@ export default defineSchema({
     mimeType: v.optional(v.string()),
     description: v.optional(v.string()),
     altText: v.optional(v.string()),
+    inspectionStatus: v.optional(
+      v.union(v.literal("pending"), v.literal("ready"), v.literal("failed")),
+    ),
+    visualDescription: v.optional(v.string()),
+    visualSubjects: v.optional(v.array(v.string())),
+    dominantColors: v.optional(v.array(v.string())),
+    containsText: v.optional(v.boolean()),
+    containsFace: v.optional(v.boolean()),
+    containsProduct: v.optional(v.boolean()),
+    safeForBrandUse: v.optional(v.boolean()),
+    allowedRoles: v.optional(v.array(v.string())),
+    inspectionWarnings: v.optional(v.array(v.string())),
+    inspectionConfidence: v.optional(v.number()),
+    inspectedAt: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_account", ["accountId"])

@@ -43,6 +43,8 @@ export const contentProjectStatuses = [
   "ready_for_render",
   "rendering",
   "ready",
+  "scheduled",
+  "published",
   "failed",
   "archived",
 ] as const;
@@ -78,9 +80,13 @@ export const modelStages = [
   "market_directions",
   "market_selection",
   "market_brief_review",
+  "studio_visual_brand",
+  "studio_asset_inspection",
   "studio_carousel_plan",
   "studio_carousel_review",
   "studio_slide_regeneration",
+  "studio_asset_generation",
+  "studio_render",
   "market_adapt",
 ] as const;
 

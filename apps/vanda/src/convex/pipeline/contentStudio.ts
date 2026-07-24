@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as LanguageModel from "effect/unstable/ai/LanguageModel";
-import type { CreativeBrief } from "./creativeDirector";
+import { CreativeBrief } from "./creativeDirector";
 
 export const CarouselSlide = Schema.Struct({
   slideId: Schema.String,
@@ -113,6 +113,29 @@ const sourceBlock = (source: ContentStudioSource): string =>
   `Transcrição: ${source.transcript?.trim() || "(indisponível)"}\n` +
   `Texto em tela: ${source.onScreenText.join(" | ") || "(indisponível)"}`;
 
+export const planLegacyCreativeBrief = (input: {
+  readonly concept: {
+    readonly title: string;
+    readonly hook: string;
+    readonly slides: ReadonlyArray<string>;
+    readonly caption: string;
+    readonly visualConcept: string;
+  };
+  readonly brand: ContentStudioBrand;
+}) =>
+  LanguageModel.generateObject({
+    schema: CreativeBrief,
+    prompt:
+      `Você é uma diretora criativa reconstruindo um brief antigo com o padrão atual. Use a ideia ` +
+      `somente como ponto de partida e descarte qualquer claim sem suporte. Produza um brief de ` +
+      `carrossel com 3 a 7 beats, grounded exclusivamente nos fatos confirmados e IDs fornecidos. ` +
+      `Não use prova social, preço, prazo, economia, segurança, resultado clínico ou produto específico ` +
+      `sem fato explícito. Para saúde, mantenha conteúdo institucional/educacional e não faça ` +
+      `diagnóstico ou promessa. assetRequirements deve usar generate com assetIds vazio, salvo ativo ` +
+      `cuja descrição comprove uso específico. Responda em português do Brasil.\n\nIDEIA ANTIGA\n` +
+      `${JSON.stringify(input.concept)}\n\nMARCA\n${brandBlock(input.brand)}`,
+  }).pipe(Effect.map((response) => response.value));
+
 export const planCarouselDocument = (input: {
   readonly brief: CreativeBrief;
   readonly brand: ContentStudioBrand;
@@ -138,6 +161,25 @@ export const planCarouselDocument = (input: {
       `identidade proprietária; quando não houver logo autorizado, use somente texto simples. ` +
       `Respeite todas as restrições.\n\n` +
       `BRIEF APROVADO\n${JSON.stringify(input.brief)}\n\nMARCA\n${brandBlock(input.brand)}`,
+  }).pipe(Effect.map((response) => response.value));
+
+export const reviseCarouselDocument = (input: {
+  readonly brief: CreativeBrief;
+  readonly document: CarouselDocumentPlan;
+  readonly review: CarouselDocumentReview;
+  readonly brand: ContentStudioBrand;
+}) =>
+  LanguageModel.generateObject({
+    schema: CarouselDocumentPlan,
+    prompt:
+      `Você é a editora responsável por corrigir um documento de carrossel reprovado. Reescreva o ` +
+      `documento completo resolvendo explicitamente cada claim, problema de marca, similaridade, ` +
+      `produção, gramática e preflight listados. Preserve somente fatos com IDs confirmados. Mantenha ` +
+      `3 a 7 slides, primeiro cover, último CTA dedicado e IDs slide-1 etc. Não responda às críticas: ` +
+      `retorne apenas o documento corrigido no schema.\n\nBRIEF\n${JSON.stringify(input.brief)}\n\n` +
+      `DOCUMENTO REPROVADO\n${JSON.stringify(input.document)}\n\nREVISÃO\n${JSON.stringify(
+        input.review,
+      )}\n\nMARCA\n${brandBlock(input.brand)}`,
   }).pipe(Effect.map((response) => response.value));
 
 export const regenerateCarouselSlide = (input: {

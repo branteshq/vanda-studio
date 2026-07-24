@@ -9,7 +9,9 @@ import {
   type CarouselDocumentPlan,
   type CarouselDocumentReview,
   planCarouselDocument,
+  planLegacyCreativeBrief,
   regenerateCarouselSlide,
+  reviseCarouselDocument,
   replaceCarouselSlide,
   reviewCarouselDocument,
   validateCarouselDocument,
@@ -23,6 +25,7 @@ import {
   type Mutable,
 } from "./pipeline/liveModel";
 import { runTracked } from "./pipeline/liveTelemetry";
+import type { CreativeBrief } from "./pipeline/creativeDirector";
 
 const documentPlanFromDoc = (document: Doc<"carouselDocuments">): CarouselDocumentPlan => ({
   title: document.title,
@@ -82,7 +85,7 @@ const reviewAndValidate = async (input: {
 const saveGeneratedDocument = async (input: {
   readonly ctx: ActionCtx;
   readonly projectId: Id<"contentProjects">;
-  readonly creativeBriefId: Id<"creativeBriefs">;
+  readonly creativeBriefId?: Id<"creativeBriefs"> | undefined;
   readonly document: CarouselDocumentPlan;
   readonly review: CarouselDocumentReview;
   readonly validation: ReturnType<typeof validateCarouselDocument>;
@@ -93,7 +96,9 @@ const saveGeneratedDocument = async (input: {
 }): Promise<Id<"carouselDocuments">> =>
   input.ctx.runMutation(internal.contentStudio.savePlannedDocument, {
     projectId: input.projectId,
-    creativeBriefId: input.creativeBriefId,
+    ...(input.creativeBriefId !== undefined
+      ? { creativeBriefId: input.creativeBriefId }
+      : {}),
     changeKind: input.changeKind,
     ...(input.parentDocumentId !== undefined ? { parentDocumentId: input.parentDocumentId } : {}),
     createdBy: "model",
@@ -114,6 +119,37 @@ const saveGeneratedDocument = async (input: {
     reviewModel: PIPELINE_MODELS.studioCarouselReview,
     reviewPromptVersion: PROMPT_VERSIONS.studioCarouselReview,
   });
+
+const loadProjectProduction = async (
+  ctx: ActionCtx,
+  projectInput: {
+    readonly project: Doc<"contentProjects">;
+    readonly creativeBriefId?: Id<"creativeBriefs"> | undefined;
+    readonly briefSnapshotJson?: string | undefined;
+    readonly sourceSnapshotJson?: string | undefined;
+  },
+): Promise<{
+  brief: CreativeBrief;
+  brand: ContentStudioBrand;
+  source: ContentStudioSource;
+}> => {
+  if (projectInput.creativeBriefId) {
+    const production = await ctx.runQuery(internal.contentStudio.loadProductionInput, {
+      creativeBriefId: projectInput.creativeBriefId,
+    });
+    if (!production) throw new Error("production input is incomplete");
+    return production;
+  }
+  const seed = await ctx.runQuery(internal.contentStudio.loadSeedProjectContext, {
+    projectId: projectInput.project._id,
+  });
+  if (!seed) throw new Error("legacy project snapshots are incomplete");
+  return {
+    brief: JSON.parse(seed.briefSnapshotJson) as CreativeBrief,
+    source: JSON.parse(seed.sourceSnapshotJson) as ContentStudioSource,
+    brand: seed.brand,
+  };
+};
 
 export const createFromBriefInternal = internalAction({
   args: { creativeBriefId: v.id("creativeBriefs"), retry: v.optional(v.boolean()) },
@@ -136,6 +172,13 @@ export const createFromBriefInternal = internalAction({
         creativeBriefId,
       });
       if (!input) throw new Error("production input is incomplete");
+      const visualProfileId = await ctx.runAction(internal.visualBrandNode.ensureInternal, {
+        accountId: input.brief.accountId,
+      });
+      await ctx.runMutation(internal.contentStudio.attachVisualProfile, {
+        projectId: claim.projectId,
+        visualProfileId,
+      });
       const document = await runTracked(
         ctx,
         {
@@ -175,6 +218,10 @@ export const createFromBriefInternal = internalAction({
         model: PIPELINE_MODELS.studioCarouselPlan,
         promptVersion: PROMPT_VERSIONS.studioCarouselPlan,
       });
+      if (validation.valid)
+        await ctx.runMutation(internal.contentStudio.requestRenderInternal, {
+          projectId: claim.projectId,
+        });
       return claim.projectId;
     } catch (error) {
       await ctx.runMutation(internal.contentStudio.failPlanning, {
@@ -186,6 +233,134 @@ export const createFromBriefInternal = internalAction({
   },
 });
 
+export const seedLegacyOpportunityInternal = internalAction({
+  args: { opportunityId: v.id("opportunities") },
+  handler: async (ctx, { opportunityId }): Promise<Id<"contentProjects">> => {
+    const input = await ctx.runQuery(internal.contentStudio.loadLegacySeedInput, {
+      opportunityId,
+    });
+    if (!input) throw new Error("legacy opportunity input not found");
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
+    const visualProfileId = await ctx.runAction(internal.visualBrandNode.ensureInternal, {
+      accountId: input.account._id,
+    });
+    const brief = await runTracked(
+      ctx,
+      {
+        accountId: input.account._id,
+        stage: "studio_carousel_plan",
+        model: PIPELINE_MODELS.studioCarouselPlan,
+        promptVersion: PROMPT_VERSIONS.studioLegacyBrief,
+        inputIds: [opportunityId],
+      },
+      () =>
+        Effect.runPromise(
+          planLegacyCreativeBrief({ concept: input.concept, brand: input.brand }).pipe(
+            Effect.provide(languageModelLayer(apiKey, PIPELINE_MODELS.studioCarouselPlan)),
+          ),
+        ),
+      (result) => `${result.narrativeBeats.length} beats; ${result.title}`,
+    );
+    let document = await runTracked(
+      ctx,
+      {
+        accountId: input.account._id,
+        stage: "studio_carousel_plan",
+        model: PIPELINE_MODELS.studioCarouselPlan,
+        promptVersion: PROMPT_VERSIONS.studioCarouselPlan,
+        inputIds: [opportunityId],
+      },
+      () =>
+        Effect.runPromise(
+          planCarouselDocument({ brief, brand: input.brand }).pipe(
+            Effect.provide(languageModelLayer(apiKey, PIPELINE_MODELS.studioCarouselPlan)),
+          ),
+        ),
+      (result) => `${result.slides.length} slides`,
+    );
+    let reviewed = await reviewAndValidate({
+      ctx,
+      accountId: input.account._id,
+      inputIds: [opportunityId],
+      brief,
+      document,
+      brand: input.brand,
+      source: input.source,
+      apiKey,
+    });
+    if (!reviewed.validation.valid) {
+      document = await runTracked(
+        ctx,
+        {
+          accountId: input.account._id,
+          stage: "studio_carousel_plan",
+          model: PIPELINE_MODELS.studioCarouselPlan,
+          promptVersion: PROMPT_VERSIONS.studioCarouselPlan,
+          inputIds: [opportunityId, "editorial-revision"],
+        },
+        () =>
+          Effect.runPromise(
+            reviseCarouselDocument({
+              brief,
+              document,
+              review: reviewed.review,
+              brand: input.brand,
+            }).pipe(
+              Effect.provide(languageModelLayer(apiKey, PIPELINE_MODELS.studioCarouselPlan)),
+            ),
+          ),
+        (result) => `${result.slides.length} slides corrigidos`,
+      );
+      reviewed = await reviewAndValidate({
+        ctx,
+        accountId: input.account._id,
+        inputIds: [opportunityId, "editorial-revision"],
+        brief,
+        document,
+        brand: input.brand,
+        source: input.source,
+        apiKey,
+      });
+    }
+    const claim = await ctx.runMutation(internal.contentStudio.claimLegacyProject, {
+      accountId: input.account._id,
+      opportunityId,
+      visualProfileId,
+      title: document.title,
+      briefSnapshotJson: JSON.stringify(brief),
+      sourceSnapshotJson: JSON.stringify(input.source),
+    });
+    if (!claim.claimed) return claim.projectId;
+    await ctx.runMutation(internal.contentStudio.savePlannedDocument, {
+      projectId: claim.projectId,
+      changeKind: "generated",
+      createdBy: "model",
+      ...(document as Mutable<CarouselDocumentPlan>),
+      reviewDecision: reviewed.review.decision,
+      reviewSummary: reviewed.review.summary,
+      unsupportedClaims: [...reviewed.review.unsupportedClaims],
+      brandIssues: [...reviewed.review.brandIssues],
+      similarityRisks: [...reviewed.review.similarityRisks],
+      productionIssues: [...reviewed.review.productionIssues],
+      corrections: [...reviewed.review.corrections],
+      reviewConfidence: reviewed.review.confidence,
+      deterministicIssues: [...reviewed.validation.issues],
+      deterministicWarnings: [...reviewed.validation.warnings],
+      sourceSimilarity: reviewed.validation.sourceSimilarity,
+      model: PIPELINE_MODELS.studioCarouselPlan,
+      promptVersion: PROMPT_VERSIONS.studioCarouselPlan,
+      reviewModel: PIPELINE_MODELS.studioCarouselReview,
+      reviewPromptVersion: PROMPT_VERSIONS.studioCarouselReview,
+    });
+    if (reviewed.validation.valid)
+      await ctx.runMutation(internal.contentStudio.requestRenderInternal, {
+        projectId: claim.projectId,
+      });
+    return claim.projectId;
+  },
+});
+
 export const reviewDraft = action({
   args: { projectId: v.id("contentProjects") },
   handler: async (ctx, { projectId }): Promise<Id<"carouselDocuments">> => {
@@ -194,10 +369,7 @@ export const reviewDraft = action({
       projectId,
     });
     if (!projectInput) throw new Error("active carousel document not found");
-    const production = await ctx.runQuery(internal.contentStudio.loadProductionInput, {
-      creativeBriefId: projectInput.creativeBriefId,
-    });
-    if (!production) throw new Error("production input is incomplete");
+    const production = await loadProjectProduction(ctx, projectInput);
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
     const document = documentPlanFromDoc(projectInput.document);
@@ -232,6 +404,8 @@ export const reviewDraft = action({
       reviewModel: PIPELINE_MODELS.studioCarouselReview,
       reviewPromptVersion: PROMPT_VERSIONS.studioCarouselReview,
     });
+    if (validation.valid)
+      await ctx.runMutation(internal.contentStudio.requestRenderInternal, { projectId });
     return projectInput.document._id;
   },
 });
@@ -248,10 +422,7 @@ export const regenerateSlide = action({
       projectId,
     });
     if (!projectInput) throw new Error("active carousel document not found");
-    const production = await ctx.runQuery(internal.contentStudio.loadProductionInput, {
-      creativeBriefId: projectInput.creativeBriefId,
-    });
-    if (!production) throw new Error("production input is incomplete");
+    const production = await loadProjectProduction(ctx, projectInput);
     const current = documentPlanFromDoc(projectInput.document);
     const existingSlide = current.slides.find((slide) => slide.slideId === slideId);
     if (!existingSlide) throw new Error("carousel slide not found");
@@ -295,7 +466,7 @@ export const regenerateSlide = action({
       source: production.source,
       apiKey,
     });
-    return saveGeneratedDocument({
+    const documentId = await saveGeneratedDocument({
       ctx,
       projectId,
       creativeBriefId: projectInput.creativeBriefId,
@@ -307,5 +478,8 @@ export const regenerateSlide = action({
       model: PIPELINE_MODELS.studioSlideRegeneration,
       promptVersion: PROMPT_VERSIONS.studioSlideRegeneration,
     });
+    if (validation.valid)
+      await ctx.runMutation(internal.contentStudio.requestRenderInternal, { projectId });
+    return documentId;
   },
 });

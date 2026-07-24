@@ -17,5 +17,11 @@ crons.interval(
 crons.interval("plan accounts", { hours: 24 }, internal.plan.planAllAccounts, {});
 crons.interval("create accounts", { hours: 1 }, internal.create.createAllAccounts, {});
 crons.interval("market growth loop", { hours: 1 }, internal.marketNode.runAllAccounts, {});
+crons.interval(
+  "publication metrics",
+  { hours: 1 },
+  internal.marketNode.measureAllPublications,
+  {},
+);
 
 export default crons;

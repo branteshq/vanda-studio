@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
   internalMutation,
@@ -133,6 +134,73 @@ const productionMetadataArg = {
   reviewPromptVersion: v.string(),
 };
 
+export const cleanupUnsafeGeneratedAssets = internalMutation({
+  args: { projectId: v.optional(v.id("contentProjects")) },
+  handler: async (ctx, { projectId }) => {
+    const requests = projectId
+      ? await ctx.db
+          .query("contentAssetRequests")
+          .withIndex("by_project_status", (q) => q.eq("projectId", projectId))
+          .collect()
+      : await ctx.db.query("contentAssetRequests").collect();
+    let deleted = 0;
+    for (const request of requests) {
+      if (!request.outputImageId || request.strategy !== "generate") continue;
+      const image = await ctx.db.get(request.outputImageId);
+      if (!image || image.safeForBrandUse === true) continue;
+      if (image.storageId) await ctx.storage.delete(image.storageId);
+      await ctx.db.delete(image._id);
+      await ctx.db.patch(request._id, { outputImageId: undefined, updatedAt: Date.now() });
+      deleted += 1;
+    }
+    return deleted;
+  },
+});
+
+export const cleanupLegacyPlaceholders = internalMutation({
+  args: { accountId: v.optional(v.id("accounts")) },
+  handler: async (ctx, { accountId }) => {
+    const posts = accountId
+      ? await ctx.db
+          .query("posts")
+          .withIndex("by_account", (q) => q.eq("accountId", accountId))
+          .collect()
+      : await ctx.db.query("posts").collect();
+    let deletedPosts = 0;
+    let deletedImages = 0;
+    for (const post of posts) {
+      if (!post.opportunityId || post.contentProjectId) continue;
+      const images = await Promise.all(post.imageIds.map((imageId) => ctx.db.get(imageId)));
+      const placeholder = images.some((image) => image?.prompt?.startsWith("market adaptation slide"));
+      if (!placeholder) continue;
+      const scheduled = await ctx.db
+        .query("scheduledPosts")
+        .withIndex("by_account_scheduledFor", (q) => q.eq("accountId", post.accountId))
+        .collect();
+      if (scheduled.some((item) => item.postId === post._id && item.status === "published")) continue;
+      for (const item of scheduled)
+        if (item.postId === post._id) await ctx.db.delete(item._id);
+      for (const image of images) {
+        if (!image) continue;
+        if (image.storageId) await ctx.storage.delete(image.storageId);
+        await ctx.db.delete(image._id);
+        deletedImages += 1;
+      }
+      await ctx.db.delete(post._id);
+      const opportunity = await ctx.db.get(post.opportunityId);
+      if (opportunity?.postId === post._id)
+        await ctx.db.patch(opportunity._id, {
+          postId: undefined,
+          scheduledPostId: undefined,
+          status: opportunity.contentProjectId ? opportunity.status : "detected",
+          updatedAt: Date.now(),
+        });
+      deletedPosts += 1;
+    }
+    return { deletedPosts, deletedImages };
+  },
+});
+
 export const requireBriefOwner = internalQuery({
   args: { creativeBriefId: v.id("creativeBriefs") },
   handler: async (ctx, { creativeBriefId }) => {
@@ -207,9 +275,147 @@ export const loadProjectDocument = internalQuery({
   args: { projectId: v.id("contentProjects") },
   handler: async (ctx, { projectId }) => {
     const project = await ctx.db.get(projectId);
-    if (!project?.activeDocumentId || !project.creativeBriefId) return null;
+    if (!project?.activeDocumentId) return null;
     const document = await ctx.db.get(project.activeDocumentId);
-    return document ? { project, document, creativeBriefId: project.creativeBriefId } : null;
+    return document
+      ? {
+          project,
+          document,
+          creativeBriefId: project.creativeBriefId,
+          briefSnapshotJson: project.briefSnapshotJson,
+          sourceSnapshotJson: project.sourceSnapshotJson,
+        }
+      : null;
+  },
+});
+
+export const loadLegacySeedInput = internalQuery({
+  args: { opportunityId: v.id("opportunities") },
+  handler: async (ctx, { opportunityId }) => {
+    const opportunity = await ctx.db.get(opportunityId);
+    if (!opportunity) return null;
+    const marketPost = await ctx.db.get(opportunity.marketPostId);
+    const account = await ctx.db.get(opportunity.accountId);
+    if (!marketPost || !account) return null;
+    const facts = (
+      await ctx.db
+        .query("brandCanon")
+        .withIndex("by_account", (q) => q.eq("accountId", opportunity.accountId))
+        .collect()
+    ).filter((fact) => fact.confirmedByOwner);
+    const assets = (
+      await ctx.db
+        .query("images")
+        .withIndex("by_account", (q) => q.eq("accountId", opportunity.accountId))
+        .collect()
+    ).filter((image) => image.purpose === "reference" && image.safeForBrandUse !== false);
+    return {
+      account,
+      opportunity,
+      marketPost,
+      brand: {
+        facts: facts.map((fact) => ({ id: String(fact._id), kind: fact.kind, text: fact.text })),
+        restrictions: facts
+          .filter((fact) => fact.kind === "restriction" || fact.kind === "forbidden_claim")
+          .map((fact) => fact.text),
+        authorizedAssets: assets.map((asset) => ({
+          id: String(asset._id),
+          kind: "reference_image",
+          description: asset.visualDescription ?? asset.description ?? "Referência visual autorizada",
+        })),
+      },
+      source: {
+        caption: marketPost.caption,
+        transcript: opportunity.sourceTranscript,
+        onScreenText: [] as string[],
+      },
+      concept: {
+        title: opportunity.coreIdea || opportunity.hook || `Conteúdo para ${account.name ?? "Instagram"}`,
+        hook: opportunity.adaptedHook || opportunity.hook || "",
+        slides: opportunity.adaptedSlides ?? [],
+        caption: opportunity.adaptedCaption || "",
+        visualConcept: opportunity.visualConcept || "",
+      },
+    };
+  },
+});
+
+export const claimLegacyProject = internalMutation({
+  args: {
+    accountId: v.id("accounts"),
+    opportunityId: v.id("opportunities"),
+    visualProfileId: v.id("brandVisualProfiles"),
+    title: v.string(),
+    briefSnapshotJson: v.string(),
+    sourceSnapshotJson: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const projects = await ctx.db
+      .query("contentProjects")
+      .withIndex("by_account_updated", (q) => q.eq("accountId", args.accountId))
+      .collect();
+    const existing = projects.find(
+      (project) =>
+        project.origin === "legacy_run" && project.opportunityId === args.opportunityId,
+    );
+    if (existing) return { projectId: existing._id, claimed: false };
+    const now = Date.now();
+    const projectId = await ctx.db.insert("contentProjects", {
+      accountId: args.accountId,
+      opportunityId: args.opportunityId,
+      visualProfileId: args.visualProfileId,
+      briefSnapshotJson: args.briefSnapshotJson,
+      sourceSnapshotJson: args.sourceSnapshotJson,
+      kind: "carousel",
+      origin: "legacy_run",
+      title: args.title,
+      status: "planning",
+      latestVersion: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.patch(args.opportunityId, {
+      contentProjectId: projectId,
+      status: "adapting",
+      updatedAt: now,
+    });
+    return { projectId, claimed: true };
+  },
+});
+
+export const loadSeedProjectContext = internalQuery({
+  args: { projectId: v.id("contentProjects") },
+  handler: async (ctx, { projectId }) => {
+    const project = await ctx.db.get(projectId);
+    if (!project?.briefSnapshotJson || !project.sourceSnapshotJson) return null;
+    const facts = (
+      await ctx.db
+        .query("brandCanon")
+        .withIndex("by_account", (q) => q.eq("accountId", project.accountId))
+        .collect()
+    ).filter((fact) => fact.confirmedByOwner);
+    const assets = (
+      await ctx.db
+        .query("images")
+        .withIndex("by_account", (q) => q.eq("accountId", project.accountId))
+        .collect()
+    ).filter((image) => image.purpose === "reference" && image.safeForBrandUse !== false);
+    return {
+      project,
+      briefSnapshotJson: project.briefSnapshotJson,
+      sourceSnapshotJson: project.sourceSnapshotJson,
+      brand: {
+        facts: facts.map((fact) => ({ id: String(fact._id), kind: fact.kind, text: fact.text })),
+        restrictions: facts
+          .filter((fact) => fact.kind === "restriction" || fact.kind === "forbidden_claim")
+          .map((fact) => fact.text),
+        authorizedAssets: assets.map((asset) => ({
+          id: String(asset._id),
+          kind: "reference_image",
+          description: asset.visualDescription ?? asset.description ?? "Referência visual autorizada",
+        })),
+      },
+    };
   },
 });
 
@@ -300,7 +506,7 @@ const createAssetRequests = async (
 export const savePlannedDocument = internalMutation({
   args: {
     projectId: v.id("contentProjects"),
-    creativeBriefId: v.id("creativeBriefs"),
+    creativeBriefId: v.optional(v.id("creativeBriefs")),
     changeKind: v.union(
       v.literal("generated"),
       v.literal("slide_regeneration"),
@@ -314,7 +520,10 @@ export const savePlannedDocument = internalMutation({
   },
   handler: async (ctx, args) => {
     const project = await ctx.db.get(args.projectId);
-    if (!project || project.creativeBriefId !== args.creativeBriefId)
+    if (
+      !project ||
+      (args.creativeBriefId !== undefined && project.creativeBriefId !== args.creativeBriefId)
+    )
       throw new Error("content project mismatch");
     const ready = args.reviewDecision === "approved" && args.deterministicIssues.length === 0;
     const blocked = args.deterministicIssues.some((issue) =>
@@ -327,7 +536,9 @@ export const savePlannedDocument = internalMutation({
     const documentId = await ctx.db.insert("carouselDocuments", {
       accountId: project.accountId,
       projectId: project._id,
-      creativeBriefId: args.creativeBriefId,
+      ...(args.creativeBriefId !== undefined
+        ? { creativeBriefId: args.creativeBriefId }
+        : {}),
       version,
       ...(args.parentDocumentId !== undefined ? { parentDocumentId: args.parentDocumentId } : {}),
       changeKind: args.changeKind,
@@ -375,6 +586,20 @@ export const savePlannedDocument = internalMutation({
         updatedAt: now,
       });
     return documentId;
+  },
+});
+
+export const attachVisualProfile = internalMutation({
+  args: {
+    projectId: v.id("contentProjects"),
+    visualProfileId: v.id("brandVisualProfiles"),
+  },
+  handler: async (ctx, { projectId, visualProfileId }) => {
+    const project = await ctx.db.get(projectId);
+    const profile = await ctx.db.get(visualProfileId);
+    if (!project || !profile || profile.accountId !== project.accountId)
+      throw new Error("visual profile does not belong to content project");
+    await ctx.db.patch(projectId, { visualProfileId, updatedAt: Date.now() });
   },
 });
 
@@ -502,36 +727,171 @@ export const setActiveReviewedDocument = internalMutation({
   },
 });
 
+const queueRender = async (ctx: MutationCtx, projectId: Id<"contentProjects">) => {
+  const project = await ctx.db.get(projectId);
+  if (!project?.activeDocumentId) throw new Error("renderable project not found");
+  if (["scheduled", "published", "archived"].includes(project.status))
+    throw new Error("project can no longer be rendered");
+  const document = await ctx.db.get(project.activeDocumentId);
+  if (!document || document.status !== "ready_for_render" || document.reviewStatus !== "approved")
+    throw new Error("active carousel document is not approved for rendering");
+  const existing = await ctx.db
+    .query("carouselRenderJobs")
+    .withIndex("by_project_created", (q) => q.eq("projectId", projectId))
+    .order("desc")
+    .first();
+  if (existing && ["queued", "rendering"].includes(existing.status)) return existing._id;
+  const attempt = (existing?.attempt ?? 0) + 1;
+  const now = Date.now();
+  const jobId = await ctx.db.insert("carouselRenderJobs", {
+    accountId: project.accountId,
+    projectId,
+    documentId: document._id,
+    status: "queued",
+    rendererVersion: "carousel-renderer-v1",
+    attempt,
+    outputImageIds: [],
+    createdAt: now,
+  });
+  await ctx.db.patch(projectId, { status: "rendering", lastError: undefined, updatedAt: now });
+  await ctx.scheduler.runAfter(0, internal.contentStudioRender.runRenderJob, {
+    renderJobId: jobId,
+  });
+  return jobId;
+};
+
 export const requestRender = mutation({
   args: { projectId: v.id("contentProjects") },
   handler: async (ctx, { projectId }) => {
     const project = await ctx.db.get(projectId);
-    if (!project?.activeDocumentId) throw new Error("renderable project not found");
+    if (!project) throw new Error("renderable project not found");
     await requireOwnedAccount(ctx, project.accountId);
-    const document = await ctx.db.get(project.activeDocumentId);
-    if (!document || document.status !== "ready_for_render" || document.reviewStatus !== "approved")
-      throw new Error("active carousel document is not approved for rendering");
-    const existing = await ctx.db
-      .query("carouselRenderJobs")
-      .withIndex("by_project_created", (q) => q.eq("projectId", projectId))
-      .order("desc")
-      .first();
-    if (existing && ["queued", "rendering"].includes(existing.status)) return existing._id;
-    const attempt = (existing?.attempt ?? 0) + 1;
-    const now = Date.now();
-    const jobId = await ctx.db.insert("carouselRenderJobs", {
-      accountId: project.accountId,
-      projectId,
-      documentId: document._id,
-      status: "queued",
-      rendererVersion: "carousel-renderer-v1",
-      attempt,
-      outputImageIds: [],
-      createdAt: now,
-    });
-    await ctx.db.patch(projectId, { status: "rendering", lastError: undefined, updatedAt: now });
-    return jobId;
+    return queueRender(ctx, projectId);
   },
+});
+
+export const requestRenderInternal = internalMutation({
+  args: { projectId: v.id("contentProjects") },
+  handler: (ctx, { projectId }) => queueRender(ctx, projectId),
+});
+
+export const loadRenderInput = internalQuery({
+  args: { renderJobId: v.id("carouselRenderJobs") },
+  handler: async (ctx, { renderJobId }) => {
+    const job = await ctx.db.get(renderJobId);
+    if (!job) return null;
+    const project = await ctx.db.get(job.projectId);
+    const document = await ctx.db.get(job.documentId);
+    if (!project || !document || !project.visualProfileId) return null;
+    const profile = await ctx.db.get(project.visualProfileId);
+    if (!profile) return null;
+    const requestRows = await ctx.db
+      .query("contentAssetRequests")
+      .withIndex("by_document", (q) => q.eq("documentId", document._id))
+      .collect();
+    const requests = await Promise.all(
+      requestRows.map(async (request) => {
+        const outputImage = request.outputImageId ? await ctx.db.get(request.outputImageId) : null;
+        return {
+          request,
+          outputImage,
+          outputUrl:
+            outputImage?.externalUrl ??
+            (outputImage?.storageId ? await ctx.storage.getUrl(outputImage.storageId) : null),
+        };
+      }),
+    );
+    const referenceImages = await Promise.all(
+      profile.referenceImageIds.map(async (imageId) => {
+        const image = await ctx.db.get(imageId);
+        if (!image) return null;
+        return {
+          image,
+          url:
+            image.externalUrl ??
+            (image.storageId ? await ctx.storage.getUrl(image.storageId) : null),
+        };
+      }),
+    );
+    return {
+      job,
+      project,
+      document,
+      profile,
+      requests,
+      referenceImages: referenceImages.filter((item) => item !== null),
+    };
+  },
+});
+
+export const startAssetRequest = internalMutation({
+  args: { requestId: v.id("contentAssetRequests") },
+  handler: async (ctx, { requestId }) => {
+    const request = await ctx.db.get(requestId);
+    if (!request || request.strategy !== "generate") return false;
+    await ctx.db.patch(requestId, {
+      status: "generating",
+      lastError: undefined,
+      updatedAt: Date.now(),
+    });
+    return true;
+  },
+});
+
+export const saveGeneratedAsset = internalMutation({
+  args: {
+    requestId: v.id("contentAssetRequests"),
+    storageId: v.id("_storage"),
+    width: v.number(),
+    height: v.number(),
+    mimeType: v.string(),
+    description: v.string(),
+    visualDescription: v.string(),
+    containsText: v.boolean(),
+    containsFace: v.boolean(),
+    safeForBrandUse: v.boolean(),
+    inspectionWarnings: v.array(v.string()),
+    inspectionConfidence: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const request = await ctx.db.get(args.requestId);
+    if (!request) throw new Error("content asset request not found");
+    const imageId = await ctx.db.insert("images", {
+      accountId: request.accountId,
+      origin: "generated",
+      contentProjectId: request.projectId,
+      carouselDocumentId: request.documentId,
+      slideId: request.slideId,
+      storageId: args.storageId,
+      width: args.width,
+      height: args.height,
+      mimeType: args.mimeType,
+      prompt: request.prompt,
+      description: args.description,
+      inspectionStatus: "ready",
+      visualDescription: args.visualDescription,
+      containsText: args.containsText,
+      containsFace: args.containsFace,
+      safeForBrandUse: args.safeForBrandUse,
+      inspectionWarnings: args.inspectionWarnings,
+      inspectionConfidence: args.inspectionConfidence,
+      inspectedAt: Date.now(),
+      createdAt: Date.now(),
+    });
+    await ctx.db.patch(request._id, {
+      status: "ready",
+      outputImageId: imageId,
+      lastError: undefined,
+      updatedAt: Date.now(),
+    });
+    return imageId;
+  },
+});
+
+export const failAssetRequest = internalMutation({
+  args: { requestId: v.id("contentAssetRequests"), error: v.string() },
+  handler: (ctx, { requestId, error }) =>
+    ctx.db.patch(requestId, { status: "failed", lastError: error, updatedAt: Date.now() }),
 });
 
 export const startRender = internalMutation({
@@ -565,6 +925,14 @@ export const completeRender = internalMutation({
     if (!project || !document || outputs.length !== document.slides.length)
       throw new Error("render output does not match carousel document");
     const bySlide = new Map(outputs.map((output) => [output.slideId, output]));
+    for (const slide of document.slides)
+      if (!bySlide.has(slide.slideId)) throw new Error(`missing render output for ${slide.slideId}`);
+    if (project.postId) {
+      const previousPost = await ctx.db.get(project.postId);
+      if (previousPost?.status === "published" || previousPost?.status === "scheduled")
+        throw new Error("published or scheduled media cannot be replaced");
+      if (previousPost) await ctx.db.delete(previousPost._id);
+    }
     const now = Date.now();
     const imageIds: Array<Id<"images">> = [];
     for (const slide of document.slides) {
@@ -636,6 +1004,32 @@ export const failRender = internalMutation({
   },
 });
 
+export const inspectProjectMedia = internalQuery({
+  args: { projectId: v.id("contentProjects") },
+  handler: async (ctx, { projectId }) => {
+    const project = await ctx.db.get(projectId);
+    if (!project?.postId) return [];
+    const post = await ctx.db.get(project.postId);
+    if (!post) return [];
+    return Promise.all(
+      post.imageIds.map(async (imageId) => {
+        const image = await ctx.db.get(imageId);
+        return image
+          ? {
+              imageId,
+              width: image.width,
+              height: image.height,
+              mimeType: image.mimeType,
+              url:
+                image.externalUrl ??
+                (image.storageId ? await ctx.storage.getUrl(image.storageId) : null),
+            }
+          : null;
+      }),
+    );
+  },
+});
+
 export const project = query({
   args: { projectId: v.id("contentProjects") },
   handler: async (ctx, { projectId }) => {
@@ -678,6 +1072,44 @@ export const documentHistory = query({
       .withIndex("by_project_version", (q) => q.eq("projectId", projectId))
       .order("desc")
       .collect();
+  },
+});
+
+export const approveProject = mutation({
+  args: { projectId: v.id("contentProjects") },
+  handler: async (ctx, { projectId }) => {
+    const project = await ctx.db.get(projectId);
+    if (!project?.postId) throw new Error("project has no rendered post");
+    await requireOwnedAccount(ctx, project.accountId);
+    if (!["ready", "scheduled", "published"].includes(project.status))
+      throw new Error("project is not ready for publication approval");
+    const scheduled = await ctx.db
+      .query("scheduledPosts")
+      .withIndex("by_account_scheduledFor", (q) => q.eq("accountId", project.accountId))
+      .collect();
+    const existing = scheduled.find((item) => item.postId === project.postId);
+    if (existing) return existing._id;
+    const scheduledFor = Date.now() + 5_000;
+    const scheduledPostId = await ctx.db.insert("scheduledPosts", {
+      accountId: project.accountId,
+      postId: project.postId,
+      scheduledFor,
+      status: "scheduled",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    await ctx.db.patch(project.postId, { status: "scheduled" });
+    await ctx.db.patch(projectId, { status: "scheduled", updatedAt: Date.now() });
+    if (project.opportunityId)
+      await ctx.db.patch(project.opportunityId, {
+        status: "publishing",
+        scheduledPostId,
+        updatedAt: Date.now(),
+      });
+    await ctx.scheduler.runAt(scheduledFor, internal.publishScheduledNode.runScheduledPost, {
+      scheduledPostId,
+    });
+    return scheduledPostId;
   },
 });
 

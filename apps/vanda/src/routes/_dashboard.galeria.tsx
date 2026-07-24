@@ -17,6 +17,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Send,
   SlidersHorizontal,
   Sparkles,
 } from "lucide-react";
@@ -393,6 +394,8 @@ function GalleryInspector({
   const regenerateSlide = useAction(api.contentStudioNode.regenerateSlide);
   const retryPlanning = useAction(api.contentStudioActions.createFromBrief);
   const archiveProject = useMutation(api.contentStudio.archiveProject);
+  const approveProject = useMutation(api.contentStudio.approveProject);
+  const requestRender = useMutation(api.contentStudio.requestRender);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState<string | null>(null);
@@ -425,6 +428,10 @@ function GalleryInspector({
   const previewUrl = data?.coverUrl ?? item.previewUrl;
   const canReview = document?.reviewStatus === "pending";
   const canRetry = project?.status === "failed" && project.creativeBriefId !== undefined;
+  const canRetryRender =
+    project?.status === "failed" &&
+    document?.status === "ready_for_render" &&
+    document.reviewStatus === "approved";
 
   return (
     <Sheet open onOpenChange={onOpenChange}>
@@ -598,6 +605,37 @@ function GalleryInspector({
                 >
                   {busy === "review" ? <RefreshCw className="animate-spin" /> : <Sparkles />}
                   Revisar alterações
+                </Button>
+              ) : canRetryRender ? (
+                <Button
+                  className="flex-1"
+                  disabled={busy !== null}
+                  onClick={() =>
+                    void run("retry-render", () => requestRender({ projectId: project._id }))
+                  }
+                >
+                  {busy === "retry-render" ? (
+                    <RefreshCw className="animate-spin" />
+                  ) : (
+                    <RefreshCw />
+                  )}
+                  Renderizar novamente
+                </Button>
+              ) : project.status === "ready" ? (
+                <Button
+                  className="flex-1"
+                  disabled={busy !== null}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "Aprovar este carrossel e publicar no Instagram conectado?",
+                      )
+                    )
+                      void run("publish", () => approveProject({ projectId: project._id }));
+                  }}
+                >
+                  {busy === "publish" ? <RefreshCw className="animate-spin" /> : <Send />}
+                  Aprovar e publicar
                 </Button>
               ) : canRetry && project.creativeBriefId ? (
                 <Button
