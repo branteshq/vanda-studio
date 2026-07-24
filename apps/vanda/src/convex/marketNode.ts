@@ -15,6 +15,7 @@ import {
   type MarketProfile,
   type MarketSearchPlan,
   type OpportunityAdaptation,
+  type RankedMarketProfile,
   type ReelDetail,
 } from "./pipeline/market";
 import { languageModelLayer, PIPELINE_MODELS, PROMPT_VERSIONS } from "./pipeline/liveModel";
@@ -47,11 +48,7 @@ interface ObservationResult {
   readonly opportunityIds: ReadonlyArray<Id<"opportunities">>;
 }
 
-type RankedCandidate = {
-  readonly profile: MarketProfile;
-  readonly relevanceScore: number;
-  readonly relevanceReason: string;
-};
+type RankedCandidate = RankedMarketProfile;
 
 const activityScore = (profile: MarketProfile, now: number): number => {
   const recent = profile.latestPosts.filter((post) => now - post.publishedAt <= ACTIVE_WINDOW_MS);
@@ -71,13 +68,31 @@ const eligible = (profile: MarketProfile, ownHandle: string | undefined, now: nu
   return profile.latestPosts.some((post) => now - post.publishedAt <= ACTIVE_WINDOW_MS);
 };
 
-const profileInput = (profile: MarketProfile, relevanceScore: number, relevanceReason: string) => ({
+const profileInput = (
+  profile: MarketProfile,
+  ranking: Pick<RankedCandidate, "relevanceScore" | "relevanceReason"> &
+    Partial<Omit<RankedCandidate, "profile" | "relevanceScore" | "relevanceReason">>,
+) => ({
   handle: profile.handle,
   profileUrl: profile.profileUrl,
   private: profile.private,
   verified: profile.verified,
-  relevanceScore,
-  relevanceReason,
+  relevanceScore: ranking.relevanceScore,
+  relevanceReason: ranking.relevanceReason,
+  ...(ranking.topicalOverlap !== undefined ? { topicalOverlap: ranking.topicalOverlap } : {}),
+  ...(ranking.audienceOverlap !== undefined ? { audienceOverlap: ranking.audienceOverlap } : {}),
+  ...(ranking.offerOverlap !== undefined ? { offerOverlap: ranking.offerOverlap } : {}),
+  ...(ranking.geographicOverlap !== undefined
+    ? { geographicOverlap: ranking.geographicOverlap }
+    : {}),
+  ...(ranking.languageMatch !== undefined ? { languageMatch: ranking.languageMatch } : {}),
+  ...(ranking.contentActivity !== undefined ? { contentActivity: ranking.contentActivity } : {}),
+  ...(ranking.relevanceConfidence !== undefined
+    ? { relevanceConfidence: ranking.relevanceConfidence }
+    : {}),
+  ...(ranking.relevanceVetoes !== undefined
+    ? { relevanceVetoes: [...ranking.relevanceVetoes] }
+    : {}),
   ...(profile.externalId !== undefined ? { externalId: profile.externalId } : {}),
   ...(profile.displayName !== undefined ? { displayName: profile.displayName } : {}),
   ...(profile.biography !== undefined ? { biography: profile.biography } : {}),
@@ -151,8 +166,24 @@ export const discoverAccount = internalAction({
         ).pipe(Effect.provide(apifyMarketDataLayer(apifyToken))),
       );
       const now = Date.now();
+      const feedback: ReadonlyArray<{
+        handle: string;
+        feedback: "relevant" | "irrelevant" | "blocked";
+      }> = await ctx.runQuery(internal.market.listCreatorFeedback, {
+        accountId,
+        handles: profiles.map((profile) => profile.handle),
+      });
+      const excludedHandles = new Set(
+        feedback
+          .filter((item) => item.feedback === "irrelevant" || item.feedback === "blocked")
+          .map((item) => item.handle),
+      );
       const candidates = profiles
-        .filter((profile) => eligible(profile, brand.ownHandle, now))
+        .filter(
+          (profile) =>
+            !excludedHandles.has(profile.handle.toLocaleLowerCase()) &&
+            eligible(profile, brand.ownHandle, now),
+        )
         .sort((a, b) => activityScore(b, now) - activityScore(a, now))
         .slice(0, MAX_CANDIDATES_FOR_MODEL);
 
@@ -183,24 +214,14 @@ export const discoverAccount = internalAction({
               (result: ReadonlyArray<RankedCandidate>) => `${result.length} perfis relevantes`,
             );
 
-      const relevant =
-        ranked.length > 0
-          ? ranked
-          : candidates.map((profile) => ({
-              profile,
-              relevanceScore: 0.6,
-              relevanceReason: `Encontrado na busca “${plan.profileQueries[0] ?? plan.category}” e passou pelos filtros de tamanho e atividade.`,
-            }));
-      const selected = [...relevant]
+      const selected = [...ranked]
         .sort((a, b) => {
           const aScore = a.relevanceScore * 0.7 + activityScore(a.profile, now) * 0.3;
           const bScore = b.relevanceScore * 0.7 + activityScore(b.profile, now) * 0.3;
           return bScore - aScore;
         })
         .slice(0, TARGET_CREATORS);
-      const creatorRows = selected.map(({ profile, relevanceScore, relevanceReason }) =>
-        profileInput(profile, relevanceScore, relevanceReason),
-      );
+      const creatorRows = selected.map(({ profile, ...ranking }) => profileInput(profile, ranking));
 
       await ctx.runMutation(internal.market.saveSelectedCreators, {
         accountId,
@@ -252,11 +273,30 @@ export const observeAccount = internalAction({
     const existingByHandle = new Map(creators.map((creator) => [creator.handle, creator]));
     const rows = profiles.map((profile) => {
       const existing = existingByHandle.get(profile.handle.toLocaleLowerCase());
-      return profileInput(
-        profile,
-        existing?.relevanceScore ?? 0,
-        existing?.relevanceReason ?? "Conta monitorada pelo radar.",
-      );
+      return profileInput(profile, {
+        relevanceScore: existing?.relevanceScore ?? 0,
+        relevanceReason: existing?.relevanceReason ?? "Conta monitorada pelo radar.",
+        ...(existing?.topicalOverlap !== undefined
+          ? { topicalOverlap: existing.topicalOverlap }
+          : {}),
+        ...(existing?.audienceOverlap !== undefined
+          ? { audienceOverlap: existing.audienceOverlap }
+          : {}),
+        ...(existing?.offerOverlap !== undefined ? { offerOverlap: existing.offerOverlap } : {}),
+        ...(existing?.geographicOverlap !== undefined
+          ? { geographicOverlap: existing.geographicOverlap }
+          : {}),
+        ...(existing?.languageMatch !== undefined ? { languageMatch: existing.languageMatch } : {}),
+        ...(existing?.contentActivity !== undefined
+          ? { contentActivity: existing.contentActivity }
+          : {}),
+        ...(existing?.relevanceConfidence !== undefined
+          ? { relevanceConfidence: existing.relevanceConfidence }
+          : {}),
+        ...(existing?.relevanceVetoes !== undefined
+          ? { relevanceVetoes: existing.relevanceVetoes }
+          : {}),
+      });
     });
     return (await ctx.runMutation(internal.market.recordObservations, {
       accountId,

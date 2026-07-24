@@ -170,6 +170,14 @@ const selectedCreatorArg = v.object({
   verified: v.boolean(),
   relevanceScore: v.number(),
   relevanceReason: v.string(),
+  topicalOverlap: v.optional(v.number()),
+  audienceOverlap: v.optional(v.number()),
+  offerOverlap: v.optional(v.number()),
+  geographicOverlap: v.optional(v.number()),
+  languageMatch: v.optional(v.number()),
+  contentActivity: v.optional(v.number()),
+  relevanceConfidence: v.optional(v.number()),
+  relevanceVetoes: v.optional(v.array(v.string())),
   latestPosts: v.array(marketPostArg),
 });
 
@@ -186,6 +194,7 @@ export const saveSelectedCreators = internalMutation({
         .unique();
       const { latestPosts: _latestPosts, ...profile } = creator;
       if (existing) {
+        if (existing.feedback === "blocked" || existing.feedback === "irrelevant") continue;
         await ctx.db.patch(existing._id, {
           ...profile,
           handle,
@@ -207,6 +216,22 @@ export const saveSelectedCreators = internalMutation({
       }
     }
     return ids;
+  },
+});
+
+export const listCreatorFeedback = internalQuery({
+  args: { accountId: v.id("accounts"), handles: v.array(v.string()) },
+  handler: async (ctx, { accountId, handles }) => {
+    const rows = [];
+    for (const rawHandle of handles) {
+      const handle = rawHandle.toLocaleLowerCase();
+      const creator = await ctx.db
+        .query("marketCreators")
+        .withIndex("by_account_handle", (q) => q.eq("accountId", accountId).eq("handle", handle))
+        .unique();
+      if (creator?.feedback) rows.push({ handle, feedback: creator.feedback });
+    }
+    return rows;
   },
 });
 
@@ -626,6 +651,26 @@ export const dashboard = query({
         })),
       opportunities: opportunityCards,
     };
+  },
+});
+
+export const setCreatorFeedback = mutation({
+  args: {
+    creatorId: v.id("marketCreators"),
+    feedback: v.union(v.literal("relevant"), v.literal("irrelevant"), v.literal("blocked")),
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, { creatorId, feedback, reason }) => {
+    const creator = await ctx.db.get(creatorId);
+    if (!creator) throw new Error("creator not found");
+    await requireOwnedAccount(ctx, creator.accountId);
+    await ctx.db.patch(creatorId, {
+      feedback,
+      ...(reason?.trim() ? { feedbackReason: reason.trim() } : {}),
+      feedbackAt: Date.now(),
+      status: feedback === "relevant" ? "active" : "rejected",
+      updatedAt: Date.now(),
+    });
   },
 });
 

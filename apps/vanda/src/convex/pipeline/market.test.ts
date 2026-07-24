@@ -1,5 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { detectBreakout } from "./market";
+import { candidatePassesRelevanceGate, detectBreakout, scoreCandidateRelevance } from "./market";
+
+describe("candidate relevance", () => {
+  const strong = {
+    topicalOverlap: 0.95,
+    audienceOverlap: 0.9,
+    offerOverlap: 0.8,
+    geographicOverlap: 1,
+    languageMatch: 1,
+    contentActivity: 0.8,
+    confidence: 0.9,
+    vetoes: [],
+  } as const;
+
+  it("keeps a strongly aligned candidate", () => {
+    expect(scoreCandidateRelevance(strong)).toBeGreaterThan(0.8);
+    expect(candidatePassesRelevanceGate(strong)).toBe(true);
+  });
+
+  it("honors hard vetoes even for a high semantic score", () => {
+    expect(candidatePassesRelevanceGate({ ...strong, vetoes: ["agregador de reposts"] })).toBe(
+      false,
+    );
+  });
+});
 
 describe("detectBreakout", () => {
   it("flags audience-normalized traction", () => {

@@ -333,12 +333,58 @@ export const CandidateRanking = Schema.Struct({
   candidates: Schema.Array(
     Schema.Struct({
       handle: Schema.String,
-      relevant: Schema.Boolean,
-      relevanceScore: Schema.Number,
+      topicalOverlap: Schema.Number,
+      audienceOverlap: Schema.Number,
+      offerOverlap: Schema.Number,
+      geographicOverlap: Schema.Number,
+      languageMatch: Schema.Number,
+      contentActivity: Schema.Number,
+      confidence: Schema.Number,
+      vetoes: Schema.Array(Schema.String),
       reason: Schema.String,
     }),
   ),
 });
+
+export interface CandidateRelevanceDimensions {
+  readonly topicalOverlap: number;
+  readonly audienceOverlap: number;
+  readonly offerOverlap: number;
+  readonly geographicOverlap: number;
+  readonly languageMatch: number;
+  readonly contentActivity: number;
+  readonly confidence: number;
+  readonly vetoes: ReadonlyArray<string>;
+}
+
+export const scoreCandidateRelevance = (input: CandidateRelevanceDimensions): number => {
+  const clamp = (value: number) => Math.max(0, Math.min(1, value));
+  return (
+    clamp(input.topicalOverlap) * 0.3 +
+    clamp(input.audienceOverlap) * 0.2 +
+    clamp(input.offerOverlap) * 0.15 +
+    clamp(input.geographicOverlap) * 0.1 +
+    clamp(input.languageMatch) * 0.1 +
+    clamp(input.contentActivity) * 0.15
+  );
+};
+
+export const candidatePassesRelevanceGate = (input: CandidateRelevanceDimensions): boolean =>
+  input.vetoes.length === 0 && input.confidence >= 0.55 && scoreCandidateRelevance(input) >= 0.65;
+
+export interface RankedMarketProfile {
+  readonly profile: MarketProfile;
+  readonly relevanceScore: number;
+  readonly relevanceReason: string;
+  readonly topicalOverlap: number;
+  readonly audienceOverlap: number;
+  readonly offerOverlap: number;
+  readonly geographicOverlap: number;
+  readonly languageMatch: number;
+  readonly contentActivity: number;
+  readonly relevanceConfidence: number;
+  readonly relevanceVetoes: ReadonlyArray<string>;
+}
 
 const brandPrompt = (brandContext: string): string =>
   `Você está preparando a busca de concorrentes e criadores para uma marca no Instagram. ` +
@@ -388,9 +434,11 @@ const candidatePrompt = (
     .join("\n");
   return (
     `Você seleciona contas pequenas e relevantes para um radar competitivo. Avalie cada perfil ` +
-    `somente pelo material fornecido. relevant=true apenas quando o perfil atua claramente no ` +
-    `mesmo campo da marca. Dê relevanceScore de 0 a 1 e uma razão factual e curta em português. ` +
-    `Preserve exatamente cada handle.\n\nMarca:\n${brandContext}\n\nMercado inferido: ` +
+    `somente pelo material fornecido. Dê notas independentes de 0 a 1 para sobreposição temática, ` +
+    `público, oferta, geografia, idioma e atividade de conteúdo. confidence mede a suficiência da ` +
+    `evidência. Use vetoes para agregadores, reposts, idioma/país incompatível ou campo claramente ` +
+    `diferente. Não preencha uma cota: perfis fracos devem receber notas baixas. Dê uma razão ` +
+    `factual e curta em português e preserve exatamente cada handle.\n\nMarca:\n${brandContext}\n\nMercado inferido: ` +
     `${plan.category}; ${plan.location}; ${plan.language}\n\nPerfis:\n${lines}`
   );
 };
@@ -411,14 +459,42 @@ export const rankCandidates = (
           candidate,
         ]),
       );
-      return profiles.flatMap((profile) => {
+      return profiles.flatMap((profile): ReadonlyArray<RankedMarketProfile> => {
         const ranking = byHandle.get(profile.handle.toLocaleLowerCase());
-        if (!ranking?.relevant) return [];
+        if (!ranking) return [];
+        const clamp = (value: number) => Math.max(0, Math.min(1, value));
+        const topicalOverlap = clamp(ranking.topicalOverlap);
+        const audienceOverlap = clamp(ranking.audienceOverlap);
+        const offerOverlap = clamp(ranking.offerOverlap);
+        const geographicOverlap = clamp(ranking.geographicOverlap);
+        const languageMatch = clamp(ranking.languageMatch);
+        const contentActivity = clamp(ranking.contentActivity);
+        const relevanceConfidence = clamp(ranking.confidence);
+        const dimensions = {
+          topicalOverlap,
+          audienceOverlap,
+          offerOverlap,
+          geographicOverlap,
+          languageMatch,
+          contentActivity,
+          confidence: relevanceConfidence,
+          vetoes: ranking.vetoes,
+        };
+        const relevanceScore = scoreCandidateRelevance(dimensions);
+        if (!candidatePassesRelevanceGate(dimensions)) return [];
         return [
           {
             profile,
-            relevanceScore: Math.max(0, Math.min(1, ranking.relevanceScore)),
+            relevanceScore,
             relevanceReason: ranking.reason,
+            topicalOverlap,
+            audienceOverlap,
+            offerOverlap,
+            geographicOverlap,
+            languageMatch,
+            contentActivity,
+            relevanceConfidence,
+            relevanceVetoes: ranking.vetoes,
           },
         ];
       });
