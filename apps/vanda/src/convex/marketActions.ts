@@ -25,7 +25,7 @@ export const runNow = action({
 /** Owner-triggered retry for one detected or failed opportunity. */
 export const adaptNow = action({
   args: { accountId: v.id("accounts"), opportunityId: v.id("opportunities") },
-  handler: async (ctx, { accountId, opportunityId }): Promise<Id<"posts">> => {
+  handler: async (ctx, { accountId, opportunityId }): Promise<Id<"creativeBriefs"> | null> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
     await ctx.runQuery(internal.market.authorize, {
@@ -44,8 +44,8 @@ export const adaptNow = action({
       });
       if (!qualified) throw new Error("source did not pass the input quality gate");
     }
-    return (await ctx.runAction(internal.marketNode.analyzeOpportunity, {
+    return (await ctx.runAction(internal.marketNode.directOpportunity, {
       opportunityId,
-    })) as Id<"posts">;
+    })) as Id<"creativeBriefs"> | null;
   },
 });

@@ -770,6 +770,19 @@ export const loadCreativeDirectorInput = internalQuery({
   },
 });
 
+export const rejectCreativeDirector = internalMutation({
+  args: { opportunityId: v.id("opportunities"), reason: v.string() },
+  handler: async (ctx, { opportunityId, reason }) => {
+    const opportunity = await ctx.db.get(opportunityId);
+    if (!opportunity) throw new Error("opportunity not found");
+    await ctx.db.patch(opportunityId, {
+      status: "rejected",
+      creativeRejectionReason: reason,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 export const saveCreativeAnalysis = internalMutation({
   args: {
     opportunityId: v.id("opportunities"),

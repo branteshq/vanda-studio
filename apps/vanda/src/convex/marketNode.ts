@@ -7,6 +7,21 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
 import { decryptInstagramToken } from "./instagramToken";
 import {
+  analyzeSourceMechanism,
+  generateCreativeDirections,
+  reviewCreativeBrief,
+  scoreCreativeDirection,
+  selectCreativeBrief,
+  validateCreativePackage,
+  validateDirectionSet,
+  type BriefReview,
+  type BriefSelection,
+  type CreativeDirection,
+  type CreativeDirectorBrand,
+  type CreativeDirectorSource,
+  type MechanismAnalysis,
+} from "./pipeline/creativeDirector";
+import {
   MarketDataProvider,
   adaptMarketOpportunity,
   apifyMarketDataLayer,
@@ -18,7 +33,12 @@ import {
   type RankedMarketProfile,
   type ReelDetail,
 } from "./pipeline/market";
-import { languageModelLayer, PIPELINE_MODELS, PROMPT_VERSIONS } from "./pipeline/liveModel";
+import {
+  languageModelLayer,
+  PIPELINE_MODELS,
+  PROMPT_VERSIONS,
+  type Mutable,
+} from "./pipeline/liveModel";
 import { graphGet } from "./pipeline/igGraph";
 import { isUsableSemanticText } from "./pipeline/inputQuality";
 import { runTracked } from "./pipeline/liveTelemetry";
@@ -381,7 +401,7 @@ export const qualifyOpportunity = internalAction({
     }
     if (source.dossier?.status === "ready") {
       if (analyzeAfter)
-        await ctx.scheduler.runAfter(0, internal.marketNode.analyzeOpportunity, { opportunityId });
+        await ctx.scheduler.runAfter(0, internal.marketNode.directOpportunity, { opportunityId });
       return true;
     }
 
@@ -481,8 +501,225 @@ export const qualifyOpportunity = internalAction({
         : {}),
     });
     if (qualification.decision === "qualified" && analyzeAfter)
-      await ctx.scheduler.runAfter(0, internal.marketNode.analyzeOpportunity, { opportunityId });
+      await ctx.scheduler.runAfter(0, internal.marketNode.directOpportunity, { opportunityId });
     return qualification.decision === "qualified";
+  },
+});
+
+/** Turn one qualified source into an independently reviewed, production-ready creative brief. */
+export const directOpportunity = internalAction({
+  args: { opportunityId: v.id("opportunities") },
+  handler: async (ctx, { opportunityId }): Promise<Id<"creativeBriefs"> | null> => {
+    const modelKey = process.env.OPENROUTER_API_KEY;
+    if (!modelKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
+    const input: {
+      opportunity: Doc<"opportunities">;
+      post: Doc<"marketPosts">;
+      creator: Doc<"marketCreators"> | null;
+      dossier: Doc<"sourceDossiers">;
+      brandSnapshot: Doc<"brandSnapshots">;
+      brandFacts: ReadonlyArray<{ id: string; kind: string; text: string }>;
+      referenceAssetCount: number;
+    } | null = await ctx.runQuery(internal.market.loadCreativeDirectorInput, { opportunityId });
+    if (!input) throw new Error("qualified creative input not found");
+    if (input.opportunity.creativeBriefId) return input.opportunity.creativeBriefId;
+    if (input.opportunity.status !== "ready_for_analysis" && input.opportunity.status !== "failed")
+      throw new Error("opportunity is not ready for creative direction");
+    if (input.dossier.status !== "ready") throw new Error("source dossier is not ready");
+
+    const source: CreativeDirectorSource = {
+      triggerReason: input.opportunity.triggerReason,
+      frameEvidence: input.dossier.frameEvidence ?? [],
+      ...(input.creator?.handle ? { creatorHandle: input.creator.handle } : {}),
+      ...((input.dossier.caption ?? input.post.caption)
+        ? { sourceCaption: input.dossier.caption ?? input.post.caption }
+        : {}),
+      ...(input.dossier.transcript ? { transcript: input.dossier.transcript } : {}),
+      ...(input.dossier.visualDescription
+        ? { visualDescription: input.dossier.visualDescription }
+        : {}),
+    };
+    const brand: CreativeDirectorBrand = {
+      context: input.brandSnapshot.context,
+      facts: input.brandFacts,
+      referenceAssetCount: input.referenceAssetCount,
+    };
+    const allowedBrandFactIds = new Set(input.brandFacts.map((fact) => fact.id));
+
+    try {
+      await ctx.runMutation(internal.market.setOpportunityStatus, {
+        opportunityId,
+        status: "analyzing",
+      });
+      const analysis: MechanismAnalysis = await runTracked(
+        ctx,
+        {
+          accountId: input.opportunity.accountId,
+          stage: "market_mechanism",
+          model: PIPELINE_MODELS.marketMechanism,
+          promptVersion: PROMPT_VERSIONS.marketMechanism,
+          inputIds: [input.post.externalPostId, input.dossier._id],
+        },
+        () =>
+          Effect.runPromise(
+            analyzeSourceMechanism({ source }).pipe(
+              Effect.provide(languageModelLayer(modelKey, PIPELINE_MODELS.marketMechanism)),
+            ),
+          ),
+        (result: MechanismAnalysis) =>
+          result.adaptable ? `${result.reusableMechanisms.length} mecanismos` : "fonte rejeitada",
+      );
+      const analysisId: Id<"creativeAnalyses"> = await ctx.runMutation(
+        internal.market.saveCreativeAnalysis,
+        {
+          opportunityId,
+          model: PIPELINE_MODELS.marketMechanism,
+          promptVersion: PROMPT_VERSIONS.marketMechanism,
+          ...(analysis as Mutable<MechanismAnalysis>),
+        },
+      );
+      if (!analysis.adaptable) return null;
+
+      const directionSet = await runTracked(
+        ctx,
+        {
+          accountId: input.opportunity.accountId,
+          stage: "market_directions",
+          model: PIPELINE_MODELS.marketDirections,
+          promptVersion: PROMPT_VERSIONS.marketDirections,
+          inputIds: [analysisId, input.brandSnapshot._id],
+        },
+        () =>
+          Effect.runPromise(
+            generateCreativeDirections({ source, analysis, brand }).pipe(
+              Effect.provide(languageModelLayer(modelKey, PIPELINE_MODELS.marketDirections)),
+            ),
+          ),
+        (result) => `${result.directions.length} direções`,
+      );
+      const directionIssues = validateDirectionSet(directionSet.directions);
+      if (directionSet.directions.length !== 3) {
+        await ctx.runMutation(internal.market.rejectCreativeDirector, {
+          opportunityId,
+          reason: directionIssues.join(" · ") || "A diretora não produziu três direções.",
+        });
+        return null;
+      }
+      const scoredDirections = directionSet.directions.map((direction) => ({
+        ...direction,
+        totalScore: scoreCreativeDirection(direction),
+      }));
+      const directionIds: Array<Id<"creativeDirections">> = await ctx.runMutation(
+        internal.market.saveCreativeDirections,
+        {
+          opportunityId,
+          analysisId,
+          model: PIPELINE_MODELS.marketDirections,
+          promptVersion: PROMPT_VERSIONS.marketDirections,
+          directions: scoredDirections as Mutable<typeof scoredDirections>,
+        },
+      );
+
+      const selection: BriefSelection = await runTracked(
+        ctx,
+        {
+          accountId: input.opportunity.accountId,
+          stage: "market_selection",
+          model: PIPELINE_MODELS.marketSelection,
+          promptVersion: PROMPT_VERSIONS.marketSelection,
+          inputIds: directionIds,
+        },
+        () =>
+          Effect.runPromise(
+            selectCreativeBrief({ analysis, directions: scoredDirections, brand }).pipe(
+              Effect.provide(languageModelLayer(modelKey, PIPELINE_MODELS.marketSelection)),
+            ),
+          ),
+        (result: BriefSelection) => `direção ${result.selectedDirectionNumber}`,
+      );
+      const selectedIndex = selection.selectedDirectionNumber - 1;
+      const selectedDirection = scoredDirections[selectedIndex];
+      const selectedDirectionId = directionIds[selectedIndex];
+      if (
+        !Number.isInteger(selectedIndex) ||
+        selectedIndex < 0 ||
+        selectedIndex >= 3 ||
+        !selectedDirection ||
+        !selectedDirectionId
+      ) {
+        await ctx.runMutation(internal.market.rejectCreativeDirector, {
+          opportunityId,
+          reason: "A seleção retornou uma direção inexistente.",
+        });
+        return null;
+      }
+
+      await ctx.runMutation(internal.market.setOpportunityStatus, {
+        opportunityId,
+        status: "reviewing_brief",
+      });
+      const review: BriefReview = await runTracked(
+        ctx,
+        {
+          accountId: input.opportunity.accountId,
+          stage: "market_brief_review",
+          model: PIPELINE_MODELS.marketBriefReview,
+          promptVersion: PROMPT_VERSIONS.marketBriefReview,
+          inputIds: [selectedDirectionId, analysisId],
+        },
+        () =>
+          Effect.runPromise(
+            reviewCreativeBrief({
+              source,
+              analysis,
+              direction: selectedDirection,
+              brief: selection.brief,
+              brand,
+            }).pipe(
+              Effect.provide(languageModelLayer(modelKey, PIPELINE_MODELS.marketBriefReview)),
+            ),
+          ),
+        (result: BriefReview) => result.decision,
+      );
+      const validation = validateCreativePackage({
+        source,
+        directions: scoredDirections,
+        selection,
+        review,
+        allowedBrandFactIds,
+        referenceAssetCount: input.referenceAssetCount,
+      });
+      return await ctx.runMutation(internal.market.saveCreativeBrief, {
+        opportunityId,
+        analysisId,
+        selectedDirectionId,
+        selectionReason: selection.selectionReason,
+        tradeoffs: [...selection.tradeoffs],
+        rejectedDirectionReasons: [...selection.rejectedDirectionReasons],
+        model: PIPELINE_MODELS.marketSelection,
+        promptVersion: PROMPT_VERSIONS.marketSelection,
+        reviewModel: PIPELINE_MODELS.marketBriefReview,
+        reviewPromptVersion: PROMPT_VERSIONS.marketBriefReview,
+        deterministicIssues: [...validation.issues],
+        sourceSimilarity: validation.sourceSimilarity,
+        ...(selection.brief as Mutable<BriefSelection["brief"]>),
+        reviewDecision: review.decision,
+        reviewSummary: review.summary,
+        brandGrounding: review.brandGrounding.map((item) => ({ ...item })),
+        unsupportedClaims: [...review.unsupportedClaims],
+        similarityRisks: [...review.similarityRisks],
+        missingAssets: [...review.missingAssets],
+        reviewIssues: [...review.issues],
+        reviewConfidence: review.confidence,
+      });
+    } catch (error) {
+      await ctx.runMutation(internal.market.setOpportunityStatus, {
+        opportunityId,
+        status: "failed",
+        lastError: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
   },
 });
 

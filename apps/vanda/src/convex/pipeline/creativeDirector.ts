@@ -341,6 +341,7 @@ export const validateCreativePackage = (input: {
   readonly selection: BriefSelection;
   readonly review: BriefReview;
   readonly allowedBrandFactIds: ReadonlySet<string>;
+  readonly referenceAssetCount: number;
 }): CreativePackageValidation => {
   const issues = [...validateDirectionSet(input.directions)];
   const selectedIndex = input.selection.selectedDirectionNumber - 1;
@@ -349,8 +350,22 @@ export const validateCreativePackage = (input: {
   if (input.selection.brief.narrativeBeats.length < 3)
     issues.push("brief_requires_at_least_three_beats");
   if (input.selection.brief.narrativeBeats.length > 7) issues.push("brief_exceeds_seven_beats");
+  for (const direction of input.directions) {
+    for (const factId of direction.brandFactIds)
+      if (!input.allowedBrandFactIds.has(factId)) issues.push(`unknown_direction_fact:${factId}`);
+    if (
+      input.referenceAssetCount === 0 &&
+      direction.requiredAssets.some((asset) => asset.strategy === "available")
+    )
+      issues.push("direction_claims_unavailable_asset");
+  }
   for (const factId of input.selection.brief.brandFactIds)
     if (!input.allowedBrandFactIds.has(factId)) issues.push(`unknown_brand_fact:${factId}`);
+  if (
+    input.referenceAssetCount === 0 &&
+    input.selection.brief.assetRequirements.some((asset) => asset.strategy === "available")
+  )
+    issues.push("brief_claims_unavailable_asset");
   for (const grounding of input.review.brandGrounding)
     if (!input.allowedBrandFactIds.has(grounding.factId))
       issues.push(`unknown_review_fact:${grounding.factId}`);

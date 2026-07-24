@@ -135,6 +135,7 @@ describe("creative director validation", () => {
         selection,
         review: approvedReview,
         allowedBrandFactIds: new Set(["fact-1"]),
+        referenceAssetCount: 0,
       }),
     ).toMatchObject({ valid: true });
   });
@@ -153,6 +154,7 @@ describe("creative director validation", () => {
         unsupportedClaims: ["resultado garantido"],
       },
       allowedBrandFactIds: new Set(["fact-1"]),
+      referenceAssetCount: 0,
     });
     expect(result.valid).toBe(false);
     expect(result.issues).toEqual(
