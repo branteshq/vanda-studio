@@ -5,6 +5,7 @@ import * as Effect from "effect/Effect";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
+import { decryptInstagramToken } from "./instagramToken";
 import {
   MarketDataProvider,
   adaptMarketOpportunity,
@@ -17,6 +18,7 @@ import {
   type ReelDetail,
 } from "./pipeline/market";
 import { languageModelLayer, PIPELINE_MODELS, PROMPT_VERSIONS } from "./pipeline/liveModel";
+import { graphGet } from "./pipeline/igGraph";
 import { runTracked } from "./pipeline/liveTelemetry";
 
 const ACTIVE_WINDOW_MS = 1000 * 60 * 60 * 24 * 180;
@@ -380,6 +382,52 @@ export const analyzeOpportunity = internalAction({
   },
 });
 
+const metricNumber = (value: unknown, key: string): number | undefined => {
+  if (typeof value !== "object" || value === null) return undefined;
+  const metric = (value as Record<string, unknown>)[key];
+  return typeof metric === "number" ? metric : undefined;
+};
+
+/** Record lightweight official metrics for adaptations that Instagram has published. */
+export const measurePublications = internalAction({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }): Promise<number> => {
+    const publications: ReadonlyArray<{
+      opportunityId: Id<"opportunities">;
+      scheduledPostId: Id<"scheduledPosts">;
+      externalPostId: string;
+    }> = await ctx.runQuery(internal.market.listPublishedForMeasurement, { accountId });
+    if (publications.length === 0) return 0;
+    const connection = await ctx.runQuery(internal.observe.getAccountConnection, { accountId });
+    if (!connection) return 0;
+    const config = { igUserId: connection.igUserId, token: decryptInstagramToken(connection) };
+    let recorded = 0;
+    for (const publication of publications) {
+      try {
+        const metrics = await graphGet(
+          config,
+          `/${publication.externalPostId}`,
+          "like_count,comments_count,view_count",
+        );
+        const views = metricNumber(metrics, "view_count");
+        const likes = metricNumber(metrics, "like_count");
+        const comments = metricNumber(metrics, "comments_count");
+        await ctx.runMutation(internal.market.recordPublicationSnapshot, {
+          opportunityId: publication.opportunityId,
+          scheduledPostId: publication.scheduledPostId,
+          ...(views !== undefined ? { views } : {}),
+          ...(likes !== undefined ? { likes } : {}),
+          ...(comments !== undefined ? { comments } : {}),
+        });
+        recorded += 1;
+      } catch (error) {
+        console.warn(`owned metric read failed for ${publication.externalPostId}`, error);
+      }
+    }
+    return recorded;
+  },
+});
+
 /** Cron target: enqueue one full market pass for every onboarded account. */
 export const runAllAccounts = internalAction({
   args: {},
@@ -424,6 +472,7 @@ export const runAccount = internalAction({
       for (const opportunityId of opportunitiesToAdapt) {
         await ctx.scheduler.runAfter(0, internal.marketNode.analyzeOpportunity, { opportunityId });
       }
+      await ctx.runAction(internal.marketNode.measurePublications, { accountId });
       await ctx.runMutation(internal.market.updateRun, {
         runId,
         status: "succeeded",

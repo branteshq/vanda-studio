@@ -236,26 +236,31 @@ const apifyRun = <A>(
 export const apifyMarketDataLayer = (token: string): Layer.Layer<MarketDataProvider> =>
   Layer.succeed(MarketDataProvider, {
     searchProfiles: (queries) =>
-      apifyRun(
-        token,
-        PROFILE_ACTOR,
-        "profile_search",
-        {
-          directUrls: [],
-          search: queries[0] ?? "criador",
-          searchType: "user",
-          searchLimit: 20,
-          resultsType: "details",
-          resultsLimit: 20,
-          addParentData: false,
-          addProfileStatistics: true,
-          proxyConfiguration: { useApifyProxy: true },
-        },
-        ApifyProfiles,
+      Effect.forEach(
+        queries.slice(0, 5),
+        (query) =>
+          apifyRun(
+            token,
+            PROFILE_ACTOR,
+            `profile_search:${query}`,
+            {
+              directUrls: [],
+              search: query,
+              searchType: "user",
+              searchLimit: 20,
+              resultsType: "details",
+              resultsLimit: 20,
+              addParentData: false,
+              addProfileStatistics: true,
+              proxyConfiguration: { useApifyProxy: true },
+            },
+            ApifyProfiles,
+          ),
+        { concurrency: 5 },
       ).pipe(
-        Effect.map((items) => {
+        Effect.map((groups) => {
           const byHandle = new Map<string, MarketProfile>();
-          for (const raw of items) {
+          for (const raw of groups.flat()) {
             const profile = normalizeProfile(raw);
             if (profile) byHandle.set(profile.handle.toLocaleLowerCase(), profile);
           }
@@ -340,7 +345,7 @@ const brandPrompt = (brandContext: string): string =>
   `Identifique a categoria principal, localização/mercado e idioma. Gere exatamente 5 consultas ` +
   `genéricas de 1 a 4 palavras para a busca do Instagram, usando nomes de profissão, especialidade ` +
   `e sinônimos locais. Nunca invente usernames, nunca use @ e não inclua as palavras perfil, ` +
-  `Instagram ou pequena empresa. Exemplo válido: \"cirurgião bucomaxilofacial\". As buscas devem ` +
+  `Instagram ou pequena empresa. Exemplo válido: "cirurgião bucomaxilofacial". As buscas devem ` +
   `encontrar profissionais ou negócios que publiquem conteúdo no mesmo campo. Responda em ` +
   `português do Brasil.\n\nContexto confirmado da marca:\n${brandContext}`;
 

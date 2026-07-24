@@ -442,6 +442,54 @@ export const approveOpportunity = mutation({
   },
 });
 
+export const listPublishedForMeasurement = internalQuery({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }) => {
+    const rows = [];
+    for (const status of ["publishing", "published", "measuring"] as const) {
+      const opportunities = await ctx.db
+        .query("opportunities")
+        .withIndex("by_account_status", (q) => q.eq("accountId", accountId).eq("status", status))
+        .collect();
+      for (const opportunity of opportunities) {
+        if (!opportunity.scheduledPostId) continue;
+        const scheduled = await ctx.db.get(opportunity.scheduledPostId);
+        if (scheduled?.status === "published" && scheduled.externalPostId)
+          rows.push({
+            opportunityId: opportunity._id,
+            scheduledPostId: scheduled._id,
+            externalPostId: scheduled.externalPostId,
+          });
+      }
+    }
+    return rows;
+  },
+});
+
+export const recordPublicationSnapshot = internalMutation({
+  args: {
+    opportunityId: v.id("opportunities"),
+    scheduledPostId: v.id("scheduledPosts"),
+    views: v.optional(v.number()),
+    likes: v.optional(v.number()),
+    comments: v.optional(v.number()),
+  },
+  handler: async (ctx, { opportunityId, scheduledPostId, views, likes, comments }) => {
+    const opportunity = await ctx.db.get(opportunityId);
+    if (!opportunity) return;
+    await ctx.db.insert("metricSnapshots", {
+      accountId: opportunity.accountId,
+      subjectType: "publication",
+      scheduledPostId,
+      observedAt: Date.now(),
+      ...(views !== undefined ? { views } : {}),
+      ...(likes !== undefined ? { likes } : {}),
+      ...(comments !== undefined ? { comments } : {}),
+    });
+    await ctx.db.patch(opportunityId, { status: "measuring", updatedAt: Date.now() });
+  },
+});
+
 export const dashboard = query({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
@@ -487,6 +535,9 @@ export const dashboard = query({
           const creator = post
             ? (creatorById.get(post.creatorId) ?? (await ctx.db.get(post.creatorId)))
             : null;
+          const scheduled = opportunity.scheduledPostId
+            ? await ctx.db.get(opportunity.scheduledPostId)
+            : null;
           const snapshots = await ctx.db
             .query("metricSnapshots")
             .withIndex("by_market_post_observed", (q) =>
@@ -494,11 +545,22 @@ export const dashboard = query({
             )
             .order("desc")
             .take(1);
+          const publicationSnapshots = opportunity.scheduledPostId
+            ? await ctx.db
+                .query("metricSnapshots")
+                .withIndex("by_publication_observed", (q) =>
+                  q.eq("scheduledPostId", opportunity.scheduledPostId),
+                )
+                .order("desc")
+                .take(1)
+            : [];
           return {
             ...opportunity,
             post,
             creator,
             metrics: snapshots[0] ?? null,
+            publicationMetrics: publicationSnapshots[0] ?? null,
+            scheduled,
           };
         }),
     );
@@ -511,7 +573,7 @@ export const dashboard = query({
         opportunities: opportunityCards.length,
         ready: opportunityCards.filter((item) => item.status === "awaiting_approval").length,
       },
-      creators: creators
+      creators: [...creators]
         .sort((a, b) => b.relevanceScore - a.relevanceScore)
         .map((creator) => ({
           ...creator,
