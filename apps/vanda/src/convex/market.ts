@@ -164,6 +164,111 @@ const marketPostArg = v.object({
   comments: v.optional(v.number()),
 });
 
+const assetRequirementArg = v.object({
+  kind: v.string(),
+  description: v.string(),
+  strategy: v.union(
+    v.literal("available"),
+    v.literal("generate"),
+    v.literal("needs_owner"),
+    v.literal("not_needed"),
+  ),
+});
+
+const creativeAnalysisArg = {
+  sourceSummary: v.string(),
+  hook: v.object({ type: v.string(), mechanism: v.string(), evidence: v.string() }),
+  tension: v.string(),
+  audiencePromise: v.string(),
+  narrativeBeats: v.array(v.object({ role: v.string(), description: v.string() })),
+  proof: v.string(),
+  payoff: v.string(),
+  callToAction: v.string(),
+  pacing: v.object({
+    tempo: v.string(),
+    progression: v.string(),
+    patternInterrupts: v.array(v.string()),
+  }),
+  visualGrammar: v.object({
+    composition: v.string(),
+    motion: v.string(),
+    textTreatment: v.string(),
+    recurringDevices: v.array(v.string()),
+  }),
+  reusableMechanisms: v.array(v.string()),
+  creatorSpecificElements: v.array(v.string()),
+  performanceHypotheses: v.array(
+    v.object({ hypothesis: v.string(), evidence: v.array(v.string()), confidence: v.number() }),
+  ),
+  uncertainties: v.array(v.string()),
+  adaptable: v.boolean(),
+  rejectionReason: v.string(),
+  confidence: v.number(),
+};
+
+const creativeDirectionArg = v.object({
+  title: v.string(),
+  concept: v.string(),
+  objective: v.string(),
+  targetAudience: v.string(),
+  angle: v.string(),
+  hook: v.string(),
+  narrativeArc: v.array(v.string()),
+  visualDirection: v.string(),
+  callToAction: v.string(),
+  brandFactIds: v.array(v.string()),
+  requiredAssets: v.array(assetRequirementArg),
+  retainedMechanisms: v.array(v.string()),
+  avoidedSourceElements: v.array(v.string()),
+  brandFitScore: v.number(),
+  evidenceFitScore: v.number(),
+  noveltyScore: v.number(),
+  feasibilityScore: v.number(),
+  riskScore: v.number(),
+  totalScore: v.number(),
+});
+
+const creativeBriefArg = {
+  title: v.string(),
+  objective: v.string(),
+  targetAudience: v.string(),
+  format: v.literal("carousel"),
+  coreMessage: v.string(),
+  audiencePromise: v.string(),
+  angle: v.string(),
+  hook: v.string(),
+  narrativeBeats: v.array(
+    v.object({
+      position: v.number(),
+      role: v.string(),
+      intent: v.string(),
+      keyMessage: v.string(),
+      visualInstruction: v.string(),
+    }),
+  ),
+  visualSystem: v.string(),
+  tone: v.array(v.string()),
+  callToAction: v.string(),
+  brandFactIds: v.array(v.string()),
+  sourceMechanisms: v.array(v.string()),
+  excludedSourceElements: v.array(v.string()),
+  assetRequirements: v.array(assetRequirementArg),
+  restrictionsApplied: v.array(v.string()),
+  productionNotes: v.array(v.string()),
+  confidence: v.number(),
+};
+
+const briefReviewArg = {
+  reviewDecision: v.union(v.literal("approved"), v.literal("rejected")),
+  reviewSummary: v.string(),
+  brandGrounding: v.array(v.object({ factId: v.string(), usage: v.string() })),
+  unsupportedClaims: v.array(v.string()),
+  similarityRisks: v.array(v.string()),
+  missingAssets: v.array(v.string()),
+  reviewIssues: v.array(v.string()),
+  reviewConfidence: v.number(),
+};
+
 const selectedCreatorArg = v.object({
   externalId: v.optional(v.string()),
   handle: v.string(),
@@ -625,6 +730,208 @@ export const completeSourceQualification = internalMutation({
       updatedAt: now,
     });
     return { decision: assessment.decision, dossierId, qualityScore: assessment.qualityScore };
+  },
+});
+
+export const loadCreativeDirectorInput = internalQuery({
+  args: { opportunityId: v.id("opportunities") },
+  handler: async (ctx, { opportunityId }) => {
+    const opportunity = await ctx.db.get(opportunityId);
+    if (!opportunity) return null;
+    const post = await ctx.db.get(opportunity.marketPostId);
+    if (!post) return null;
+    const creator = await ctx.db.get(post.creatorId);
+    const dossier = opportunity.dossierId ? await ctx.db.get(opportunity.dossierId) : null;
+    const brandSnapshot = opportunity.brandSnapshotId
+      ? await ctx.db.get(opportunity.brandSnapshotId)
+      : null;
+    if (!dossier || !brandSnapshot) return null;
+    const facts = [];
+    for (const canonId of brandSnapshot.canonIds) {
+      const fact = await ctx.db.get(canonId);
+      if (fact?.confirmedByOwner)
+        facts.push({ id: String(fact._id), kind: fact.kind, text: fact.text });
+    }
+    const referenceAssets = (
+      await ctx.db
+        .query("images")
+        .withIndex("by_account", (q) => q.eq("accountId", opportunity.accountId))
+        .collect()
+    ).filter((image) => image.purpose === "reference");
+    return {
+      opportunity,
+      post,
+      creator,
+      dossier,
+      brandSnapshot,
+      brandFacts: facts,
+      referenceAssetCount: referenceAssets.length,
+    };
+  },
+});
+
+export const saveCreativeAnalysis = internalMutation({
+  args: {
+    opportunityId: v.id("opportunities"),
+    model: v.string(),
+    promptVersion: v.string(),
+    ...creativeAnalysisArg,
+  },
+  handler: async (ctx, { opportunityId, ...analysis }) => {
+    const opportunity = await ctx.db.get(opportunityId);
+    if (!opportunity?.dossierId) throw new Error("qualified opportunity not found");
+    const now = Date.now();
+    const analysisId = await ctx.db.insert("creativeAnalyses", {
+      accountId: opportunity.accountId,
+      opportunityId,
+      dossierId: opportunity.dossierId,
+      status: analysis.adaptable ? "accepted" : "rejected",
+      ...analysis,
+      createdAt: now,
+    });
+    await ctx.db.patch(opportunityId, {
+      creativeAnalysisId: analysisId,
+      status: analysis.adaptable ? "directing" : "rejected",
+      ...(analysis.adaptable
+        ? { creativeRejectionReason: undefined }
+        : { creativeRejectionReason: analysis.rejectionReason || "Fonte sem adaptação honesta." }),
+      updatedAt: now,
+    });
+    return analysisId;
+  },
+});
+
+export const saveCreativeDirections = internalMutation({
+  args: {
+    opportunityId: v.id("opportunities"),
+    analysisId: v.id("creativeAnalyses"),
+    model: v.string(),
+    promptVersion: v.string(),
+    directions: v.array(creativeDirectionArg),
+  },
+  handler: async (ctx, { opportunityId, analysisId, model, promptVersion, directions }) => {
+    const opportunity = await ctx.db.get(opportunityId);
+    const analysis = await ctx.db.get(analysisId);
+    if (!opportunity || !analysis || analysis.opportunityId !== opportunityId)
+      throw new Error("creative analysis mismatch");
+    if (directions.length !== 3) throw new Error("exactly three directions are required");
+    const now = Date.now();
+    const ids = [];
+    for (const [index, direction] of directions.entries())
+      ids.push(
+        await ctx.db.insert("creativeDirections", {
+          accountId: opportunity.accountId,
+          opportunityId,
+          analysisId,
+          ordinal: index + 1,
+          ...direction,
+          model,
+          promptVersion,
+          createdAt: now,
+        }),
+      );
+    await ctx.db.patch(opportunityId, {
+      creativeDirectionIds: ids,
+      status: "selecting_direction",
+      updatedAt: now,
+    });
+    return ids;
+  },
+});
+
+export const saveCreativeBrief = internalMutation({
+  args: {
+    opportunityId: v.id("opportunities"),
+    analysisId: v.id("creativeAnalyses"),
+    selectedDirectionId: v.id("creativeDirections"),
+    selectionReason: v.string(),
+    tradeoffs: v.array(v.string()),
+    rejectedDirectionReasons: v.array(v.string()),
+    model: v.string(),
+    promptVersion: v.string(),
+    reviewModel: v.string(),
+    reviewPromptVersion: v.string(),
+    deterministicIssues: v.array(v.string()),
+    sourceSimilarity: v.number(),
+    ...creativeBriefArg,
+    ...briefReviewArg,
+  },
+  handler: async (ctx, args) => {
+    const opportunity = await ctx.db.get(args.opportunityId);
+    const analysis = await ctx.db.get(args.analysisId);
+    const direction = await ctx.db.get(args.selectedDirectionId);
+    if (
+      !opportunity ||
+      !analysis ||
+      !direction ||
+      analysis.opportunityId !== opportunity._id ||
+      direction.opportunityId !== opportunity._id
+    )
+      throw new Error("creative package mismatch");
+    const ready = args.reviewDecision === "approved" && args.deterministicIssues.length === 0;
+    const now = Date.now();
+    const briefId = await ctx.db.insert("creativeBriefs", {
+      accountId: opportunity.accountId,
+      opportunityId: opportunity._id,
+      analysisId: analysis._id,
+      selectedDirectionId: direction._id,
+      status: ready ? "ready" : "rejected",
+      selectionReason: args.selectionReason,
+      tradeoffs: args.tradeoffs,
+      rejectedDirectionReasons: args.rejectedDirectionReasons,
+      title: args.title,
+      objective: args.objective,
+      targetAudience: args.targetAudience,
+      format: args.format,
+      coreMessage: args.coreMessage,
+      audiencePromise: args.audiencePromise,
+      angle: args.angle,
+      hook: args.hook,
+      narrativeBeats: args.narrativeBeats,
+      visualSystem: args.visualSystem,
+      tone: args.tone,
+      callToAction: args.callToAction,
+      brandFactIds: args.brandFactIds,
+      sourceMechanisms: args.sourceMechanisms,
+      excludedSourceElements: args.excludedSourceElements,
+      assetRequirements: args.assetRequirements,
+      restrictionsApplied: args.restrictionsApplied,
+      productionNotes: args.productionNotes,
+      confidence: args.confidence,
+      reviewDecision: args.reviewDecision,
+      reviewSummary: args.reviewSummary,
+      brandGrounding: args.brandGrounding,
+      unsupportedClaims: args.unsupportedClaims,
+      similarityRisks: args.similarityRisks,
+      missingAssets: args.missingAssets,
+      reviewIssues: args.reviewIssues,
+      reviewConfidence: args.reviewConfidence,
+      deterministicIssues: args.deterministicIssues,
+      sourceSimilarity: args.sourceSimilarity,
+      model: args.model,
+      promptVersion: args.promptVersion,
+      reviewModel: args.reviewModel,
+      reviewPromptVersion: args.reviewPromptVersion,
+      createdAt: now,
+    });
+    const rejectionReason = [
+      args.reviewSummary,
+      ...args.deterministicIssues,
+      ...args.unsupportedClaims,
+      ...args.similarityRisks,
+      ...args.reviewIssues,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    await ctx.db.patch(opportunity._id, {
+      creativeBriefId: briefId,
+      status: ready ? "ready_for_production" : "rejected",
+      ...(ready
+        ? { creativeRejectionReason: undefined }
+        : { creativeRejectionReason: rejectionReason || "Brief reprovado na revisão." }),
+      updatedAt: now,
+    });
+    return briefId;
   },
 });
 
