@@ -111,6 +111,18 @@ const reviewArg = {
   reviewConfidence: v.number(),
 };
 
+const newestFirst = <Item extends { readonly updatedAt: number }>(
+  items: ReadonlyArray<Item>,
+): Array<Item> => {
+  const sorted: Array<Item> = [];
+  for (const item of items) {
+    let index = 0;
+    while (index < sorted.length && sorted[index]!.updatedAt >= item.updatedAt) index += 1;
+    sorted.splice(index, 0, item);
+  }
+  return sorted;
+};
+
 const productionMetadataArg = {
   deterministicIssues: v.array(v.string()),
   deterministicWarnings: v.array(v.string()),
@@ -813,7 +825,7 @@ export const gallery = query({
           updatedAt: image.createdAt,
         })),
     );
-    return [...projectItems, ...postItems, ...imageItems].sort((a, b) => b.updatedAt - a.updatedAt);
+    return newestFirst([...projectItems, ...postItems, ...imageItems]);
   },
 });
 

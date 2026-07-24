@@ -208,7 +208,7 @@ describe("content studio persistence", () => {
       style: original.style,
       brandFactIds: original.brandFactIds,
       slides: original.slides.map((slide, index) =>
-        index === 0 ? { ...slide, headline: "Nova abertura" } : slide,
+        index === 0 ? Object.assign({}, slide, { headline: "Nova abertura" }) : slide,
       ),
     });
     const state = await t.run(async (ctx) => ({
