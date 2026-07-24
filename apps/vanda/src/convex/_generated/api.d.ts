@@ -19,6 +19,7 @@ import type * as brandProfileNode from "../brandProfileNode.js";
 import type * as consolidate from "../consolidate.js";
 import type * as consolidateAction from "../consolidateAction.js";
 import type * as contentStudio from "../contentStudio.js";
+import type * as contentStudioActions from "../contentStudioActions.js";
 import type * as contentStudioNode from "../contentStudioNode.js";
 import type * as create from "../create.js";
 import type * as crons from "../crons.js";
@@ -100,6 +101,7 @@ declare const fullApi: ApiFromModules<{
   consolidate: typeof consolidate;
   consolidateAction: typeof consolidateAction;
   contentStudio: typeof contentStudio;
+  contentStudioActions: typeof contentStudioActions;
   contentStudioNode: typeof contentStudioNode;
   create: typeof create;
   crons: typeof crons;

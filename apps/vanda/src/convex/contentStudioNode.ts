@@ -4,7 +4,7 @@ import { v } from "convex/values";
 import * as Effect from "effect/Effect";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { action, type ActionCtx } from "./_generated/server";
+import { action, internalAction, type ActionCtx } from "./_generated/server";
 import {
   type CarouselDocumentPlan,
   type CarouselDocumentReview,
@@ -115,10 +115,9 @@ const saveGeneratedDocument = async (input: {
     reviewPromptVersion: PROMPT_VERSIONS.studioCarouselReview,
   });
 
-export const createFromBrief = action({
+export const createFromBriefInternal = internalAction({
   args: { creativeBriefId: v.id("creativeBriefs"), retry: v.optional(v.boolean()) },
   handler: async (ctx, { creativeBriefId, retry }): Promise<Id<"contentProjects">> => {
-    await ctx.runQuery(internal.contentStudio.requireBriefOwner, { creativeBriefId });
     const claim = await ctx.runMutation(internal.contentStudio.claimBriefPlanning, {
       creativeBriefId,
       retry: retry ?? false,

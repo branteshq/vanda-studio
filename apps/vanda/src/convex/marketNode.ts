@@ -689,29 +689,37 @@ export const directOpportunity = internalAction({
         allowedBrandFactIds,
         allowedAssetIds,
       });
-      return await ctx.runMutation(internal.market.saveCreativeBrief, {
-        opportunityId,
-        analysisId,
-        selectedDirectionId,
-        selectionReason: selection.selectionReason,
-        tradeoffs: [...selection.tradeoffs],
-        rejectedDirectionReasons: [...selection.rejectedDirectionReasons],
-        model: PIPELINE_MODELS.marketSelection,
-        promptVersion: PROMPT_VERSIONS.marketSelection,
-        reviewModel: PIPELINE_MODELS.marketBriefReview,
-        reviewPromptVersion: PROMPT_VERSIONS.marketBriefReview,
-        deterministicIssues: [...validation.issues],
-        sourceSimilarity: validation.sourceSimilarity,
-        ...(selection.brief as Mutable<BriefSelection["brief"]>),
-        reviewDecision: review.decision,
-        reviewSummary: review.summary,
-        brandGrounding: review.brandGrounding.map((item) => ({ ...item })),
-        unsupportedClaims: [...review.unsupportedClaims],
-        similarityRisks: [...review.similarityRisks],
-        missingAssets: [...review.missingAssets],
-        reviewIssues: [...review.issues],
-        reviewConfidence: review.confidence,
-      });
+      const briefId: Id<"creativeBriefs"> = await ctx.runMutation(
+        internal.market.saveCreativeBrief,
+        {
+          opportunityId,
+          analysisId,
+          selectedDirectionId,
+          selectionReason: selection.selectionReason,
+          tradeoffs: [...selection.tradeoffs],
+          rejectedDirectionReasons: [...selection.rejectedDirectionReasons],
+          model: PIPELINE_MODELS.marketSelection,
+          promptVersion: PROMPT_VERSIONS.marketSelection,
+          reviewModel: PIPELINE_MODELS.marketBriefReview,
+          reviewPromptVersion: PROMPT_VERSIONS.marketBriefReview,
+          deterministicIssues: [...validation.issues],
+          sourceSimilarity: validation.sourceSimilarity,
+          ...(selection.brief as Mutable<BriefSelection["brief"]>),
+          reviewDecision: review.decision,
+          reviewSummary: review.summary,
+          brandGrounding: review.brandGrounding.map((item) => ({ ...item })),
+          unsupportedClaims: [...review.unsupportedClaims],
+          similarityRisks: [...review.similarityRisks],
+          missingAssets: [...review.missingAssets],
+          reviewIssues: [...review.issues],
+          reviewConfidence: review.confidence,
+        },
+      );
+      if (validation.valid)
+        await ctx.scheduler.runAfter(0, internal.contentStudioNode.createFromBriefInternal, {
+          creativeBriefId: briefId,
+        });
+      return briefId;
     } catch (error) {
       await ctx.runMutation(internal.market.setOpportunityStatus, {
         opportunityId,
