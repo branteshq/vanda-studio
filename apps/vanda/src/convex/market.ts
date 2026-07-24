@@ -3,7 +3,13 @@ import { internal } from "./_generated/api";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
 import { marketRunKinds, marketRunStatuses, opportunityStatuses } from "./pipeline/constants";
-import { assessBrandReadiness, brandSnapshotHash } from "./pipeline/inputQuality";
+import {
+  BREAKOUT_DETECTOR_VERSION,
+  MAX_SOURCE_AGE_MS,
+  assessBrandReadiness,
+  assessPreflightInput,
+  brandSnapshotHash,
+} from "./pipeline/inputQuality";
 import { detectBreakout } from "./pipeline/market";
 
 const optionalCount = v.optional(v.number());
@@ -255,8 +261,15 @@ export const listActiveCreators = internalQuery({
 });
 
 export const recordObservations = internalMutation({
-  args: { accountId: v.id("accounts"), creators: v.array(selectedCreatorArg) },
-  handler: async (ctx, { accountId, creators }) => {
+  args: {
+    accountId: v.id("accounts"),
+    brandSnapshotId: v.id("brandSnapshots"),
+    creators: v.array(selectedCreatorArg),
+  },
+  handler: async (ctx, { accountId, brandSnapshotId, creators }) => {
+    const brandSnapshot = await ctx.db.get(brandSnapshotId);
+    if (!brandSnapshot || brandSnapshot.accountId !== accountId)
+      throw new Error("brand snapshot not found");
     const observedAt = Date.now();
     let postsObserved = 0;
     let snapshotsRecorded = 0;
@@ -335,7 +348,7 @@ export const recordObservations = internalMutation({
           likes: inputPost.likes,
           comments: inputPost.comments,
         };
-        await ctx.db.insert("metricSnapshots", {
+        const snapshotId = await ctx.db.insert("metricSnapshots", {
           accountId,
           subjectType: "source_post",
           marketPostId,
@@ -353,21 +366,56 @@ export const recordObservations = internalMutation({
           .withIndex("by_market_post", (q) => q.eq("marketPostId", marketPostId))
           .first();
         if (alreadyFlagged) continue;
-        const decision = detectBreakout(current, previous ?? undefined);
+        const decision = detectBreakout(current, previous ?? undefined, {
+          now: observedAt,
+          publishedAt: inputPost.publishedAt,
+        });
         if (!decision) continue;
-        opportunityIds.push(
-          await ctx.db.insert("opportunities", {
-            accountId,
-            marketPostId,
-            status: "detected",
-            score: decision.score,
-            triggerType: decision.triggerType,
-            triggerReason: decision.reason,
-            triggeredAt: observedAt,
-            createdAt: observedAt,
-            updatedAt: observedAt,
-          }),
-        );
+        const assessment = assessPreflightInput({
+          now: observedAt,
+          publishedAt: inputPost.publishedAt,
+          followers: current.followers,
+          views: current.views,
+          plays: current.plays,
+          creatorRelevanceScore: creator.relevanceScore,
+          creatorBlocked: creator.feedback === "blocked" || creator.feedback === "irrelevant",
+          brandReady: brandSnapshot.missingRequired.length === 0,
+        });
+        const assessmentId = await ctx.db.insert("inputAssessments", {
+          accountId,
+          marketPostId,
+          brandSnapshotId,
+          decision: assessment.decision,
+          stage: "preflight",
+          detectorVersion: BREAKOUT_DETECTOR_VERSION,
+          postAgeMs: Math.max(0, observedAt - inputPost.publishedAt),
+          qualityScore: assessment.qualityScore,
+          rejectionCodes: [...assessment.rejectionCodes],
+          warnings: [...assessment.warnings],
+          snapshotIds: previous ? [previous._id, snapshotId] : [snapshotId],
+          evaluatedAt: observedAt,
+        });
+        const opportunityId = await ctx.db.insert("opportunities", {
+          accountId,
+          marketPostId,
+          status: assessment.decision === "qualified" ? "qualifying" : "rejected",
+          score: decision.score,
+          triggerType: decision.triggerType,
+          triggerReason: decision.reason,
+          triggeredAt: observedAt,
+          detectorVersion: decision.detectorVersion,
+          eligibleUntil: inputPost.publishedAt + MAX_SOURCE_AGE_MS,
+          postAgeAtDetection: Math.max(0, observedAt - inputPost.publishedAt),
+          brandSnapshotId,
+          inputAssessmentId: assessmentId,
+          ...(assessment.rejectionCodes.length > 0
+            ? { rejectionCodes: [...assessment.rejectionCodes] }
+            : {}),
+          createdAt: observedAt,
+          updatedAt: observedAt,
+        });
+        await ctx.db.patch(assessmentId, { opportunityId });
+        if (assessment.decision === "qualified") opportunityIds.push(opportunityId);
       }
     }
 
@@ -597,7 +645,9 @@ export const dashboard = query({
 
     const opportunityCards = await Promise.all(
       opportunities
-        .filter((opportunity) => opportunity.status !== "dismissed")
+        .filter(
+          (opportunity) => opportunity.status !== "dismissed" && opportunity.status !== "rejected",
+        )
         .sort((a, b) => b.score - a.score)
         .map(async (opportunity) => {
           const post =

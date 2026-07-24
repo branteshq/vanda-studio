@@ -6,6 +6,7 @@ import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
 import { decodeUnknownEffect } from "effect/Schema";
 import * as LanguageModel from "effect/unstable/ai/LanguageModel";
+import { BREAKOUT_DETECTOR_VERSION, MAX_SOURCE_AGE_MS } from "./inputQuality";
 
 export interface MarketProfile {
   readonly externalId?: string | undefined;
@@ -553,6 +554,12 @@ export interface BreakoutDecision {
   readonly score: number;
   readonly triggerType: "absolute_threshold" | "audience_ratio" | "velocity";
   readonly reason: string;
+  readonly detectorVersion: typeof BREAKOUT_DETECTOR_VERSION;
+}
+
+export interface BreakoutContext {
+  readonly now: number;
+  readonly publishedAt: number;
 }
 
 const formatNumber = (value: number): string =>
@@ -561,7 +568,13 @@ const formatNumber = (value: number): string =>
 export const detectBreakout = (
   current: SnapshotInput,
   previous?: SnapshotInput | undefined,
+  context?: BreakoutContext | undefined,
 ): BreakoutDecision | undefined => {
+  if (context) {
+    const age = context.now - context.publishedAt;
+    if (!Number.isFinite(context.publishedAt) || age < -3_600_000 || age > MAX_SOURCE_AGE_MS)
+      return undefined;
+  }
   const followers = current.followers;
   const views = current.views ?? current.plays;
   if (views === undefined) return undefined;
@@ -576,6 +589,7 @@ export const detectBreakout = (
           score: Math.min(100, 70 + velocity / 100),
           triggerType: "velocity",
           reason: `Ganhou ${formatNumber(velocity)} visualizações por hora desde a última leitura.`,
+          detectorVersion: BREAKOUT_DETECTOR_VERSION,
         };
       }
     }
@@ -583,11 +597,12 @@ export const detectBreakout = (
 
   if (followers !== undefined && followers > 0 && views >= 1_000) {
     const ratio = views / followers;
-    if (ratio >= 1.2) {
+    if (ratio >= 3) {
       return {
         score: Math.min(100, 60 + ratio * 4),
         triggerType: "audience_ratio",
         reason: `${formatNumber(views)} visualizações com ${formatNumber(followers)} seguidores — ${formatNumber(ratio)}× o tamanho da audiência.`,
+        detectorVersion: BREAKOUT_DETECTOR_VERSION,
       };
     }
   }
@@ -597,6 +612,7 @@ export const detectBreakout = (
       score: Math.min(100, 50 + views / 1_000),
       triggerType: "absolute_threshold",
       reason: `A publicação passou de ${formatNumber(views)} visualizações.`,
+      detectorVersion: BREAKOUT_DETECTOR_VERSION,
     };
   }
 

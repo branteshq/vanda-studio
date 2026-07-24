@@ -257,6 +257,10 @@ export const observeAccount = internalAction({
   handler: async (ctx, { accountId, runId }): Promise<ObservationResult> => {
     const apifyToken = process.env.APIFY_API_TOKEN;
     if (!apifyToken) throw new Error("APIFY_API_TOKEN is not set on the Convex deployment");
+    const brandSnapshot: Doc<"brandSnapshots"> = await ctx.runMutation(
+      internal.market.ensureBrandSnapshot,
+      { accountId },
+    );
     const creators: ReadonlyArray<Doc<"marketCreators">> = await ctx.runQuery(
       internal.market.listActiveCreators,
       { accountId },
@@ -300,6 +304,7 @@ export const observeAccount = internalAction({
     });
     return (await ctx.runMutation(internal.market.recordObservations, {
       accountId,
+      brandSnapshotId: brandSnapshot._id,
       creators: rows,
     })) as ObservationResult;
   },

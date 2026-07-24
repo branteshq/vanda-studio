@@ -44,4 +44,18 @@ describe("detectBreakout", () => {
   it("does not flag ordinary performance", () => {
     expect(detectBreakout({ followers: 800, views: 900, observedAt: 1_000 })).toBeUndefined();
   });
+
+  it("does not flag a stale post even when its lifetime views are high", () => {
+    const now = 10 * 86_400_000;
+    expect(
+      detectBreakout({ followers: 800, views: 50_000, observedAt: now }, undefined, {
+        now,
+        publishedAt: now - 8 * 86_400_000,
+      }),
+    ).toBeUndefined();
+  });
+
+  it("requires at least three times the audience for the relative trigger", () => {
+    expect(detectBreakout({ followers: 800, views: 1_600, observedAt: 1_000 })).toBeUndefined();
+  });
 });
