@@ -25,6 +25,7 @@ import { card } from "@vanda-studio/ui/components/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -193,44 +194,50 @@ function GaleriaPage() {
               ) : null}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-60">
-              <DropdownMenuLabel>Tipo de conteúdo</DropdownMenuLabel>
-              {FILTERS.map((filter) => {
-                const selectedFilter = filter.kind === kind;
-                const count =
-                  filter.countKey === undefined ? summary?.total : summary?.counts[filter.countKey];
-                return (
-                  <DropdownMenuItem
-                    key={filter.label}
-                    onClick={() => setKind(filter.kind)}
-                    className={cn(selectedFilter && "bg-accent text-text")}
-                  >
-                    {filter.label}
-                    <span className="ml-auto flex items-center gap-2 text-xs text-text-4">
-                      {count ?? "—"}
-                      {selectedFilter ? (
-                        <span className="size-1.5 rounded-full bg-brand-accent" />
-                      ) : null}
-                    </span>
-                  </DropdownMenuItem>
-                );
-              })}
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Tipo de conteúdo</DropdownMenuLabel>
+                {FILTERS.map((filter) => {
+                  const selectedFilter = filter.kind === kind;
+                  const count =
+                    filter.countKey === undefined
+                      ? summary?.total
+                      : summary?.counts[filter.countKey];
+                  return (
+                    <DropdownMenuItem
+                      key={filter.label}
+                      onClick={() => setKind(filter.kind)}
+                      className={cn(selectedFilter && "bg-accent text-text")}
+                    >
+                      {filter.label}
+                      <span className="ml-auto flex items-center gap-2 text-xs text-text-4">
+                        {count ?? "—"}
+                        {selectedFilter ? (
+                          <span className="size-1.5 rounded-full bg-brand-accent" />
+                        ) : null}
+                      </span>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuGroup>
               <DropdownMenuSeparator />
-              <DropdownMenuLabel>Status</DropdownMenuLabel>
-              {STATUS_FILTERS.map((filter) => {
-                const selectedFilter = filter.value === status;
-                return (
-                  <DropdownMenuItem
-                    key={filter.label}
-                    onClick={() => setStatus(filter.value)}
-                    className={cn(selectedFilter && "bg-accent text-text")}
-                  >
-                    {filter.label}
-                    {selectedFilter ? (
-                      <span className="ml-auto size-1.5 rounded-full bg-brand-accent" />
-                    ) : null}
-                  </DropdownMenuItem>
-                );
-              })}
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Status</DropdownMenuLabel>
+                {STATUS_FILTERS.map((filter) => {
+                  const selectedFilter = filter.value === status;
+                  return (
+                    <DropdownMenuItem
+                      key={filter.label}
+                      onClick={() => setStatus(filter.value)}
+                      className={cn(selectedFilter && "bg-accent text-text")}
+                    >
+                      {filter.label}
+                      {selectedFilter ? (
+                        <span className="ml-auto size-1.5 rounded-full bg-brand-accent" />
+                      ) : null}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuGroup>
               {activeFilterCount > 0 ? (
                 <>
                   <DropdownMenuSeparator />
