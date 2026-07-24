@@ -1,7 +1,7 @@
 import { useState, type ComponentType } from "react";
 import { useClerk, useUser } from "@clerk/tanstack-react-start";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import {
   BadgeCheckIcon,
   Calendar,
@@ -49,13 +49,12 @@ interface NavItem {
   icon: ComponentType<{ className?: string }>;
   exact?: boolean;
   live?: boolean;
-  badge?: string;
 }
 
 const NAV: NavItem[] = [
   { label: "Início", to: "/", icon: Home, exact: true },
   { label: "Automático", to: "/automatico", icon: RefreshCw, live: true },
-  { label: "Galeria", to: "/galeria", icon: LayoutGrid, badge: "8" },
+  { label: "Galeria", to: "/galeria", icon: LayoutGrid },
   { label: "Calendário", to: "/calendario", icon: Calendar },
   { label: "Perfil", to: "/perfil", icon: User },
 ];
@@ -302,6 +301,11 @@ function AccountMenu() {
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { state, toggleSidebar } = useSidebar();
+  const { activeAccount } = useActiveAccount();
+  const gallerySummary = useQuery(
+    api.contentStudio.gallerySummary,
+    activeAccount ? { accountId: activeAccount.id } : "skip",
+  );
 
   return (
     <Sidebar collapsible="icon" className="border-sidebar-border">
@@ -337,9 +341,9 @@ export function AppSidebar() {
                       </span>
                     ) : null}
                   </SidebarMenuButton>
-                  {item.badge ? (
+                  {item.to === "/galeria" && gallerySummary && gallerySummary.total > 0 ? (
                     <SidebarMenuBadge className="rounded-full bg-brand-accent/12 text-[11px] font-semibold text-brand-accent">
-                      {item.badge}
+                      {gallerySummary.total}
                     </SidebarMenuBadge>
                   ) : null}
                 </SidebarMenuItem>
