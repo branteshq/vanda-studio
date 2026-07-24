@@ -1,0 +1,145 @@
+// @vitest-environment edge-runtime
+import { convexTest } from "convex-test";
+import { describe, expect, it } from "vitest";
+import { internal } from "./_generated/api";
+import schema from "./schema";
+
+const modules = import.meta.glob("./**/*.ts");
+
+const slides = [1, 2, 3].map((position) => ({
+  slideId: `slide-${position}`,
+  position,
+  role:
+    position === 1 ? ("cover" as const) : position === 3 ? ("cta" as const) : ("content" as const),
+  layout:
+    position === 1 ? ("statement" as const) : position === 3 ? ("cta" as const) : ("list" as const),
+  kicker: "",
+  headline: `Slide ${position}`,
+  body: "",
+  bullets: [],
+  factIds: [],
+  visual: {
+    kind: "illustration" as const,
+    strategy: "generate" as const,
+    assetIds: [],
+    prompt: `Ilustração ${position}`,
+    altText: `Ilustração ${position}`,
+    treatment: "inset" as const,
+  },
+  productionNotes: [],
+}));
+
+const seedRenderableProject = async (t: ReturnType<typeof convexTest>) =>
+  t.run(async (ctx) => {
+    const now = Date.now();
+    const accountId = await ctx.db.insert("accounts", {
+      mode: "needs_approval",
+      createdAt: now,
+      updatedAt: now,
+    });
+    const projectId = await ctx.db.insert("contentProjects", {
+      accountId,
+      kind: "carousel",
+      origin: "manual",
+      title: "Carrossel",
+      status: "ready_for_render",
+      latestVersion: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const documentId = await ctx.db.insert("carouselDocuments", {
+      accountId,
+      projectId,
+      version: 1,
+      changeKind: "generated",
+      status: "ready_for_render",
+      reviewStatus: "approved",
+      title: "Carrossel",
+      caption: "Legenda final",
+      accessibilityDescription: "Três slides editoriais.",
+      canvas: { preset: "instagram_portrait_4_5", width: 1080, height: 1350 },
+      style: {
+        theme: "brand",
+        density: "balanced",
+        headlineCase: "sentence",
+        cornerStyle: "soft",
+        imageTreatment: "none",
+        motifs: [],
+        referenceAssetIds: [],
+      },
+      brandFactIds: [],
+      slides,
+      reviewSummary: "Aprovado",
+      unsupportedClaims: [],
+      brandIssues: [],
+      similarityRisks: [],
+      productionIssues: [],
+      corrections: [],
+      reviewConfidence: 0.9,
+      deterministicIssues: [],
+      deterministicWarnings: [],
+      sourceSimilarity: 0.1,
+      model: "test",
+      promptVersion: "test-v1",
+      reviewModel: "test-review",
+      reviewPromptVersion: "test-review-v1",
+      createdBy: "model",
+      createdAt: now,
+    });
+    await ctx.db.patch(projectId, { activeDocumentId: documentId, latestVersion: 1 });
+    const renderJobId = await ctx.db.insert("carouselRenderJobs", {
+      accountId,
+      projectId,
+      documentId,
+      status: "queued",
+      rendererVersion: "test-renderer",
+      attempt: 1,
+      outputImageIds: [],
+      createdAt: now,
+    });
+    return { projectId, documentId, renderJobId };
+  });
+
+describe("content studio persistence", () => {
+  it("turns an ordered render result into gallery media and a ready post atomically", async () => {
+    const t = convexTest(schema, modules);
+    const { projectId, documentId, renderJobId } = await seedRenderableProject(t);
+    expect(await t.mutation(internal.contentStudio.startRender, { renderJobId })).toBe(true);
+    const postId = await t.mutation(internal.contentStudio.completeRender, {
+      renderJobId,
+      outputs: slides.map((slide) => ({
+        slideId: slide.slideId,
+        width: 1080,
+        height: 1350,
+        externalUrl: `https://cdn.example/${slide.slideId}.jpg`,
+        mimeType: "image/jpeg",
+        description: slide.headline,
+        altText: slide.visual.altText,
+      })),
+    });
+    const state = await t.run(async (ctx) => ({
+      project: await ctx.db.get(projectId),
+      document: await ctx.db.get(documentId),
+      job: await ctx.db.get(renderJobId),
+      post: await ctx.db.get(postId),
+      images: await ctx.db.query("images").collect(),
+    }));
+    expect(state.project).toMatchObject({ status: "ready", postId });
+    expect(state.job).toMatchObject({ status: "succeeded", postId });
+    expect(state.post).toMatchObject({ status: "ready", carouselDocumentId: documentId });
+    expect(state.post?.imageIds).toEqual(state.images.map((image) => image._id));
+    expect(state.images.map((image) => image.slideId)).toEqual(["slide-1", "slide-2", "slide-3"]);
+  });
+
+  it("does not accept incomplete render output", async () => {
+    const t = convexTest(schema, modules);
+    const { renderJobId } = await seedRenderableProject(t);
+    await t.mutation(internal.contentStudio.startRender, { renderJobId });
+    await expect(
+      t.mutation(internal.contentStudio.completeRender, {
+        renderJobId,
+        outputs: [],
+      }),
+    ).rejects.toThrow("render output does not match carousel document");
+  });
+});
