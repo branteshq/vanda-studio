@@ -36,6 +36,32 @@ export const imagePurposes = ["reference", "post"] as const;
 export const imageOrigins = ["generated", "uploaded", "gallery"] as const;
 export const postTypes = ["feed", "reel", "story", "tweet", "image"] as const;
 export const postStatuses = ["draft", "ready", "scheduled", "published"] as const;
+export const contentProjectStatuses = [
+  "planning",
+  "draft",
+  "blocked",
+  "ready_for_render",
+  "rendering",
+  "ready",
+  "failed",
+  "archived",
+] as const;
+export const carouselDocumentStatuses = ["draft", "blocked", "ready_for_render"] as const;
+export const documentReviewStatuses = ["pending", "approved", "rejected"] as const;
+export const contentAssetRequestStatuses = [
+  "planned",
+  "generating",
+  "ready",
+  "blocked",
+  "failed",
+] as const;
+export const carouselRenderStatuses = [
+  "queued",
+  "rendering",
+  "succeeded",
+  "failed",
+  "canceled",
+] as const;
 export const scheduledStatuses = ["scheduled", "publishing", "published", "failed"] as const;
 export const signalSources = ["comments", "mentions", "competitors", "trends", "posts"] as const;
 export const signalSyncKinds = ["backfill", "reconciliation", "webhook"] as const;
@@ -52,6 +78,9 @@ export const modelStages = [
   "market_directions",
   "market_selection",
   "market_brief_review",
+  "studio_carousel_plan",
+  "studio_carousel_review",
+  "studio_slide_regeneration",
   "market_adapt",
 ] as const;
 

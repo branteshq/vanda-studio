@@ -39,6 +39,7 @@ import type * as pipeline_brandProfile from "../pipeline/brandProfile.js";
 import type * as pipeline_cassette from "../pipeline/cassette.js";
 import type * as pipeline_consolidate from "../pipeline/consolidate.js";
 import type * as pipeline_constants from "../pipeline/constants.js";
+import type * as pipeline_contentStudio from "../pipeline/contentStudio.js";
 import type * as pipeline_create from "../pipeline/create.js";
 import type * as pipeline_creativeDirector from "../pipeline/creativeDirector.js";
 import type * as pipeline_discernment from "../pipeline/discernment.js";
@@ -117,6 +118,7 @@ declare const fullApi: ApiFromModules<{
   "pipeline/cassette": typeof pipeline_cassette;
   "pipeline/consolidate": typeof pipeline_consolidate;
   "pipeline/constants": typeof pipeline_constants;
+  "pipeline/contentStudio": typeof pipeline_contentStudio;
   "pipeline/create": typeof pipeline_create;
   "pipeline/creativeDirector": typeof pipeline_creativeDirector;
   "pipeline/discernment": typeof pipeline_discernment;
