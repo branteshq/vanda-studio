@@ -594,18 +594,20 @@ export const runAllAccounts = internalAction({
 export const runAccount = internalAction({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<MarketRunResult> => {
-    let creators: ReadonlyArray<{ readonly _id: Id<"marketCreators"> }> = await ctx.runQuery(
-      internal.market.listActiveCreators,
-      { accountId },
-    );
+    let creators: ReadonlyArray<{
+      readonly _id: Id<"marketCreators">;
+      readonly relevanceScore: number;
+    }> = await ctx.runQuery(internal.market.listActiveCreators, { accountId });
+    const needsDiscovery =
+      creators.length === 0 || creators.every((creator) => creator.relevanceScore < 0.65);
     const runId: Id<"marketRuns"> = await ctx.runMutation(internal.market.startRun, {
       accountId,
       kind: "full_loop",
-      stage: creators.length === 0 ? "starting_discovery" : "starting_observation",
+      stage: needsDiscovery ? "starting_discovery" : "starting_observation",
     });
     try {
       let discovery: DiscoveryResult | undefined;
-      if (creators.length === 0) {
+      if (needsDiscovery) {
         discovery = (await ctx.runAction(internal.marketNode.discoverAccount, {
           accountId,
           runId,
