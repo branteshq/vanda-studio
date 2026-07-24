@@ -364,8 +364,12 @@ function OpportunityCard({
     <article className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm transition-[border-color] duration-150 ease-[var(--ease-out)] hover:border-border-strong">
       <div className="flex gap-3.5 p-4">
         <div className="relative h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-inset">
-          {post?.thumbnailUrl ? (
-            <img src={post.thumbnailUrl} alt="" className="size-full object-cover" />
+          {(opportunity.sourcePreviewUrl ?? post?.thumbnailUrl) ? (
+            <img
+              src={opportunity.sourcePreviewUrl ?? post?.thumbnailUrl ?? ""}
+              alt=""
+              className="size-full object-cover"
+            />
           ) : (
             <span className="flex size-full items-center justify-center text-text-5">
               <Video className="size-5" />
@@ -440,7 +444,10 @@ function OpportunityCard({
           </Button>
         ) : null}
         <span className="flex-1" />
-        {(opportunity.status === "detected" || opportunity.status === "failed") && !published ? (
+        {(opportunity.status === "detected" ||
+          opportunity.status === "ready_for_analysis" ||
+          opportunity.status === "failed") &&
+        !published ? (
           <Button size="sm" disabled={actionBusy} onClick={onAdapt}>
             {actionBusy ? <RefreshCw className="animate-spin" /> : <Sparkles />}
             Criar versão

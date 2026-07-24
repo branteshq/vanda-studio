@@ -7,7 +7,9 @@ import {
   BREAKOUT_DETECTOR_VERSION,
   MAX_SOURCE_AGE_MS,
   assessBrandReadiness,
+  assessFinalInput,
   assessPreflightInput,
+  isUsableSemanticText,
   brandSnapshotHash,
 } from "./pipeline/inputQuality";
 import { detectBreakout } from "./pipeline/market";
@@ -423,6 +425,176 @@ export const recordObservations = internalMutation({
   },
 });
 
+export const loadQualificationSource = internalQuery({
+  args: { opportunityId: v.id("opportunities") },
+  handler: async (ctx, { opportunityId }) => {
+    const opportunity = await ctx.db.get(opportunityId);
+    if (!opportunity) return null;
+    const post = await ctx.db.get(opportunity.marketPostId);
+    if (!post) return null;
+    const creator = await ctx.db.get(post.creatorId);
+    const dossier = await ctx.db
+      .query("sourceDossiers")
+      .withIndex("by_market_post", (q) => q.eq("marketPostId", post._id))
+      .first();
+    return { opportunity, post, creator, dossier };
+  },
+});
+
+export const attachOpportunityBrandSnapshot = internalMutation({
+  args: {
+    opportunityId: v.id("opportunities"),
+    brandSnapshotId: v.id("brandSnapshots"),
+  },
+  handler: async (ctx, { opportunityId, brandSnapshotId }) => {
+    const opportunity = await ctx.db.get(opportunityId);
+    const snapshot = await ctx.db.get(brandSnapshotId);
+    if (!opportunity || !snapshot || opportunity.accountId !== snapshot.accountId)
+      throw new Error("opportunity brand snapshot mismatch");
+    if (!opportunity.brandSnapshotId)
+      await ctx.db.patch(opportunityId, { brandSnapshotId, status: "qualifying" });
+  },
+});
+
+export const completeSourceQualification = internalMutation({
+  args: {
+    opportunityId: v.id("opportunities"),
+    provider: v.string(),
+    providerFetchedAt: v.number(),
+    caption: v.optional(v.string()),
+    transcript: v.optional(v.string()),
+    transcriptLanguage: v.optional(v.string()),
+    videoStorageId: v.optional(v.id("_storage")),
+    thumbnailStorageId: v.optional(v.id("_storage")),
+    frameStorageIds: v.array(v.id("_storage")),
+    visualDescription: v.optional(v.string()),
+    providerError: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const opportunity = await ctx.db.get(args.opportunityId);
+    if (!opportunity) throw new Error("opportunity not found");
+    const post = await ctx.db.get(opportunity.marketPostId);
+    if (!post) throw new Error("market post not found");
+    const creator = await ctx.db.get(post.creatorId);
+    if (!creator) throw new Error("market creator not found");
+    const brandSnapshot = opportunity.brandSnapshotId
+      ? await ctx.db.get(opportunity.brandSnapshotId)
+      : null;
+    if (!brandSnapshot) throw new Error("brand snapshot not found");
+    const latestSnapshot = await ctx.db
+      .query("metricSnapshots")
+      .withIndex("by_market_post_observed", (q) => q.eq("marketPostId", post._id))
+      .order("desc")
+      .first();
+    if (!latestSnapshot) throw new Error("metric snapshot not found");
+
+    const assessment = assessFinalInput({
+      now: args.providerFetchedAt,
+      publishedAt: post.publishedAt,
+      followers: latestSnapshot.followers,
+      views: latestSnapshot.views,
+      plays: latestSnapshot.plays,
+      creatorRelevanceScore: creator.relevanceScore,
+      creatorBlocked: creator.feedback === "blocked" || creator.feedback === "irrelevant",
+      brandReady: brandSnapshot.missingRequired.length === 0,
+      caption: args.caption ?? post.caption,
+      transcript: args.transcript,
+      hasDurableVideo: args.videoStorageId !== undefined,
+      hasDurableThumbnail: args.thumbnailStorageId !== undefined,
+      frameCount: args.frameStorageIds.length,
+      visualDescription: args.visualDescription,
+    });
+    const hasUsableTranscript = isUsableSemanticText(args.transcript);
+    const hasUsableCaption = isUsableSemanticText(args.caption ?? post.caption);
+    const hasUsableVisualEvidence =
+      args.videoStorageId !== undefined ||
+      args.frameStorageIds.length >= 3 ||
+      args.thumbnailStorageId !== undefined;
+    const contentType: "mixed" | "spoken" | "visual" | "unknown" = hasUsableTranscript
+      ? hasUsableVisualEvidence
+        ? "mixed"
+        : "spoken"
+      : hasUsableVisualEvidence
+        ? "visual"
+        : "unknown";
+    const now = Date.now();
+    const existingDossier = await ctx.db
+      .query("sourceDossiers")
+      .withIndex("by_market_post", (q) => q.eq("marketPostId", post._id))
+      .first();
+    const dossierPatch = {
+      accountId: opportunity.accountId,
+      marketPostId: post._id,
+      status: assessment.decision === "qualified" ? ("ready" as const) : ("rejected" as const),
+      provider: args.provider,
+      providerFetchedAt: args.providerFetchedAt,
+      frameStorageIds: args.frameStorageIds,
+      contentType,
+      hasUsableVideo: args.videoStorageId !== undefined,
+      hasUsableTranscript,
+      hasUsableCaption,
+      hasUsableVisualEvidence,
+      qualityScore: assessment.qualityScore,
+      rejectionCodes: [...assessment.rejectionCodes],
+      ...(args.caption !== undefined ? { caption: args.caption } : {}),
+      ...(args.transcript !== undefined ? { transcript: args.transcript } : {}),
+      ...(args.transcriptLanguage !== undefined
+        ? { transcriptLanguage: args.transcriptLanguage }
+        : {}),
+      ...(args.videoStorageId !== undefined ? { videoStorageId: args.videoStorageId } : {}),
+      ...(args.thumbnailStorageId !== undefined
+        ? { thumbnailStorageId: args.thumbnailStorageId }
+        : {}),
+      ...(args.visualDescription !== undefined
+        ? { visualDescription: args.visualDescription }
+        : {}),
+      ...(args.providerError !== undefined ? { lastError: args.providerError } : {}),
+      updatedAt: now,
+    };
+    let dossierId;
+    if (existingDossier) {
+      dossierId = existingDossier._id;
+      await ctx.db.patch(dossierId, dossierPatch);
+    } else {
+      dossierId = await ctx.db.insert("sourceDossiers", {
+        ...dossierPatch,
+        createdAt: now,
+      });
+    }
+    const preflight = opportunity.inputAssessmentId
+      ? await ctx.db.get(opportunity.inputAssessmentId)
+      : null;
+    const assessmentId = await ctx.db.insert("inputAssessments", {
+      accountId: opportunity.accountId,
+      marketPostId: post._id,
+      opportunityId: opportunity._id,
+      brandSnapshotId: brandSnapshot._id,
+      dossierId,
+      decision: assessment.decision,
+      stage: "final",
+      detectorVersion: opportunity.detectorVersion ?? BREAKOUT_DETECTOR_VERSION,
+      postAgeMs: Math.max(0, args.providerFetchedAt - post.publishedAt),
+      qualityScore: assessment.qualityScore,
+      rejectionCodes: [...assessment.rejectionCodes],
+      warnings: [
+        ...assessment.warnings,
+        ...(args.providerError ? [`provider_warning:${args.providerError}`] : []),
+      ],
+      snapshotIds: preflight?.snapshotIds ?? [latestSnapshot._id],
+      evaluatedAt: args.providerFetchedAt,
+    });
+    await ctx.db.patch(opportunity._id, {
+      status: assessment.decision === "qualified" ? "ready_for_analysis" : "rejected",
+      dossierId,
+      inputAssessmentId: assessmentId,
+      rejectionCodes: [...assessment.rejectionCodes],
+      ...(args.transcript !== undefined ? { sourceTranscript: args.transcript } : {}),
+      updatedAt: now,
+    });
+    return { decision: assessment.decision, dossierId, qualityScore: assessment.qualityScore };
+  },
+});
+
 export const loadOpportunity = internalQuery({
   args: { opportunityId: v.id("opportunities") },
   handler: async (ctx, { opportunityId }) => {
@@ -431,6 +603,7 @@ export const loadOpportunity = internalQuery({
     const post = await ctx.db.get(opportunity.marketPostId);
     if (!post) return null;
     const creator = await ctx.db.get(post.creatorId);
+    const dossier = opportunity.dossierId ? await ctx.db.get(opportunity.dossierId) : null;
     const canon = await ctx.db
       .query("brandCanon")
       .withIndex("by_account", (q) => q.eq("accountId", opportunity.accountId))
@@ -439,6 +612,7 @@ export const loadOpportunity = internalQuery({
       opportunity,
       post,
       creator,
+      dossier,
       brandContext: canon
         .filter((item) => item.confirmedByOwner)
         .map((item) => `${item.kind}: ${item.text}`)
@@ -658,6 +832,10 @@ export const dashboard = query({
           const scheduled = opportunity.scheduledPostId
             ? await ctx.db.get(opportunity.scheduledPostId)
             : null;
+          const dossier = opportunity.dossierId ? await ctx.db.get(opportunity.dossierId) : null;
+          const sourcePreviewUrl = dossier?.thumbnailStorageId
+            ? await ctx.storage.getUrl(dossier.thumbnailStorageId)
+            : null;
           const snapshots = await ctx.db
             .query("metricSnapshots")
             .withIndex("by_market_post_observed", (q) =>
@@ -680,6 +858,8 @@ export const dashboard = query({
             creator,
             metrics: snapshots[0] ?? null,
             publicationMetrics: publicationSnapshots[0] ?? null,
+            dossier,
+            sourcePreviewUrl,
             scheduled,
           };
         }),

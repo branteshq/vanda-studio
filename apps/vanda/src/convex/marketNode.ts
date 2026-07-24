@@ -325,6 +325,119 @@ const wrapSlide = (text: string, max = 24): string => {
   return lines.slice(0, 7).join("\n");
 };
 
+const downloadSourceAsset = async (
+  url: string | undefined,
+  maxBytes: number,
+): Promise<Blob | undefined> => {
+  if (!url) return undefined;
+  const response = await fetch(url, { redirect: "follow" });
+  if (!response.ok) throw new Error(`asset HTTP ${response.status}`);
+  const declaredSize = Number(response.headers.get("content-length") ?? "0");
+  if (declaredSize > maxBytes) throw new Error(`asset exceeds ${maxBytes} bytes`);
+  const blob = await response.blob();
+  if (blob.size === 0) throw new Error("asset is empty");
+  if (blob.size > maxBytes) throw new Error(`asset exceeds ${maxBytes} bytes`);
+  return blob;
+};
+
+const likelyTranscriptLanguage = (text: string | undefined): string | undefined => {
+  if (!text?.trim()) return undefined;
+  const words = text.toLocaleLowerCase().match(/[\p{L}]{2,}/gu) ?? [];
+  const portuguese = new Set(["a", "as", "com", "como", "de", "do", "e", "em", "para", "que"]);
+  return words.filter((word) => portuguese.has(word)).length >= 2 ? "pt-BR" : undefined;
+};
+
+/** Hydrate a metric-qualified source into durable media and enforce the final input gate. */
+export const qualifyOpportunity = internalAction({
+  args: { opportunityId: v.id("opportunities"), analyzeAfter: v.optional(v.boolean()) },
+  handler: async (ctx, { opportunityId, analyzeAfter }): Promise<boolean> => {
+    const apifyToken = process.env.APIFY_API_TOKEN;
+    if (!apifyToken) throw new Error("APIFY_API_TOKEN is not set on the Convex deployment");
+    const source: {
+      opportunity: Doc<"opportunities">;
+      post: Doc<"marketPosts">;
+      creator: Doc<"marketCreators"> | null;
+      dossier: Doc<"sourceDossiers"> | null;
+    } | null = await ctx.runQuery(internal.market.loadQualificationSource, { opportunityId });
+    if (!source) throw new Error("opportunity source not found");
+    if (source.opportunity.status === "rejected") return false;
+    if (!source.opportunity.brandSnapshotId) {
+      const snapshot: Doc<"brandSnapshots"> = await ctx.runMutation(
+        internal.market.ensureBrandSnapshot,
+        { accountId: source.opportunity.accountId },
+      );
+      await ctx.runMutation(internal.market.attachOpportunityBrandSnapshot, {
+        opportunityId,
+        brandSnapshotId: snapshot._id,
+      });
+    }
+    if (source.dossier?.status === "ready") {
+      if (analyzeAfter)
+        await ctx.scheduler.runAfter(0, internal.marketNode.analyzeOpportunity, { opportunityId });
+      return true;
+    }
+
+    let detail: ReelDetail | undefined;
+    let providerError: string | undefined;
+    try {
+      detail = await Effect.runPromise(
+        Effect.flatMap(MarketDataProvider, (provider) =>
+          provider.getReel(source.post.permalink),
+        ).pipe(Effect.provide(apifyMarketDataLayer(apifyToken))),
+      );
+    } catch (error) {
+      providerError = error instanceof Error ? error.message : String(error);
+    }
+
+    const assetErrors: string[] = [];
+    let videoStorageId: Id<"_storage"> | undefined;
+    let thumbnailStorageId: Id<"_storage"> | undefined;
+    try {
+      const video = await downloadSourceAsset(
+        detail?.videoUrl ?? source.post.videoUrl,
+        100_000_000,
+      );
+      if (video) videoStorageId = await ctx.storage.store(video);
+    } catch (error) {
+      assetErrors.push(`video: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    try {
+      const thumbnail = await downloadSourceAsset(
+        detail?.thumbnailUrl ?? source.post.thumbnailUrl,
+        10_000_000,
+      );
+      if (thumbnail) thumbnailStorageId = await ctx.storage.store(thumbnail);
+    } catch (error) {
+      assetErrors.push(`thumbnail: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    const transcript = detail?.transcript?.trim() || undefined;
+    const caption = detail?.caption?.trim() || source.post.caption?.trim() || undefined;
+    const transcriptLanguage = likelyTranscriptLanguage(transcript);
+    const qualification: {
+      decision: "qualified" | "rejected";
+      dossierId: Id<"sourceDossiers">;
+      qualityScore: number;
+    } = await ctx.runMutation(internal.market.completeSourceQualification, {
+      opportunityId,
+      provider: "apify/instagram-reel-scraper",
+      providerFetchedAt: Date.now(),
+      frameStorageIds: thumbnailStorageId ? [thumbnailStorageId] : [],
+      ...(caption ? { caption } : {}),
+      ...(transcript ? { transcript } : {}),
+      ...(transcriptLanguage ? { transcriptLanguage } : {}),
+      ...(videoStorageId ? { videoStorageId } : {}),
+      ...(thumbnailStorageId ? { thumbnailStorageId } : {}),
+      ...(providerError || assetErrors.length
+        ? { providerError: [providerError, ...assetErrors].filter(Boolean).join("; ") }
+        : {}),
+    });
+    if (qualification.decision === "qualified" && analyzeAfter)
+      await ctx.scheduler.runAfter(0, internal.marketNode.analyzeOpportunity, { opportunityId });
+    return qualification.decision === "qualified";
+  },
+});
+
 const renderSlides = (slides: ReadonlyArray<string>): Promise<ReadonlyArray<Blob>> =>
   Promise.all(
     slides.map(async (slide, index) => {
@@ -345,40 +458,30 @@ const renderSlides = (slides: ReadonlyArray<string>): Promise<ReadonlyArray<Blob
 export const analyzeOpportunity = internalAction({
   args: { opportunityId: v.id("opportunities") },
   handler: async (ctx, { opportunityId }): Promise<Id<"posts">> => {
-    const apifyToken = process.env.APIFY_API_TOKEN;
     const modelKey = process.env.OPENROUTER_API_KEY;
-    if (!apifyToken) throw new Error("APIFY_API_TOKEN is not set on the Convex deployment");
     if (!modelKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
     const source: {
       opportunity: Doc<"opportunities">;
       post: Doc<"marketPosts">;
       creator: Doc<"marketCreators"> | null;
+      dossier: Doc<"sourceDossiers"> | null;
       brandContext: string;
     } | null = await ctx.runQuery(internal.market.loadOpportunity, { opportunityId });
     if (!source) throw new Error("opportunity source not found");
+    if (
+      source.opportunity.status !== "ready_for_analysis" &&
+      source.opportunity.status !== "failed"
+    )
+      throw new Error("opportunity input is not qualified");
+    if (!source.dossier || source.dossier.status !== "ready")
+      throw new Error("source dossier is not ready");
+    const dossier = source.dossier;
 
     try {
       await ctx.runMutation(internal.market.setOpportunityStatus, {
         opportunityId,
         status: "analyzing",
       });
-      const detail: ReelDetail = await Effect.runPromise(
-        Effect.flatMap(MarketDataProvider, (provider) =>
-          provider.getReel(source.post.permalink),
-        ).pipe(
-          Effect.catch(() =>
-            Effect.succeed({
-              externalId: source.post.externalPostId,
-              permalink: source.post.permalink,
-              mediaType: source.post.mediaType,
-              publishedAt: source.post.publishedAt,
-              ...(source.post.caption ? { caption: source.post.caption } : {}),
-              ...(source.post.videoUrl ? { videoUrl: source.post.videoUrl } : {}),
-            }),
-          ),
-          Effect.provide(apifyMarketDataLayer(apifyToken)),
-        ),
-      );
       await ctx.runMutation(internal.market.setOpportunityStatus, {
         opportunityId,
         status: "adapting",
@@ -395,8 +498,8 @@ export const analyzeOpportunity = internalAction({
         () =>
           Effect.runPromise(
             adaptMarketOpportunity({
-              transcript: detail.transcript,
-              caption: detail.caption ?? source.post.caption,
+              transcript: dossier.transcript,
+              caption: dossier.caption ?? source.post.caption,
               triggerReason: source.opportunity.triggerReason,
               brandContext: source.brandContext,
             }).pipe(Effect.provide(languageModelLayer(modelKey, PIPELINE_MODELS.marketAdapt))),
@@ -410,7 +513,7 @@ export const analyzeOpportunity = internalAction({
       const storageIds = await Promise.all(blobs.map((blob) => ctx.storage.store(blob)));
       return await ctx.runMutation(internal.market.saveAdaptation, {
         opportunityId,
-        ...(detail.transcript ? { transcript: detail.transcript } : {}),
+        ...(dossier.transcript ? { transcript: dossier.transcript } : {}),
         ...adaptation,
         adaptedSlides: [...slides],
         creatorSpecificElements: [...adaptation.creatorSpecificElements],
@@ -513,9 +616,11 @@ export const runAccount = internalAction({
         accountId,
         runId,
       })) as ObservationResult;
-      const opportunitiesToAdapt = observation.opportunityIds.slice(0, 1);
-      for (const opportunityId of opportunitiesToAdapt) {
-        await ctx.scheduler.runAfter(0, internal.marketNode.analyzeOpportunity, { opportunityId });
+      for (const [index, opportunityId] of observation.opportunityIds.entries()) {
+        await ctx.scheduler.runAfter(0, internal.marketNode.qualifyOpportunity, {
+          opportunityId,
+          analyzeAfter: index === 0,
+        });
       }
       await ctx.runAction(internal.marketNode.measurePublications, { accountId });
       await ctx.runMutation(internal.market.updateRun, {
@@ -526,7 +631,7 @@ export const runAccount = internalAction({
         postsObserved: observation.postsObserved,
         snapshotsRecorded: observation.snapshotsRecorded,
         opportunitiesDetected: observation.opportunityIds.length,
-        adaptationsCreated: opportunitiesToAdapt.length,
+        adaptationsCreated: 0,
         summary: `${creators.length} contas · ${observation.postsObserved} vídeos · ${observation.opportunityIds.length} oportunidades novas.`,
         complete: true,
       });
