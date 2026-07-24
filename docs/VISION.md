@@ -678,11 +678,10 @@ that Vanda can create excellent content.
 
 The remaining product gaps are:
 
-- creator relevance, source freshness, transcript quality, and breakout quality are
-  not yet consistently good enough;
-- creative analysis does not yet deeply explain why a source worked;
-- Vanda jumps from a breakout directly to an adaptation instead of producing and
-  selecting among strong creative briefs;
+- the hardened discovery path still needs a fresh real-market validation after the
+  provider usage limit resets;
+- production quality of Creative Director briefs must be evaluated on real qualified
+  opportunities and owner feedback, not only synthetic live model chains;
 - generated artifacts are not yet polished enough to publish without substantial
   human editing;
 - the Instagram publisher is wired but has not been validated through a controlled
@@ -697,8 +696,8 @@ The honest current position is therefore:
 
 ```text
 Understand:  partial
-Discover:    MVP feasibility proven
-Decide:      early scaffold
+Discover:    hardened backend implemented; fresh validation pending
+Decide:      complete backend chain; real-opportunity evaluation pending
 Create:      workflow scaffold, not a product capability
 Distribute:  wired, not operationally proven
 Learn:       metric plumbing only
@@ -816,9 +815,12 @@ Graduation gate:
 - uncertainty and weak source material result in dismissal, not hallucinated
   confidence.
 
-Current status: **early scaffold**. Some analysis fields and adaptation prompts
-exist, but there is no reliable multimodal dossier, direction generation, or brief
-selection stage.
+Current status: **backend chain implemented**. Qualified multimodal dossiers now
+flow through separate mechanism analysis, three-direction generation, deterministic
+scoring, brief selection, independent editorial review, factual/asset/similarity
+checks, durable provenance, rejection, and retry. The complete model chain has been
+live-validated with a synthetic source; evaluation on fresh qualified market
+opportunities remains pending while the public-data provider limit is exhausted.
 
 ### Stage 3 — Content studio: Create
 
@@ -1128,18 +1130,15 @@ The discovery spike has moved the primary product risk. The next risk is not whe
 Vanda can find public content; it is whether Vanda can turn that evidence into work
 that deserves to be published.
 
-### Now — complete the Creative Director
+### Completed backend foundation — Market Radar and Creative Director
 
-1. Tighten opportunity freshness and relevance so weak inputs do not reach
-   production.
-2. Persist a real source dossier with usable transcript, frames, caption, metric
-   evidence, and uncertainty.
-3. Implement structured mechanism analysis.
-4. Generate three genuinely distinct creative directions.
-5. Select and persist one production-ready creative brief.
-6. Add transformation and factual-grounding review.
+The backend now hardens source inputs, persists multimodal dossiers, analyzes the
+transferable mechanism, generates and scores three materially different directions,
+selects a production brief, independently reviews it, rejects unsafe packages, and
+preserves the complete decision chain. Fresh real-market evaluation remains an
+operational validation task rather than an architectural dependency.
 
-### Next — build one excellent Content Studio path
+### Now — build one excellent Content Studio path
 
 1. Define a structured carousel document and layout grammar.
 2. Build the real branded 1080×1350 renderer.
