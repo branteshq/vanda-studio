@@ -107,7 +107,6 @@ const FILTERS: ReadonlyArray<{
   { kind: "image", label: "Imagens", countKey: "image" },
   { kind: "reel", label: "Reels", countKey: "reel" },
   { kind: "story", label: "Stories", countKey: "story" },
-  { kind: "tweet", label: "Tweets", countKey: "tweet" },
 ];
 
 const STATUS_FILTERS: ReadonlyArray<{
