@@ -133,20 +133,21 @@ const nonEmpty = (value: string | null | undefined): string | undefined => {
   return normalized ? normalized : undefined;
 };
 
-const timestamp = (value: string | null | undefined): number => {
+export const parseProviderTimestamp = (value: string | null | undefined): number | undefined => {
   const parsed = value ? Date.parse(value) : Number.NaN;
-  return Number.isFinite(parsed) ? parsed : Date.now();
+  return Number.isFinite(parsed) ? parsed : undefined;
 };
 
 const normalizePost = (post: ApifyPostValue): MarketPost | undefined => {
   const externalId = nonEmpty(post.id) ?? nonEmpty(post.shortCode);
   const permalink = nonEmpty(post.url);
-  if (!externalId || !permalink) return undefined;
+  const publishedAt = parseProviderTimestamp(post.timestamp);
+  if (!externalId || !permalink || publishedAt === undefined) return undefined;
   return {
     externalId,
     permalink,
     mediaType: nonEmpty(post.type) ?? "Unknown",
-    publishedAt: timestamp(post.timestamp),
+    publishedAt,
     ...(nonEmpty(post.shortCode) ? { shortCode: nonEmpty(post.shortCode) } : {}),
     ...(nonEmpty(post.caption) ? { caption: nonEmpty(post.caption) } : {}),
     ...(nonEmpty(post.productType) ? { productType: nonEmpty(post.productType) } : {}),

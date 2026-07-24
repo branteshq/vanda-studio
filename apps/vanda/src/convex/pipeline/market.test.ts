@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { candidatePassesRelevanceGate, detectBreakout, scoreCandidateRelevance } from "./market";
+import {
+  candidatePassesRelevanceGate,
+  detectBreakout,
+  parseProviderTimestamp,
+  scoreCandidateRelevance,
+} from "./market";
+
+describe("provider normalization", () => {
+  it("never converts a missing timestamp into a fresh post", () => {
+    expect(parseProviderTimestamp(undefined)).toBeUndefined();
+    expect(parseProviderTimestamp("not-a-date")).toBeUndefined();
+    expect(parseProviderTimestamp("2026-07-24T12:00:00.000Z")).toBe(
+      Date.parse("2026-07-24T12:00:00.000Z"),
+    );
+  });
+});
 
 describe("candidate relevance", () => {
   const strong = {
