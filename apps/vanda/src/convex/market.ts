@@ -480,10 +480,21 @@ export const completeSourceQualification = internalMutation({
     caption: v.optional(v.string()),
     transcript: v.optional(v.string()),
     transcriptLanguage: v.optional(v.string()),
+    transcriptConfidence: v.optional(v.number()),
     videoStorageId: v.optional(v.id("_storage")),
     thumbnailStorageId: v.optional(v.id("_storage")),
     frameStorageIds: v.array(v.id("_storage")),
+    frameEvidence: v.optional(
+      v.array(
+        v.object({
+          timestampMs: v.number(),
+          description: v.string(),
+          onScreenText: v.optional(v.string()),
+        }),
+      ),
+    ),
     visualDescription: v.optional(v.string()),
+    visualConfidence: v.optional(v.number()),
     providerError: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -523,9 +534,10 @@ export const completeSourceQualification = internalMutation({
     const hasUsableTranscript = isUsableSemanticText(args.transcript);
     const hasUsableCaption = isUsableSemanticText(args.caption ?? post.caption);
     const hasUsableVisualEvidence =
-      args.videoStorageId !== undefined ||
-      args.frameStorageIds.length >= 3 ||
-      args.thumbnailStorageId !== undefined;
+      (args.videoStorageId !== undefined ||
+        args.frameStorageIds.length >= 3 ||
+        args.thumbnailStorageId !== undefined) &&
+      isUsableSemanticText(args.visualDescription);
     const contentType: "mixed" | "spoken" | "visual" | "unknown" = hasUsableTranscript
       ? hasUsableVisualEvidence
         ? "mixed"
@@ -557,13 +569,18 @@ export const completeSourceQualification = internalMutation({
       ...(args.transcriptLanguage !== undefined
         ? { transcriptLanguage: args.transcriptLanguage }
         : {}),
+      ...(args.transcriptConfidence !== undefined
+        ? { transcriptConfidence: args.transcriptConfidence }
+        : {}),
       ...(args.videoStorageId !== undefined ? { videoStorageId: args.videoStorageId } : {}),
       ...(args.thumbnailStorageId !== undefined
         ? { thumbnailStorageId: args.thumbnailStorageId }
         : {}),
+      ...(args.frameEvidence !== undefined ? { frameEvidence: args.frameEvidence } : {}),
       ...(args.visualDescription !== undefined
         ? { visualDescription: args.visualDescription }
         : {}),
+      ...(args.visualConfidence !== undefined ? { visualConfidence: args.visualConfidence } : {}),
       ...(args.providerError !== undefined ? { lastError: args.providerError } : {}),
       updatedAt: now,
     };

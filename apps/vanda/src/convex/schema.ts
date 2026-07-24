@@ -258,10 +258,21 @@ export default defineSchema({
     caption: v.optional(v.string()),
     transcript: v.optional(v.string()),
     transcriptLanguage: v.optional(v.string()),
+    transcriptConfidence: v.optional(v.number()),
     videoStorageId: v.optional(v.id("_storage")),
     thumbnailStorageId: v.optional(v.id("_storage")),
     frameStorageIds: v.array(v.id("_storage")),
+    frameEvidence: v.optional(
+      v.array(
+        v.object({
+          timestampMs: v.number(),
+          description: v.string(),
+          onScreenText: v.optional(v.string()),
+        }),
+      ),
+    ),
     visualDescription: v.optional(v.string()),
+    visualConfidence: v.optional(v.number()),
     contentType: v.optional(v.union(...sourceContentTypes.map((type) => v.literal(type)))),
     hasUsableVideo: v.boolean(),
     hasUsableTranscript: v.boolean(),

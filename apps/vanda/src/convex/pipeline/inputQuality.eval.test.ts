@@ -25,7 +25,13 @@ const fixtures: ReadonlyArray<{
   { name: "complete spoken reel", input: healthy, expected: "qualified" },
   {
     name: "visual demonstration",
-    input: { ...healthy, transcript: undefined, caption: undefined, hasDurableVideo: true },
+    input: {
+      ...healthy,
+      transcript: undefined,
+      caption: undefined,
+      hasDurableVideo: true,
+      visualDescription: "Uma demonstração clara mostra o produto sendo usado do início ao fim.",
+    },
     expected: "qualified",
   },
   {

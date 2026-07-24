@@ -47,6 +47,7 @@ export const modelStages = [
   "create",
   "embedding",
   "market_discovery",
+  "market_source",
   "market_adapt",
 ] as const;
 

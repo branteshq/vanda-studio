@@ -163,9 +163,8 @@ export const assessFinalInput = (input: FinalInput): InputAssessment => {
   const usableTranscript = isUsableSemanticText(input.transcript);
   const usableCaption = isUsableSemanticText(input.caption);
   const usableVisualEvidence =
-    input.frameCount >= 3 ||
-    input.hasDurableVideo ||
-    (input.hasDurableThumbnail && isUsableSemanticText(input.visualDescription));
+    (input.hasDurableVideo || input.hasDurableThumbnail || input.frameCount >= 3) &&
+    isUsableSemanticText(input.visualDescription);
 
   if (!input.hasDurableVideo && !input.hasDurableThumbnail && input.frameCount === 0)
     rejectionCodes.push("missing_media");

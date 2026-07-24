@@ -11,6 +11,7 @@ export const PIPELINE_MODELS = {
   plan: "openai/gpt-5-nano",
   create: "openai/gpt-5-nano",
   marketDiscovery: "openai/gpt-5-nano",
+  marketSource: "google/gemini-2.5-flash",
   marketAdapt: "openai/gpt-5-nano",
 } as const;
 
@@ -24,6 +25,7 @@ export const PROMPT_VERSIONS = {
   embedding: "knowledge/openai-embedding-v1",
   marketDiscovery: "market/discovery-pt-br-v1",
   marketRanking: "market/ranking-pt-br-v1",
+  marketSource: "market/source-evidence-v1",
   marketAdapt: "market/adapt-carousel-pt-br-v1",
 } as const;
 

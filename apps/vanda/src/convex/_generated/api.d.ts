@@ -64,6 +64,7 @@ import type * as pipeline_publish from "../pipeline/publish.js";
 import type * as pipeline_publisher from "../pipeline/publisher.js";
 import type * as pipeline_retrieval from "../pipeline/retrieval.js";
 import type * as pipeline_signals from "../pipeline/signals.js";
+import type * as pipeline_sourceUnderstanding from "../pipeline/sourceUnderstanding.js";
 import type * as pipeline_storage from "../pipeline/storage.js";
 import type * as pipeline_suggestions from "../pipeline/suggestions.js";
 import type * as pipeline_testLanguageModel from "../pipeline/testLanguageModel.js";
@@ -140,6 +141,7 @@ declare const fullApi: ApiFromModules<{
   "pipeline/publisher": typeof pipeline_publisher;
   "pipeline/retrieval": typeof pipeline_retrieval;
   "pipeline/signals": typeof pipeline_signals;
+  "pipeline/sourceUnderstanding": typeof pipeline_sourceUnderstanding;
   "pipeline/storage": typeof pipeline_storage;
   "pipeline/suggestions": typeof pipeline_suggestions;
   "pipeline/testLanguageModel": typeof pipeline_testLanguageModel;

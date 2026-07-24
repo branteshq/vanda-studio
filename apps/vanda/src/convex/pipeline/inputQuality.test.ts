@@ -54,6 +54,8 @@ describe("input quality", () => {
         hasDurableVideo: true,
         hasDurableThumbnail: true,
         frameCount: 0,
+        visualDescription:
+          "O vídeo demonstra visualmente cada etapa do procedimento com texto explicativo.",
       }),
     ).toMatchObject({ decision: "qualified" });
   });

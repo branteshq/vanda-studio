@@ -20,7 +20,13 @@ import {
 } from "./pipeline/market";
 import { languageModelLayer, PIPELINE_MODELS, PROMPT_VERSIONS } from "./pipeline/liveModel";
 import { graphGet } from "./pipeline/igGraph";
+import { isUsableSemanticText } from "./pipeline/inputQuality";
 import { runTracked } from "./pipeline/liveTelemetry";
+import {
+  SourceUnderstanding,
+  openRouterSourceUnderstandingLayer,
+  type SourceEvidence,
+} from "./pipeline/sourceUnderstanding";
 
 const ACTIVE_WINDOW_MS = 1000 * 60 * 60 * 24 * 30;
 const MIN_FOLLOWERS = 50;
@@ -352,7 +358,9 @@ export const qualifyOpportunity = internalAction({
   args: { opportunityId: v.id("opportunities"), analyzeAfter: v.optional(v.boolean()) },
   handler: async (ctx, { opportunityId, analyzeAfter }): Promise<boolean> => {
     const apifyToken = process.env.APIFY_API_TOKEN;
+    const modelKey = process.env.OPENROUTER_API_KEY;
     if (!apifyToken) throw new Error("APIFY_API_TOKEN is not set on the Convex deployment");
+    if (!modelKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
     const source: {
       opportunity: Doc<"opportunities">;
       post: Doc<"marketPosts">;
@@ -390,14 +398,12 @@ export const qualifyOpportunity = internalAction({
     }
 
     const assetErrors: string[] = [];
+    let videoBlob: Blob | undefined;
     let videoStorageId: Id<"_storage"> | undefined;
     let thumbnailStorageId: Id<"_storage"> | undefined;
     try {
-      const video = await downloadSourceAsset(
-        detail?.videoUrl ?? source.post.videoUrl,
-        100_000_000,
-      );
-      if (video) videoStorageId = await ctx.storage.store(video);
+      videoBlob = await downloadSourceAsset(detail?.videoUrl ?? source.post.videoUrl, 100_000_000);
+      if (videoBlob) videoStorageId = await ctx.storage.store(videoBlob);
     } catch (error) {
       assetErrors.push(`video: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -411,9 +417,39 @@ export const qualifyOpportunity = internalAction({
       assetErrors.push(`thumbnail: ${error instanceof Error ? error.message : String(error)}`);
     }
 
-    const transcript = detail?.transcript?.trim() || undefined;
+    const providerTranscript = detail?.transcript?.trim() || undefined;
     const caption = detail?.caption?.trim() || source.post.caption?.trim() || undefined;
-    const transcriptLanguage = likelyTranscriptLanguage(transcript);
+    let evidence: SourceEvidence | undefined;
+    if (videoBlob) {
+      try {
+        evidence = await runTracked(
+          ctx,
+          {
+            accountId: source.opportunity.accountId,
+            stage: "market_source",
+            model: PIPELINE_MODELS.marketSource,
+            promptVersion: PROMPT_VERSIONS.marketSource,
+            inputIds: [source.post.externalPostId],
+          },
+          () =>
+            Effect.runPromise(
+              Effect.flatMap(SourceUnderstanding, (service) =>
+                service.analyze({ video: videoBlob!, ...(caption ? { caption } : {}) }),
+              ).pipe(Effect.provide(openRouterSourceUnderstandingLayer(modelKey))),
+            ),
+          (result: SourceEvidence) =>
+            `${result.contentType}; ${result.frameEvidence.length} momentos`,
+        );
+      } catch (error) {
+        assetErrors.push(
+          `understanding: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+    const transcript = isUsableSemanticText(providerTranscript)
+      ? providerTranscript
+      : evidence?.transcript.trim() || undefined;
+    const transcriptLanguage = evidence?.language || likelyTranscriptLanguage(transcript);
     const qualification: {
       decision: "qualified" | "rejected";
       dossierId: Id<"sourceDossiers">;
@@ -426,6 +462,18 @@ export const qualifyOpportunity = internalAction({
       ...(caption ? { caption } : {}),
       ...(transcript ? { transcript } : {}),
       ...(transcriptLanguage ? { transcriptLanguage } : {}),
+      ...(evidence
+        ? {
+            transcriptConfidence: evidence.transcriptConfidence,
+            visualDescription: evidence.visualDescription,
+            visualConfidence: evidence.visualConfidence,
+            frameEvidence: evidence.frameEvidence.map((frame) => ({
+              timestampMs: frame.timestampMs,
+              description: frame.description,
+              ...(frame.onScreenText ? { onScreenText: frame.onScreenText } : {}),
+            })),
+          }
+        : {}),
       ...(videoStorageId ? { videoStorageId } : {}),
       ...(thumbnailStorageId ? { thumbnailStorageId } : {}),
       ...(providerError || assetErrors.length
