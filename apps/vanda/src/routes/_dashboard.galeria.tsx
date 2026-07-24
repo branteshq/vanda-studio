@@ -26,6 +26,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@vanda-studio/ui/components/dropdown-menu";
@@ -155,113 +156,106 @@ function GaleriaPage() {
 
   if (!activeAccount) return null;
 
+  const activeFilterCount = Number(kind !== null) + Number(status !== null);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <header className="shrink-0 border-b border-border bg-app px-5 pt-5 md:px-6 md:pt-6">
-        <div className="mx-auto w-full max-w-[1500px]">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-            <div className="min-w-0 flex-1">
-              <h1 className="text-xl font-semibold tracking-tight text-text">Galeria</h1>
-              <p className="mt-1 text-sm text-text-4">
-                {summary === undefined
-                  ? "Carregando sua biblioteca…"
-                  : summary.total === 1
-                    ? "1 item na sua biblioteca"
-                    : `${summary.total} itens na sua biblioteca`}
-              </p>
-            </div>
+      <header className="h-14 shrink-0 border-b border-border bg-app px-4 md:px-5">
+        <div className="mx-auto flex h-full w-full max-w-[1500px] items-center gap-2">
+          <h1 className="mr-auto text-sm font-semibold text-text">Galeria</h1>
 
-            <div className="flex items-center gap-2 sm:w-auto">
-              <label className="relative min-w-0 flex-1 sm:w-72 sm:flex-none">
-                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-text-5" />
-                <Input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Buscar na galeria…"
-                  aria-label="Buscar na galeria"
-                  className="h-9 rounded-lg bg-surface pr-3 pl-9"
+          <label className="relative min-w-0 flex-1 sm:w-64 sm:flex-none">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-text-5" />
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar…"
+              aria-label="Buscar na galeria"
+              className="h-8 rounded-lg bg-surface pr-2.5 pl-8"
+            />
+          </label>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant={activeFilterCount > 0 ? "soft" : "outline"}
+                  aria-label="Filtrar galeria"
                 />
-              </label>
-              <Link to="/automatico" className={buttonVariants({ size: "lg" })}>
-                <Plus />
-                Criar
-              </Link>
-            </div>
-          </div>
-
-          <div className="mt-5 flex items-end gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <nav
-              className="flex min-w-max flex-1 items-center gap-1"
-              aria-label="Tipos de conteúdo"
+              }
             >
+              <SlidersHorizontal />
+              <span className="hidden sm:inline">Filtros</span>
+              {activeFilterCount > 0 ? (
+                <span className="flex size-4 items-center justify-center rounded-full bg-brand-accent font-mono text-[9px] text-primary-foreground">
+                  {activeFilterCount}
+                </span>
+              ) : null}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuLabel>Tipo de conteúdo</DropdownMenuLabel>
               {FILTERS.map((filter) => {
-                const active = filter.kind === kind;
+                const selectedFilter = filter.kind === kind;
                 const count =
                   filter.countKey === undefined ? summary?.total : summary?.counts[filter.countKey];
                 return (
-                  <button
+                  <DropdownMenuItem
                     key={filter.label}
-                    type="button"
                     onClick={() => setKind(filter.kind)}
-                    aria-pressed={active}
-                    className={cn(
-                      "flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-medium whitespace-nowrap outline-none transition-[background-color,color,transform] duration-150 ease-[var(--ease-out)] focus-visible:ring-3 focus-visible:ring-ring/40 active:scale-[0.97]",
-                      active
-                        ? "bg-text text-surface"
-                        : "text-text-3 hover:bg-accent hover:text-text",
-                    )}
+                    className={cn(selectedFilter && "bg-accent text-text")}
                   >
                     {filter.label}
-                    {count !== undefined ? (
-                      <span
-                        className={cn(
-                          "rounded-full px-1.5 py-0.5 font-mono text-[10px] leading-none",
-                          active ? "bg-surface/15 text-surface" : "bg-inset text-text-4",
-                        )}
-                      >
-                        {count}
-                      </span>
-                    ) : null}
-                  </button>
+                    <span className="ml-auto flex items-center gap-2 text-xs text-text-4">
+                      {count ?? "—"}
+                      {selectedFilter ? (
+                        <span className="size-1.5 rounded-full bg-brand-accent" />
+                      ) : null}
+                    </span>
+                  </DropdownMenuItem>
                 );
               })}
-            </nav>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant={status ? "soft" : "ghost"}
-                    size="sm"
-                    className="mb-1 shrink-0"
-                    aria-label="Filtrar por status"
-                  />
-                }
-              >
-                <SlidersHorizontal />
-                {status ? STATUS_META[status]?.label : "Status"}
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                {STATUS_FILTERS.map((filter) => (
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Status</DropdownMenuLabel>
+              {STATUS_FILTERS.map((filter) => {
+                const selectedFilter = filter.value === status;
+                return (
                   <DropdownMenuItem
                     key={filter.label}
                     onClick={() => setStatus(filter.value)}
-                    className={cn(filter.value === status && "bg-accent text-text")}
+                    className={cn(selectedFilter && "bg-accent text-text")}
                   >
                     {filter.label}
-                    {filter.value === status ? (
+                    {selectedFilter ? (
                       <span className="ml-auto size-1.5 rounded-full bg-brand-accent" />
                     ) : null}
                   </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+                );
+              })}
+              {activeFilterCount > 0 ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setKind(null);
+                      setStatus(null);
+                    }}
+                  >
+                    Limpar filtros
+                  </DropdownMenuItem>
+                </>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Link to="/automatico" className={buttonVariants()}>
+            <Plus />
+            <span className="hidden sm:inline">Criar</span>
+          </Link>
         </div>
       </header>
 
       <main className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-[1500px] p-5 md:p-6">
+        <div className="mx-auto w-full max-w-[1500px] p-4 md:p-5">
           {items === undefined ? (
             <GallerySkeleton />
           ) : items.length === 0 ? (
