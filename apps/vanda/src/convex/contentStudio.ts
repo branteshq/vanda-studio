@@ -691,7 +691,20 @@ export const gallery = query({
         v.literal("tweet"),
       ),
     ),
-    status: v.optional(v.union(...contentProjectStatuses.map((status) => v.literal(status)))),
+    status: v.optional(
+      v.union(
+        v.literal("planning"),
+        v.literal("draft"),
+        v.literal("blocked"),
+        v.literal("ready_for_render"),
+        v.literal("rendering"),
+        v.literal("ready"),
+        v.literal("scheduled"),
+        v.literal("published"),
+        v.literal("failed"),
+        v.literal("archived"),
+      ),
+    ),
     search: v.optional(v.string()),
   },
   handler: async (ctx, { accountId, kind, status, search }) => {
@@ -741,6 +754,7 @@ export const gallery = query({
         .filter(
           (post) => kind === undefined || kind === (post.type === "feed" ? "post" : post.type),
         )
+        .filter((post) => status === undefined || post.status === status)
         .filter((post) => needle.length === 0 || post.caption.toLocaleLowerCase().includes(needle))
         .map(async (post) => {
           const cover = post.imageIds[0] ? await ctx.db.get(post.imageIds[0]) : null;
@@ -760,7 +774,98 @@ export const gallery = query({
           };
         }),
     );
-    return [...projectItems, ...postItems].sort((a, b) => b.updatedAt - a.updatedAt);
+    const linkedImageIds = new Set(
+      legacyPosts.flatMap((post) => post.imageIds.map((imageId) => String(imageId))),
+    );
+    const standaloneImages = (
+      await ctx.db
+        .query("images")
+        .withIndex("by_account", (q) => q.eq("accountId", accountId))
+        .collect()
+    ).filter(
+      (image) =>
+        image.purpose !== "reference" &&
+        image.contentProjectId === undefined &&
+        !linkedImageIds.has(String(image._id)),
+    );
+    const imageItems = await Promise.all(
+      standaloneImages
+        .filter(() => kind === undefined || kind === "image")
+        .filter(() => status === undefined || status === "ready")
+        .filter((image) =>
+          needle.length === 0
+            ? true
+            : `${image.description ?? ""} ${image.prompt ?? ""}`
+                .toLocaleLowerCase()
+                .includes(needle),
+        )
+        .map(async (image) => ({
+          id: String(image._id),
+          entityId: image._id,
+          entity: "image" as const,
+          kind: "image" as const,
+          title: image.description ?? image.prompt?.slice(0, 80) ?? "Imagem sem título",
+          status: "ready" as const,
+          itemCount: 1,
+          previewUrl:
+            image.externalUrl ??
+            (image.storageId ? await ctx.storage.getUrl(image.storageId) : null),
+          updatedAt: image.createdAt,
+        })),
+    );
+    return [...projectItems, ...postItems, ...imageItems].sort((a, b) => b.updatedAt - a.updatedAt);
+  },
+});
+
+export const gallerySummary = query({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }) => {
+    await requireOwnedAccount(ctx, accountId);
+    const [projects, posts, images] = await Promise.all([
+      ctx.db
+        .query("contentProjects")
+        .withIndex("by_account_updated", (q) => q.eq("accountId", accountId))
+        .collect(),
+      ctx.db
+        .query("posts")
+        .withIndex("by_account", (q) => q.eq("accountId", accountId))
+        .collect(),
+      ctx.db
+        .query("images")
+        .withIndex("by_account", (q) => q.eq("accountId", accountId))
+        .collect(),
+    ]);
+    const activeProjects = projects.filter((project) => project.status !== "archived");
+    const linkedPostIds = new Set(
+      activeProjects.flatMap((project) => (project.postId ? [String(project.postId)] : [])),
+    );
+    const legacyPosts = posts.filter((post) => !linkedPostIds.has(String(post._id)));
+    const linkedImageIds = new Set(
+      legacyPosts.flatMap((post) => post.imageIds.map((imageId) => String(imageId))),
+    );
+    const standaloneImages = images.filter(
+      (image) =>
+        image.purpose !== "reference" &&
+        image.contentProjectId === undefined &&
+        !linkedImageIds.has(String(image._id)),
+    );
+    const counts = {
+      post: activeProjects.length + legacyPosts.filter((post) => post.type === "feed").length,
+      image: standaloneImages.length,
+      reel: legacyPosts.filter((post) => post.type === "reel").length,
+      story: legacyPosts.filter((post) => post.type === "story").length,
+      tweet: legacyPosts.filter((post) => post.type === "tweet").length,
+    };
+    return {
+      total: Object.values(counts).reduce((sum, count) => sum + count, 0),
+      counts,
+      statuses: Object.fromEntries(
+        contentProjectStatuses.map((status) => [
+          status,
+          projects.filter((project) => project.status === status).length,
+        ]),
+      ),
+    };
   },
 });
 

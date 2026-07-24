@@ -1,7 +1,7 @@
 // @vitest-environment edge-runtime
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -129,6 +129,61 @@ describe("content studio persistence", () => {
     expect(state.post).toMatchObject({ status: "ready", carouselDocumentId: documentId });
     expect(state.post?.imageIds).toEqual(state.images.map((image) => image._id));
     expect(state.images.map((image) => image.slideId)).toEqual(["slide-1", "slide-2", "slide-3"]);
+  });
+
+  it("serves one account-scoped gallery across projects, posts, and standalone images", async () => {
+    const t = convexTest(schema, modules);
+    const accountId = await t.run(async (ctx) => {
+      const now = Date.now();
+      const userId = await ctx.db.insert("users", {
+        clerkId: "gallery-user",
+        name: "Gallery User",
+        email: "gallery@example.com",
+      });
+      const accountId = await ctx.db.insert("accounts", {
+        ownerUserId: userId,
+        mode: "needs_approval",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("contentProjects", {
+        accountId,
+        kind: "carousel",
+        origin: "manual",
+        title: "Projeto",
+        status: "draft",
+        latestVersion: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("posts", {
+        accountId,
+        type: "reel",
+        imageIds: [],
+        caption: "Reel legado",
+        platform: "instagram",
+        status: "ready",
+        createdAt: now,
+      });
+      await ctx.db.insert("images", {
+        accountId,
+        origin: "gallery",
+        externalUrl: "https://cdn.example/standalone.jpg",
+        description: "Imagem avulsa",
+        createdAt: now,
+      });
+      return accountId;
+    });
+    const authed = t.withIdentity({ subject: "gallery-user" });
+    const summary = await authed.query(api.contentStudio.gallerySummary, { accountId });
+    const items = await authed.query(api.contentStudio.gallery, { accountId });
+    expect(summary).toMatchObject({
+      total: 3,
+      counts: { post: 1, image: 1, reel: 1, story: 0, tweet: 0 },
+    });
+    expect(new Set(items.map((item) => item.entity))).toEqual(
+      new Set(["content_project", "post", "image"]),
+    );
   });
 
   it("does not accept incomplete render output", async () => {
