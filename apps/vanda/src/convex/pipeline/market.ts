@@ -348,6 +348,8 @@ export const CandidateRanking = Schema.Struct({
   ),
 });
 
+const clampUnit = (value: number): number => Math.max(0, Math.min(1, value));
+
 export interface CandidateRelevanceDimensions {
   readonly topicalOverlap: number;
   readonly audienceOverlap: number;
@@ -360,14 +362,13 @@ export interface CandidateRelevanceDimensions {
 }
 
 export const scoreCandidateRelevance = (input: CandidateRelevanceDimensions): number => {
-  const clamp = (value: number) => Math.max(0, Math.min(1, value));
   return (
-    clamp(input.topicalOverlap) * 0.3 +
-    clamp(input.audienceOverlap) * 0.2 +
-    clamp(input.offerOverlap) * 0.15 +
-    clamp(input.geographicOverlap) * 0.1 +
-    clamp(input.languageMatch) * 0.1 +
-    clamp(input.contentActivity) * 0.15
+    clampUnit(input.topicalOverlap) * 0.3 +
+    clampUnit(input.audienceOverlap) * 0.2 +
+    clampUnit(input.offerOverlap) * 0.15 +
+    clampUnit(input.geographicOverlap) * 0.1 +
+    clampUnit(input.languageMatch) * 0.1 +
+    clampUnit(input.contentActivity) * 0.15
   );
 };
 
@@ -467,14 +468,13 @@ export const rankCandidates = (
       return profiles.flatMap((profile): ReadonlyArray<RankedMarketProfile> => {
         const ranking = byHandle.get(profile.handle.toLocaleLowerCase());
         if (!ranking) return [];
-        const clamp = (value: number) => Math.max(0, Math.min(1, value));
-        const topicalOverlap = clamp(ranking.topicalOverlap);
-        const audienceOverlap = clamp(ranking.audienceOverlap);
-        const offerOverlap = clamp(ranking.offerOverlap);
-        const geographicOverlap = clamp(ranking.geographicOverlap);
-        const languageMatch = clamp(ranking.languageMatch);
-        const contentActivity = clamp(ranking.contentActivity);
-        const relevanceConfidence = clamp(ranking.confidence);
+        const topicalOverlap = clampUnit(ranking.topicalOverlap);
+        const audienceOverlap = clampUnit(ranking.audienceOverlap);
+        const offerOverlap = clampUnit(ranking.offerOverlap);
+        const geographicOverlap = clampUnit(ranking.geographicOverlap);
+        const languageMatch = clampUnit(ranking.languageMatch);
+        const contentActivity = clampUnit(ranking.contentActivity);
+        const relevanceConfidence = clampUnit(ranking.confidence);
         const dimensions = {
           topicalOverlap,
           audienceOverlap,

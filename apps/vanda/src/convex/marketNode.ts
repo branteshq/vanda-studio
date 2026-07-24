@@ -646,8 +646,7 @@ export const runAccount = internalAction({
       readonly _id: Id<"marketCreators">;
       readonly relevanceScore: number;
     }> = await ctx.runQuery(internal.market.listActiveCreators, { accountId });
-    const needsDiscovery =
-      creators.length === 0 || creators.every((creator) => creator.relevanceScore < 0.65);
+    const needsDiscovery = creators.every((creator) => creator.relevanceScore < 0.65);
     const runId: Id<"marketRuns"> = await ctx.runMutation(internal.market.startRun, {
       accountId,
       kind: "full_loop",
