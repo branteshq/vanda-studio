@@ -229,8 +229,9 @@ export const generateCreativeDirections = (input: {
       `história, imagens ou identidade da fonte. Todo ativo deve declarar strategy: available somente ` +
       `quando a lista de ativos permite, generate para produção autorizada, needs_owner quando depende ` +
       `do proprietário ou not_needed. strategy=available exige assetIds com IDs exatos da lista; ` +
-      `qualquer outro strategy exige assetIds vazio. Não presuma que uma imagem de referência é ` +
-      `vídeo, voz, apresentador ou produto. Dê notas honestas de 0 a 1. Responda em português do Brasil.\n\n` +
+      `qualquer outro strategy exige assetIds vazio. reference_image pode orientar estilo, mas seu ` +
+      `conteúdo é desconhecido: não presuma que mostra rosto, produto, local, vídeo ou voz e não a ` +
+      `descreva como um desses ativos. Dê notas honestas de 0 a 1. Responda em português do Brasil.\n\n` +
       `FONTE\n${sourceBlock(input.source)}\n\nANÁLISE\n${JSON.stringify(input.analysis)}\n\n` +
       `MARCA\n${brandBlock(input.brand)}`,
   }).pipe(Effect.map((response) => response.value));
@@ -268,8 +269,10 @@ export const reviewCreativeBrief = (input: {
       `proximidade excessiva com palavras, identidade, história ou expressão distintiva da fonte, ` +
       `contradições de marca e ativos obrigatórios ausentes. Hipóteses cautelosas da análise não são ` +
       `claims do brief. Compartilhar tópico, formato de lista ou mecanismo abstrato não é similaridade ` +
-      `por si só. Não exija especificações de renderização que pertencem à produção. Aprove somente ` +
-      `quando não houver unsupportedClaims, ` +
+      `por si só. Um reference_image possui conteúdo desconhecido e só pode ser usado como referência ` +
+      `visual, não como prova de rosto, produto ou local. Não exija especificações de renderização que ` +
+      `pertencem à produção. missingAssets deve ser vazio quando nada estiver faltando; nunca escreva ` +
+      `uma frase dizendo que nenhum ativo falta. Aprove somente quando não houver unsupportedClaims, ` +
       `similarityRisks ou issues bloqueantes. brandGrounding deve ligar cada fato realmente usado ao ` +
       `ID confirmado. Não tente corrigir o brief silenciosamente. Responda em português do Brasil.\n\n` +
       `FONTE\n${sourceBlock(input.source)}\n\nANÁLISE\n${JSON.stringify(input.analysis)}\n\n` +
