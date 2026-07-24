@@ -698,7 +698,7 @@ The honest current position is therefore:
 Understand:  partial
 Discover:    hardened backend implemented; fresh validation pending
 Decide:      complete backend chain; real-opportunity evaluation pending
-Create:      workflow scaffold, not a product capability
+Create:      structured production backend; renderer quality pending
 Distribute:  wired, not operationally proven
 Learn:       metric plumbing only
 ```
@@ -854,8 +854,14 @@ Graduation gate:
 - all factual claims are traceable to brand context or explicitly marked input;
 - the preview matches the bytes that will be published.
 
-Current status: **workflow scaffold only**. Hosted placeholder images and generic
-slide copy prove orchestration and storage, not content quality.
+Current status: **structured production backend implemented; rendering pending**.
+Approved briefs now become immutable, versioned 1080×1350 carousel documents through
+a separate planning and editorial-review chain. The backend supports grounded final
+copy, stable slides, asset requests, deterministic preflight, owner revisions,
+targeted slide regeneration, render jobs, atomic post assembly, retries, and a
+unified gallery query. The planner and reviewer have been live-validated together;
+no production-quality raster renderer or generated-asset worker exists yet, so the
+stage has not passed its graduation gate.
 
 ### Stage 4 — Reliable operator: Distribute
 
@@ -1130,21 +1136,23 @@ The discovery spike has moved the primary product risk. The next risk is not whe
 Vanda can find public content; it is whether Vanda can turn that evidence into work
 that deserves to be published.
 
-### Completed backend foundation — Market Radar and Creative Director
+### Completed backend foundation — Market Radar, Creative Director, and Content Studio
 
 The backend now hardens source inputs, persists multimodal dossiers, analyzes the
 transferable mechanism, generates and scores three materially different directions,
-selects a production brief, independently reviews it, rejects unsafe packages, and
-preserves the complete decision chain. Fresh real-market evaluation remains an
-operational validation task rather than an architectural dependency.
+selects a production brief, and turns approved briefs into reviewed, versioned
+carousel documents. It preserves provenance, rejects unsafe packages, supports
+owner edits and slide regeneration, and exposes the render/post/gallery boundaries.
+Fresh real-market evaluation remains an operational validation task rather than an
+architectural dependency.
 
-### Now — build one excellent Content Studio path
+### Now — build one excellent rendering path
 
-1. Define a structured carousel document and layout grammar.
-2. Build the real branded 1080×1350 renderer.
-3. Add authorized image and brand asset retrieval.
-4. Add editing, targeted regeneration, and reliable previews.
-5. Add technical, editorial, factual, and similarity preflight checks.
+1. Build the real branded 1080×1350 renderer from the carousel document grammar.
+2. Add generated-asset workers and richer authorized asset inspection.
+3. Produce accurate, durable previews from the same bytes used for publication.
+4. Add renderer-level clipping, contrast, safe-zone, and export checks.
+5. Build the gallery and focused carousel editor on the existing backend queries.
 6. Iterate until pilot users approve most drafts with no or minor edits.
 
 ### Then — prove the Reliable Operator
