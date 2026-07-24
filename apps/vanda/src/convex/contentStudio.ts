@@ -719,7 +719,7 @@ export const gallery = query({
       projects
         .filter((item) => item.status !== "archived")
         .filter((item) => status === undefined || item.status === status)
-        .filter((item) => kind === undefined || kind === "post")
+        .filter(() => kind === undefined || kind === "post")
         .filter((item) => needle.length === 0 || item.title.toLocaleLowerCase().includes(needle))
         .map(async (item) => {
           const cover = item.coverImageId ? await ctx.db.get(item.coverImageId) : null;
