@@ -20,6 +20,8 @@ const STAGE_LABEL: Record<PipelineStageReceipt["stage"], string> = {
   plan: "Planejamento",
   create: "Criação",
   embedding: "Memória vetorial",
+  market_discovery: "Descoberta de mercado",
+  market_adapt: "Adaptação",
 };
 
 const STATE_COPY: Record<

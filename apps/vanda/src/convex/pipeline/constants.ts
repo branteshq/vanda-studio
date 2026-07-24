@@ -32,7 +32,32 @@ export const scheduledStatuses = ["scheduled", "publishing", "published", "faile
 export const signalSources = ["comments", "mentions", "competitors", "trends", "posts"] as const;
 export const signalSyncKinds = ["backfill", "reconciliation", "webhook"] as const;
 export const knowledgeKinds = ["canon", "belief", "caption", "post", "feedback"] as const;
-export const modelStages = ["brand_profile", "consolidate", "plan", "create", "embedding"] as const;
+export const modelStages = [
+  "brand_profile",
+  "consolidate",
+  "plan",
+  "create",
+  "embedding",
+  "market_discovery",
+  "market_adapt",
+] as const;
+
+export const marketCreatorStatuses = ["active", "paused", "rejected", "unavailable"] as const;
+export const marketRunKinds = ["discovery", "observation", "full_loop"] as const;
+export const marketRunStatuses = ["running", "succeeded", "failed"] as const;
+export const metricSubjectTypes = ["source_post", "publication"] as const;
+export const opportunityStatuses = [
+  "detected",
+  "analyzing",
+  "adapting",
+  "awaiting_approval",
+  "publishing",
+  "published",
+  "measuring",
+  "dismissed",
+  "failed",
+] as const;
+export const opportunityTriggers = ["absolute_threshold", "audience_ratio", "velocity"] as const;
 export const suggestionStatuses = [
   "suggestion",
   "needs_you",

@@ -1,0 +1,533 @@
+import { v } from "convex/values";
+import { internal } from "./_generated/api";
+import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { requireOwnedAccount } from "./authz";
+import { marketRunKinds, marketRunStatuses, opportunityStatuses } from "./pipeline/constants";
+import { detectBreakout } from "./pipeline/market";
+
+const optionalCount = v.optional(v.number());
+
+export const authorize = internalQuery({
+  args: { accountId: v.id("accounts"), clerkId: v.string() },
+  handler: async (ctx, { accountId, clerkId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .unique();
+    const account = await ctx.db.get(accountId);
+    if (!user || !account || account.ownerUserId !== user._id) throw new Error("account not found");
+    return true;
+  },
+});
+
+export const loadBrandContext = internalQuery({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }) => {
+    const account = await ctx.db.get(accountId);
+    const connection = account?.connectionId ? await ctx.db.get(account.connectionId) : null;
+    const canon = await ctx.db
+      .query("brandCanon")
+      .withIndex("by_account", (q) => q.eq("accountId", accountId))
+      .collect();
+    const themes = await ctx.db
+      .query("themes")
+      .withIndex("by_account", (q) => q.eq("accountId", accountId))
+      .collect();
+    return {
+      ownHandle: connection?.handle,
+      context: [
+        ...canon
+          .filter((item) => item.confirmedByOwner)
+          .map((item) => `${item.kind}: ${item.text}`),
+        ...themes.map((theme) => `tema: ${theme.name} — ${theme.summary}`),
+      ].join("\n"),
+    };
+  },
+});
+
+export const startRun = internalMutation({
+  args: {
+    accountId: v.id("accounts"),
+    kind: v.union(...marketRunKinds.map((kind) => v.literal(kind))),
+    stage: v.string(),
+  },
+  handler: (ctx, { accountId, kind, stage }) =>
+    ctx.db.insert("marketRuns", {
+      accountId,
+      kind,
+      status: "running",
+      stage,
+      startedAt: Date.now(),
+      creatorsFound: 0,
+      creatorsSelected: 0,
+      postsObserved: 0,
+      snapshotsRecorded: 0,
+      opportunitiesDetected: 0,
+      adaptationsCreated: 0,
+    }),
+});
+
+export const updateRun = internalMutation({
+  args: {
+    runId: v.id("marketRuns"),
+    status: v.optional(v.union(...marketRunStatuses.map((status) => v.literal(status)))),
+    stage: v.optional(v.string()),
+    category: v.optional(v.string()),
+    location: v.optional(v.string()),
+    language: v.optional(v.string()),
+    searchQueries: v.optional(v.array(v.string())),
+    creatorsFound: optionalCount,
+    creatorsSelected: optionalCount,
+    postsObserved: optionalCount,
+    snapshotsRecorded: optionalCount,
+    opportunitiesDetected: optionalCount,
+    adaptationsCreated: optionalCount,
+    summary: v.optional(v.string()),
+    error: v.optional(v.string()),
+    complete: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { runId, complete, ...patch }) => {
+    await ctx.db.patch(runId, {
+      ...patch,
+      ...(complete ? { completedAt: Date.now() } : {}),
+    });
+  },
+});
+
+const marketPostArg = v.object({
+  externalId: v.string(),
+  shortCode: v.optional(v.string()),
+  permalink: v.string(),
+  caption: v.optional(v.string()),
+  mediaType: v.string(),
+  productType: v.optional(v.string()),
+  thumbnailUrl: v.optional(v.string()),
+  videoUrl: v.optional(v.string()),
+  publishedAt: v.number(),
+  views: v.optional(v.number()),
+  plays: v.optional(v.number()),
+  likes: v.optional(v.number()),
+  comments: v.optional(v.number()),
+});
+
+const selectedCreatorArg = v.object({
+  externalId: v.optional(v.string()),
+  handle: v.string(),
+  displayName: v.optional(v.string()),
+  profileUrl: v.string(),
+  biography: v.optional(v.string()),
+  profileImageUrl: v.optional(v.string()),
+  followers: v.optional(v.number()),
+  following: v.optional(v.number()),
+  postsCount: v.optional(v.number()),
+  businessCategory: v.optional(v.string()),
+  private: v.boolean(),
+  verified: v.boolean(),
+  relevanceScore: v.number(),
+  relevanceReason: v.string(),
+  latestPosts: v.array(marketPostArg),
+});
+
+export const saveSelectedCreators = internalMutation({
+  args: { accountId: v.id("accounts"), creators: v.array(selectedCreatorArg) },
+  handler: async (ctx, { accountId, creators }) => {
+    const now = Date.now();
+    const ids = [];
+    for (const creator of creators) {
+      const handle = creator.handle.toLocaleLowerCase();
+      const existing = await ctx.db
+        .query("marketCreators")
+        .withIndex("by_account_handle", (q) => q.eq("accountId", accountId).eq("handle", handle))
+        .unique();
+      const { latestPosts: _latestPosts, ...profile } = creator;
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          ...profile,
+          handle,
+          status: "active",
+          updatedAt: now,
+        });
+        ids.push(existing._id);
+      } else {
+        ids.push(
+          await ctx.db.insert("marketCreators", {
+            accountId,
+            ...profile,
+            handle,
+            status: "active",
+            discoveredAt: now,
+            updatedAt: now,
+          }),
+        );
+      }
+    }
+    return ids;
+  },
+});
+
+export const listOnboardedAccounts = internalQuery({
+  args: {},
+  handler: async (ctx) =>
+    (await ctx.db.query("accounts").collect()).filter(
+      (account) => account.onboardedAt !== undefined,
+    ),
+});
+
+export const listActiveCreators = internalQuery({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }) =>
+    (
+      await ctx.db
+        .query("marketCreators")
+        .withIndex("by_account", (q) => q.eq("accountId", accountId))
+        .collect()
+    ).filter((creator) => creator.status === "active"),
+});
+
+export const recordObservations = internalMutation({
+  args: { accountId: v.id("accounts"), creators: v.array(selectedCreatorArg) },
+  handler: async (ctx, { accountId, creators }) => {
+    const observedAt = Date.now();
+    let postsObserved = 0;
+    let snapshotsRecorded = 0;
+    const opportunityIds = [];
+
+    for (const input of creators) {
+      const handle = input.handle.toLocaleLowerCase();
+      const creator = await ctx.db
+        .query("marketCreators")
+        .withIndex("by_account_handle", (q) => q.eq("accountId", accountId).eq("handle", handle))
+        .unique();
+      if (!creator || creator.status !== "active") continue;
+      await ctx.db.patch(creator._id, {
+        ...(input.followers !== undefined ? { followers: input.followers } : {}),
+        ...(input.following !== undefined ? { following: input.following } : {}),
+        ...(input.postsCount !== undefined ? { postsCount: input.postsCount } : {}),
+        ...(input.profileImageUrl !== undefined ? { profileImageUrl: input.profileImageUrl } : {}),
+        lastObservedAt: observedAt,
+        updatedAt: observedAt,
+      });
+
+      for (const inputPost of input.latestPosts) {
+        const isVideo =
+          inputPost.mediaType.toLocaleLowerCase() === "video" ||
+          inputPost.productType?.toLocaleLowerCase().includes("clip") === true;
+        if (!isVideo) continue;
+        postsObserved += 1;
+        const existing = await ctx.db
+          .query("marketPosts")
+          .withIndex("by_creator_external", (q) =>
+            q.eq("creatorId", creator._id).eq("externalPostId", inputPost.externalId),
+          )
+          .unique();
+        let marketPostId;
+        if (existing) {
+          marketPostId = existing._id;
+          await ctx.db.patch(existing._id, {
+            permalink: inputPost.permalink,
+            ...(inputPost.caption !== undefined ? { caption: inputPost.caption } : {}),
+            ...(inputPost.thumbnailUrl !== undefined
+              ? { thumbnailUrl: inputPost.thumbnailUrl }
+              : {}),
+            ...(inputPost.videoUrl !== undefined ? { videoUrl: inputPost.videoUrl } : {}),
+            lastObservedAt: observedAt,
+          });
+        } else {
+          marketPostId = await ctx.db.insert("marketPosts", {
+            accountId,
+            creatorId: creator._id,
+            externalPostId: inputPost.externalId,
+            permalink: inputPost.permalink,
+            mediaType: inputPost.mediaType,
+            publishedAt: inputPost.publishedAt,
+            firstObservedAt: observedAt,
+            lastObservedAt: observedAt,
+            ...(inputPost.shortCode !== undefined ? { shortCode: inputPost.shortCode } : {}),
+            ...(inputPost.caption !== undefined ? { caption: inputPost.caption } : {}),
+            ...(inputPost.productType !== undefined ? { productType: inputPost.productType } : {}),
+            ...(inputPost.thumbnailUrl !== undefined
+              ? { thumbnailUrl: inputPost.thumbnailUrl }
+              : {}),
+            ...(inputPost.videoUrl !== undefined ? { videoUrl: inputPost.videoUrl } : {}),
+          });
+        }
+
+        const previous = await ctx.db
+          .query("metricSnapshots")
+          .withIndex("by_market_post_observed", (q) => q.eq("marketPostId", marketPostId))
+          .order("desc")
+          .first();
+        const current = {
+          observedAt,
+          followers: input.followers ?? creator.followers,
+          views: inputPost.views,
+          plays: inputPost.plays,
+          likes: inputPost.likes,
+          comments: inputPost.comments,
+        };
+        await ctx.db.insert("metricSnapshots", {
+          accountId,
+          subjectType: "source_post",
+          marketPostId,
+          observedAt,
+          ...(current.followers !== undefined ? { followers: current.followers } : {}),
+          ...(current.views !== undefined ? { views: current.views } : {}),
+          ...(current.plays !== undefined ? { plays: current.plays } : {}),
+          ...(current.likes !== undefined ? { likes: current.likes } : {}),
+          ...(current.comments !== undefined ? { comments: current.comments } : {}),
+        });
+        snapshotsRecorded += 1;
+
+        const alreadyFlagged = await ctx.db
+          .query("opportunities")
+          .withIndex("by_market_post", (q) => q.eq("marketPostId", marketPostId))
+          .first();
+        if (alreadyFlagged) continue;
+        const decision = detectBreakout(current, previous ?? undefined);
+        if (!decision) continue;
+        opportunityIds.push(
+          await ctx.db.insert("opportunities", {
+            accountId,
+            marketPostId,
+            status: "detected",
+            score: decision.score,
+            triggerType: decision.triggerType,
+            triggerReason: decision.reason,
+            triggeredAt: observedAt,
+            createdAt: observedAt,
+            updatedAt: observedAt,
+          }),
+        );
+      }
+    }
+
+    return { postsObserved, snapshotsRecorded, opportunityIds };
+  },
+});
+
+export const loadOpportunity = internalQuery({
+  args: { opportunityId: v.id("opportunities") },
+  handler: async (ctx, { opportunityId }) => {
+    const opportunity = await ctx.db.get(opportunityId);
+    if (!opportunity) return null;
+    const post = await ctx.db.get(opportunity.marketPostId);
+    if (!post) return null;
+    const creator = await ctx.db.get(post.creatorId);
+    const canon = await ctx.db
+      .query("brandCanon")
+      .withIndex("by_account", (q) => q.eq("accountId", opportunity.accountId))
+      .collect();
+    return {
+      opportunity,
+      post,
+      creator,
+      brandContext: canon
+        .filter((item) => item.confirmedByOwner)
+        .map((item) => `${item.kind}: ${item.text}`)
+        .join("\n"),
+    };
+  },
+});
+
+export const setOpportunityStatus = internalMutation({
+  args: {
+    opportunityId: v.id("opportunities"),
+    status: v.union(...opportunityStatuses.map((status) => v.literal(status))),
+    lastError: v.optional(v.string()),
+  },
+  handler: (ctx, { opportunityId, status, lastError }) =>
+    ctx.db.patch(opportunityId, {
+      status,
+      ...(lastError !== undefined ? { lastError } : {}),
+      updatedAt: Date.now(),
+    }),
+});
+
+export const saveAdaptation = internalMutation({
+  args: {
+    opportunityId: v.id("opportunities"),
+    transcript: v.optional(v.string()),
+    coreIdea: v.string(),
+    hook: v.string(),
+    structure: v.string(),
+    pacing: v.string(),
+    visualConcept: v.string(),
+    whyItWorks: v.string(),
+    creatorSpecificElements: v.array(v.string()),
+    adaptedHook: v.string(),
+    adaptedSlides: v.array(v.string()),
+    adaptedCaption: v.string(),
+    transformationNotes: v.string(),
+    storageIds: v.array(v.id("_storage")),
+  },
+  handler: async (ctx, args) => {
+    const opportunity = await ctx.db.get(args.opportunityId);
+    if (!opportunity) throw new Error("opportunity not found");
+    const now = Date.now();
+    const imageIds = [];
+    for (let index = 0; index < args.storageIds.length; index += 1) {
+      imageIds.push(
+        await ctx.db.insert("images", {
+          accountId: opportunity.accountId,
+          origin: "generated",
+          purpose: "post",
+          storageId: args.storageIds[index]!,
+          width: 1080,
+          height: 1350,
+          prompt: `market adaptation slide ${index + 1}`,
+          createdAt: now,
+        }),
+      );
+    }
+    const postId = await ctx.db.insert("posts", {
+      accountId: opportunity.accountId,
+      type: "feed",
+      imageIds,
+      caption: args.adaptedCaption,
+      platform: "instagram",
+      status: "ready",
+      opportunityId: opportunity._id,
+      createdAt: now,
+    });
+    await ctx.db.patch(opportunity._id, {
+      status: "awaiting_approval",
+      ...(args.transcript !== undefined ? { sourceTranscript: args.transcript } : {}),
+      coreIdea: args.coreIdea,
+      hook: args.hook,
+      structure: args.structure,
+      pacing: args.pacing,
+      visualConcept: args.visualConcept,
+      whyItWorks: args.whyItWorks,
+      creatorSpecificElements: args.creatorSpecificElements,
+      adaptedHook: args.adaptedHook,
+      adaptedSlides: args.adaptedSlides,
+      adaptedCaption: args.adaptedCaption,
+      transformationNotes: args.transformationNotes,
+      postId,
+      lastError: undefined,
+      updatedAt: now,
+    });
+    return postId;
+  },
+});
+
+export const approveOpportunity = mutation({
+  args: { opportunityId: v.id("opportunities") },
+  handler: async (ctx, { opportunityId }) => {
+    const opportunity = await ctx.db.get(opportunityId);
+    if (!opportunity) throw new Error("opportunity not found");
+    await requireOwnedAccount(ctx, opportunity.accountId);
+    if (opportunity.scheduledPostId) return opportunity.scheduledPostId;
+    if (opportunity.status !== "awaiting_approval" || !opportunity.postId)
+      throw new Error("opportunity is not ready for publication");
+    const scheduledFor = Date.now() + 5_000;
+    const scheduledPostId = await ctx.db.insert("scheduledPosts", {
+      accountId: opportunity.accountId,
+      postId: opportunity.postId,
+      scheduledFor,
+      status: "scheduled",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    await ctx.db.patch(opportunity.postId, { status: "scheduled" });
+    await ctx.db.patch(opportunityId, {
+      status: "publishing",
+      scheduledPostId,
+      updatedAt: Date.now(),
+    });
+    await ctx.scheduler.runAt(scheduledFor, internal.publishScheduledNode.runScheduledPost, {
+      scheduledPostId,
+    });
+    return scheduledPostId;
+  },
+});
+
+export const dashboard = query({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }) => {
+    await requireOwnedAccount(ctx, accountId);
+    const creators = (
+      await ctx.db
+        .query("marketCreators")
+        .withIndex("by_account", (q) => q.eq("accountId", accountId))
+        .collect()
+    ).filter((creator) => creator.status === "active");
+    const posts = await ctx.db
+      .query("marketPosts")
+      .withIndex("by_account_published", (q) => q.eq("accountId", accountId))
+      .order("desc")
+      .take(100);
+    const opportunities = [];
+    for (const status of opportunityStatuses) {
+      const rows = await ctx.db
+        .query("opportunities")
+        .withIndex("by_account_status", (q) => q.eq("accountId", accountId).eq("status", status))
+        .collect();
+      opportunities.push(...rows);
+    }
+    const runs = await ctx.db
+      .query("marketRuns")
+      .withIndex("by_account_started", (q) => q.eq("accountId", accountId))
+      .order("desc")
+      .take(1);
+    const creatorById = new Map(creators.map((creator) => [creator._id, creator]));
+    const postById = new Map(posts.map((post) => [post._id, post]));
+    const latestPostByCreator = new Map<string, (typeof posts)[number]>();
+    for (const post of posts) {
+      if (!latestPostByCreator.has(post.creatorId)) latestPostByCreator.set(post.creatorId, post);
+    }
+
+    const opportunityCards = await Promise.all(
+      opportunities
+        .filter((opportunity) => opportunity.status !== "dismissed")
+        .sort((a, b) => b.score - a.score)
+        .map(async (opportunity) => {
+          const post =
+            postById.get(opportunity.marketPostId) ?? (await ctx.db.get(opportunity.marketPostId));
+          const creator = post
+            ? (creatorById.get(post.creatorId) ?? (await ctx.db.get(post.creatorId)))
+            : null;
+          const snapshots = await ctx.db
+            .query("metricSnapshots")
+            .withIndex("by_market_post_observed", (q) =>
+              q.eq("marketPostId", opportunity.marketPostId),
+            )
+            .order("desc")
+            .take(1);
+          return {
+            ...opportunity,
+            post,
+            creator,
+            metrics: snapshots[0] ?? null,
+          };
+        }),
+    );
+
+    return {
+      latestRun: runs[0] ?? null,
+      totals: {
+        creators: creators.length,
+        posts: posts.length,
+        opportunities: opportunityCards.length,
+        ready: opportunityCards.filter((item) => item.status === "awaiting_approval").length,
+      },
+      creators: creators
+        .sort((a, b) => b.relevanceScore - a.relevanceScore)
+        .map((creator) => ({
+          ...creator,
+          latestPost: latestPostByCreator.get(creator._id) ?? null,
+        })),
+      opportunities: opportunityCards,
+    };
+  },
+});
+
+export const dismissOpportunity = mutation({
+  args: { opportunityId: v.id("opportunities") },
+  handler: async (ctx, { opportunityId }) => {
+    const opportunity = await ctx.db.get(opportunityId);
+    if (!opportunity) throw new Error("opportunity not found");
+    await requireOwnedAccount(ctx, opportunity.accountId);
+    await ctx.db.patch(opportunityId, { status: "dismissed", updatedAt: Date.now() });
+  },
+});

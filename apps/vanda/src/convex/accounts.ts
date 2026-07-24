@@ -166,6 +166,36 @@ export const remove = mutation({
       await deleteRows(suggestions, (id) => ctx.db.delete(id));
     }
 
+    const opportunities = await ctx.db
+      .query("opportunities")
+      .withIndex("by_account_status", (q) => q.eq("accountId", accountId))
+      .collect();
+    await deleteRows(opportunities, (id) => ctx.db.delete(id));
+
+    const metricSnapshots = await ctx.db
+      .query("metricSnapshots")
+      .withIndex("by_account", (q) => q.eq("accountId", accountId))
+      .collect();
+    await deleteRows(metricSnapshots, (id) => ctx.db.delete(id));
+
+    const marketPosts = await ctx.db
+      .query("marketPosts")
+      .withIndex("by_account_published", (q) => q.eq("accountId", accountId))
+      .collect();
+    await deleteRows(marketPosts, (id) => ctx.db.delete(id));
+
+    const marketCreators = await ctx.db
+      .query("marketCreators")
+      .withIndex("by_account", (q) => q.eq("accountId", accountId))
+      .collect();
+    await deleteRows(marketCreators, (id) => ctx.db.delete(id));
+
+    const marketRuns = await ctx.db
+      .query("marketRuns")
+      .withIndex("by_account_started", (q) => q.eq("accountId", accountId))
+      .collect();
+    await deleteRows(marketRuns, (id) => ctx.db.delete(id));
+
     const images = await ctx.db
       .query("images")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))

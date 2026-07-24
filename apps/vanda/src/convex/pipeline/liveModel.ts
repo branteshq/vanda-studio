@@ -10,6 +10,8 @@ export const PIPELINE_MODELS = {
   consolidate: "openai/gpt-5-nano",
   plan: "openai/gpt-5-nano",
   create: "openai/gpt-5-nano",
+  marketDiscovery: "openai/gpt-5-nano",
+  marketAdapt: "openai/gpt-5-nano",
 } as const;
 
 export const DEFAULT_MODEL = PIPELINE_MODELS.consolidate;
@@ -20,6 +22,9 @@ export const PROMPT_VERSIONS = {
   plan: "plan/brand-grounded-pt-br-v1",
   create: "create/brand-grounded-pt-br-v1",
   embedding: "knowledge/openai-embedding-v1",
+  marketDiscovery: "market/discovery-pt-br-v1",
+  marketRanking: "market/ranking-pt-br-v1",
+  marketAdapt: "market/adapt-carousel-pt-br-v1",
 } as const;
 
 const MODEL_CONFIG = {
