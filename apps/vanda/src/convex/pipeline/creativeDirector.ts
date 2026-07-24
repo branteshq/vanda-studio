@@ -296,18 +296,19 @@ const jaccard = (left: ReadonlyArray<string>, right: ReadonlyArray<string>): num
   return intersection / (a.size + b.size - intersection);
 };
 
+const clampUnit = (value: number): number => Math.max(0, Math.min(1, value));
+
 export const scoreCreativeDirection = (direction: CreativeDirection): number => {
-  const clamp = (value: number) => Math.max(0, Math.min(1, value));
   return Math.max(
     0,
     Math.min(
       100,
       Math.round(
-        (clamp(direction.brandFitScore) * 0.35 +
-          clamp(direction.evidenceFitScore) * 0.25 +
-          clamp(direction.noveltyScore) * 0.2 +
-          clamp(direction.feasibilityScore) * 0.2 -
-          clamp(direction.riskScore) * 0.25) *
+        (clampUnit(direction.brandFitScore) * 0.35 +
+          clampUnit(direction.evidenceFitScore) * 0.25 +
+          clampUnit(direction.noveltyScore) * 0.2 +
+          clampUnit(direction.feasibilityScore) * 0.2 -
+          clampUnit(direction.riskScore) * 0.25) *
           100,
       ),
     ),

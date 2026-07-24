@@ -485,7 +485,7 @@ function OpportunityCard({
         !published ? (
           <Button size="sm" disabled={actionBusy} onClick={onAdapt}>
             {actionBusy ? <RefreshCw className="animate-spin" /> : <Sparkles />}
-            Criar versão
+            Criar brief
           </Button>
         ) : null}
         {opportunity.status === "awaiting_approval" ? (

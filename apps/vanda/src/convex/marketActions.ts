@@ -37,7 +37,12 @@ export const adaptNow = action({
       dossier: { status: string } | null;
     } | null = await ctx.runQuery(internal.market.loadQualificationSource, { opportunityId });
     if (!source) throw new Error("opportunity not found");
-    if (source.opportunity.status === "qualifying" || source.opportunity.status === "detected") {
+    if (
+      source.dossier?.status !== "ready" &&
+      (source.opportunity.status === "qualifying" ||
+        source.opportunity.status === "detected" ||
+        source.opportunity.status === "failed")
+    ) {
       const qualified = await ctx.runAction(internal.marketNode.qualifyOpportunity, {
         opportunityId,
         analyzeAfter: false,

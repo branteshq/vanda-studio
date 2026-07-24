@@ -16,7 +16,6 @@ import {
   validateDirectionSet,
   type BriefReview,
   type BriefSelection,
-  type CreativeDirection,
   type CreativeDirectorBrand,
   type CreativeDirectorSource,
   type MechanismAnalysis,
