@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
 import { marketRunKinds, marketRunStatuses, opportunityStatuses } from "./pipeline/constants";
+import { assessBrandReadiness, brandSnapshotHash } from "./pipeline/inputQuality";
 import { detectBreakout } from "./pipeline/market";
 
 const optionalCount = v.optional(v.number());
@@ -33,15 +34,59 @@ export const loadBrandContext = internalQuery({
       .query("themes")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .collect();
+    const confirmed = canon.filter((item) => item.confirmedByOwner);
+    const readiness = assessBrandReadiness({
+      confirmedKinds: confirmed.map((item) => item.kind),
+    });
     return {
       ownHandle: connection?.handle,
       context: [
-        ...canon
-          .filter((item) => item.confirmedByOwner)
-          .map((item) => `${item.kind}: ${item.text}`),
+        ...confirmed.map((item) => `${item.kind}: ${item.text}`),
         ...themes.map((theme) => `tema: ${theme.name} — ${theme.summary}`),
       ].join("\n"),
+      canonIds: confirmed.map((item) => item._id),
+      readiness,
     };
+  },
+});
+
+export const ensureBrandSnapshot = internalMutation({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }) => {
+    const canon = (
+      await ctx.db
+        .query("brandCanon")
+        .withIndex("by_account", (q) => q.eq("accountId", accountId))
+        .collect()
+    ).filter((item) => item.confirmedByOwner);
+    const themes = await ctx.db
+      .query("themes")
+      .withIndex("by_account", (q) => q.eq("accountId", accountId))
+      .collect();
+    const contextLines = [
+      ...canon.map((item) => `${item.kind}: ${item.text}`),
+      ...themes.map((theme) => `tema: ${theme.name} — ${theme.summary}`),
+    ];
+    const hash = brandSnapshotHash(contextLines);
+    const existing = await ctx.db
+      .query("brandSnapshots")
+      .withIndex("by_account_hash", (q) => q.eq("accountId", accountId).eq("hash", hash))
+      .first();
+    if (existing) return existing;
+    const readiness = assessBrandReadiness({
+      confirmedKinds: canon.map((item) => item.kind),
+    });
+    const snapshotId = await ctx.db.insert("brandSnapshots", {
+      accountId,
+      context: contextLines.join("\n"),
+      canonIds: canon.map((item) => item._id),
+      hash,
+      readinessScore: readiness.score,
+      missingRequired: [...readiness.missingRequired],
+      missingRecommended: [...readiness.missingRecommended],
+      createdAt: Date.now(),
+    });
+    return (await ctx.db.get(snapshotId))!;
   },
 });
 

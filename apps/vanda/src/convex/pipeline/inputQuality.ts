@@ -73,6 +73,16 @@ export const assessBrandReadiness = ({
   };
 };
 
+/** Stable non-cryptographic content key used to reuse immutable brand snapshots. */
+export const brandSnapshotHash = (lines: ReadonlyArray<string>): string => {
+  let hash = 2_166_136_261;
+  for (const character of [...lines].sort().join("\n")) {
+    hash ^= character.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return `brand-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+};
+
 const semanticWords = (value: string | undefined): ReadonlyArray<string> =>
   (value ?? "")
     .normalize("NFKC")

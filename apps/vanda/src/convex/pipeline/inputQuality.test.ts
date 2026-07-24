@@ -4,6 +4,7 @@ import {
   assessBrandReadiness,
   assessFinalInput,
   assessPreflightInput,
+  brandSnapshotHash,
   isUsableSemanticText,
 } from "./inputQuality";
 
@@ -80,5 +81,11 @@ describe("input quality", () => {
     expect(
       assessBrandReadiness({ confirmedKinds: ["identity", "summary", "voice"] }),
     ).toMatchObject({ ready: true });
+  });
+
+  it("creates a stable brand snapshot key independent of row order", () => {
+    expect(brandSnapshotHash(["voice: direta", "identity: Vanda"])).toBe(
+      brandSnapshotHash(["identity: Vanda", "voice: direta"]),
+    );
   });
 });

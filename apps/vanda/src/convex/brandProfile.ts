@@ -4,7 +4,8 @@ import * as Schema from "effect/Schema";
 import { requireOwnedAccount } from "./authz";
 import { BrandAnalysis, type BrandCanonKind } from "./pipeline/brand";
 import { brandAnalysisArgs } from "./pipeline/storage";
-import { accountModes } from "./pipeline/constants";
+import { accountModes, brandCanonKinds } from "./pipeline/constants";
+import { assessBrandReadiness } from "./pipeline/inputQuality";
 import { internal } from "./_generated/api";
 
 /**
@@ -150,6 +151,73 @@ export const getBrandCanon = query({
       .query("brandCanon")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .collect();
+  },
+});
+
+export const getBrandReadiness = query({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }) => {
+    await requireOwnedAccount(ctx, accountId);
+    const canon = await ctx.db
+      .query("brandCanon")
+      .withIndex("by_account", (q) => q.eq("accountId", accountId))
+      .collect();
+    return assessBrandReadiness({
+      confirmedKinds: canon.filter((item) => item.confirmedByOwner).map((item) => item.kind),
+    });
+  },
+});
+
+/** Owner-authored corrections and missing creative facts become confirmed canon immediately. */
+export const saveBrandFact = mutation({
+  args: {
+    accountId: v.id("accounts"),
+    factId: v.optional(v.id("brandCanon")),
+    kind: v.union(...brandCanonKinds.map((kind) => v.literal(kind))),
+    text: v.string(),
+  },
+  handler: async (ctx, { accountId, factId, kind, text }) => {
+    await requireOwnedAccount(ctx, accountId);
+    const normalized = text.trim();
+    if (!normalized) throw new Error("brand fact cannot be empty");
+    const now = Date.now();
+    let id = factId;
+    if (factId) {
+      const existing = await ctx.db.get(factId);
+      if (!existing || existing.accountId !== accountId) throw new Error("brand fact not found");
+      await ctx.db.patch(factId, {
+        kind,
+        text: normalized,
+        evidence: "Corrigido pelo proprietário.",
+        confidence: 1,
+        confirmedByOwner: true,
+      });
+    } else {
+      id = await ctx.db.insert("brandCanon", {
+        accountId,
+        kind,
+        text: normalized,
+        evidence: "Adicionado pelo proprietário.",
+        confidence: 1,
+        confirmedByOwner: true,
+        createdAt: now,
+      });
+    }
+    await ctx.scheduler.runAfter(0, internal.knowledge.refreshAccount, { accountId });
+    return id!;
+  },
+});
+
+export const removeBrandFact = mutation({
+  args: { factId: v.id("brandCanon") },
+  handler: async (ctx, { factId }) => {
+    const fact = await ctx.db.get(factId);
+    if (!fact) throw new Error("brand fact not found");
+    await requireOwnedAccount(ctx, fact.accountId);
+    await ctx.db.delete(factId);
+    await ctx.scheduler.runAfter(0, internal.knowledge.refreshAccount, {
+      accountId: fact.accountId,
+    });
   },
 });
 
