@@ -58,6 +58,9 @@ const OPPORTUNITY_STATUS: Record<
   { readonly label: string; readonly tone: "neutral" | "creating" | "needs" | "scheduled" | "done" }
 > = {
   detected: { label: "Detectado", tone: "neutral" },
+  qualifying: { label: "Verificando fonte", tone: "creating" },
+  ready_for_analysis: { label: "Fonte qualificada", tone: "creating" },
+  rejected: { label: "Fonte rejeitada", tone: "neutral" },
   analyzing: { label: "Analisando", tone: "creating" },
   adapting: { label: "Criando versão", tone: "creating" },
   awaiting_approval: { label: "Pronto para você", tone: "needs" },

@@ -44,6 +44,7 @@ import type * as pipeline_discernment from "../pipeline/discernment.js";
 import type * as pipeline_domain from "../pipeline/domain.js";
 import type * as pipeline_embeddings from "../pipeline/embeddings.js";
 import type * as pipeline_igGraph from "../pipeline/igGraph.js";
+import type * as pipeline_inputQuality from "../pipeline/inputQuality.js";
 import type * as pipeline_liveBrand from "../pipeline/liveBrand.js";
 import type * as pipeline_liveBrandContext from "../pipeline/liveBrandContext.js";
 import type * as pipeline_liveConsolidate from "../pipeline/liveConsolidate.js";
@@ -119,6 +120,7 @@ declare const fullApi: ApiFromModules<{
   "pipeline/domain": typeof pipeline_domain;
   "pipeline/embeddings": typeof pipeline_embeddings;
   "pipeline/igGraph": typeof pipeline_igGraph;
+  "pipeline/inputQuality": typeof pipeline_inputQuality;
   "pipeline/liveBrand": typeof pipeline_liveBrand;
   "pipeline/liveBrandContext": typeof pipeline_liveBrandContext;
   "pipeline/liveConsolidate": typeof pipeline_liveConsolidate;

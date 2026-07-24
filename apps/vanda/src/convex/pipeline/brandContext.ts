@@ -28,10 +28,18 @@ export class BrandContext extends Context.Service<BrandContext, BrandContextShap
 
 const labels: Record<BrandCanonKind, string> = {
   identity: "Identidade",
-  summary: "Resumo",
+  positioning: "Posicionamento",
+  audience: "Público",
+  offer: "Oferta",
+  differentiator: "Diferencial",
+  proof: "Prova",
   voice: "Voz",
   character: "Personagem",
+  objective: "Objetivo",
+  location: "Localização",
   restriction: "Restrição obrigatória",
+  forbidden_claim: "Afirmação proibida",
+  summary: "Resumo",
 };
 
 /** Critical, owner-confirmed context is always injected instead of being retrieval-dependent. */

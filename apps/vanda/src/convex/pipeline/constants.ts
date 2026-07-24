@@ -13,9 +13,17 @@ export const accountModes = ["auto", "needs_approval", "manual"] as const;
 // approve they materialize into `themes` / `suggestions`, never brandCanon.
 export const brandCanonKinds = [
   "identity",
+  "positioning",
+  "audience",
+  "offer",
+  "differentiator",
+  "proof",
   "voice",
   "character",
+  "objective",
+  "location",
   "restriction",
+  "forbidden_claim",
   "summary",
 ] as const;
 
@@ -43,11 +51,35 @@ export const modelStages = [
 ] as const;
 
 export const marketCreatorStatuses = ["active", "paused", "rejected", "unavailable"] as const;
+export const marketCreatorFeedback = ["relevant", "irrelevant", "blocked"] as const;
+export const sourceDossierStatuses = ["collecting", "ready", "rejected", "failed"] as const;
+export const sourceContentTypes = ["spoken", "text_led", "visual", "mixed", "unknown"] as const;
+export const inputAssessmentDecisions = ["qualified", "rejected"] as const;
+export const inputAssessmentStages = ["preflight", "final"] as const;
+export const inputRejectionCodes = [
+  "brand_incomplete",
+  "creator_irrelevant",
+  "creator_blocked",
+  "source_too_old",
+  "invalid_published_at",
+  "missing_views",
+  "missing_followers",
+  "weak_breakout",
+  "missing_media",
+  "unusable_transcript",
+  "insufficient_visual_context",
+  "unsupported_language",
+  "provider_data_inconsistent",
+  "duplicate_opportunity",
+] as const;
 export const marketRunKinds = ["discovery", "observation", "full_loop"] as const;
 export const marketRunStatuses = ["running", "succeeded", "failed"] as const;
 export const metricSubjectTypes = ["source_post", "publication"] as const;
 export const opportunityStatuses = [
   "detected",
+  "qualifying",
+  "ready_for_analysis",
+  "rejected",
   "analyzing",
   "adapting",
   "awaiting_approval",
