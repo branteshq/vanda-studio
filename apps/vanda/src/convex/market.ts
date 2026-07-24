@@ -225,17 +225,19 @@ export const saveSelectedCreators = internalMutation({
         );
       }
     }
-    const accountCreators = await ctx.db
-      .query("marketCreators")
-      .withIndex("by_account", (q) => q.eq("accountId", accountId))
-      .collect();
-    for (const creator of accountCreators) {
-      if (
-        creator.status === "active" &&
-        creator.feedback !== "relevant" &&
-        !selectedHandles.has(creator.handle)
-      )
-        await ctx.db.patch(creator._id, { status: "paused", updatedAt: now });
+    if (selectedHandles.size > 0) {
+      const accountCreators = await ctx.db
+        .query("marketCreators")
+        .withIndex("by_account", (q) => q.eq("accountId", accountId))
+        .collect();
+      for (const creator of accountCreators) {
+        if (
+          creator.status === "active" &&
+          creator.feedback !== "relevant" &&
+          !selectedHandles.has(creator.handle)
+        )
+          await ctx.db.patch(creator._id, { status: "paused", updatedAt: now });
+      }
     }
     return ids;
   },

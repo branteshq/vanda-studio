@@ -22,7 +22,7 @@ import { languageModelLayer, PIPELINE_MODELS, PROMPT_VERSIONS } from "./pipeline
 import { graphGet } from "./pipeline/igGraph";
 import { runTracked } from "./pipeline/liveTelemetry";
 
-const ACTIVE_WINDOW_MS = 1000 * 60 * 60 * 24 * 180;
+const ACTIVE_WINDOW_MS = 1000 * 60 * 60 * 24 * 30;
 const MIN_FOLLOWERS = 50;
 const MAX_FOLLOWERS = 1_000;
 const MAX_CANDIDATES_FOR_MODEL = 45;

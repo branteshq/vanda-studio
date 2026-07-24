@@ -388,13 +388,16 @@ export interface RankedMarketProfile {
 }
 
 const brandPrompt = (brandContext: string): string =>
-  `Você está preparando a busca de concorrentes e criadores para uma marca no Instagram. ` +
-  `Identifique a categoria principal, localização/mercado e idioma. Gere exatamente 5 consultas ` +
-  `genéricas de 1 a 4 palavras para a busca do Instagram, usando nomes de profissão, especialidade ` +
-  `e sinônimos locais. Nunca invente usernames, nunca use @ e não inclua as palavras perfil, ` +
-  `Instagram ou pequena empresa. Exemplo válido: "cirurgião bucomaxilofacial". As buscas devem ` +
-  `encontrar profissionais ou negócios que publiquem conteúdo no mesmo campo. Responda em ` +
-  `português do Brasil.\n\nContexto confirmado da marca:\n${brandContext}`;
+  `Você está preparando uma busca de alta cobertura por concorrentes e criadores para uma marca ` +
+  `no Instagram. Identifique a categoria principal, localização/mercado e idioma. Gere exatamente ` +
+  `5 consultas genéricas de 2 a 4 palavras que pessoas realmente colocam no nome ou bio. Inclua ` +
+  `duas consultas de categoria ampla, duas de tipo de negócio/profissional e uma de criador da ` +
+  `especialidade. Evite cargos técnicos que seriam compradores ou fornecedores da marca. Para um ` +
+  `e-commerce de eletrônicos, exemplos válidos seriam "loja de eletrônicos", "gadgets brasil", ` +
+  `"acessórios para celular", "eletrônicos online" e "criador de tecnologia" — não "técnico ` +
+  `hardware". Nunca invente usernames, nunca use @ e não inclua perfil, Instagram ou pequena ` +
+  `empresa. As buscas devem encontrar pares que publiquem no mesmo mercado, não apenas pessoas ` +
+  `que prestam serviços para ele. Responda em português do Brasil.\n\nContexto confirmado da marca:\n${brandContext}`;
 
 export const planMarketSearch = (brandContext: string) =>
   LanguageModel.generateObject({
