@@ -249,6 +249,27 @@
   grid-template-columns: var(--automatico-focus-grid);
 }
 
+/* Streaming-text shimmer used by Marker/Attachment while work is in progress. */
+@utility shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--muted-foreground) 20%,
+    var(--foreground) 50%,
+    var(--muted-foreground) 80%
+  );
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: vanda-shimmer 1.6s linear infinite;
+}
+
+@keyframes vanda-shimmer {
+  to {
+    background-position: -200% center;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

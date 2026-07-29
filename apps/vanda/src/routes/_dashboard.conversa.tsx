@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useUIMessages, type UIMessage } from "@convex-dev/agent/react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import {
   Archive,
   ArrowUp,
+  Brain,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -17,6 +18,27 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
+import { Bubble, BubbleContent } from "@vanda-studio/ui/components/bubble";
+import { Marker, MarkerContent, MarkerIcon } from "@vanda-studio/ui/components/marker";
+import {
+  Message,
+  MessageAvatar,
+  MessageContent,
+} from "@vanda-studio/ui/components/message";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@vanda-studio/ui/components/message-scroller";
+import {
+  Attachment,
+  AttachmentGroup,
+  AttachmentMedia,
+  AttachmentTrigger,
+} from "@vanda-studio/ui/components/attachment";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { Spinner } from "@vanda-studio/ui/components/spinner";
 import { StatusPill } from "@vanda-studio/ui/components/status-pill";
@@ -117,12 +139,6 @@ function Conversation({ accountId }: { accountId: Id<"accounts"> }) {
     { initialNumItems: 60, stream: true },
   );
 
-  const bottomRef = useRef<HTMLDivElement | null>(null);
-  const lastMessage = messages.results.at(-1);
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages.results.length, lastMessage?.status]);
-
   const send = async (text: string) => {
     const prompt = text.trim();
     if (!prompt) return;
@@ -142,28 +158,38 @@ function Conversation({ accountId }: { accountId: Id<"accounts"> }) {
     }
   };
 
-  const showSuggestions = messages.status !== "LoadingFirstPage" && messages.results.length <= 1;
+  const loading = threadId === undefined || messages.status === "LoadingFirstPage";
+  const showSuggestions = !loading && messages.results.length <= 1;
 
   return (
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
       <div className="flex min-w-0 flex-1 flex-col">
-        <main className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-6 md:px-6">
-            {threadId === undefined || messages.status === "LoadingFirstPage" ? (
-              <ConversationSkeleton />
-            ) : (
-              messages.results.map((message) => (
-                <Message
-                  key={message.key}
-                  message={message}
-                  accountId={accountId}
-                  onOpenProject={setCanvasProjectId}
-                />
-              ))
-            )}
-            <div ref={bottomRef} />
-          </div>
-        </main>
+        <MessageScrollerProvider autoScroll defaultScrollPosition="end" scrollPreviousItemPeek={80}>
+          <MessageScroller className="flex-1">
+            <MessageScrollerViewport>
+              <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-6 px-4 py-6 md:px-6">
+                {loading ? (
+                  <ConversationSkeleton />
+                ) : (
+                  messages.results.map((message) => (
+                    <MessageScrollerItem
+                      key={message.key}
+                      messageId={message.key}
+                      scrollAnchor={message.role === "user"}
+                    >
+                      <ChatMessage
+                        message={message}
+                        accountId={accountId}
+                        onOpenProject={setCanvasProjectId}
+                      />
+                    </MessageScrollerItem>
+                  ))
+                )}
+              </MessageScrollerContent>
+            </MessageScrollerViewport>
+            <MessageScrollerButton />
+          </MessageScroller>
+        </MessageScrollerProvider>
 
         <footer className="shrink-0 border-t border-border bg-app px-4 py-3 md:px-6">
           <div className="mx-auto w-full max-w-3xl">
@@ -213,7 +239,7 @@ function Conversation({ accountId }: { accountId: Id<"accounts"> }) {
   );
 }
 
-function Message({
+function ChatMessage({
   message,
   accountId,
   onOpenProject,
@@ -229,20 +255,24 @@ function Message({
       .join("\n");
     if (!text.trim()) return null;
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-inset px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap text-text">
-          {text}
-        </div>
-      </div>
+      <Message align="end">
+        <MessageContent>
+          <Bubble variant="muted">
+            <BubbleContent className="whitespace-pre-wrap">{text}</BubbleContent>
+          </Bubble>
+        </MessageContent>
+      </Message>
     );
   }
 
+  const streamingEmpty = message.status === "streaming" && message.parts.length === 0;
+
   return (
-    <div className="flex gap-3">
-      <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-surface text-brand-accent shadow-sm">
+    <Message align="start">
+      <MessageAvatar className="bg-surface text-brand-accent shadow-sm">
         <VandaMark size={14} />
-      </div>
-      <div className="min-w-0 flex-1 space-y-2">
+      </MessageAvatar>
+      <MessageContent>
         {message.parts.map((part, index) => (
           <MessagePart
             key={index}
@@ -251,11 +281,16 @@ function Message({
             onOpenProject={onOpenProject}
           />
         ))}
-        {message.status === "streaming" && message.parts.length === 0 ? (
-          <Spinner className="size-4 text-text-4" />
+        {streamingEmpty ? (
+          <Marker role="status">
+            <MarkerIcon>
+              <Spinner />
+            </MarkerIcon>
+            <MarkerContent className="shimmer">Pensando…</MarkerContent>
+          </Marker>
         ) : null}
-      </div>
-    </div>
+      </MessageContent>
+    </Message>
   );
 }
 
@@ -271,8 +306,26 @@ function MessagePart({
   if (part.type === "text") {
     const text = (part as { text: string }).text;
     if (!text.trim()) return null;
-    return <p className="text-sm leading-relaxed whitespace-pre-wrap text-text-2">{text}</p>;
+    return (
+      <Bubble variant="ghost">
+        <BubbleContent className="whitespace-pre-wrap text-text-2">{text}</BubbleContent>
+      </Bubble>
+    );
   }
+
+  if (part.type === "reasoning") {
+    const text = (part as { text?: string }).text?.trim();
+    if (!text) return null;
+    return (
+      <Marker variant="border">
+        <MarkerIcon>
+          <Brain />
+        </MarkerIcon>
+        <MarkerContent className="text-text-4">{text}</MarkerContent>
+      </Marker>
+    );
+  }
+
   if (part.type === "dynamic-tool" || part.type.startsWith("tool-")) {
     return (
       <ToolActivity
@@ -313,10 +366,14 @@ function ToolActivity({
   if (part.state === "approval-responded") {
     const approved = part.approval?.approved === true;
     return (
-      <div className="flex items-center gap-2 text-xs text-text-4">
-        {approved ? <Check className="size-3.5 text-green" /> : <X className="size-3.5" />}
-        {approved ? "Publicação aprovada por você" : "Publicação negada por você"}
-      </div>
+      <Marker>
+        <MarkerIcon>
+          {approved ? <Check className="text-green" /> : <X />}
+        </MarkerIcon>
+        <MarkerContent>
+          {approved ? "Publicação aprovada por você" : "Publicação negada por você"}
+        </MarkerContent>
+      </Marker>
     );
   }
 
@@ -324,29 +381,59 @@ function ToolActivity({
   const failed = part.state === "output-error";
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span
-        className={cn(
-          "inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1 text-[11px] text-text-4",
-          failed && "border-destructive/40 text-destructive",
-        )}
-      >
-        {running ? (
-          <Spinner className="size-3" />
-        ) : failed ? (
-          <X className="size-3" />
-        ) : (
-          <Wrench className="size-3" />
-        )}
-        {label}
-        {failed && part.errorText ? ` — ${part.errorText}` : null}
-      </span>
+    <div className="flex flex-col gap-2">
+      <Marker role={running ? "status" : undefined}>
+        <MarkerIcon>
+          {running ? <Spinner /> : failed ? <X className="text-destructive" /> : <Wrench />}
+        </MarkerIcon>
+        <MarkerContent className={cn(running && "shimmer", failed && "text-destructive")}>
+          {label}
+          {failed && part.errorText ? ` — ${part.errorText}` : null}
+        </MarkerContent>
+      </Marker>
       {projectId && part.state === "output-available" ? (
-        <Button variant="soft" size="sm" onClick={() => onOpenProject(projectId)}>
-          <Images />
-          Ver carrossel
-        </Button>
+        <ProjectPreview projectId={projectId} onOpen={() => onOpenProject(projectId)} />
       ) : null}
+    </div>
+  );
+}
+
+/** Inline rendered-slide preview: the exact media, as image attachments. */
+function ProjectPreview({
+  projectId,
+  onOpen,
+}: {
+  projectId: Id<"contentProjects">;
+  onOpen: () => void;
+}) {
+  const data = useQuery(api.contentStudio.project, { projectId });
+  const slides = data?.renderedSlideUrls ?? [];
+
+  if (slides.length === 0) {
+    return (
+      <Button variant="soft" size="sm" className="self-start" onClick={onOpen}>
+        <Images />
+        Abrir carrossel
+      </Button>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <AttachmentGroup className="max-w-md">
+        {slides.slice(0, 8).map((url, index) => (
+          <Attachment key={index} orientation="vertical" size="sm">
+            <AttachmentMedia variant="image">
+              <img src={url} alt={`Slide ${index + 1}`} />
+            </AttachmentMedia>
+            <AttachmentTrigger aria-label={`Abrir slide ${index + 1}`} onClick={onOpen} />
+          </Attachment>
+        ))}
+      </AttachmentGroup>
+      <Button variant="soft" size="sm" className="self-start" onClick={onOpen}>
+        <Images />
+        Revisar carrossel
+      </Button>
     </div>
   );
 }
