@@ -189,7 +189,7 @@ function NewConversationHero() {
     null;
 
   return (
-    <section className="relative flex min-h-72 w-full items-center justify-center overflow-hidden px-4 py-16 text-center">
+    <section className="relative flex min-h-72 w-full items-center justify-center px-4 py-16 text-center">
       <VandaMark
         size={500}
         from="currentColor"
