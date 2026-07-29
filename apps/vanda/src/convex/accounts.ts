@@ -110,6 +110,12 @@ export const remove = mutation({
       }
     }
 
+    const chatActivity = await ctx.db
+      .query("chatThreadActivity")
+      .withIndex("by_account", (q) => q.eq("accountId", accountId))
+      .collect();
+    await deleteRows(chatActivity, (id) => ctx.db.delete(id));
+
     const brandCanon = await ctx.db
       .query("brandCanon")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))

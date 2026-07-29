@@ -49,10 +49,25 @@ async function requireAccountThread(
   return meta;
 }
 
+async function startThreadActivity(
+  ctx: MutationCtx,
+  accountId: Id<"accounts">,
+  threadId: string,
+  promptMessageId: string,
+): Promise<Id<"chatThreadActivity">> {
+  return ctx.db.insert("chatThreadActivity", {
+    accountId,
+    threadId,
+    promptMessageId,
+    startedAt: Date.now(),
+  });
+}
+
 export interface ThreadSummary {
   threadId: string;
   title: string | null;
   createdAt: number;
+  processing: boolean;
 }
 
 /** The account's active conversations, newest first (component creation order). */
@@ -60,17 +75,25 @@ export const listThreads = query({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<ThreadSummary[]> => {
     await requireOwnedAccount(ctx, accountId);
-    const threads = await ctx.runQuery(components.agent.threads.listThreadsByUserId, {
-      userId: threadKey(accountId),
-      order: "desc",
-      paginationOpts: { cursor: null, numItems: 100 },
-    });
+    const [threads, activity] = await Promise.all([
+      ctx.runQuery(components.agent.threads.listThreadsByUserId, {
+        userId: threadKey(accountId),
+        order: "desc",
+        paginationOpts: { cursor: null, numItems: 100 },
+      }),
+      ctx.db
+        .query("chatThreadActivity")
+        .withIndex("by_account", (q) => q.eq("accountId", accountId))
+        .collect(),
+    ]);
+    const processing = new Set(activity.map((row) => row.threadId));
     return threads.page
       .filter((thread) => thread.status === "active")
       .map((thread) => ({
         threadId: thread._id,
         title: thread.title ?? null,
         createdAt: thread._creationTime,
+        processing: processing.has(thread._id),
       }));
   },
 });
@@ -141,10 +164,12 @@ export const sendMessage = mutation({
         patch: { title: generated },
       });
     }
+    const activityId = await startThreadActivity(ctx, accountId, target, messageId);
     await ctx.scheduler.runAfter(0, internal.chat.generateResponse, {
       accountId,
       threadId: target,
       promptMessageId: messageId,
+      activityId,
     });
     return { threadId: target, messageId };
   },
@@ -156,15 +181,28 @@ export const generateResponse = internalAction({
     accountId: v.id("accounts"),
     threadId: v.string(),
     promptMessageId: v.string(),
+    // Optional keeps already-scheduled turns from older deployments compatible.
+    activityId: v.optional(v.id("chatThreadActivity")),
   },
-  handler: async (ctx, { accountId, threadId, promptMessageId }): Promise<void> => {
-    const result = await vanda.streamText(
-      { ...ctx, accountId },
-      { threadId },
-      { promptMessageId },
-      { saveStreamDeltas: true },
-    );
-    await result.consumeStream();
+  handler: async (ctx, { accountId, threadId, promptMessageId, activityId }): Promise<void> => {
+    try {
+      const result = await vanda.streamText(
+        { ...ctx, accountId },
+        { threadId },
+        { promptMessageId },
+        { saveStreamDeltas: true },
+      );
+      await result.consumeStream();
+    } finally {
+      if (activityId) await ctx.runMutation(internal.chat.finishThreadActivity, { activityId });
+    }
+  },
+});
+
+export const finishThreadActivity = internalMutation({
+  args: { activityId: v.id("chatThreadActivity") },
+  handler: async (ctx, { activityId }): Promise<void> => {
+    if (await ctx.db.get(activityId)) await ctx.db.delete(activityId);
   },
 });
 
@@ -203,10 +241,12 @@ export const respondToApproval = mutation({
     const { messageId } = approve
       ? await vanda.approveToolCall(ctx, { threadId, approvalId, ...(reason ? { reason } : {}) })
       : await vanda.denyToolCall(ctx, { threadId, approvalId, ...(reason ? { reason } : {}) });
+    const activityId = await startThreadActivity(ctx, accountId, threadId, messageId);
     await ctx.scheduler.runAfter(0, internal.chat.generateResponse, {
       accountId,
       threadId,
       promptMessageId: messageId,
+      activityId,
     });
   },
 });

@@ -49,6 +49,7 @@ import {
   useSidebar,
 } from "@vanda-studio/ui/components/sidebar";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
+import { Spinner } from "@vanda-studio/ui/components/spinner";
 import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
@@ -60,6 +61,7 @@ interface ThreadItem {
   threadId: string;
   title: string | null;
   createdAt: number;
+  processing: boolean;
 }
 
 interface ThreadSection {
@@ -445,7 +447,13 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                         >
                           {thread.title ?? "Nova conversa"}
                         </button>
-                        <div className="pointer-events-none mr-1 w-[3.625rem] shrink-0 overflow-hidden group-hover/thread:pointer-events-auto group-focus-within/thread:pointer-events-auto">
+                        <div className="pointer-events-none relative mr-1 w-[3.625rem] shrink-0 overflow-hidden group-hover/thread:pointer-events-auto group-focus-within/thread:pointer-events-auto">
+                          {thread.processing ? (
+                            <Spinner
+                              aria-label="Vanda está trabalhando nesta conversa"
+                              className="absolute top-1/2 right-2 size-3.5 -translate-y-1/2 text-brand-accent transition-opacity duration-100 group-hover/thread:opacity-0 group-focus-within/thread:opacity-0 motion-reduce:transition-none"
+                            />
+                          ) : null}
                           <div className="flex translate-x-full items-center gap-0.5 transition-transform duration-180 ease-[var(--ease-out)] group-hover/thread:translate-x-0 group-focus-within/thread:translate-x-0 motion-reduce:transition-none">
                             <ActionTooltip label="Renomear" side="bottom">
                               <button

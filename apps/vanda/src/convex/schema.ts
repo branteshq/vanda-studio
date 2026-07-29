@@ -183,6 +183,15 @@ export default defineSchema({
     .index("by_owner", ["ownerUserId"])
     .index("by_connection", ["connectionId"]),
 
+  // Ephemeral rows marking agent turns currently running. One thread can have
+  // multiple rows if turns overlap; the row is deleted when its action settles.
+  chatThreadActivity: defineTable({
+    accountId: v.id("accounts"),
+    threadId: v.string(),
+    promptMessageId: v.string(),
+    startedAt: v.number(),
+  }).index("by_account", ["accountId"]),
+
   // Brand canon (output of onboarding's approve): the owner-confirmed stable
   // identity — one editable row per fact. This is the durable brand memory the
   // agent's context is assembled from; the "what Vanda knows" panel reads it too.
