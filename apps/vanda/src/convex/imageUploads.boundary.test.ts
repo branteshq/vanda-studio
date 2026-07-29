@@ -69,6 +69,29 @@ describe("composer image uploads", () => {
     ).rejects.toThrow();
   });
 
+  it("sends an account image through the real chat mutation", async () => {
+    const { t, accountId, storageId } = await setup();
+    const owner = t.withIdentity({ subject: "owner" });
+    const uploaded = await owner.mutation(api.imageUploads.addImage, {
+      accountId,
+      storageId,
+      mimeType: "image/png",
+      width: 3840,
+      height: 2160,
+    });
+
+    const sent = await owner.mutation(api.chat.sendMessage, {
+      accountId,
+      prompt: "o que você vê nessa imagem?",
+      imageIds: [uploaded.imageId],
+    });
+
+    expect(sent.threadId).toBeTruthy();
+    expect(sent.messageId).toBeTruthy();
+    const image = await t.run((ctx) => ctx.db.get(uploaded.imageId));
+    expect(image?.lastAttachedAt).toEqual(expect.any(Number));
+  });
+
   it("removes an unsent upload but protects an attached image", async () => {
     const { t, accountId, storageId } = await setup();
     const owner = t.withIdentity({ subject: "owner" });
