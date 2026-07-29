@@ -100,7 +100,7 @@
   --sidebar-foreground: var(--text);
   --sidebar-primary: var(--brand-accent);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: var(--accent);
+  --sidebar-accent: color-mix(in srgb, var(--text) 10%, var(--sidebar));
   --sidebar-accent-foreground: var(--text);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--brand-accent);

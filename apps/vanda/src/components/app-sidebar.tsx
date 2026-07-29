@@ -97,7 +97,7 @@ function ProfileDock() {
   };
 
   return (
-    <div className="flex h-14 items-center gap-1 border-t border-border px-1 pt-1">
+    <div className="flex h-14 items-center gap-1 border-t border-sidebar-border px-1 pt-1">
       <AccountMenu />
 
       <div className="flex min-w-0 flex-1 items-center justify-center gap-1">
@@ -118,10 +118,10 @@ function ProfileDock() {
                 aria-pressed={selected}
                 onClick={() => handleSelect(account)}
                 className={cn(
-                  "flex size-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold text-text-3 transition-[background-color,color,box-shadow,transform] duration-150 active:scale-[0.97]",
+                  "flex size-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold text-sidebar-foreground/70 transition-[background-color,color,box-shadow,transform] duration-150 ease-[var(--ease-out)] active:scale-[0.97]",
                   selected
-                    ? "bg-accent text-text ring-1 ring-border-strong"
-                    : "hover:bg-accent hover:text-text",
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-sidebar-border"
+                    : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                 )}
               >
                 {getInitials(account.name) || "?"}
@@ -139,7 +139,7 @@ function ProfileDock() {
               size="icon"
               aria-label="Selecionar negócio"
               title="Selecionar negócio"
-              className="size-9 shrink-0 text-text-3 data-popup-open:bg-accent data-popup-open:text-text"
+              className="size-9 shrink-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
             />
           }
         >
@@ -240,7 +240,7 @@ function AccountMenu() {
             size="icon"
             aria-label={name}
             title={name}
-            className="size-10 shrink-0 rounded-full p-0 data-popup-open:bg-accent"
+            className="size-10 shrink-0 rounded-full p-0 hover:bg-sidebar-accent data-popup-open:bg-sidebar-accent"
           />
         }
       >
@@ -356,10 +356,11 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
       <SidebarMenu className="px-1 pt-1">
         <SidebarMenuItem>
           <SidebarMenuButton
+            variant="outline"
             size="lg"
             tooltip="Nova conversa"
             onClick={startThread}
-            className="h-11 gap-2.5 border border-brand-accent/35 bg-brand-accent/10 px-3 text-[13px] font-semibold text-text transition-colors duration-150 hover:bg-brand-accent/15 group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:border-border group-data-[collapsible=icon]:bg-surface group-data-[collapsible=icon]:px-0!"
+            className="h-11 gap-2.5 px-3 text-[13px] font-semibold text-sidebar-foreground group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0!"
           >
             <PencilLine className="size-4" />
             <span className="group-data-[collapsible=icon]:hidden">Nova conversa</span>
@@ -368,18 +369,18 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
       </SidebarMenu>
 
       <div className="relative mx-1 mt-2 group-data-[collapsible=icon]:hidden">
-        <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-5" />
+        <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-sidebar-foreground/50" />
         <input
           id="conversation-search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Buscar conversas…"
           aria-label="Buscar conversas"
-          className="h-9 w-full rounded-md border border-transparent bg-transparent pr-2 pl-8 text-[13px] text-text outline-none placeholder:text-text-5 hover:bg-surface/60 focus:border-border focus:bg-surface"
+          className="h-9 w-full rounded-md border border-transparent bg-transparent pr-2 pl-8 text-[13px] text-sidebar-foreground outline-none transition-colors duration-150 ease-[var(--ease-out)] placeholder:text-sidebar-foreground/50 hover:bg-sidebar-accent focus:border-sidebar-ring focus:bg-sidebar-accent"
         />
       </div>
 
-      <div className="mt-2 min-h-0 flex-1 overflow-y-auto border-t border-border px-1 pt-2 group-data-[collapsible=icon]:hidden">
+      <div className="mt-2 min-h-0 flex-1 overflow-y-auto border-t border-sidebar-border px-1 pt-2 group-data-[collapsible=icon]:hidden">
         {threads === undefined ? (
           <div className="space-y-2 px-2 pt-2" aria-hidden>
             <Skeleton className="h-3 w-12" />
@@ -387,14 +388,14 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
             <Skeleton className="h-8 w-4/5 rounded-md" />
           </div>
         ) : sections.length === 0 ? (
-          <p className="px-2 py-4 text-xs text-text-5">
+          <p className="px-2 py-4 text-xs text-sidebar-foreground/50">
             {query ? "Nenhuma conversa encontrada." : "Nenhuma conversa ainda."}
           </p>
         ) : (
           <div className="space-y-4 pb-4">
             {sections.map((section) => (
               <section key={section.label}>
-                <h3 className="px-2 py-1 font-mono text-[10px] tracking-[0.18em] text-text-5 uppercase">
+                <h3 className="px-2 py-1 font-mono text-[10px] tracking-[0.18em] text-sidebar-foreground/50 uppercase">
                   {section.label}
                 </h3>
                 <div className="space-y-0.5">
@@ -404,18 +405,20 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                       <div
                         key={thread.threadId}
                         className={cn(
-                          "group/thread flex min-w-0 items-center rounded-md border transition-colors duration-150",
+                          "group/thread flex min-w-0 items-center rounded-md border transition-colors duration-150 ease-[var(--ease-out)] focus-within:bg-sidebar-accent",
                           active
-                            ? "border-brand-accent/25 bg-brand-accent/8"
-                            : "border-transparent hover:bg-surface/70",
+                            ? "border-sidebar-border bg-sidebar-accent"
+                            : "border-transparent hover:bg-sidebar-accent",
                         )}
                       >
                         <button
                           type="button"
                           onClick={() => openThread(thread.threadId)}
                           className={cn(
-                            "min-w-0 flex-1 truncate px-2.5 py-2 text-left text-[13px]",
-                            active ? "font-medium text-text" : "text-text-3",
+                            "min-w-0 flex-1 truncate px-2.5 py-2 text-left text-[13px] outline-none transition-colors duration-150 ease-[var(--ease-out)] group-hover/thread:text-sidebar-accent-foreground focus-visible:text-sidebar-accent-foreground",
+                            active
+                              ? "font-medium text-sidebar-accent-foreground"
+                              : "text-sidebar-foreground/70",
                           )}
                         >
                           {thread.title ?? "Nova conversa"}
@@ -431,7 +434,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                             aria-label="Renomear conversa"
                             title="Renomear"
                             onClick={() => rename(thread)}
-                            className="flex size-7 items-center justify-center rounded-md text-text-5 transition-colors duration-150 hover:bg-accent hover:text-text"
+                            className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-colors duration-150 ease-[var(--ease-out)] hover:bg-sidebar-primary hover:text-sidebar-primary-foreground focus-visible:bg-sidebar-primary focus-visible:text-sidebar-primary-foreground"
                           >
                             <Pencil className="size-3.5" />
                           </button>
@@ -440,7 +443,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                             aria-label="Arquivar conversa"
                             title="Arquivar"
                             onClick={() => archive(thread)}
-                            className="flex size-7 items-center justify-center rounded-md text-text-5 transition-colors duration-150 hover:bg-destructive/10 hover:text-destructive"
+                            className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-colors duration-150 ease-[var(--ease-out)] hover:bg-destructive hover:text-destructive-foreground focus-visible:bg-destructive focus-visible:text-destructive-foreground"
                           >
                             <Archive className="size-3.5" />
                           </button>
@@ -525,14 +528,14 @@ export function AppSidebar() {
             aria-label={state === "collapsed" ? "Expandir barra lateral" : "Recolher barra lateral"}
             title={state === "collapsed" ? "Expandir" : "Recolher"}
             onClick={toggleSidebar}
-            className="shrink-0 text-text-4 hover:text-text"
+            className="shrink-0 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
             {state === "collapsed" ? <PanelLeftOpen /> : <PanelLeftClose />}
           </Button>
           <span className="flex size-7 shrink-0 items-center justify-center text-brand-accent">
             <VandaMark size={17} />
           </span>
-          <span className="min-w-0 flex-1 truncate pl-1 text-[14px] font-semibold text-text group-data-[collapsible=icon]:hidden">
+          <span className="min-w-0 flex-1 truncate pl-1 text-[14px] font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
             Vanda Studio
           </span>
           <Button
@@ -542,8 +545,8 @@ export function AppSidebar() {
             aria-label="Abrir galeria"
             title="Galeria"
             className={cn(
-              "shrink-0 text-text-4 hover:text-text group-data-[collapsible=icon]:hidden",
-              galleryActive && "bg-accent text-text",
+              "shrink-0 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden",
+              galleryActive && "bg-sidebar-accent text-sidebar-accent-foreground",
             )}
           >
             <GalleryHorizontalEnd />
