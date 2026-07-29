@@ -1,6 +1,6 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { useMutation } from "convex/react";
-import { useQuery } from "convex-helpers/react/cache";
+import { useQueries, useQuery } from "convex-helpers/react/cache";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
@@ -35,6 +35,24 @@ export function ActiveAccountProvider({ children }: { children: ReactNode }) {
   const activeAccount =
     accounts?.find((account) => account.active && account.onboardedAt !== null) ??
     accounts?.find((account) => account.onboardedAt !== null);
+
+  // Keep every ready account's thread list subscribed (owners have at most a
+  // handful). Switching profiles then paints the new sidebar instantly from
+  // live local data instead of a fresh round-trip.
+  useQueries(
+    useMemo(
+      () =>
+        Object.fromEntries(
+          (accounts ?? [])
+            .filter((account) => account.onboardedAt !== null)
+            .map((account) => [
+              account.id,
+              { query: api.chat.listThreads, args: { accountId: account.id } },
+            ]),
+        ),
+      [accounts],
+    ),
+  );
 
   return (
     <ActiveAccountContext.Provider
