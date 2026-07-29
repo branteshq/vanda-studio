@@ -128,6 +128,11 @@ function ConversaPage() {
 /**
  * Resolves the active conversation from the URL. Thread navigation lives in the
  * global app sidebar; this route only selects and renders the transcript.
+ *
+ * The URL is trusted immediately: a `t` param renders its transcript this frame
+ * instead of waiting for `listThreads` to confirm it — that validation happens
+ * lazily in the background and only redirects when the id stays invalid (stale
+ * bookmark, thread archived elsewhere).
  */
 function ConversationShell({ accountId }: { accountId: Id<"accounts"> }) {
   const threads = useQuery(api.chat.listThreads, { accountId });
@@ -136,23 +141,35 @@ function ConversationShell({ accountId }: { accountId: Id<"accounts"> }) {
   const navigate = Route.useNavigate();
   const creatingRef = useRef(false);
 
-  const threadId =
-    threads === undefined
-      ? undefined
-      : t && threads.some((thread) => thread.threadId === t)
-        ? t
-        : (threads[0]?.threadId ?? null);
+  const threadId = t ?? (threads === undefined ? undefined : (threads[0]?.threadId ?? null));
+
+  // Lazy validation with a grace period: a thread created milliseconds ago may
+  // not be reflected in the (cached) list yet, so never redirect on the first
+  // sight of an unknown id — only if it is still unknown shortly after.
+  const threadsRef = useRef(threads);
+  threadsRef.current = threads;
+  useEffect(() => {
+    if (!t || threads === undefined) return;
+    if (threads.some((thread) => thread.threadId === t)) return;
+    const timer = setTimeout(() => {
+      const latest = threadsRef.current;
+      if (latest !== undefined && !latest.some((thread) => thread.threadId === t)) {
+        void navigate({ search: {}, replace: true });
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [t, threads, navigate]);
 
   // First visit (or everything archived): open a fresh conversation.
   useEffect(() => {
-    if (threads === undefined || threads.length > 0 || creatingRef.current) return;
+    if (t || threads === undefined || threads.length > 0 || creatingRef.current) return;
     creatingRef.current = true;
     void createNewThread({ accountId })
       .then((id) => navigate({ search: { t: id }, replace: true }))
       .finally(() => {
         creatingRef.current = false;
       });
-  }, [threads, createNewThread, accountId, navigate]);
+  }, [t, threads, createNewThread, accountId, navigate]);
 
   return threadId ? (
     <Conversation key={threadId} accountId={accountId} threadId={threadId} />
