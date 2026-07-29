@@ -8,7 +8,6 @@ import {
   BadgeCheckIcon,
   GalleryHorizontalEnd,
   LogOutIcon,
-  MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
@@ -422,32 +421,31 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                         >
                           {thread.title ?? "Nova conversa"}
                         </button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            render={
-                              <button
-                                type="button"
-                                aria-label="Opções da conversa"
-                                className={cn(
-                                  "mr-1 flex size-7 shrink-0 items-center justify-center rounded-md text-text-5 opacity-0 transition-[opacity,color,background-color] duration-150 hover:bg-accent hover:text-text group-hover/thread:opacity-100 data-popup-open:opacity-100",
-                                  active && "opacity-100",
-                                )}
-                              />
-                            }
+                        <div
+                          className={cn(
+                            "mr-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover/thread:opacity-100 group-focus-within/thread:opacity-100",
+                            active && "opacity-100",
+                          )}
+                        >
+                          <button
+                            type="button"
+                            aria-label="Renomear conversa"
+                            title="Renomear"
+                            onClick={() => rename(thread)}
+                            className="flex size-7 items-center justify-center rounded-md text-text-5 transition-colors duration-150 hover:bg-accent hover:text-text"
                           >
-                            <MoreHorizontal className="size-4" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" side="right" sideOffset={4}>
-                            <DropdownMenuItem onClick={() => rename(thread)}>
-                              <Pencil className="size-4" />
-                              Renomear
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => archive(thread)}>
-                              <Archive className="size-4" />
-                              Arquivar
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                            <Pencil className="size-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Arquivar conversa"
+                            title="Arquivar"
+                            onClick={() => archive(thread)}
+                            className="flex size-7 items-center justify-center rounded-md text-text-5 transition-colors duration-150 hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <Archive className="size-3.5" />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
