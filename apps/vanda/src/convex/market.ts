@@ -1215,3 +1215,61 @@ export const dismissOpportunity = mutation({
     await ctx.db.patch(opportunityId, { status: "dismissed", updatedAt: Date.now() });
   },
 });
+
+// ----- Agent-facing reads ---------------------------------------------------
+// Account scoping is structural: the agent turn carries the accountId of the
+// thread it runs in, so these skip user auth but always filter by account.
+
+export const listOpportunitiesForAgent = internalQuery({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }) => {
+    const opportunities = await ctx.db
+      .query("opportunities")
+      .withIndex("by_account_status", (q) => q.eq("accountId", accountId))
+      .collect();
+    const recent = opportunities.sort((a, b) => b.createdAt - a.createdAt).slice(0, 20);
+    return Promise.all(
+      recent.map(async (opportunity) => {
+        const marketPost = await ctx.db.get(opportunity.marketPostId);
+        const creator = marketPost ? await ctx.db.get(marketPost.creatorId) : null;
+        return {
+          opportunityId: opportunity._id,
+          status: opportunity.status,
+          score: opportunity.score,
+          triggerReason: opportunity.triggerReason,
+          detectedAt: opportunity.triggeredAt,
+          creatorHandle: creator?.handle,
+          permalink: marketPost?.permalink,
+          caption: marketPost?.caption?.slice(0, 200),
+          whyItWorks: opportunity.whyItWorks,
+          creativeBriefId: opportunity.creativeBriefId,
+          contentProjectId: opportunity.contentProjectId,
+          rejectionReason: opportunity.creativeRejectionReason,
+        };
+      }),
+    );
+  },
+});
+
+export const latestRunForAgent = internalQuery({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }) => {
+    const run = await ctx.db
+      .query("marketRuns")
+      .withIndex("by_account_started", (q) => q.eq("accountId", accountId))
+      .order("desc")
+      .first();
+    if (!run) return null;
+    return {
+      runId: run._id,
+      kind: run.kind,
+      status: run.status,
+      stage: run.stage,
+      startedAt: run.startedAt,
+      completedAt: run.completedAt,
+      summary: run.summary,
+      error: run.error,
+      opportunitiesDetected: run.opportunitiesDetected,
+    };
+  },
+});

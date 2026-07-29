@@ -361,10 +361,10 @@ export const seedLegacyOpportunityInternal = internalAction({
   },
 });
 
-export const reviewDraft = action({
-  args: { projectId: v.id("contentProjects") },
-  handler: async (ctx, { projectId }): Promise<Id<"carouselDocuments">> => {
-    await ctx.runQuery(internal.contentStudio.requireProjectOwner, { projectId });
+const reviewDraftCore = async (
+  ctx: ActionCtx,
+  projectId: Id<"contentProjects">,
+): Promise<Id<"carouselDocuments">> => {
     const projectInput = await ctx.runQuery(internal.contentStudio.loadProjectDocument, {
       projectId,
     });
@@ -407,17 +407,30 @@ export const reviewDraft = action({
     if (validation.valid)
       await ctx.runMutation(internal.contentStudio.requestRenderInternal, { projectId });
     return projectInput.document._id;
+};
+
+export const reviewDraft = action({
+  args: { projectId: v.id("contentProjects") },
+  handler: async (ctx, { projectId }): Promise<Id<"carouselDocuments">> => {
+    await ctx.runQuery(internal.contentStudio.requireProjectOwner, { projectId });
+    return reviewDraftCore(ctx, projectId);
   },
 });
 
-export const regenerateSlide = action({
-  args: {
-    projectId: v.id("contentProjects"),
-    slideId: v.string(),
-    instruction: v.string(),
+export const reviewDraftInternal = internalAction({
+  args: { projectId: v.id("contentProjects") },
+  handler: (ctx, { projectId }): Promise<Id<"carouselDocuments">> =>
+    reviewDraftCore(ctx, projectId),
+});
+
+const regenerateSlideCore = async (
+  ctx: ActionCtx,
+  { projectId, slideId, instruction }: {
+    projectId: Id<"contentProjects">;
+    slideId: string;
+    instruction: string;
   },
-  handler: async (ctx, { projectId, slideId, instruction }): Promise<Id<"carouselDocuments">> => {
-    await ctx.runQuery(internal.contentStudio.requireProjectOwner, { projectId });
+): Promise<Id<"carouselDocuments">> => {
     const projectInput = await ctx.runQuery(internal.contentStudio.loadProjectDocument, {
       projectId,
     });
@@ -481,5 +494,27 @@ export const regenerateSlide = action({
     if (validation.valid)
       await ctx.runMutation(internal.contentStudio.requestRenderInternal, { projectId });
     return documentId;
+};
+
+export const regenerateSlide = action({
+  args: {
+    projectId: v.id("contentProjects"),
+    slideId: v.string(),
+    instruction: v.string(),
   },
+  handler: async (ctx, args): Promise<Id<"carouselDocuments">> => {
+    await ctx.runQuery(internal.contentStudio.requireProjectOwner, {
+      projectId: args.projectId,
+    });
+    return regenerateSlideCore(ctx, args);
+  },
+});
+
+export const regenerateSlideInternal = internalAction({
+  args: {
+    projectId: v.id("contentProjects"),
+    slideId: v.string(),
+    instruction: v.string(),
+  },
+  handler: (ctx, args): Promise<Id<"carouselDocuments">> => regenerateSlideCore(ctx, args),
 });

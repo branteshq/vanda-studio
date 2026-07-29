@@ -15,6 +15,7 @@ import type * as billing_autumn from "../billing/autumn.js";
 import type * as brandContext from "../brandContext.js";
 import type * as brandProfile from "../brandProfile.js";
 import type * as brandProfileNode from "../brandProfileNode.js";
+import type * as chat from "../chat.js";
 import type * as connections from "../connections.js";
 import type * as contentStudio from "../contentStudio.js";
 import type * as contentStudioActions from "../contentStudioActions.js";
@@ -55,6 +56,7 @@ import type * as pipeline_visualBrand from "../pipeline/visualBrand.js";
 import type * as publishScheduled from "../publishScheduled.js";
 import type * as publishScheduledNode from "../publishScheduledNode.js";
 import type * as users from "../users.js";
+import type * as vanda from "../vanda.js";
 import type * as visualBrand from "../visualBrand.js";
 import type * as visualBrandNode from "../visualBrandNode.js";
 
@@ -72,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   brandContext: typeof brandContext;
   brandProfile: typeof brandProfile;
   brandProfileNode: typeof brandProfileNode;
+  chat: typeof chat;
   connections: typeof connections;
   contentStudio: typeof contentStudio;
   contentStudioActions: typeof contentStudioActions;
@@ -112,6 +115,7 @@ declare const fullApi: ApiFromModules<{
   publishScheduled: typeof publishScheduled;
   publishScheduledNode: typeof publishScheduledNode;
   users: typeof users;
+  vanda: typeof vanda;
   visualBrand: typeof visualBrand;
   visualBrandNode: typeof visualBrandNode;
 }>;
@@ -143,6 +147,7 @@ export declare const internal: FilterApi<
 >;
 
 export declare const components: {
+  agent: import("@convex-dev/agent/_generated/component.js").ComponentApi<"agent">;
   autumn: import("@useautumn/convex/_generated/component.js").ComponentApi<"autumn">;
   workflow: import("@convex-dev/workflow/_generated/component.js").ComponentApi<"workflow">;
 };

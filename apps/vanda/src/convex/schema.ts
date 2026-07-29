@@ -173,6 +173,8 @@ export default defineSchema({
     onboardedAt: v.optional(v.number()),
     // Brand type Vanda proposed and the owner confirmed at onboarding (negocio | pessoal).
     kind: v.optional(v.union(...brandKinds.map((k) => v.literal(k)))),
+    // The account's canonical Vanda conversation (an @convex-dev/agent thread).
+    vandaThreadId: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

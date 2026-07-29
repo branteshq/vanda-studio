@@ -1075,41 +1075,79 @@ export const documentHistory = query({
   },
 });
 
+/**
+ * Approve a rendered project for publication: create the scheduledPosts row and
+ * arm the publish scheduler. `scheduledFor` defaults to "now" (a small delay so
+ * the receipt renders before the publish fires). Idempotent per post.
+ */
+const scheduleApprovedProject = async (
+  ctx: MutationCtx,
+  projectId: Id<"contentProjects">,
+  scheduledForArg?: number,
+) => {
+  const project = await ctx.db.get(projectId);
+  if (!project?.postId) throw new Error("project has no rendered post");
+  if (!["ready", "scheduled", "published"].includes(project.status))
+    throw new Error("project is not ready for publication approval");
+  const scheduled = await ctx.db
+    .query("scheduledPosts")
+    .withIndex("by_account_scheduledFor", (q) => q.eq("accountId", project.accountId))
+    .collect();
+  const existing = scheduled.find((item) => item.postId === project.postId);
+  if (existing) return existing._id;
+  const scheduledFor = scheduledForArg ?? Date.now() + 5_000;
+  const scheduledPostId = await ctx.db.insert("scheduledPosts", {
+    accountId: project.accountId,
+    postId: project.postId,
+    scheduledFor,
+    status: "scheduled",
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  });
+  await ctx.db.patch(project.postId, { status: "scheduled" });
+  await ctx.db.patch(projectId, { status: "scheduled", updatedAt: Date.now() });
+  if (project.opportunityId)
+    await ctx.db.patch(project.opportunityId, {
+      status: "publishing",
+      scheduledPostId,
+      updatedAt: Date.now(),
+    });
+  await ctx.scheduler.runAt(scheduledFor, internal.publishScheduledNode.runScheduledPost, {
+    scheduledPostId,
+  });
+  return scheduledPostId;
+};
+
 export const approveProject = mutation({
   args: { projectId: v.id("contentProjects") },
   handler: async (ctx, { projectId }) => {
     const project = await ctx.db.get(projectId);
-    if (!project?.postId) throw new Error("project has no rendered post");
+    if (!project) throw new Error("content project not found");
     await requireOwnedAccount(ctx, project.accountId);
-    if (!["ready", "scheduled", "published"].includes(project.status))
-      throw new Error("project is not ready for publication approval");
-    const scheduled = await ctx.db
-      .query("scheduledPosts")
-      .withIndex("by_account_scheduledFor", (q) => q.eq("accountId", project.accountId))
-      .collect();
-    const existing = scheduled.find((item) => item.postId === project.postId);
-    if (existing) return existing._id;
-    const scheduledFor = Date.now() + 5_000;
-    const scheduledPostId = await ctx.db.insert("scheduledPosts", {
-      accountId: project.accountId,
-      postId: project.postId,
-      scheduledFor,
-      status: "scheduled",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-    await ctx.db.patch(project.postId, { status: "scheduled" });
-    await ctx.db.patch(projectId, { status: "scheduled", updatedAt: Date.now() });
-    if (project.opportunityId)
-      await ctx.db.patch(project.opportunityId, {
-        status: "publishing",
-        scheduledPostId,
-        updatedAt: Date.now(),
-      });
-    await ctx.scheduler.runAt(scheduledFor, internal.publishScheduledNode.runScheduledPost, {
-      scheduledPostId,
-    });
-    return scheduledPostId;
+    return scheduleApprovedProject(ctx, projectId);
+  },
+});
+
+/** Agent-tool variant: account scoping is enforced by the thread the tool runs in. */
+export const approveProjectInternal = internalMutation({
+  args: {
+    projectId: v.id("contentProjects"),
+    accountId: v.id("accounts"),
+    scheduledFor: v.optional(v.number()),
+  },
+  handler: async (ctx, { projectId, accountId, scheduledFor }) => {
+    const project = await ctx.db.get(projectId);
+    if (!project || project.accountId !== accountId) throw new Error("project not found");
+    return scheduleApprovedProject(ctx, projectId, scheduledFor);
+  },
+});
+
+export const archiveProjectInternal = internalMutation({
+  args: { projectId: v.id("contentProjects"), accountId: v.id("accounts") },
+  handler: async (ctx, { projectId, accountId }) => {
+    const project = await ctx.db.get(projectId);
+    if (!project || project.accountId !== accountId) throw new Error("project not found");
+    await ctx.db.patch(projectId, { status: "archived", updatedAt: Date.now() });
   },
 });
 
@@ -1327,5 +1365,89 @@ export const projectStatuses = query({
         projects.filter((project) => project.status === status).length,
       ]),
     );
+  },
+});
+
+// ----- Agent-facing reads ---------------------------------------------------
+// Account scoping is structural: the agent turn carries the accountId of the
+// thread it runs in, so these skip user auth but always filter by account.
+
+export const listProjectsForAgent = internalQuery({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }) => {
+    const projects = await ctx.db
+      .query("contentProjects")
+      .withIndex("by_account_updated", (q) => q.eq("accountId", accountId))
+      .order("desc")
+      .take(15);
+    return projects.map((project) => ({
+      projectId: project._id,
+      title: project.title,
+      status: project.status,
+      origin: project.origin,
+      lastError: project.lastError,
+      updatedAt: project.updatedAt,
+    }));
+  },
+});
+
+export const projectForAgent = internalQuery({
+  args: { projectId: v.id("contentProjects"), accountId: v.id("accounts") },
+  handler: async (ctx, { projectId, accountId }) => {
+    const project = await ctx.db.get(projectId);
+    if (!project || project.accountId !== accountId) return null;
+    const document = project.activeDocumentId ? await ctx.db.get(project.activeDocumentId) : null;
+    const post = project.postId ? await ctx.db.get(project.postId) : null;
+    const renderedSlideUrls = post
+      ? (
+          await Promise.all(
+            post.imageIds.map(async (imageId) => {
+              const image = await ctx.db.get(imageId);
+              return (
+                image?.externalUrl ??
+                (image?.storageId ? await ctx.storage.getUrl(image.storageId) : null)
+              );
+            }),
+          )
+        ).filter((url): url is string => url !== null)
+      : [];
+    const scheduled = post
+      ? (
+          await ctx.db
+            .query("scheduledPosts")
+            .withIndex("by_account_scheduledFor", (q) => q.eq("accountId", accountId))
+            .collect()
+        ).find((item) => item.postId === post._id)
+      : undefined;
+    return {
+      projectId: project._id,
+      title: project.title,
+      status: project.status,
+      lastError: project.lastError,
+      caption: document?.caption,
+      reviewStatus: document?.reviewStatus,
+      reviewSummary: document?.reviewSummary,
+      deterministicIssues: document?.deterministicIssues ?? [],
+      slides:
+        document?.slides.map((slide) => ({
+          slideId: slide.slideId,
+          position: slide.position,
+          role: slide.role,
+          headline: slide.headline,
+          body: slide.body,
+          bullets: slide.bullets,
+        })) ?? [],
+      renderedSlideCount: renderedSlideUrls.length,
+      renderedSlideUrls,
+      publication: scheduled
+        ? {
+            scheduledPostId: scheduled._id,
+            scheduledFor: scheduled.scheduledFor,
+            status: scheduled.status,
+            externalPostId: scheduled.externalPostId,
+            lastError: scheduled.lastError,
+          }
+        : null,
+    };
   },
 });

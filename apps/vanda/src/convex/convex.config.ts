@@ -1,11 +1,12 @@
+import agent from "@convex-dev/agent/convex.config";
 import autumn from "@useautumn/convex/convex.config";
 import workflow from "@convex-dev/workflow/convex.config.js";
 import { defineApp } from "convex/server";
 
-// The create stage runs as a durable workflow: plan the composition → generate
-// N images (the slow/flaky step that earns durability) → compose. Autumn stays
-// registered for billing (mirrors the previous convex/convex.config.ts).
+// agent: Vanda's conversation substrate (threads, messages, tool calls,
+// streaming, approvals). workflow: durable multi-step jobs. autumn: billing.
 const app = defineApp();
+app.use(agent);
 app.use(autumn);
 app.use(workflow);
 
