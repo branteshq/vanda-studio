@@ -15,6 +15,7 @@ import type * as billing_autumn from "../billing/autumn.js";
 import type * as brandContext from "../brandContext.js";
 import type * as brandProfile from "../brandProfile.js";
 import type * as brandProfileNode from "../brandProfileNode.js";
+import type * as calendar from "../calendar.js";
 import type * as chat from "../chat.js";
 import type * as connections from "../connections.js";
 import type * as contentStudio from "../contentStudio.js";
@@ -74,6 +75,7 @@ declare const fullApi: ApiFromModules<{
   brandContext: typeof brandContext;
   brandProfile: typeof brandProfile;
   brandProfileNode: typeof brandProfileNode;
+  calendar: typeof calendar;
   chat: typeof chat;
   connections: typeof connections;
   contentStudio: typeof contentStudio;
