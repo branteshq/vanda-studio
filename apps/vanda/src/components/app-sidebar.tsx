@@ -420,7 +420,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                       <div
                         key={thread.threadId}
                         className={cn(
-                          "group/thread flex min-w-0 items-center rounded-md border transition-colors duration-150 ease-[var(--ease-out)] focus-within:bg-sidebar-accent",
+                          "group/thread flex h-9 min-w-0 items-center rounded-md border transition-colors duration-150 ease-[var(--ease-out)] focus-within:bg-sidebar-accent",
                           active
                             ? "border-sidebar-border bg-sidebar-accent"
                             : "border-transparent hover:bg-sidebar-accent",
@@ -428,7 +428,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                       >
                         {editing ? (
                           <form
-                            className="min-w-0 flex-1"
+                            className="flex h-full min-w-0 flex-1"
                             onSubmit={(event) => {
                               event.preventDefault();
                               saveRename();
@@ -450,7 +450,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                               autoComplete="off"
                               autoFocus
                               className={cn(
-                                "h-auto rounded-md border-0 bg-transparent px-2.5 py-2 text-body text-sidebar-accent-foreground focus-visible:border-transparent focus-visible:ring-0 md:text-body dark:bg-transparent",
+                                "h-full rounded-md border-0 bg-transparent px-2.5 py-2 text-body text-sidebar-accent-foreground focus-visible:border-transparent focus-visible:ring-0 md:text-body dark:bg-transparent",
                                 active && "font-medium",
                               )}
                             />
@@ -461,7 +461,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                               type="button"
                               onClick={() => openThread(thread.threadId)}
                               className={cn(
-                                "min-w-0 flex-1 truncate px-2.5 py-2 text-left text-body outline-none transition-colors duration-150 ease-[var(--ease-out)] group-hover/thread:text-sidebar-accent-foreground focus-visible:text-sidebar-accent-foreground",
+                                "h-full min-w-0 flex-1 truncate px-2.5 py-2 text-left text-body outline-none transition-colors duration-150 ease-[var(--ease-out)] group-hover/thread:text-sidebar-accent-foreground focus-visible:text-sidebar-accent-foreground",
                                 active
                                   ? "font-medium text-sidebar-accent-foreground"
                                   : "text-sidebar-foreground/70",
