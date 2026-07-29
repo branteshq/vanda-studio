@@ -161,35 +161,41 @@ function Conversation({ accountId }: { accountId: Id<"accounts"> }) {
 
   const loading = threadId === undefined || messages.status === "LoadingFirstPage";
   const showSuggestions = !loading && messages.results.length <= 1;
+  const streaming = messages.results.at(-1)?.status === "streaming";
 
   return (
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
-      <div className="flex min-w-0 flex-1 flex-col">
-        <MessageScrollerProvider autoScroll defaultScrollPosition="end" scrollPreviousItemPeek={80}>
-          <MessageScroller className="flex-1">
-            <MessageScrollerViewport>
-              <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-6 px-4 py-6 md:px-6">
-                {loading ? (
-                  <ConversationSkeleton />
-                ) : (
-                  messages.results.map((message) => (
-                    <MessageScrollerItem
-                      key={message.key}
-                      messageId={message.key}
-                      scrollAnchor={message.role === "user"}
-                    >
-                      <ChatMessage
-                        message={message}
-                        accountId={accountId}
-                        onOpenProject={setCanvasProjectId}
-                      />
-                    </MessageScrollerItem>
-                  ))
-                )}
-              </MessageScrollerContent>
-            </MessageScrollerViewport>
-            <MessageScrollerButton />
-          </MessageScroller>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <MessageScrollerProvider autoScroll>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <MessageScroller>
+              <MessageScrollerViewport>
+                <MessageScrollerContent
+                  aria-busy={streaming}
+                  className="mx-auto w-full max-w-3xl gap-6 px-4 py-6 md:px-6"
+                >
+                  {loading ? (
+                    <ConversationSkeleton />
+                  ) : (
+                    messages.results.map((message) => (
+                      <MessageScrollerItem
+                        key={message.key}
+                        messageId={message.key}
+                        scrollAnchor={message.role === "user"}
+                      >
+                        <ChatMessage
+                          message={message}
+                          accountId={accountId}
+                          onOpenProject={setCanvasProjectId}
+                        />
+                      </MessageScrollerItem>
+                    ))
+                  )}
+                </MessageScrollerContent>
+              </MessageScrollerViewport>
+              <MessageScrollerButton />
+            </MessageScroller>
+          </div>
         </MessageScrollerProvider>
 
         <footer className="shrink-0 border-t border-border bg-app px-4 py-3 md:px-6">
