@@ -202,6 +202,10 @@ export const sendMessage = mutation({
         ? { metadata: { fileIds: images.map((image) => String(image.imageId)) } }
         : {}),
     });
+    const attachedAt = Date.now();
+    await Promise.all(
+      images.map((image) => ctx.db.patch(image.imageId, { lastAttachedAt: attachedAt })),
+    );
     // The first user message names the conversation.
     if (!title) {
       const titleSource = trimmed || "Imagem anexada";

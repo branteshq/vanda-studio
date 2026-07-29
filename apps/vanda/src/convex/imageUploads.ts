@@ -61,7 +61,8 @@ export const removeImage = mutation({
       image.origin !== "uploaded" ||
       image.purpose !== "post" ||
       image.contentProjectId !== undefined ||
-      image.carouselDocumentId !== undefined
+      image.carouselDocumentId !== undefined ||
+      image.lastAttachedAt !== undefined
     ) {
       throw new Error("image not found");
     }

@@ -26,6 +26,7 @@ import {
   ChevronRight,
   CircleDashed,
   Images,
+  Paperclip,
   RefreshCw,
   Send,
   Sparkles,
@@ -46,8 +47,13 @@ import {
 } from "@vanda-studio/ui/components/message-scroller";
 import {
   Attachment,
+  AttachmentAction,
+  AttachmentActions,
+  AttachmentContent,
+  AttachmentDescription,
   AttachmentGroup,
   AttachmentMedia,
+  AttachmentTitle,
   AttachmentTrigger,
 } from "@vanda-studio/ui/components/attachment";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
@@ -238,17 +244,90 @@ function ConversationShell({ accountId }: { accountId: Id<"accounts"> }) {
  * this echo instead of a skeleton while the new thread's history subscription
  * makes its first round-trip, so the transition is seamless.
  */
-let firstSendHandoff: { threadId: string; text: string } | null = null;
+interface ReadyComposerAttachment {
+  imageId: Id<"images">;
+  url: string;
+  mimeType: string;
+  fileName: string;
+  width: number;
+  height: number;
+}
+
+interface ComposerAttachment {
+  clientId: string;
+  fileName: string;
+  previewUrl: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  state: "uploading" | "error" | "done";
+  imageId?: Id<"images">;
+  url?: string;
+  error?: string;
+}
+
+const imageDimensions = async (file: File): Promise<{ width: number; height: number }> => {
+  const bitmap = await createImageBitmap(file);
+  const dimensions = { width: bitmap.width, height: bitmap.height };
+  bitmap.close();
+  return dimensions;
+};
+
+const readyAttachment = (attachment: ComposerAttachment): ReadyComposerAttachment | undefined =>
+  attachment.state === "done" && attachment.imageId && attachment.url
+    ? {
+        imageId: attachment.imageId,
+        url: attachment.url,
+        mimeType: attachment.mimeType,
+        fileName: attachment.fileName,
+        width: attachment.width,
+        height: attachment.height,
+      }
+    : undefined;
+
+let firstSendHandoff: {
+  threadId: string;
+  text: string;
+  attachments: ReadyComposerAttachment[];
+} | null = null;
+
+function MessageImageAttachments({
+  attachments,
+}: {
+  attachments: ReadonlyArray<Pick<ReadyComposerAttachment, "url" | "fileName">>;
+}) {
+  if (attachments.length === 0) return null;
+  return (
+    <AttachmentGroup className="justify-end">
+      {attachments.map((attachment) => (
+        <Attachment key={attachment.url} orientation="vertical" size="sm" className="w-28">
+          <AttachmentMedia variant="image" className="w-full">
+            <img src={attachment.url} alt={attachment.fileName} loading="lazy" />
+          </AttachmentMedia>
+        </Attachment>
+      ))}
+    </AttachmentGroup>
+  );
+}
 
 /** The user's just-sent message plus a thinking marker — the pre-history echo. */
-function PendingFirstMessage({ text }: { text: string }) {
+function PendingFirstMessage({
+  text,
+  attachments,
+}: {
+  text: string;
+  attachments: ReadyComposerAttachment[];
+}) {
   return (
     <div className="flex flex-col gap-6">
       <Message align="end">
         <MessageContent>
-          <Bubble variant="muted">
-            <BubbleContent className="whitespace-pre-wrap">{text}</BubbleContent>
-          </Bubble>
+          <MessageImageAttachments attachments={attachments} />
+          {text ? (
+            <Bubble variant="muted">
+              <BubbleContent className="whitespace-pre-wrap">{text}</BubbleContent>
+            </Bubble>
+          ) : null}
         </MessageContent>
       </Message>
       <Message align="start">
@@ -274,20 +353,30 @@ function NewConversation({ accountId }: { accountId: Id<"accounts"> }) {
   const sendMessage = useMutation(api.chat.sendMessage);
   const navigate = Route.useNavigate();
   const [draft, setDraft] = useState("");
-  const [pending, setPending] = useState<string | null>(null);
+  const [pending, setPending] = useState<{
+    text: string;
+    attachments: ReadyComposerAttachment[];
+  } | null>(null);
 
-  const send = async (text: string) => {
+  const send = async (text: string, attachments: ReadyComposerAttachment[]) => {
     const prompt = text.trim();
-    if (!prompt || pending !== null) return;
+    if ((!prompt && attachments.length === 0) || pending !== null) return;
     setDraft("");
-    setPending(prompt);
+    setPending({ text: prompt, attachments });
     try {
-      const { threadId } = await sendMessage({ accountId, prompt });
-      firstSendHandoff = { threadId, text: prompt };
+      const { threadId } = await sendMessage({
+        accountId,
+        prompt,
+        ...(attachments.length > 0
+          ? { imageIds: attachments.map((attachment) => attachment.imageId) }
+          : {}),
+      });
+      firstSendHandoff = { threadId, text: prompt, attachments };
       await navigate({ search: { t: threadId }, replace: true });
-    } catch {
+    } catch (error) {
       setPending(null);
       setDraft(prompt);
+      throw error;
     }
   };
 
@@ -301,14 +390,15 @@ function NewConversation({ accountId }: { accountId: Id<"accounts"> }) {
             </div>
           ) : (
             <div className="mx-auto w-full max-w-3xl px-4 py-8 md:px-6">
-              <PendingFirstMessage text={pending} />
+              <PendingFirstMessage text={pending.text} attachments={pending.attachments} />
             </div>
           )}
         </div>
         <ChatComposer
+          accountId={accountId}
           draft={draft}
           onDraftChange={setDraft}
-          onSend={(text) => void send(text)}
+          onSend={send}
           disabled={pending !== null}
           autoFocus
         />
@@ -317,59 +407,258 @@ function NewConversation({ accountId }: { accountId: Id<"accounts"> }) {
   );
 }
 
-/** The shared message composer: textarea + submit, Enter sends. */
+/** The shared image-capable message composer. */
 function ChatComposer({
+  accountId,
   draft,
   onDraftChange,
   onSend,
   disabled,
   autoFocus,
 }: {
+  accountId: Id<"accounts">;
   draft: string;
   onDraftChange: (value: string) => void;
-  onSend: (text: string) => void;
+  onSend: (text: string, attachments: ReadyComposerAttachment[]) => Promise<void>;
   disabled?: boolean;
   autoFocus?: boolean;
 }) {
-  const onSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    onSend(draft);
+  const generateUploadUrl = useMutation(api.imageUploads.generateUploadUrl);
+  const addImage = useMutation(api.imageUploads.addImage);
+  const removeImage = useMutation(api.imageUploads.removeImage);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
+  const cancelledUploads = useRef(new Set<string>());
+  const uploadControllers = useRef(new Map<string, AbortController>());
+
+  useEffect(
+    () => () => {
+      for (const attachment of attachmentsRef.current) {
+        URL.revokeObjectURL(attachment.previewUrl);
+        cancelledUploads.current.add(attachment.clientId);
+      }
+      for (const controller of uploadControllers.current.values()) controller.abort();
+    },
+    [],
+  );
+
+  const updateAttachment = (clientId: string, patch: Partial<ComposerAttachment>) => {
+    setAttachments((current) =>
+      current.map((attachment) =>
+        attachment.clientId === clientId ? { ...attachment, ...patch } : attachment,
+      ),
+    );
   };
-  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      onSend(draft);
+
+  const uploadFile = async (file: File) => {
+    const clientId = crypto.randomUUID();
+    const previewUrl = URL.createObjectURL(file);
+    const initial: ComposerAttachment = {
+      clientId,
+      fileName: file.name,
+      previewUrl,
+      mimeType: file.type || "image/jpeg",
+      width: 1,
+      height: 1,
+      state: "uploading",
+    };
+    setAttachments((current) => [...current, initial]);
+
+    if (!file.type.startsWith("image/")) {
+      updateAttachment(clientId, { state: "error", error: "Formato não suportado" });
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      updateAttachment(clientId, { state: "error", error: "Máximo de 10 MB" });
+      return;
+    }
+
+    const controller = new AbortController();
+    uploadControllers.current.set(clientId, controller);
+    try {
+      const dimensions = await imageDimensions(file);
+      updateAttachment(clientId, dimensions);
+      const uploadUrl = await generateUploadUrl();
+      const response = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file,
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`upload HTTP ${response.status}`);
+      const payload = (await response.json()) as { storageId?: Id<"_storage"> };
+      if (!payload.storageId) throw new Error("upload returned no storageId");
+      const stored = await addImage({
+        accountId,
+        storageId: payload.storageId,
+        mimeType: file.type,
+        ...dimensions,
+      });
+      if (cancelledUploads.current.has(clientId)) {
+        await removeImage({ accountId, imageId: stored.imageId });
+        return;
+      }
+      updateAttachment(clientId, {
+        state: "done",
+        imageId: stored.imageId,
+        url: stored.url,
+        ...dimensions,
+      });
+    } catch (error) {
+      if (!cancelledUploads.current.has(clientId)) {
+        updateAttachment(clientId, {
+          state: "error",
+          error: error instanceof Error ? error.message : "Falha no envio",
+        });
+      }
+    } finally {
+      uploadControllers.current.delete(clientId);
     }
   };
+
+  const selectFiles = (files: FileList | null) => {
+    if (!files) return;
+    const remaining = Math.max(0, 4 - attachments.length);
+    for (const file of Array.from(files).slice(0, remaining)) void uploadFile(file);
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const removeAttachment = (attachment: ComposerAttachment) => {
+    cancelledUploads.current.add(attachment.clientId);
+    uploadControllers.current.get(attachment.clientId)?.abort();
+    URL.revokeObjectURL(attachment.previewUrl);
+    setAttachments((current) =>
+      current.filter((candidate) => candidate.clientId !== attachment.clientId),
+    );
+    if (attachment.imageId) {
+      void removeImage({ accountId, imageId: attachment.imageId });
+    }
+  };
+
+  const readyAttachments = attachments
+    .map(readyAttachment)
+    .filter((attachment): attachment is ReadyComposerAttachment => attachment !== undefined);
+  const attachmentsSettled = attachments.every((attachment) => attachment.state === "done");
+  const canSend =
+    !disabled &&
+    !submitting &&
+    attachmentsSettled &&
+    (draft.trim().length > 0 || readyAttachments.length > 0);
+
+  const submit = async () => {
+    if (!canSend) return;
+    setSubmitting(true);
+    try {
+      await onSend(draft, readyAttachments);
+      for (const attachment of attachments) URL.revokeObjectURL(attachment.previewUrl);
+      setAttachments([]);
+    } catch {
+      // Parent restores the draft; attachments remain available for retry.
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const onSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    void submit();
+  };
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      void submit();
+    }
+  };
+
   return (
     <footer className="shrink-0 bg-app px-4 py-3 md:px-6">
       <div className="mx-auto w-full max-w-3xl">
         <form
           onSubmit={onSubmit}
-          className="flex items-end gap-2 rounded-xl border border-border bg-surface p-2 focus-within:border-border-strong"
+          className="flex flex-col gap-1.5 rounded-xl border border-border bg-surface p-2 focus-within:border-border-strong"
         >
-          <textarea
-            value={draft}
-            onChange={(event) => onDraftChange(event.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder="Mande uma mensagem para a Vanda…"
-            aria-label="Mensagem para a Vanda"
-            rows={1}
-            autoFocus={autoFocus}
-            className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-text outline-none placeholder:text-text-5"
-          />
-          <ActionTooltip label="Enviar" side="top">
-            <span className="inline-flex">
+          {attachments.length > 0 ? (
+            <AttachmentGroup className="w-full">
+              {attachments.map((attachment) => (
+                <Attachment
+                  key={attachment.clientId}
+                  orientation="vertical"
+                  size="sm"
+                  state={attachment.state}
+                  className="w-24"
+                >
+                  <AttachmentMedia variant="image" className="w-full">
+                    <img src={attachment.previewUrl} alt={attachment.fileName} />
+                  </AttachmentMedia>
+                  <AttachmentContent>
+                    <AttachmentTitle>{attachment.fileName}</AttachmentTitle>
+                    <AttachmentDescription>
+                      {attachment.state === "uploading"
+                        ? "Enviando…"
+                        : attachment.state === "error"
+                          ? (attachment.error ?? "Falha no envio")
+                          : `${attachment.width}×${attachment.height}`}
+                    </AttachmentDescription>
+                  </AttachmentContent>
+                  <AttachmentActions>
+                    <AttachmentAction
+                      type="button"
+                      aria-label={`Remover ${attachment.fileName}`}
+                      disabled={submitting}
+                      onClick={() => removeAttachment(attachment)}
+                      className="bg-surface/90 shadow-sm"
+                    >
+                      <X />
+                    </AttachmentAction>
+                  </AttachmentActions>
+                </Attachment>
+              ))}
+            </AttachmentGroup>
+          ) : null}
+
+          <div className="flex items-end gap-1">
+            <ActionTooltip label="Adicionar imagens" side="top">
               <Button
-                type="submit"
+                type="button"
+                variant="ghost"
                 size="icon"
-                aria-label="Enviar"
-                disabled={disabled || !draft.trim()}
+                aria-label="Adicionar imagens"
+                disabled={disabled || submitting || attachments.length >= 4}
+                onClick={() => inputRef.current?.click()}
+                className="text-text-4"
               >
-                <ArrowUp />
+                <Paperclip />
               </Button>
-            </span>
-          </ActionTooltip>
+            </ActionTooltip>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(event) => selectFiles(event.target.files)}
+            />
+            <textarea
+              value={draft}
+              onChange={(event) => onDraftChange(event.target.value)}
+              onKeyDown={onKeyDown}
+              placeholder="Mande uma mensagem para a Vanda…"
+              aria-label="Mensagem para a Vanda"
+              rows={1}
+              autoFocus={autoFocus}
+              className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-text outline-none placeholder:text-text-5"
+            />
+            <ActionTooltip label="Enviar" side="top">
+              <span className="inline-flex">
+                <Button type="submit" size="icon" aria-label="Enviar" disabled={!canSend}>
+                  <ArrowUp />
+                </Button>
+              </span>
+            </ActionTooltip>
+          </div>
         </form>
       </div>
     </footer>
@@ -423,10 +712,10 @@ function NewConversationHero() {
 }
 
 function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; threadId: string }) {
-  // Optimistic: the user's bubble renders the frame Enter is pressed, then is
-  // replaced by the server copy when the mutation round-trip lands.
+  // Optimistic: the user's text bubble renders the frame Enter is pressed, then
+  // the server copy (including any image parts) replaces it after the round-trip.
   const sendMessage = useMutation(api.chat.sendMessage).withOptimisticUpdate((store, args) => {
-    if (!args.threadId) return;
+    if (!args.threadId || !args.prompt.trim()) return;
     optimisticallySendMessage(api.chat.listMessages)(store, {
       threadId: args.threadId,
       prompt: args.prompt,
@@ -441,11 +730,23 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
     { initialNumItems: 60, stream: true },
   );
 
-  const send = async (text: string) => {
+  const send = async (text: string, attachments: ReadyComposerAttachment[]) => {
     const prompt = text.trim();
-    if (!prompt) return;
+    if (!prompt && attachments.length === 0) return;
     setDraft("");
-    await sendMessage({ accountId, threadId, prompt });
+    try {
+      await sendMessage({
+        accountId,
+        threadId,
+        prompt,
+        ...(attachments.length > 0
+          ? { imageIds: attachments.map((attachment) => attachment.imageId) }
+          : {}),
+      });
+    } catch (error) {
+      setDraft(prompt);
+      throw error;
+    }
   };
 
   const loading = messages.status === "LoadingFirstPage";
@@ -482,7 +783,10 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
                   >
                     {loading ? (
                       handoff ? (
-                        <PendingFirstMessage text={handoff.text} />
+                        <PendingFirstMessage
+                          text={handoff.text}
+                          attachments={handoff.attachments}
+                        />
                       ) : (
                         <ConversationSkeleton />
                       )
@@ -516,7 +820,12 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
             </div>
           </MessageScrollerProvider>
 
-          <ChatComposer draft={draft} onDraftChange={setDraft} onSend={(text) => void send(text)} />
+          <ChatComposer
+            accountId={accountId}
+            draft={draft}
+            onDraftChange={setDraft}
+            onSend={send}
+          />
         </div>
 
         {canvasProjectId ? (
@@ -532,6 +841,9 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
   );
 }
 
+const visibleUserText = (text: string): string =>
+  text.replace(/\s*<vanda_attachment_context>[\s\S]*?<\/vanda_attachment_context>/g, "").trim();
+
 function ChatMessage({
   message,
   accountId,
@@ -546,17 +858,29 @@ function ChatMessage({
   const enter = useEntranceOnMount();
 
   if (message.role === "user") {
-    const text = message.parts
-      .filter((part) => part.type === "text")
-      .map((part) => (part as { text: string }).text)
-      .join("\n");
-    if (!text.trim()) return null;
+    const text = visibleUserText(
+      message.parts
+        .filter((part) => part.type === "text")
+        .map((part) => (part as { text: string }).text)
+        .join("\n"),
+    );
+    const attachments = message.parts.flatMap((part) => {
+      if (part.type !== "file") return [];
+      const file = part as { mediaType: string; url: string; filename?: string };
+      return file.mediaType.startsWith("image/")
+        ? [{ url: file.url, fileName: file.filename ?? "Imagem anexada" }]
+        : [];
+    });
+    if (!text && attachments.length === 0) return null;
     return (
       <Message align="end" className={cn(enter && "animate-message-in")}>
         <MessageContent>
-          <Bubble variant="muted">
-            <BubbleContent className="whitespace-pre-wrap">{text}</BubbleContent>
-          </Bubble>
+          <MessageImageAttachments attachments={attachments} />
+          {text ? (
+            <Bubble variant="muted">
+              <BubbleContent className="whitespace-pre-wrap">{text}</BubbleContent>
+            </Bubble>
+          ) : null}
         </MessageContent>
       </Message>
     );

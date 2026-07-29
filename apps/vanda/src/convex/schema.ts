@@ -771,6 +771,8 @@ export default defineSchema({
     inspectionWarnings: v.optional(v.array(v.string())),
     inspectionConfidence: v.optional(v.number()),
     inspectedAt: v.optional(v.number()),
+    // Once attached to chat, composer cleanup may no longer delete this asset.
+    lastAttachedAt: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_account", ["accountId"])
