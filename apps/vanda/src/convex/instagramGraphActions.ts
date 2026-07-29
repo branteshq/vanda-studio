@@ -405,10 +405,10 @@ export const completeOAuth = action({
           .join("\n") || null,
     });
 
-    // Bridge the connection into the pipeline: a business `accounts` row the
-    // observe cron can pick up. Idempotent, so reconnecting never duplicates.
+    // Bridge the connection into the product: a business `accounts` row.
+    // Idempotent, so reconnecting never duplicates.
     const accountId = await ctx.runMutation(
-      internal.observe.promoteConnection,
+      internal.connections.promoteConnection,
       {
         connectionId: connection._id,
       },

@@ -730,7 +730,9 @@ export const measurePublications = internalAction({
       externalPostId: string;
     }> = await ctx.runQuery(internal.market.listPublishedForMeasurement, { accountId });
     if (publications.length === 0) return 0;
-    const connection = await ctx.runQuery(internal.observe.getAccountConnection, { accountId });
+    const connection = await ctx.runQuery(internal.connections.getAccountConnection, {
+      accountId,
+    });
     if (!connection) return 0;
     const config = { igUserId: connection.igUserId, token: decryptInstagramToken(connection) };
     let recorded = 0;

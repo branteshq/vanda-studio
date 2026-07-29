@@ -1,8 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import type { BrandCorpusResult } from "./brand";
-import { fetchAndDecode, type IgConfig } from "./igGraph";
-import type { SourceFetchFailed } from "./observe";
+import { fetchAndDecode, type IgConfig, type SourceFetchFailed } from "./igGraph";
 
 // --- Graph response schemas (decoded, not cast) ---------------------------
 

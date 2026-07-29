@@ -1,8 +1,13 @@
+import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import type * as Schema from "effect/Schema";
 import { decodeUnknownEffect } from "effect/Schema";
-import type { SignalSource } from "./domain";
-import { SourceFetchFailed } from "./observe";
+
+/** A Graph API fetch or decode failure, tagged with the source that requested it. */
+export class SourceFetchFailed extends Data.TaggedError("SourceFetchFailed")<{
+  readonly source: string;
+  readonly message: string;
+}> {}
 
 /**
  * Shared Instagram Graph read helper, used by every fetch that reads
@@ -49,7 +54,7 @@ export const parseTimestamp = (timestamp: string | undefined): number => {
  */
 export const fetchAndDecode = <A>(
   config: IgConfig,
-  source: SignalSource,
+  source: string,
   path: string,
   fields: string,
   schema: Schema.Codec<A, unknown>,
@@ -73,7 +78,7 @@ export const fetchAndDecode = <A>(
 
 /** Decode a `paging.next` URL returned by Meta using the same typed failure contract. */
 export const fetchUrlAndDecode = <A>(
-  source: SignalSource,
+  source: string,
   url: string,
   schema: Schema.Codec<A, unknown>,
 ): Effect.Effect<A, SourceFetchFailed> =>

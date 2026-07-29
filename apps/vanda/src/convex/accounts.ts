@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import type { Id, TableNames } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
-import { accountModes, beliefStatuses, suggestionStatuses } from "./pipeline/constants";
+import { accountModes } from "./pipeline/constants";
 
 async function deleteRows<T extends { _id: Id<TableNames> }>(
   rows: T[],
@@ -108,63 +108,17 @@ export const remove = mutation({
       }
     }
 
-    const signals = await ctx.db
-      .query("signals")
-      .withIndex("by_account_observedAt", (q) => q.eq("accountId", accountId))
-      .collect();
-    await deleteRows(signals, (id) => ctx.db.delete(id));
-
-    for (const status of beliefStatuses) {
-      const beliefs = await ctx.db
-        .query("beliefs")
-        .withIndex("by_account_status", (q) => q.eq("accountId", accountId).eq("status", status))
-        .collect();
-      await deleteRows(beliefs, (id) => ctx.db.delete(id));
-    }
-
-    const themes = await ctx.db
-      .query("themes")
-      .withIndex("by_account", (q) => q.eq("accountId", accountId))
-      .collect();
-    await deleteRows(themes, (id) => ctx.db.delete(id));
-
-    const policies = await ctx.db
-      .query("policies")
-      .withIndex("by_account", (q) => q.eq("accountId", accountId))
-      .collect();
-    await deleteRows(policies, (id) => ctx.db.delete(id));
-
-    const memoryNotes = await ctx.db
-      .query("memoryNotes")
-      .withIndex("by_account", (q) => q.eq("accountId", accountId))
-      .collect();
-    await deleteRows(memoryNotes, (id) => ctx.db.delete(id));
-
     const brandCanon = await ctx.db
       .query("brandCanon")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .collect();
     await deleteRows(brandCanon, (id) => ctx.db.delete(id));
 
-    const knowledge = await ctx.db
-      .query("knowledgeChunks")
-      .withIndex("by_account_source", (q) => q.eq("accountId", accountId))
-      .collect();
-    await deleteRows(knowledge, (id) => ctx.db.delete(id));
-
     const modelRuns = await ctx.db
       .query("modelRuns")
       .withIndex("by_account_started", (q) => q.eq("accountId", accountId))
       .collect();
     await deleteRows(modelRuns, (id) => ctx.db.delete(id));
-
-    for (const status of suggestionStatuses) {
-      const suggestions = await ctx.db
-        .query("suggestions")
-        .withIndex("by_account_status", (q) => q.eq("accountId", accountId).eq("status", status))
-        .collect();
-      await deleteRows(suggestions, (id) => ctx.db.delete(id));
-    }
 
     const opportunities = await ctx.db
       .query("opportunities")

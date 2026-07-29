@@ -1,16 +1,12 @@
 // Single source of truth for the closed literal sets shared between the Effect
-// domain schemas (pipeline/memory.ts, via `Schema.Literals`) and the Convex
-// persistence validators (schema.ts, via `v.union(v.literal(...))`).
+// domain schemas (via `Schema.Literals`) and the Convex persistence validators
+// (schema.ts, via `v.union(v.literal(...))`).
 
-export const beliefKinds = ["audience", "product", "competitor", "sentiment", "trend"] as const;
-export const beliefStatuses = ["active", "decaying", "retired"] as const;
-export const momenta = ["rising", "steady", "falling"] as const;
 export const accountModes = ["auto", "needs_approval", "manual"] as const;
 
 // Brand canon — the owner-confirmed stable identity (output of onboarding's
 // approve). `identity`/`summary` are single rows; `voice`/`character`/`restriction`
-// are multi. Themes and opportunities shown at onboarding are NOT canon: on
-// approve they materialize into `themes` / `suggestions`, never brandCanon.
+// are multi.
 export const brandCanonKinds = [
   "identity",
   "positioning",
@@ -65,9 +61,6 @@ export const carouselRenderStatuses = [
   "canceled",
 ] as const;
 export const scheduledStatuses = ["scheduled", "publishing", "published", "failed"] as const;
-export const signalSources = ["comments", "mentions", "competitors", "trends", "posts"] as const;
-export const signalSyncKinds = ["backfill", "reconciliation", "webhook"] as const;
-export const knowledgeKinds = ["canon", "belief", "caption", "post", "feedback"] as const;
 export const modelStages = [
   "brand_profile",
   "consolidate",
@@ -134,12 +127,3 @@ export const opportunityStatuses = [
   "failed",
 ] as const;
 export const opportunityTriggers = ["absolute_threshold", "audience_ratio", "velocity"] as const;
-export const suggestionStatuses = [
-  "suggestion",
-  "needs_you",
-  "approved",
-  "creating",
-  "scheduled",
-  "dismissed",
-  "rejected",
-] as const;

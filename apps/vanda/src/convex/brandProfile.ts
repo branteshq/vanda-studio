@@ -6,7 +6,6 @@ import { BrandAnalysis, type BrandCanonKind } from "./pipeline/brand";
 import { brandAnalysisArgs } from "./pipeline/storage";
 import { accountModes, brandCanonKinds } from "./pipeline/constants";
 import { assessBrandReadiness } from "./pipeline/inputQuality";
-import { internal } from "./_generated/api";
 
 /**
  * The Instagram connection (id + encrypted token) for an account the caller owns.
@@ -64,10 +63,7 @@ const canonFromGroup = (kind: BrandCanonKind, group: CanonGroup) =>
  * Confirm the brand profile — the end of onboarding. Validates the owner-approved
  * analysis against the domain contract (rejecting out-of-range confidence), then
  * writes it as canon (`identity`/`summary` single rows; `voice`/`character`/
- * `restriction` one row per chip) and seeds the detected `themes`, then stamps
- * `onboardedAt`. Opportunities are previews only — the planner earns the first
- * real suggestions from observed evidence, so onboarding never hand-seeds them
- * (a "suggestion"-status row is regenerable and a plan pass would erase it).
+ * `restriction` one row per chip), then stamps `onboardedAt`.
  * Single-use: re-confirming after onboarding is rejected — later memory edits get
  * their own mutation. Canon is fully replaced so a retry before completion stays
  * idempotent.
@@ -110,25 +106,6 @@ export const approveBrandProfile = mutation({
       });
     }
 
-    // Seed detected themes (upsert by name — consolidate may already own some).
-    const existingThemes = await ctx.db
-      .query("themes")
-      .withIndex("by_account", (q) => q.eq("accountId", accountId))
-      .collect();
-    const themeNames = new Set(existingThemes.map((t) => t.name));
-    for (const name of analysis.themes.items) {
-      if (themeNames.has(name)) continue;
-      themeNames.add(name); // also dedup chips repeated within this same approval
-      await ctx.db.insert("themes", {
-        accountId,
-        name,
-        summary: analysis.themes.evidence,
-        momentum: "steady",
-        postCount: 0,
-        signalCount: 0,
-      });
-    }
-
     await ctx.db.patch(accountId, {
       kind: analysis.kind.value,
       mode,
@@ -138,7 +115,6 @@ export const approveBrandProfile = mutation({
     if (account.ownerUserId !== undefined) {
       await ctx.db.patch(account.ownerUserId, { activeAccountId: accountId, updatedAt: now });
     }
-    await ctx.scheduler.runAfter(0, internal.knowledge.refreshAccount, { accountId });
   },
 });
 
@@ -203,7 +179,6 @@ export const saveBrandFact = mutation({
         createdAt: now,
       });
     }
-    await ctx.scheduler.runAfter(0, internal.knowledge.refreshAccount, { accountId });
     return id!;
   },
 });
@@ -215,9 +190,6 @@ export const removeBrandFact = mutation({
     if (!fact) throw new Error("brand fact not found");
     await requireOwnedAccount(ctx, fact.accountId);
     await ctx.db.delete(factId);
-    await ctx.scheduler.runAfter(0, internal.knowledge.refreshAccount, {
-      accountId: fact.accountId,
-    });
   },
 });
 

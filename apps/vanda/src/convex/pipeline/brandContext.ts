@@ -14,7 +14,6 @@ export interface BrandContextSnapshot {
   readonly handle?: string | undefined;
   readonly brandKind?: BrandKind | undefined;
   readonly canon: ReadonlyArray<BrandCanonEntry>;
-  readonly themes: ReadonlyArray<{ readonly name: string; readonly summary: string }>;
   readonly referenceImageUrls: ReadonlyArray<string>;
 }
 

@@ -39,20 +39,13 @@ export const loadBrandContext = internalQuery({
       .query("brandCanon")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .collect();
-    const themes = await ctx.db
-      .query("themes")
-      .withIndex("by_account", (q) => q.eq("accountId", accountId))
-      .collect();
     const confirmed = canon.filter((item) => item.confirmedByOwner);
     const readiness = assessBrandReadiness({
       confirmedKinds: confirmed.map((item) => item.kind),
     });
     return {
       ownHandle: connection?.handle,
-      context: [
-        ...confirmed.map((item) => `${item.kind}: ${item.text}`),
-        ...themes.map((theme) => `tema: ${theme.name} — ${theme.summary}`),
-      ].join("\n"),
+      context: confirmed.map((item) => `${item.kind}: ${item.text}`).join("\n"),
       canonIds: confirmed.map((item) => item._id),
       readiness,
     };
@@ -68,14 +61,7 @@ export const ensureBrandSnapshot = internalMutation({
         .withIndex("by_account", (q) => q.eq("accountId", accountId))
         .collect()
     ).filter((item) => item.confirmedByOwner);
-    const themes = await ctx.db
-      .query("themes")
-      .withIndex("by_account", (q) => q.eq("accountId", accountId))
-      .collect();
-    const contextLines = [
-      ...canon.map((item) => `${item.kind}: ${item.text}`),
-      ...themes.map((theme) => `tema: ${theme.name} — ${theme.summary}`),
-    ];
+    const contextLines = canon.map((item) => `${item.kind}: ${item.text}`);
     const hash = brandSnapshotHash(contextLines);
     const existing = await ctx.db
       .query("brandSnapshots")

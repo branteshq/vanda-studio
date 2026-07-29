@@ -12,10 +12,6 @@ export const load = internalQuery({
       .query("brandCanon")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .collect();
-    const themes = await ctx.db
-      .query("themes")
-      .withIndex("by_account", (q) => q.eq("accountId", accountId))
-      .collect();
     const references = (
       await ctx.db
         .query("images")
@@ -40,7 +36,6 @@ export const load = internalQuery({
       canon: canon
         .filter((entry) => entry.confirmedByOwner)
         .map((entry) => ({ kind: entry.kind, text: entry.text })),
-      themes: themes.map((theme) => ({ name: theme.name, summary: theme.summary })),
       referenceImageUrls,
     };
   },

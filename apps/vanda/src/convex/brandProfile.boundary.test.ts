@@ -61,7 +61,7 @@ const setup = async (clerkId = "c1") => {
 };
 
 describe("approveBrandProfile", () => {
-  it("writes canon, seeds themes, sets kind + mode, and stamps onboardedAt", async () => {
+  it("writes canon, sets kind + mode, and stamps onboardedAt", async () => {
     const { t, accountId } = await setup();
     await t
       .withIdentity({ subject: "c1" })
@@ -76,54 +76,14 @@ describe("approveBrandProfile", () => {
     expect(ofKind("character")).toHaveLength(3);
     expect(ofKind("restriction")).toHaveLength(2);
     expect(canon.every((c) => c.confirmedByOwner)).toBe(true);
-    // themes/opportunities are NOT canon — they materialize elsewhere.
+    // themes/opportunities are NOT canon — they are onboarding previews only.
     expect(ofKind("theme")).toHaveLength(0);
     expect(ofKind("opportunity")).toHaveLength(0);
-
-    const themes = await t.run((ctx) => ctx.db.query("themes").collect());
-    const themeNames = themes.map((th) => th.name);
-    expect(themeNames).toHaveLength(4);
-    expect(themeNames).toEqual(
-      expect.arrayContaining(["café especial", "clientes fiéis", "dogs", "inverno"]),
-    );
-    expect(themes.every((th) => th.momentum === "steady")).toBe(true);
-
-    // Opportunities are previews only — onboarding never hand-seeds suggestions.
-    const suggestions = await t.run((ctx) => ctx.db.query("suggestions").collect());
-    expect(suggestions).toHaveLength(0);
 
     const account = await t.run((ctx) => ctx.db.get(accountId));
     expect(account?.onboardedAt).toBeTypeOf("number");
     expect(account?.kind).toBe("negocio"); // brand type carried from the analysis
     expect(account?.mode).toBe("auto"); // mode set in the same atomic commit
-  });
-
-  it("upserts themes by name instead of duplicating an existing one", async () => {
-    const { t, accountId } = await setup();
-    await t.run((ctx) =>
-      ctx.db.insert("themes", {
-        accountId,
-        name: "dogs",
-        summary: "existing",
-        momentum: "rising",
-        postCount: 3,
-        signalCount: 9,
-      }),
-    );
-    await t.withIdentity({ subject: "c1" }).mutation(api.brandProfile.approveBrandProfile, {
-      accountId,
-      mode: "needs_approval",
-      ...analysis,
-    });
-
-    const dogs = await t.run((ctx) =>
-      ctx.db
-        .query("themes")
-        .collect()
-        .then((rows) => rows.filter((r) => r.name === "dogs")),
-    );
-    expect(dogs).toHaveLength(1);
-    expect(dogs[0]!.momentum).toBe("rising"); // the existing row is preserved, not overwritten
   });
 
   it("rejects approval from a non-owner", async () => {
@@ -181,20 +141,6 @@ describe("approveBrandProfile", () => {
     ).rejects.toThrow();
   });
 
-  it("deduplicates theme chips repeated within one approval", async () => {
-    const { t, accountId } = await setup();
-    const dup = {
-      ...analysis,
-      themes: { ...analysis.themes, items: ["dogs", "dogs", "inverno"] },
-    };
-    await t.withIdentity({ subject: "c1" }).mutation(api.brandProfile.approveBrandProfile, {
-      accountId,
-      mode: "needs_approval",
-      ...dup,
-    });
-    const themes = await t.run((ctx) => ctx.db.query("themes").collect());
-    expect(themes).toHaveLength(2); // dogs (once) + inverno
-  });
 });
 
 describe("reference photos", () => {

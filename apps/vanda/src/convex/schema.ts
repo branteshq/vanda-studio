@@ -1,13 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import {
-  beliefColumns,
-  brandCanonColumns,
-  memoryNoteColumns,
-  signalColumns,
-  suggestionColumns,
-  themeColumns,
-} from "./pipeline/storage";
+import { brandCanonColumns } from "./pipeline/storage";
 import {
   accountModes,
   brandKinds,
@@ -21,7 +14,6 @@ import {
   inputAssessmentDecisions,
   inputAssessmentStages,
   inputRejectionCodes,
-  knowledgeKinds,
   marketCreatorFeedback,
   marketCreatorStatuses,
   marketRunKinds,
@@ -163,19 +155,8 @@ export default defineSchema({
     .index("by_connection_external", ["connectionId", "externalPostId"])
     .index("by_user_published", ["userId", "publishedAt"]),
 
-  // Observed signals (observe stage). The feed reads by_account_observedAt;
-  // dedup looks up by_account_source_external; consolidate scans the pending
-  // queue via by_account_consolidated (consolidatedAt unset).
-  signals: defineTable(signalColumns)
-    .index("by_account_observedAt", ["accountId", "observedAt"])
-    .index("by_account_source_external", ["accountId", "source", "externalId"])
-    .index("by_account_consolidated", ["accountId", "consolidatedAt"]),
-
-  // ----- Memory model (persistence projection of pipeline/memory.ts) -----
-  // Account-scoped tables for the discernment core. `accounts` is populated by
-  // promoteConnection (observe.ts); beliefs/themes/memoryNotes are written by
-  // consolidate; brandCanon by onboarding's approve. outcomes land with the
-  // stage that consumes them.
+  // `accounts` is populated by promoteConnection (connections.ts); brandCanon
+  // by onboarding's approve.
 
   accounts: defineTable({
     // The human who owns this business (set on promote from a connection). `orgId`
@@ -198,48 +179,10 @@ export default defineSchema({
     .index("by_owner", ["ownerUserId"])
     .index("by_connection", ["connectionId"]),
 
-  beliefs: defineTable(beliefColumns).index("by_account_status", ["accountId", "status"]),
-
-  themes: defineTable(themeColumns).index("by_account", ["accountId"]),
-
-  policies: defineTable({
-    accountId: v.id("accounts"),
-    minConfidence: v.number(),
-    minEvidence: v.number(),
-    decayHalfLifeMs: v.number(),
-    cadenceWindowMs: v.number(),
-    learningRate: v.number(),
-    contradictionFactor: v.number(),
-    retireBelow: v.number(),
-    decayingBelow: v.number(),
-    momentumRisingRatio: v.number(),
-    momentumFallingRatio: v.number(),
-  }).index("by_account", ["accountId"]),
-
-  // The consolidation journal: one reflection note per pass, newest-first by account.
-  memoryNotes: defineTable(memoryNoteColumns).index("by_account", ["accountId"]),
-
   // Brand canon (output of onboarding's approve): the owner-confirmed stable
-  // identity — one editable row per fact. Confirmed canon grounds create's RAG
-  // corpus (create.brandCorpus); the "what Vanda knows" panel reads it too.
+  // identity — one editable row per fact. This is the durable brand memory the
+  // agent's context is assembled from; the "what Vanda knows" panel reads it too.
   brandCanon: defineTable(brandCanonColumns).index("by_account", ["accountId"]),
-
-  knowledgeChunks: defineTable({
-    accountId: v.id("accounts"),
-    kind: v.union(...knowledgeKinds.map((kind) => v.literal(kind))),
-    sourceId: v.string(),
-    text: v.string(),
-    embedding: v.array(v.float64()),
-    active: v.boolean(),
-    observedAt: v.optional(v.number()),
-    createdAt: v.number(),
-  })
-    .index("by_account_source", ["accountId", "sourceId"])
-    .vectorIndex("by_embedding", {
-      vectorField: "embedding",
-      dimensions: 1536,
-      filterFields: ["accountId", "active"],
-    }),
 
   modelRuns: defineTable({
     accountId: v.id("accounts"),
@@ -253,12 +196,6 @@ export default defineSchema({
     startedAt: v.number(),
     completedAt: v.optional(v.number()),
   }).index("by_account_started", ["accountId", "startedAt"]),
-
-  // Suggestions (plan stage): composed post ideas with control status + provenance.
-  // Rejected candidates are kept (status "rejected" + rejectionReason) for inspectable autonomy.
-  suggestions: defineTable(suggestionColumns)
-    .index("by_account_status", ["accountId", "status"])
-    .index("by_account_created", ["accountId", "createdAt"]),
 
   // ----- Market radar: discover → measure → detect → adapt ----------------
 
@@ -827,9 +764,6 @@ export default defineSchema({
     caption: v.string(),
     platform: v.string(),
     status: v.union(...postStatuses.map((status) => v.literal(status))),
-    // Provenance: the suggestion this post was composed from (created by the
-    // create stage; absent for manually uploaded / gallery-built posts).
-    suggestionId: v.optional(v.id("suggestions")),
     opportunityId: v.optional(v.id("opportunities")),
     contentProjectId: v.optional(v.id("contentProjects")),
     carouselDocumentId: v.optional(v.id("carouselDocuments")),

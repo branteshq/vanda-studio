@@ -165,7 +165,7 @@ describe("accounts.remove", () => {
   it("removes an owned business, clears account data, and expires its connection", async () => {
     const t = convexTest(schema, modules);
     const now = Date.now();
-    const { mine, theirs, connectionId, signalId, canonId } = await t.run(async (ctx) => {
+    const { mine, theirs, connectionId, canonId } = await t.run(async (ctx) => {
       const me = await ctx.db.insert("users", { name: "Me", email: "me@e.com", clerkId: "me" });
       const other = await ctx.db.insert("users", { name: "O", email: "o@e.com", clerkId: "other" });
       const connectionId = await ctx.db.insert("instagramConnections", {
@@ -196,13 +196,6 @@ describe("accounts.remove", () => {
         createdAt: now,
         updatedAt: now,
       });
-      const signalId = await ctx.db.insert("signals", {
-        accountId: mine,
-        source: "comments",
-        externalId: "c1",
-        text: "great",
-        observedAt: now,
-      });
       const canonId = await ctx.db.insert("brandCanon", {
         accountId: mine,
         kind: "identity",
@@ -210,7 +203,7 @@ describe("accounts.remove", () => {
         confirmedByOwner: true,
         createdAt: now,
       });
-      return { mine, theirs, connectionId, signalId, canonId };
+      return { mine, theirs, connectionId, canonId };
     });
 
     const asMe = t.withIdentity({ subject: "me" });
@@ -219,7 +212,6 @@ describe("accounts.remove", () => {
     await asMe.mutation(api.accounts.remove, { accountId: mine });
 
     expect(await t.run((ctx) => ctx.db.get(mine))).toBeNull();
-    expect(await t.run((ctx) => ctx.db.get(signalId))).toBeNull();
     expect(await t.run((ctx) => ctx.db.get(canonId))).toBeNull();
 
     const connection = await t.run((ctx) => ctx.db.get(connectionId));

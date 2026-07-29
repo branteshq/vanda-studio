@@ -1,14 +1,16 @@
 import * as Schema from "effect/Schema";
 import { brandCanonKinds, brandKinds } from "./constants";
-import { UnitInterval } from "./memory";
+
+/** A number in [0, 1] — detection confidence. */
+export const UnitInterval = Schema.Finite.check(Schema.isBetween({ minimum: 0, maximum: 1 }));
 
 /**
  * The brand-profile stage models onboarding's "Vanda reads your account and
  * proposes what she understood." `proposeBrandProfile` (pipeline/brandProfile.ts)
  * turns a corpus (profile + captions + comments) into a `BrandAnalysis` via one
  * structured LLM pass; the owner edits it on the Confirmar screen and approves it
- * into `brandCanon` (+ seeded themes/suggestions). Nothing here is persisted as a
- * draft — the analysis flows action -> client -> `approveBrandProfile`.
+ * into `brandCanon`. Nothing here is persisted as a draft — the analysis flows
+ * action -> client -> `approveBrandProfile`.
  */
 
 /** The owner-confirmed canon kinds (single source: constants). */

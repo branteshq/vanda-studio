@@ -69,18 +69,18 @@ http.route({
 http.route({
   path: WEBHOOK_PATH,
   method: "POST",
-  handler: httpAction(async (ctx, request) => {
+  handler: httpAction(async (_ctx, request) => {
     const body = await request.text();
     if (!(await verifySignature(request, body))) return text("bad signature", 403);
 
-    let payload: unknown;
     try {
-      payload = JSON.parse(body);
+      JSON.parse(body);
     } catch {
       return text("bad json", 400);
     }
 
-    await ctx.runAction(internal.instagramWebhookNode.process, { payload });
+    // Acknowledge only. Comment/mention ingestion returns when the agent has a
+    // consumer for it; Meta just needs a 200 to keep the subscription healthy.
     return json({ received: true });
   }),
 });
