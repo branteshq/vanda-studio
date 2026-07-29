@@ -293,11 +293,9 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
   const navigate = useNavigate();
   const location = useRouterState({ select: (state) => state.location });
   const threads = useQuery(api.chat.listThreads, { accountId });
-  const createNewThread = useMutation(api.chat.createNewThread);
   const renameThread = useMutation(api.chat.renameThread);
   const archiveThread = useMutation(api.chat.archiveThread);
   const [query, setQuery] = useState("");
-  const [creating, setCreating] = useState(false);
 
   const activeThreadId =
     location.pathname.startsWith("/conversa") &&
@@ -315,19 +313,14 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
   }, [threads, query]);
   const sections = sectionThreads(filtered);
 
-  const openThread = async (threadId: string) => {
+  const openThread = (threadId: string) => {
     setOpenMobile(false);
-    await navigate({ to: "/conversa", search: { t: threadId } });
+    void navigate({ to: "/conversa", search: { t: threadId } });
   };
-  const startThread = async () => {
-    if (creating) return;
-    setCreating(true);
-    try {
-      const threadId = await createNewThread({ accountId });
-      await openThread(threadId);
-    } finally {
-      setCreating(false);
-    }
+  // Pure navigation — no thread exists until the first message is sent.
+  const startThread = () => {
+    setOpenMobile(false);
+    void navigate({ to: "/conversa", search: {} });
   };
   const rename = (thread: ThreadItem) => {
     const title = window.prompt("Renomear conversa", thread.title ?? "");
@@ -345,14 +338,11 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
           <SidebarMenuButton
             size="lg"
             tooltip="Nova conversa"
-            onClick={() => void startThread()}
-            disabled={creating}
+            onClick={startThread}
             className="h-11 gap-2.5 border border-brand-accent/35 bg-brand-accent/10 px-3 text-[13px] font-semibold text-text transition-colors duration-150 hover:bg-brand-accent/15 group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:border-border group-data-[collapsible=icon]:bg-surface group-data-[collapsible=icon]:px-0!"
           >
             <PencilLine className="size-4" />
-            <span className="group-data-[collapsible=icon]:hidden">
-              {creating ? "Criando…" : "Nova conversa"}
-            </span>
+            <span className="group-data-[collapsible=icon]:hidden">Nova conversa</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>
@@ -402,7 +392,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                       >
                         <button
                           type="button"
-                          onClick={() => void openThread(thread.threadId)}
+                          onClick={() => openThread(thread.threadId)}
                           className={cn(
                             "min-w-0 flex-1 truncate px-2.5 py-2 text-left text-[13px]",
                             active ? "font-medium text-text" : "text-text-3",
@@ -451,10 +441,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
 
 export function CollapsedSidebarControls() {
   const { state, setOpen } = useSidebar();
-  const { activeAccount } = useActiveAccount();
-  const createNewThread = useMutation(api.chat.createNewThread);
   const navigate = useNavigate();
-  const [creating, setCreating] = useState(false);
 
   if (state !== "collapsed") return null;
 
@@ -462,15 +449,9 @@ export function CollapsedSidebarControls() {
     setOpen(true);
     requestAnimationFrame(() => document.getElementById("conversation-search")?.focus());
   };
-  const startThread = async () => {
-    if (!activeAccount || creating) return;
-    setCreating(true);
-    try {
-      const threadId = await createNewThread({ accountId: activeAccount.id });
-      await navigate({ to: "/conversa", search: { t: threadId } });
-    } finally {
-      setCreating(false);
-    }
+  // Pure navigation — the thread is created on first send.
+  const startThread = () => {
+    void navigate({ to: "/conversa", search: {} });
   };
 
   return (
@@ -498,8 +479,7 @@ export function CollapsedSidebarControls() {
         size="icon-sm"
         aria-label="Nova conversa"
         title="Nova conversa"
-        disabled={!activeAccount || creating}
-        onClick={() => void startThread()}
+        onClick={startThread}
       >
         <Plus />
       </Button>

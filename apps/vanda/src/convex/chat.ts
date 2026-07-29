@@ -75,18 +75,6 @@ export const listThreads = query({
   },
 });
 
-/** A fresh conversation, opened by Vanda. Untitled until the first user message. */
-export const createNewThread = mutation({
-  args: { accountId: v.id("accounts") },
-  handler: async (ctx, { accountId }): Promise<string> => {
-    await requireOwnedAccount(ctx, accountId);
-    const threadId = await createThread(ctx, components.agent, {
-      userId: threadKey(accountId),
-    });
-    return threadId;
-  },
-});
-
 export const renameThread = mutation({
   args: { accountId: v.id("accounts"), threadId: v.string(), title: v.string() },
   handler: async (ctx, { accountId, threadId, title }): Promise<void> => {
@@ -114,28 +102,51 @@ export const archiveThread = mutation({
   },
 });
 
+/**
+ * Saves a user message and schedules Vanda's turn. When `threadId` is absent this
+ * is the first message of a fresh conversation: the thread is created here, so
+ * "Nova conversa" is pure client navigation and empty threads never hit the DB.
+ */
 export const sendMessage = mutation({
-  args: { accountId: v.id("accounts"), threadId: v.string(), prompt: v.string() },
-  handler: async (ctx, { accountId, threadId, prompt }): Promise<{ messageId: string }> => {
+  args: {
+    accountId: v.id("accounts"),
+    threadId: v.optional(v.string()),
+    prompt: v.string(),
+  },
+  handler: async (
+    ctx,
+    { accountId, threadId, prompt },
+  ): Promise<{ threadId: string; messageId: string }> => {
     await requireOwnedAccount(ctx, accountId);
-    const thread = await requireAccountThread(ctx, accountId, threadId);
     const trimmed = prompt.trim();
     if (!trimmed) throw new Error("mensagem vazia");
+
+    let title: string | null = null;
+    let target = threadId;
+    if (target === undefined) {
+      target = await createThread(ctx, components.agent, { userId: threadKey(accountId) });
+    } else {
+      title = (await requireAccountThread(ctx, accountId, target)).title ?? null;
+    }
+
     const { messageId } = await saveMessage(ctx, components.agent, {
-      threadId,
+      threadId: target,
       prompt: trimmed,
     });
     // The first user message names the conversation.
-    if (!thread.title) {
-      const title = trimmed.length > 60 ? `${trimmed.slice(0, 57)}…` : trimmed;
-      await updateThreadMetadata(ctx, components.agent, { threadId, patch: { title } });
+    if (!title) {
+      const generated = trimmed.length > 60 ? `${trimmed.slice(0, 57)}…` : trimmed;
+      await updateThreadMetadata(ctx, components.agent, {
+        threadId: target,
+        patch: { title: generated },
+      });
     }
     await ctx.scheduler.runAfter(0, internal.chat.generateResponse, {
       accountId,
-      threadId,
+      threadId: target,
       promptMessageId: messageId,
     });
-    return { messageId };
+    return { threadId: target, messageId };
   },
 });
 

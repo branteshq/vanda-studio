@@ -133,15 +133,16 @@ function ConversaPage() {
  * instead of waiting for `listThreads` to confirm it — that validation happens
  * lazily in the background and only redirects when the id stays invalid (stale
  * bookmark, thread archived elsewhere).
+ *
+ * No `t` means "new conversation": a purely client-side hero + composer, like
+ * t3.chat — no thread exists until the first message is actually sent.
  */
 function ConversationShell({ accountId }: { accountId: Id<"accounts"> }) {
   const threads = useQuery(api.chat.listThreads, { accountId });
-  const createNewThread = useMutation(api.chat.createNewThread);
   const { t } = Route.useSearch();
   const navigate = Route.useNavigate();
-  const creatingRef = useRef(false);
 
-  const threadId = t ?? (threads === undefined ? undefined : (threads[0]?.threadId ?? null));
+  const threadId = t ?? null;
 
   // Lazy validation with a grace period: a thread created milliseconds ago may
   // not be reflected in the (cached) list yet, so never redirect on the first
@@ -160,23 +161,149 @@ function ConversationShell({ accountId }: { accountId: Id<"accounts"> }) {
     return () => clearTimeout(timer);
   }, [t, threads, navigate]);
 
-  // First visit (or everything archived): open a fresh conversation.
-  useEffect(() => {
-    if (t || threads === undefined || threads.length > 0 || creatingRef.current) return;
-    creatingRef.current = true;
-    void createNewThread({ accountId })
-      .then((id) => navigate({ search: { t: id }, replace: true }))
-      .finally(() => {
-        creatingRef.current = false;
-      });
-  }, [t, threads, createNewThread, accountId, navigate]);
-
   return threadId ? (
     <Conversation key={threadId} accountId={accountId} threadId={threadId} />
   ) : (
-    <div className="flex min-h-0 flex-1 items-center justify-center">
-      <Spinner className="size-5 text-text-4" />
+    <NewConversation accountId={accountId} />
+  );
+}
+
+/**
+ * Bridges the first send into the freshly created thread: `Conversation` shows
+ * this echo instead of a skeleton while the new thread's history subscription
+ * makes its first round-trip, so the transition is seamless.
+ */
+let firstSendHandoff: { threadId: string; text: string } | null = null;
+
+/** The user's just-sent message plus a thinking marker — the pre-history echo. */
+function PendingFirstMessage({ text }: { text: string }) {
+  return (
+    <div className="flex flex-col gap-6">
+      <Message align="end">
+        <MessageContent>
+          <Bubble variant="muted">
+            <BubbleContent className="whitespace-pre-wrap">{text}</BubbleContent>
+          </Bubble>
+        </MessageContent>
+      </Message>
+      <Message align="start">
+        <MessageContent>
+          <Marker role="status">
+            <MarkerIcon>
+              <Spinner />
+            </MarkerIcon>
+            <MarkerContent className="shimmer">Pensando…</MarkerContent>
+          </Marker>
+        </MessageContent>
+      </Message>
     </div>
+  );
+}
+
+/**
+ * The "Nova conversa" state: hero + composer, zero server work. The thread is
+ * only created when the first message is sent — the send mutation creates it,
+ * then the URL flips to the new id.
+ */
+function NewConversation({ accountId }: { accountId: Id<"accounts"> }) {
+  const sendMessage = useMutation(api.chat.sendMessage);
+  const navigate = Route.useNavigate();
+  const [draft, setDraft] = useState("");
+  const [pending, setPending] = useState<string | null>(null);
+
+  const send = async (text: string) => {
+    const prompt = text.trim();
+    if (!prompt || pending !== null) return;
+    setDraft("");
+    setPending(prompt);
+    try {
+      const { threadId } = await sendMessage({ accountId, prompt });
+      firstSendHandoff = { threadId, text: prompt };
+      await navigate({ search: { t: threadId }, replace: true });
+    } catch {
+      setPending(null);
+      setDraft(prompt);
+    }
+  };
+
+  return (
+    <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {pending === null ? (
+            <div className="flex h-full items-center justify-center">
+              <NewConversationHero />
+            </div>
+          ) : (
+            <div className="mx-auto w-full max-w-3xl px-4 py-8 md:px-6">
+              <PendingFirstMessage text={pending} />
+            </div>
+          )}
+        </div>
+        <ChatComposer
+          draft={draft}
+          onDraftChange={setDraft}
+          onSend={(text) => void send(text)}
+          disabled={pending !== null}
+          autoFocus
+        />
+      </div>
+    </div>
+  );
+}
+
+/** The shared message composer: textarea + submit, Enter sends. */
+function ChatComposer({
+  draft,
+  onDraftChange,
+  onSend,
+  disabled,
+  autoFocus,
+}: {
+  draft: string;
+  onDraftChange: (value: string) => void;
+  onSend: (text: string) => void;
+  disabled?: boolean;
+  autoFocus?: boolean;
+}) {
+  const onSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    onSend(draft);
+  };
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      onSend(draft);
+    }
+  };
+  return (
+    <footer className="shrink-0 bg-app px-4 py-3 md:px-6">
+      <div className="mx-auto w-full max-w-3xl">
+        <form
+          onSubmit={onSubmit}
+          className="flex items-end gap-2 rounded-xl border border-border bg-surface p-2 focus-within:border-border-strong"
+        >
+          <textarea
+            value={draft}
+            onChange={(event) => onDraftChange(event.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder="Mande uma mensagem para a Vanda…"
+            aria-label="Mensagem para a Vanda"
+            rows={1}
+            autoFocus={autoFocus}
+            className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-text outline-none placeholder:text-text-5"
+          />
+          <Button
+            type="submit"
+            size="icon"
+            aria-label="Enviar"
+            disabled={disabled || !draft.trim()}
+          >
+            <ArrowUp />
+          </Button>
+        </form>
+      </div>
+    </footer>
   );
 }
 
@@ -230,6 +357,7 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
   // Optimistic: the user's bubble renders the frame Enter is pressed, then is
   // replaced by the server copy when the mutation round-trip lands.
   const sendMessage = useMutation(api.chat.sendMessage).withOptimisticUpdate((store, args) => {
+    if (!args.threadId) return;
     optimisticallySendMessage(api.chat.listMessages)(store, {
       threadId: args.threadId,
       prompt: args.prompt,
@@ -251,19 +379,14 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
     await sendMessage({ accountId, threadId, prompt });
   };
 
-  const onSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    void send(draft);
-  };
-
-  const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      void send(draft);
-    }
-  };
-
   const loading = messages.status === "LoadingFirstPage";
+  // Seamless first-send: while the fresh thread's history loads, keep showing
+  // the message the user just sent instead of flashing a skeleton.
+  const handoff =
+    firstSendHandoff !== null && firstSendHandoff.threadId === threadId ? firstSendHandoff : null;
+  useEffect(() => {
+    if (!loading && handoff !== null) firstSendHandoff = null;
+  }, [loading, handoff]);
   const visibleMessages = messages.results.filter((message) => !isDefaultWelcome(message));
   const empty = !loading && visibleMessages.length === 0;
   const streaming = visibleMessages.at(-1)?.status === "streaming";
@@ -289,7 +412,11 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
                     className="mx-auto w-full max-w-3xl gap-6 px-4 py-8 md:px-6"
                   >
                     {loading ? (
-                      <ConversationSkeleton />
+                      handoff ? (
+                        <PendingFirstMessage text={handoff.text} />
+                      ) : (
+                        <ConversationSkeleton />
+                      )
                     ) : empty ? (
                       <MessageScrollerItem
                         messageId="new-conversation"
@@ -320,27 +447,7 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
             </div>
           </MessageScrollerProvider>
 
-          <footer className="shrink-0 bg-app px-4 py-3 md:px-6">
-            <div className="mx-auto w-full max-w-3xl">
-              <form
-                onSubmit={onSubmit}
-                className="flex items-end gap-2 rounded-xl border border-border bg-surface p-2 focus-within:border-border-strong"
-              >
-                <textarea
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  onKeyDown={onComposerKeyDown}
-                  placeholder="Mande uma mensagem para a Vanda…"
-                  aria-label="Mensagem para a Vanda"
-                  rows={1}
-                  className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-text outline-none placeholder:text-text-5"
-                />
-                <Button type="submit" size="icon" aria-label="Enviar" disabled={!draft.trim()}>
-                  <ArrowUp />
-                </Button>
-              </form>
-            </div>
-          </footer>
+          <ChatComposer draft={draft} onDraftChange={setDraft} onSend={(text) => void send(text)} />
         </div>
 
         {canvasProjectId ? (
@@ -685,6 +792,7 @@ function CarouselCanvas({
 }) {
   const data = useQuery(api.contentStudio.project, { projectId });
   const sendMessage = useMutation(api.chat.sendMessage).withOptimisticUpdate((store, args) => {
+    if (!args.threadId) return;
     optimisticallySendMessage(api.chat.listMessages)(store, {
       threadId: args.threadId,
       prompt: args.prompt,
