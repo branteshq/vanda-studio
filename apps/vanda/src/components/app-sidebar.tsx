@@ -449,7 +449,10 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                               maxLength={80}
                               autoComplete="off"
                               autoFocus
-                              className="h-8 rounded-md border-0 bg-transparent px-2.5 py-2 text-[13px] text-sidebar-accent-foreground focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
+                              className={cn(
+                                "h-8 rounded-md border-0 bg-transparent px-2.5 py-2 text-[13px] text-sidebar-accent-foreground focus-visible:border-transparent focus-visible:ring-0 md:text-[13px] dark:bg-transparent",
+                                active && "font-medium",
+                              )}
                             />
                           </form>
                         ) : (
