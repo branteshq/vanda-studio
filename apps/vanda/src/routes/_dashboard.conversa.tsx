@@ -1,6 +1,13 @@
-import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useUIMessages, type UIMessage } from "@convex-dev/agent/react";
+import { useSmoothText, useUIMessages, type UIMessage } from "@convex-dev/agent/react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import {
   Archive,
@@ -119,6 +126,18 @@ function ConversaPage() {
   return <Conversation key={activeAccount.id} accountId={activeAccount.id} />;
 }
 
+/**
+ * True once the initial history has painted, so entrance animations fire only for
+ * content that arrives afterward — never the whole thread cascading in on load.
+ * Components freeze the value at their own mount, so a row/card/attachment animates
+ * iff it mounted after first paint.
+ */
+const EntranceReadyContext = createContext(false);
+function useEntranceOnMount(): boolean {
+  const ready = useContext(EntranceReadyContext);
+  return useState(ready)[0];
+}
+
 function Conversation({ accountId }: { accountId: Id<"accounts"> }) {
   const existingThreadId = useQuery(api.chat.getThread, { accountId });
   const ensureThread = useMutation(api.chat.ensureThread);
@@ -163,7 +182,16 @@ function Conversation({ accountId }: { accountId: Id<"accounts"> }) {
   const showSuggestions = !loading && messages.results.length <= 1;
   const streaming = messages.results.at(-1)?.status === "streaming";
 
+  // Flip entrance animations on one frame after the first history paint.
+  const [entranceReady, setEntranceReady] = useState(false);
+  useEffect(() => {
+    if (loading || entranceReady) return;
+    const id = requestAnimationFrame(() => setEntranceReady(true));
+    return () => cancelAnimationFrame(id);
+  }, [loading, entranceReady]);
+
   return (
+    <EntranceReadyContext.Provider value={entranceReady}>
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <MessageScrollerProvider autoScroll>
@@ -239,6 +267,7 @@ function Conversation({ accountId }: { accountId: Id<"accounts"> }) {
         />
       ) : null}
     </div>
+    </EntranceReadyContext.Provider>
   );
 }
 
@@ -251,6 +280,8 @@ function ChatMessage({
   accountId: Id<"accounts">;
   onOpenProject: (projectId: Id<"contentProjects">) => void;
 }) {
+  const enter = useEntranceOnMount();
+
   if (message.role === "user") {
     const text = message.parts
       .filter((part) => part.type === "text")
@@ -258,7 +289,7 @@ function ChatMessage({
       .join("\n");
     if (!text.trim()) return null;
     return (
-      <Message align="end">
+      <Message align="end" className={cn(enter && "animate-message-in")}>
         <MessageContent>
           <Bubble variant="muted">
             <BubbleContent className="whitespace-pre-wrap">{text}</BubbleContent>
@@ -268,10 +299,11 @@ function ChatMessage({
     );
   }
 
-  const streamingEmpty = message.status === "streaming" && message.parts.length === 0;
+  const streaming = message.status === "streaming";
+  const streamingEmpty = streaming && message.parts.length === 0;
 
   return (
-    <Message align="start">
+    <Message align="start" className={cn(enter && "animate-message-in")}>
       <MessageAvatar className="bg-surface text-brand-accent shadow-sm">
         <VandaMark size={14} />
       </MessageAvatar>
@@ -280,6 +312,7 @@ function ChatMessage({
           <MessagePart
             key={index}
             part={part}
+            streaming={streaming}
             accountId={accountId}
             onOpenProject={onOpenProject}
           />
@@ -297,12 +330,21 @@ function ChatMessage({
   );
 }
 
+/** Assistant text with smooth streaming: reveals chunked deltas at a steady pace
+ *  while live, shows full text instantly for completed / historical messages. */
+function StreamingText({ text, streaming }: { text: string; streaming: boolean }) {
+  const [visible] = useSmoothText(text, { charsPerSec: 900, startStreaming: streaming });
+  return <Markdown>{visible}</Markdown>;
+}
+
 function MessagePart({
   part,
+  streaming,
   accountId,
   onOpenProject,
 }: {
   part: UIMessage["parts"][number];
+  streaming: boolean;
   accountId: Id<"accounts">;
   onOpenProject: (projectId: Id<"contentProjects">) => void;
 }) {
@@ -312,7 +354,7 @@ function MessagePart({
     return (
       <Bubble variant="ghost">
         <BubbleContent>
-          <Markdown>{text}</Markdown>
+          <StreamingText text={text} streaming={streaming} />
         </BubbleContent>
       </Bubble>
     );
@@ -411,6 +453,7 @@ function ProjectPreview({
   projectId: Id<"contentProjects">;
   onOpen: () => void;
 }) {
+  const enter = useEntranceOnMount();
   const data = useQuery(api.contentStudio.project, { projectId });
   const slides = data?.renderedSlideUrls ?? [];
 
@@ -427,7 +470,13 @@ function ProjectPreview({
     <div className="space-y-2">
       <AttachmentGroup className="max-w-md">
         {slides.slice(0, 8).map((url, index) => (
-          <Attachment key={index} orientation="vertical" size="sm">
+          <Attachment
+            key={index}
+            orientation="vertical"
+            size="sm"
+            className={cn(enter && "animate-attachment-in")}
+            style={enter ? { animationDelay: `${Math.min(index, 6) * 45}ms` } : undefined}
+          >
             <AttachmentMedia variant="image">
               <img src={url} alt={`Slide ${index + 1}`} />
             </AttachmentMedia>
@@ -456,6 +505,7 @@ function ApprovalRequest({
   projectId: Id<"contentProjects"> | null;
   onOpenProject: (projectId: Id<"contentProjects">) => void;
 }) {
+  const enter = useEntranceOnMount();
   const respond = useMutation(api.chat.respondToApproval);
   const [busy, setBusy] = useState<"approve" | "deny" | null>(null);
   const scheduledFor =
@@ -473,7 +523,12 @@ function ApprovalRequest({
   };
 
   return (
-    <div className="rounded-xl border border-brand-accent/30 bg-brand-accent/5 p-4">
+    <div
+      className={cn(
+        "rounded-xl border border-brand-accent/30 bg-brand-accent/5 p-4",
+        enter && "animate-card-in",
+      )}
+    >
       <div className="flex items-center gap-2">
         <Send className="size-4 text-brand-accent" />
         <h3 className="text-sm font-semibold text-text">
@@ -577,7 +632,7 @@ function CarouselCanvas({
   };
 
   return (
-    <aside className="absolute inset-0 z-30 flex flex-col border-border bg-app md:static md:z-auto md:w-[26rem] md:shrink-0 md:border-l xl:w-[30rem]">
+    <aside className="animate-canvas-in absolute inset-0 z-30 flex flex-col border-border bg-app md:static md:z-auto md:w-[26rem] md:shrink-0 md:border-l xl:w-[30rem]">
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-text">
           {project?.title ?? "Carrossel"}
