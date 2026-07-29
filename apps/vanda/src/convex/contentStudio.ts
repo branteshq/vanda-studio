@@ -813,6 +813,29 @@ export const loadRenderInput = internalQuery({
         };
       }),
     );
+    // Owner-authorized face references: the only images generation may use to
+    // depict the owner. Relevant for personal brands ("pessoal").
+    const account = await ctx.db.get(project.accountId);
+    const accountImages = await ctx.db
+      .query("images")
+      .withIndex("by_account", (q) => q.eq("accountId", project.accountId))
+      .collect();
+    const identityReferences = (
+      await Promise.all(
+        accountImages
+          .filter(
+            (image) =>
+              image.purpose === "reference" &&
+              (image.referenceKind === "face" || image.containsFace === true),
+          )
+          .map(async (image) => ({
+            imageId: image._id,
+            url:
+              image.externalUrl ??
+              (image.storageId ? await ctx.storage.getUrl(image.storageId) : null),
+          })),
+      )
+    ).filter((item): item is { imageId: Id<"images">; url: string } => item.url !== null);
     return {
       job,
       project,
@@ -820,6 +843,8 @@ export const loadRenderInput = internalQuery({
       profile,
       requests,
       referenceImages: referenceImages.filter((item) => item !== null),
+      accountKind: account?.kind,
+      identityReferences,
     };
   },
 });

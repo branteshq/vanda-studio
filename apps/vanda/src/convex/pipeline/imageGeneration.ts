@@ -74,8 +74,23 @@ export const reviewGeneratedAsset = async (input: {
   readonly model: string;
   readonly visual: GeneratedVisual;
   readonly context: string;
+  /**
+   * URLs of owner-authorized identity references. When present, the generated
+   * image is ALLOWED (expected) to depict that exact person — the reviewer
+   * compares identity instead of rejecting any person outright.
+   */
+  readonly identityReferenceUrls?: ReadonlyArray<string> | undefined;
 }): Promise<GeneratedAssetReview> => {
   const encoded = Buffer.from(input.visual.bytes).toString("base64");
+  const identityRefs = input.identityReferenceUrls ?? [];
+  const allowPerson = identityRefs.length > 0;
+  const personCriteria = allowPerson
+    ? `A primeira imagem é a gerada; as demais são fotos de referência AUTORIZADAS da pessoa que ` +
+      `representa a marca. A imagem gerada PODE (e deve, quando o contexto pedir) conter essa ` +
+      `pessoa — mas reprove se a pessoa retratada claramente NÃO for a das referências, se o ` +
+      `rosto estiver distorcido ou pouco fiel, ou se houver outra pessoa identificável além dela.`
+    : `Reprove qualquer pessoa identificável, paciente, profissional de saúde, procedimento ou ` +
+      `imagem clínica.`;
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -91,13 +106,13 @@ export const reviewGeneratedAsset = async (input: {
             {
               type: "text",
               text:
-                `Atue como revisora visual independente de um elemento de fundo para carrossel de ` +
+                `Atue como revisora visual independente de um elemento visual para carrossel de ` +
                 `Instagram. Reprove qualquer letra, palavra, número, código hexadecimal, marca ` +
-                `d'água, logotipo, interface, mockup de layout, cartão dentro da imagem, pessoa ` +
-                `identificável, paciente, profissional de saúde, procedimento, imagem clínica, ` +
-                `artefato anatômico estranho ou composição de baixa qualidade. Ícones abstratos e ` +
-                `arquitetura genérica sem texto podem ser aprovados. approved só pode ser true se ` +
-                `todos esses critérios forem atendidos. Liste problemas concretos. Contexto: ${input.context}`,
+                `d'água, logotipo, interface, mockup de layout, cartão dentro da imagem, ` +
+                `artefato anatômico estranho ou composição de baixa qualidade. ${personCriteria} ` +
+                `Ícones abstratos e arquitetura genérica sem texto podem ser aprovados. approved ` +
+                `só pode ser true se todos esses critérios forem atendidos. Liste problemas ` +
+                `concretos. Contexto: ${input.context}`,
             },
             {
               type: "image_url",
@@ -105,6 +120,10 @@ export const reviewGeneratedAsset = async (input: {
                 url: `data:${input.visual.mimeType};base64,${encoded}`,
               },
             },
+            ...identityRefs.slice(0, 3).map((url) => ({
+              type: "image_url" as const,
+              image_url: { url },
+            })),
           ],
         },
       ],
@@ -126,7 +145,7 @@ export const reviewGeneratedAsset = async (input: {
     review.approved &&
     !review.containsText &&
     !review.containsLogo &&
-    !review.containsPerson &&
+    (allowPerson || !review.containsPerson) &&
     review.prohibitedSubjects.length === 0 &&
     review.qualityIssues.length === 0
   )

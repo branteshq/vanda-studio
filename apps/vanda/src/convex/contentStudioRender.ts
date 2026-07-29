@@ -92,10 +92,15 @@ const visualPrompt = (input: {
   readonly slidePrompt: string;
   readonly headline: string;
   readonly profile: VisualBrandPlan;
+  readonly identityRefs: ReadonlyArray<string>;
 }): string =>
   `Crie uma imagem editorial vertical 4:5 para servir como elemento visual de um carrossel de ` +
   `Instagram. Não inclua letras, palavras, números, logotipos, marcas d'água, interfaces ou molduras. ` +
-  `Não represente pacientes, procedimentos médicos, resultados garantidos ou pessoas identificáveis. ` +
+  (input.identityRefs.length > 0
+    ? `Represente EXATAMENTE a pessoa das imagens de referência fornecidas — preserve com ` +
+      `fidelidade rosto, tom de pele, cabelo e traços; nunca invente outra pessoa nem inclua ` +
+      `pessoas adicionais identificáveis. `
+    : `Não represente pacientes, procedimentos médicos, resultados garantidos ou pessoas identificáveis. `) +
   `Deixe áreas calmas e respiro para sobreposição tipográfica posterior. Direção de arte: ` +
   `${input.profile.artDirection}. Paleta aproximada: ${Object.values(input.profile.palette).join(", ")}. ` +
   `Motivos permitidos: ${input.profile.motifs.join(", ")}. Evitar: ${input.profile.avoid.join(", ")}. ` +
@@ -108,6 +113,7 @@ const generateVisual = async (input: {
   readonly prompt: string;
   readonly headline: string;
   readonly profile: VisualBrandPlan;
+  readonly identityRefs: ReadonlyArray<string>;
 }): Promise<RenderVisual | undefined> => {
   try {
     await input.ctx.runMutation(internal.contentStudio.startAssetRequest, {
@@ -117,14 +123,19 @@ const generateVisual = async (input: {
       slidePrompt: input.prompt,
       headline: input.headline,
       profile: input.profile,
+      identityRefs: input.identityRefs,
     });
+    const allowPerson = input.identityRefs.length > 0;
     let generated: GeneratedVisual | undefined;
     let review: GeneratedAssetReview | undefined;
     let correction = "";
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       generated = await Effect.runPromise(
         Effect.flatMap(ImageAssetGenerator, (generator) =>
-          generator.generate({ prompt: `${basePrompt}${correction}` }),
+          generator.generate({
+            prompt: `${basePrompt}${correction}`,
+            ...(allowPerson ? { referenceUrls: input.identityRefs } : {}),
+          }),
         ).pipe(
           Effect.provide(
             openRouterImageGeneratorLayer({
@@ -139,6 +150,7 @@ const generateVisual = async (input: {
         model: PIPELINE_MODELS.studioAssetReview,
         visual: generated,
         context: `${input.headline}. ${input.prompt}`,
+        ...(allowPerson ? { identityReferenceUrls: input.identityRefs } : {}),
       });
       if (review.approved) break;
       correction =
@@ -148,8 +160,12 @@ const generateVisual = async (input: {
           ...review.qualityIssues,
           ...(review.containsText ? ["qualquer texto ou caractere"] : []),
           ...(review.containsLogo ? ["qualquer logo"] : []),
-          ...(review.containsPerson ? ["qualquer pessoa"] : []),
-        ].join(", ")}. Produza uma composição abstrata simples sem esses elementos.`;
+          ...(review.containsPerson && !allowPerson ? ["qualquer pessoa"] : []),
+        ].join(", ")}. ${
+          allowPerson
+            ? "Mantenha a pessoa fiel às referências autorizadas."
+            : "Produza uma composição abstrata simples sem esses elementos."
+        }`;
     }
     if (!generated || !review?.approved)
       throw new Error(`generated asset rejected: ${review?.summary ?? "unknown review failure"}`);
@@ -233,6 +249,18 @@ export const runRenderJob = internalAction({
               );
               if (source?.url) visual = await fetchVisual(source.url);
             } else if (asset?.request.strategy === "generate") {
+              // Identity conditioning: explicit source references chosen by the
+              // planner win; otherwise personal-brand photo requests use the
+              // owner's authorized face references.
+              const chosenRefs = input.identityReferences
+                .filter(({ imageId }) => asset.request.sourceImageIds.includes(imageId))
+                .map(({ url }) => url);
+              const identityRefs =
+                chosenRefs.length > 0
+                  ? chosenRefs
+                  : input.accountKind === "pessoal" && asset.request.kind === "photo"
+                    ? input.identityReferences.map(({ url }) => url)
+                    : [];
               visual = await generateVisual({
                 ctx,
                 apiKey,
@@ -240,6 +268,7 @@ export const runRenderJob = internalAction({
                 prompt: asset.request.prompt,
                 headline: slide.headline,
                 profile,
+                identityRefs: identityRefs.slice(0, 3),
               });
             }
             const result = renderCarouselSlideSvg({ document, slide, profile, visual });

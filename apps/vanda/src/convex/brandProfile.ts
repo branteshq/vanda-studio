@@ -220,8 +220,11 @@ export const addReferencePhoto = mutation({
     storageId: v.id("_storage"),
     width: v.optional(v.number()),
     height: v.optional(v.number()),
+    kind: v.optional(
+      v.union(v.literal("face"), v.literal("product"), v.literal("place"), v.literal("style")),
+    ),
   },
-  handler: async (ctx, { accountId, storageId, width, height }) => {
+  handler: async (ctx, { accountId, storageId, width, height, kind }) => {
     await requireOwnedAccount(ctx, accountId);
     // getUrl is null for an unknown/expired upload — reject before linking a dead id.
     if ((await ctx.storage.getUrl(storageId)) === null) throw new Error("upload not found");
@@ -235,10 +238,40 @@ export const addReferencePhoto = mutation({
       origin: "uploaded",
       purpose: "reference",
       storageId,
+      ...(kind !== undefined ? { referenceKind: kind } : {}),
       ...(width !== undefined ? { width } : {}),
       ...(height !== undefined ? { height } : {}),
       createdAt: Date.now(),
     });
+  },
+});
+
+/**
+ * The owner's authorized reference photos with resolved URLs — what generation
+ * may condition on (identity, product, place). Used by the render pipeline and
+ * the agent; account scoping is structural.
+ */
+export const listAuthorizedReferences = internalQuery({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }) => {
+    const images = await ctx.db
+      .query("images")
+      .withIndex("by_account", (q) => q.eq("accountId", accountId))
+      .collect();
+    const references = images.filter((image) => image.purpose === "reference");
+    return (
+      await Promise.all(
+        references.map(async (image) => ({
+          imageId: image._id,
+          kind: image.referenceKind,
+          containsFace: image.containsFace,
+          description: image.description,
+          url:
+            image.externalUrl ??
+            (image.storageId ? await ctx.storage.getUrl(image.storageId) : null),
+        })),
+      )
+    ).filter((item) => item.url !== null);
   },
 });
 

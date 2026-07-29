@@ -734,6 +734,12 @@ export default defineSchema({
     // "reference" = an owner-uploaded brand reference photo (personal brands); absent
     // means post-bound media written by create.
     purpose: v.optional(v.union(...imagePurposes.map((p) => v.literal(p)))),
+    // What an authorized reference photo depicts. "face" references are the only
+    // images generation may use to depict the owner — identity conditioning is
+    // opt-in per photo, never inferred from arbitrary uploads.
+    referenceKind: v.optional(
+      v.union(v.literal("face"), v.literal("product"), v.literal("place"), v.literal("style")),
+    ),
     contentProjectId: v.optional(v.id("contentProjects")),
     carouselDocumentId: v.optional(v.id("carouselDocuments")),
     slideId: v.optional(v.string()),

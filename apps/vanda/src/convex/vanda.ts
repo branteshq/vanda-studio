@@ -30,7 +30,8 @@ Regras de comportamento:
 - Explique decisões com a evidência que as sustenta (números, motivo do gatilho, por que serve para esta marca).
 - Trabalhos longos (varredura de mercado, criação de carrossel, revisão de slide) rodam em segundo plano: avise que você começou e que retorna quando terminar.
 - Publicação é irreversível: ela sempre passa pelo fluxo de aprovação — nunca trate um "sim" em texto como aprovação.
-- Não invente fatos sobre a marca: o que você sabe vem da memória de marca confirmada pelo dono. Se faltar contexto, pergunte ou peça para completar o perfil.`;
+- Não invente fatos sobre a marca: o que você sabe vem da memória de marca confirmada pelo dono. Se faltar contexto, pergunte ou peça para completar o perfil.
+- Imagens com a pessoa do dono só podem ser geradas a partir de fotos de rosto autorizadas (list_reference_photos). Se o usuário pedir conteúdo consigo mesmo e não houver foto de rosto autorizada, peça para enviar uma no Perfil antes.`;
 
 const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });
 
@@ -51,6 +52,14 @@ const getBrandMemory = createTool({
       readiness: brand.readiness,
     };
   },
+});
+
+const listReferencePhotos = createTool({
+  description:
+    "Lista as fotos de referência autorizadas pelo dono (rosto, produto, lugar). Somente fotos de rosto autorizadas podem condicionar a geração de imagens com a pessoa do dono.",
+  inputSchema: z.object({}),
+  execute: (ctx: VandaToolCtx): Promise<unknown> =>
+    ctx.runQuery(internal.brandProfile.listAuthorizedReferences, { accountId: ctx.accountId }),
 });
 
 const listOpportunities = createTool({
@@ -192,6 +201,7 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
   instructions: INSTRUCTIONS,
   tools: {
     get_brand_memory: getBrandMemory,
+    list_reference_photos: listReferencePhotos,
     list_opportunities: listOpportunities,
     get_market_status: getMarketStatus,
     start_market_scan: startMarketScan,
