@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useClerk, useUser } from "@clerk/tanstack-react-start";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
@@ -20,6 +20,15 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@vanda-studio/ui/components/avatar";
 import { Button } from "@vanda-studio/ui/components/button";
 import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@vanda-studio/ui/components/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
@@ -28,6 +37,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@vanda-studio/ui/components/dropdown-menu";
+import { Input } from "@vanda-studio/ui/components/input";
 import {
   Sidebar,
   SidebarContent,
@@ -318,6 +328,8 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
     );
   });
   const [query, setQuery] = useState("");
+  const [renaming, setRenaming] = useState<ThreadItem | null>(null);
+  const [renameTitle, setRenameTitle] = useState("");
 
   const activeThreadId =
     location.pathname.startsWith("/conversa") &&
@@ -345,8 +357,18 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
     void navigate({ to: "/conversa", search: {} });
   };
   const rename = (thread: ThreadItem) => {
-    const title = window.prompt("Renomear conversa", thread.title ?? "");
-    if (title?.trim()) void renameThread({ accountId, threadId: thread.threadId, title });
+    setRenameTitle(thread.title ?? "");
+    setRenaming(thread);
+  };
+  const saveRename = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!renaming) return;
+    const title = renameTitle.trim();
+    if (!title) return;
+    setRenaming(null);
+    if (title !== renaming.title) {
+      void renameThread({ accountId, threadId: renaming.threadId, title });
+    }
   };
   const archive = (thread: ThreadItem) => {
     void archiveThread({ accountId, threadId: thread.threadId });
@@ -456,6 +478,48 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
           </div>
         )}
       </div>
+
+      <Dialog
+        open={renaming !== null}
+        onOpenChange={(open) => {
+          if (!open) setRenaming(null);
+        }}
+      >
+        <DialogContent showCloseButton={false}>
+          <form className="grid gap-5" onSubmit={saveRename}>
+            <DialogHeader>
+              <DialogTitle>Renomear conversa</DialogTitle>
+              <DialogDescription>
+                Escolha um nome curto para encontrar esta conversa depois.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-2">
+              <label htmlFor="rename-thread-title" className="text-xs font-medium text-text-2">
+                Nome da conversa
+              </label>
+              <Input
+                id="rename-thread-title"
+                value={renameTitle}
+                onChange={(event) => setRenameTitle(event.target.value)}
+                onFocus={(event) => event.currentTarget.select()}
+                maxLength={80}
+                autoComplete="off"
+                autoFocus
+              />
+            </div>
+
+            <DialogFooter>
+              <DialogClose render={<Button type="button" variant="outline" />}>
+                Cancelar
+              </DialogClose>
+              <Button type="submit" disabled={!renameTitle.trim()}>
+                Renomear
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
