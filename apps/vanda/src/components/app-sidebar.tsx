@@ -348,7 +348,6 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
     if (title?.trim()) void renameThread({ accountId, threadId: thread.threadId, title });
   };
   const archive = (thread: ThreadItem) => {
-    if (!window.confirm("Arquivar esta conversa?")) return;
     void archiveThread({ accountId, threadId: thread.threadId });
   };
 
