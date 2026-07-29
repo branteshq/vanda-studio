@@ -24,6 +24,7 @@ import type * as contentStudioNode from "../contentStudioNode.js";
 import type * as contentStudioRender from "../contentStudioRender.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
+import type * as imageUploads from "../imageUploads.js";
 import type * as images from "../images.js";
 import type * as imagesData from "../imagesData.js";
 import type * as instagramGraph from "../instagramGraph.js";
@@ -86,6 +87,7 @@ declare const fullApi: ApiFromModules<{
   contentStudioRender: typeof contentStudioRender;
   crons: typeof crons;
   http: typeof http;
+  imageUploads: typeof imageUploads;
   images: typeof images;
   imagesData: typeof imagesData;
   instagramGraph: typeof instagramGraph;

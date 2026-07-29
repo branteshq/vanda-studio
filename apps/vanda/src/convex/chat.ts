@@ -49,6 +49,28 @@ async function requireAccountThread(
   return meta;
 }
 
+async function resolveMessageImages(
+  ctx: MutationCtx,
+  accountId: Id<"accounts">,
+  imageIds: ReadonlyArray<Id<"images">>,
+) {
+  const uniqueIds = [...new Set(imageIds)];
+  if (uniqueIds.length > 4) throw new Error("too many image attachments");
+  return Promise.all(
+    uniqueIds.map(async (imageId) => {
+      const image = await ctx.db.get(imageId);
+      if (!image || image.accountId !== accountId) throw new Error("image not found");
+      if (image.mimeType && !image.mimeType.startsWith("image/")) {
+        throw new Error("only image attachments are supported");
+      }
+      const url =
+        image.externalUrl ?? (image.storageId ? await ctx.storage.getUrl(image.storageId) : null);
+      if (!url) throw new Error("image URL is unavailable");
+      return { imageId: image._id, url, mimeType: image.mimeType ?? "image/jpeg" };
+    }),
+  );
+}
+
 async function startThreadActivity(
   ctx: MutationCtx,
   accountId: Id<"accounts">,
@@ -135,14 +157,16 @@ export const sendMessage = mutation({
     accountId: v.id("accounts"),
     threadId: v.optional(v.string()),
     prompt: v.string(),
+    imageIds: v.optional(v.array(v.id("images"))),
   },
   handler: async (
     ctx,
-    { accountId, threadId, prompt },
+    { accountId, threadId, prompt, imageIds },
   ): Promise<{ threadId: string; messageId: string }> => {
     await requireOwnedAccount(ctx, accountId);
     const trimmed = prompt.trim();
-    if (!trimmed) throw new Error("mensagem vazia");
+    const images = await resolveMessageImages(ctx, accountId, imageIds ?? []);
+    if (!trimmed && images.length === 0) throw new Error("mensagem vazia");
 
     let title: string | null = null;
     let target = threadId;
@@ -152,13 +176,36 @@ export const sendMessage = mutation({
       title = (await requireAccountThread(ctx, accountId, target)).title ?? null;
     }
 
+    const attachmentContext =
+      images.length > 0
+        ? `<vanda_attachment_context>Imagens anexadas pelo usuário, já pertencentes a esta conta: ${images
+            .map((image) => `imageId=${image.imageId}`)
+            .join(
+              ", ",
+            )}. Você pode referenciá-las em ferramentas usando esses IDs; para editar uma, passe o ID em editOfImageId.</vanda_attachment_context>`
+        : "";
+    const modelText = [trimmed, attachmentContext].filter(Boolean).join("\n\n");
     const { messageId } = await saveMessage(ctx, components.agent, {
       threadId: target,
-      prompt: trimmed,
+      message: {
+        role: "user",
+        content: [
+          { type: "text", text: modelText },
+          ...images.map((image) => ({
+            type: "image" as const,
+            image: image.url,
+            mediaType: image.mimeType,
+          })),
+        ],
+      },
+      ...(images.length > 0
+        ? { metadata: { fileIds: images.map((image) => String(image.imageId)) } }
+        : {}),
     });
     // The first user message names the conversation.
     if (!title) {
-      const generated = trimmed.length > 60 ? `${trimmed.slice(0, 57)}…` : trimmed;
+      const titleSource = trimmed || "Imagem anexada";
+      const generated = titleSource.length > 60 ? `${titleSource.slice(0, 57)}…` : titleSource;
       await updateThreadMetadata(ctx, components.agent, {
         threadId: target,
         patch: { title: generated },

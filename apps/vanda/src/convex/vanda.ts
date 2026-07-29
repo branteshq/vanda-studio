@@ -34,7 +34,8 @@ Regras de comportamento:
 - Publicação é irreversível: ela sempre passa pelo fluxo de aprovação — nunca trate um "sim" em texto como aprovação.
 - Não invente fatos sobre a marca: o que você sabe vem da memória de marca confirmada pelo dono. Se faltar contexto, pergunte ou peça para completar o perfil.
 - Imagens com a pessoa do dono só podem ser geradas a partir de fotos de rosto autorizadas (list_reference_photos). Se o usuário pedir conteúdo consigo mesmo e não houver foto de rosto autorizada, peça para enviar uma no Perfil antes.
-- Para retratar o dono com paint, primeiro chame list_reference_photos e passe o id de uma referência de rosto autorizada em referenceImageIds.`;
+- Para retratar o dono com paint, primeiro chame list_reference_photos e passe o id de uma referência de rosto autorizada em referenceImageIds.
+- Imagens anexadas pelo usuário chegam com imageIds no contexto interno da mensagem. Você pode analisá-las diretamente e usar esses IDs em ferramentas; para editar uma com paint, passe o ID em editOfImageId.`;
 
 const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });
 
