@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState } from "react";
 import { useClerk, useUser } from "@clerk/tanstack-react-start";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
@@ -19,15 +19,6 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@vanda-studio/ui/components/avatar";
 import { Button } from "@vanda-studio/ui/components/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@vanda-studio/ui/components/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -362,15 +353,14 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
     setRenameTitle(thread.title ?? "");
     setRenaming(thread);
   };
-  const saveRename = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!renaming) return;
+  const saveRename = () => {
     const title = renameTitle.trim();
-    if (!title) return;
-    setRenaming(null);
-    if (title !== renaming.title) {
-      void renameThread({ accountId, threadId: renaming.threadId, title });
-    }
+    setRenaming((thread) => {
+      if (thread && title && title !== thread.title) {
+        void renameThread({ accountId, threadId: thread.threadId, title });
+      }
+      return null;
+    });
   };
   const archive = (thread: ThreadItem) => {
     void archiveThread({ accountId, threadId: thread.threadId });
@@ -425,6 +415,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                 <div className="space-y-0.5">
                   {section.threads.map((thread) => {
                     const active = thread.threadId === activeThreadId;
+                    const editing = thread.threadId === renaming?.threadId;
                     return (
                       <div
                         key={thread.threadId}
@@ -435,48 +426,78 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                             : "border-transparent hover:bg-sidebar-accent",
                         )}
                       >
-                        <button
-                          type="button"
-                          onClick={() => openThread(thread.threadId)}
-                          className={cn(
-                            "min-w-0 flex-1 truncate px-2.5 py-2 text-left text-[13px] outline-none transition-colors duration-150 ease-[var(--ease-out)] group-hover/thread:text-sidebar-accent-foreground focus-visible:text-sidebar-accent-foreground",
-                            active
-                              ? "font-medium text-sidebar-accent-foreground"
-                              : "text-sidebar-foreground/70",
-                          )}
-                        >
-                          {thread.title ?? "Nova conversa"}
-                        </button>
-                        <div className="pointer-events-none relative mr-1 w-[3.625rem] shrink-0 overflow-hidden group-hover/thread:pointer-events-auto group-focus-within/thread:pointer-events-auto">
-                          {thread.processing ? (
-                            <Spinner
-                              aria-label="Vanda está trabalhando nesta conversa"
-                              className="absolute top-1/2 right-2 size-3.5 -translate-y-1/2 text-brand-accent transition-opacity duration-100 group-hover/thread:opacity-0 group-focus-within/thread:opacity-0 motion-reduce:transition-none"
+                        {editing ? (
+                          <form
+                            className="min-w-0 flex-1"
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              saveRename();
+                            }}
+                          >
+                            <Input
+                              aria-label="Nome da conversa"
+                              value={renameTitle}
+                              onChange={(event) => setRenameTitle(event.target.value)}
+                              onFocus={(event) => event.currentTarget.select()}
+                              onBlur={saveRename}
+                              onKeyDown={(event) => {
+                                if (event.key === "Escape") {
+                                  event.preventDefault();
+                                  setRenaming(null);
+                                }
+                              }}
+                              maxLength={80}
+                              autoComplete="off"
+                              autoFocus
+                              className="h-8 rounded-md border-0 bg-transparent px-2.5 py-2 text-[13px] text-sidebar-accent-foreground focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
                             />
-                          ) : null}
-                          <div className="flex translate-x-full items-center gap-0.5 transition-transform duration-180 ease-[var(--ease-out)] group-hover/thread:translate-x-0 group-focus-within/thread:translate-x-0 motion-reduce:transition-none">
-                            <ActionTooltip label="Renomear" side="bottom">
-                              <button
-                                type="button"
-                                aria-label="Renomear conversa"
-                                onClick={() => rename(thread)}
-                                className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-[color,transform] duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-[0.94] motion-reduce:transform-none"
-                              >
-                                <Pencil className="size-3.5" />
-                              </button>
-                            </ActionTooltip>
-                            <ActionTooltip label="Arquivar" side="bottom">
-                              <button
-                                type="button"
-                                aria-label="Arquivar conversa"
-                                onClick={() => archive(thread)}
-                                className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-[color,transform] duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-[0.94] motion-reduce:transform-none"
-                              >
-                                <Archive className="size-3.5" />
-                              </button>
-                            </ActionTooltip>
-                          </div>
-                        </div>
+                          </form>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openThread(thread.threadId)}
+                              className={cn(
+                                "min-w-0 flex-1 truncate px-2.5 py-2 text-left text-[13px] outline-none transition-colors duration-150 ease-[var(--ease-out)] group-hover/thread:text-sidebar-accent-foreground focus-visible:text-sidebar-accent-foreground",
+                                active
+                                  ? "font-medium text-sidebar-accent-foreground"
+                                  : "text-sidebar-foreground/70",
+                              )}
+                            >
+                              {thread.title ?? "Nova conversa"}
+                            </button>
+                            <div className="pointer-events-none relative mr-1 w-[3.625rem] shrink-0 overflow-hidden group-hover/thread:pointer-events-auto group-focus-within/thread:pointer-events-auto">
+                              {thread.processing ? (
+                                <Spinner
+                                  aria-label="Vanda está trabalhando nesta conversa"
+                                  className="absolute top-1/2 right-2 size-3.5 -translate-y-1/2 text-brand-accent transition-opacity duration-100 group-hover/thread:opacity-0 group-focus-within/thread:opacity-0 motion-reduce:transition-none"
+                                />
+                              ) : null}
+                              <div className="flex translate-x-full items-center gap-0.5 transition-transform duration-180 ease-[var(--ease-out)] group-hover/thread:translate-x-0 group-focus-within/thread:translate-x-0 motion-reduce:transition-none">
+                                <ActionTooltip label="Renomear" side="bottom">
+                                  <button
+                                    type="button"
+                                    aria-label="Renomear conversa"
+                                    onClick={() => rename(thread)}
+                                    className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-[color,transform] duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-[0.94] motion-reduce:transform-none"
+                                  >
+                                    <Pencil className="size-3.5" />
+                                  </button>
+                                </ActionTooltip>
+                                <ActionTooltip label="Arquivar" side="bottom">
+                                  <button
+                                    type="button"
+                                    aria-label="Arquivar conversa"
+                                    onClick={() => archive(thread)}
+                                    className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-[color,transform] duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-[0.94] motion-reduce:transform-none"
+                                  >
+                                    <Archive className="size-3.5" />
+                                  </button>
+                                </ActionTooltip>
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
                     );
                   })}
@@ -486,44 +507,6 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
           </div>
         )}
       </div>
-
-      <Dialog
-        open={renaming !== null}
-        onOpenChange={(open) => {
-          if (!open) setRenaming(null);
-        }}
-      >
-        <DialogContent showCloseButton={false}>
-          <form className="grid gap-4" onSubmit={saveRename}>
-            <DialogHeader>
-              <DialogTitle>Renomear conversa</DialogTitle>
-              <DialogDescription className="sr-only">
-                Digite um novo nome para esta conversa.
-              </DialogDescription>
-            </DialogHeader>
-
-            <Input
-              id="rename-thread-title"
-              aria-label="Nome da conversa"
-              value={renameTitle}
-              onChange={(event) => setRenameTitle(event.target.value)}
-              onFocus={(event) => event.currentTarget.select()}
-              maxLength={80}
-              autoComplete="off"
-              autoFocus
-            />
-
-            <DialogFooter>
-              <DialogClose render={<Button type="button" variant="outline" />}>
-                Cancelar
-              </DialogClose>
-              <Button type="submit" disabled={!renameTitle.trim()}>
-                Salvar
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
