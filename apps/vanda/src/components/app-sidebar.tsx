@@ -449,8 +449,12 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                               maxLength={80}
                               autoComplete="off"
                               autoFocus
+                              style={{
+                                fontSize: "var(--text-body)",
+                                lineHeight: "var(--text-body--line-height)",
+                              }}
                               className={cn(
-                                "h-full rounded-md border-0 bg-transparent px-2.5 py-2 text-body text-sidebar-accent-foreground focus-visible:border-transparent focus-visible:ring-0 md:text-body dark:bg-transparent",
+                                "h-full rounded-md border-0 bg-transparent px-2.5 py-2 text-sidebar-accent-foreground focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent",
                                 active && "font-medium",
                               )}
                             />
