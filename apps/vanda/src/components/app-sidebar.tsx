@@ -293,8 +293,30 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
   const navigate = useNavigate();
   const location = useRouterState({ select: (state) => state.location });
   const threads = useQuery(api.chat.listThreads, { accountId });
-  const renameThread = useMutation(api.chat.renameThread);
-  const archiveThread = useMutation(api.chat.archiveThread);
+  // Both mutate the visible list optimistically: the row updates/disappears the
+  // frame the user confirms, and the server result reconciles afterwards.
+  const renameThread = useMutation(api.chat.renameThread).withOptimisticUpdate((store, args) => {
+    const current = store.getQuery(api.chat.listThreads, { accountId: args.accountId });
+    if (!current) return;
+    store.setQuery(
+      api.chat.listThreads,
+      { accountId: args.accountId },
+      current.map((thread) =>
+        thread.threadId === args.threadId
+          ? { ...thread, title: args.title.trim().slice(0, 80) }
+          : thread,
+      ),
+    );
+  });
+  const archiveThread = useMutation(api.chat.archiveThread).withOptimisticUpdate((store, args) => {
+    const current = store.getQuery(api.chat.listThreads, { accountId: args.accountId });
+    if (!current) return;
+    store.setQuery(
+      api.chat.listThreads,
+      { accountId: args.accountId },
+      current.filter((thread) => thread.threadId !== args.threadId),
+    );
+  });
   const [query, setQuery] = useState("");
 
   const activeThreadId =
