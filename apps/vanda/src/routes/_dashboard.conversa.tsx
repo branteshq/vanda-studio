@@ -136,13 +136,38 @@ function ConversaPage() {
  *
  * No `t` means "new conversation": a purely client-side hero + composer, like
  * t3.chat — no thread exists until the first message is actually sent.
+ *
+ * Conversations visited this session stay mounted in hidden panes (visibility,
+ * not display, so scroll positions survive): their message subscriptions stay
+ * live and switching between threads is a pure CSS toggle — instant, and the
+ * transcript is already up to date when it reappears.
  */
+const MAX_WARM_CONVERSATIONS = 4;
+
 function ConversationShell({ accountId }: { accountId: Id<"accounts"> }) {
   const threads = useQuery(api.chat.listThreads, { accountId });
   const { t } = Route.useSearch();
   const navigate = Route.useNavigate();
 
   const threadId = t ?? null;
+
+  // LRU of mounted conversations, most recent first. Render-phase update keeps
+  // the active thread visible on the very first frame of a switch.
+  const [visited, setVisited] = useState<string[]>(threadId ? [threadId] : []);
+  if (threadId !== null && visited[0] !== threadId) {
+    setVisited(
+      [threadId, ...visited.filter((id) => id !== threadId)].slice(0, MAX_WARM_CONVERSATIONS),
+    );
+  }
+
+  // Drop panes for threads that no longer exist (archived / renamed away),
+  // keeping the one the URL still points at until validation settles.
+  useEffect(() => {
+    if (threads === undefined) return;
+    setVisited((prev) =>
+      prev.filter((id) => id === t || threads.some((thread) => thread.threadId === id)),
+    );
+  }, [threads, t]);
 
   // Lazy validation with a grace period: a thread created milliseconds ago may
   // not be reflected in the (cached) list yet, so never redirect on the first
@@ -161,10 +186,23 @@ function ConversationShell({ accountId }: { accountId: Id<"accounts"> }) {
     return () => clearTimeout(timer);
   }, [t, threads, navigate]);
 
-  return threadId ? (
-    <Conversation key={threadId} accountId={accountId} threadId={threadId} />
-  ) : (
-    <NewConversation accountId={accountId} />
+  return (
+    <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      {visited.map((id) => (
+        <div
+          key={id}
+          inert={id !== threadId}
+          className={cn("absolute inset-0 flex", id !== threadId && "invisible")}
+        >
+          <Conversation accountId={accountId} threadId={id} />
+        </div>
+      ))}
+      {threadId === null ? (
+        <div className="absolute inset-0 flex">
+          <NewConversation accountId={accountId} />
+        </div>
+      ) : null}
+    </div>
   );
 }
 
