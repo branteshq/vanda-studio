@@ -220,19 +220,23 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
     <EntranceReadyContext.Provider value={entranceReady}>
       <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <MessageScrollerProvider autoScroll>
+          <MessageScrollerProvider autoScroll defaultScrollPosition="last-anchor">
             <div className="min-h-0 flex-1 overflow-hidden">
               <MessageScroller>
                 <MessageScrollerViewport>
                   <MessageScrollerContent
                     aria-busy={streaming}
-                    className="mx-auto w-full max-w-3xl justify-end gap-6 px-4 py-6 md:px-6"
+                    className="mx-auto w-full max-w-3xl gap-6 px-4 py-8 md:px-6"
                   >
                     {loading ? (
                       <ConversationSkeleton />
                     ) : (
                       messages.results.map((message) => (
-                        <MessageScrollerItem key={message.key} messageId={message.key}>
+                        <MessageScrollerItem
+                          key={message.key}
+                          messageId={message.key}
+                          scrollAnchor={message.role === "user"}
+                        >
                           <ChatMessage
                             message={message}
                             accountId={accountId}
