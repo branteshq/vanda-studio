@@ -63,24 +63,19 @@ function ProfileDock() {
   const { accounts, activeAccount: active, selectAccount } = useActiveAccount();
   const removeAccount = useMutation(api.accounts.remove);
   const [removing, setRemoving] = useState(false);
-  const [switching, setSwitching] = useState<string | null>(null);
   const readyAccounts = accounts?.filter((account) => account.onboardedAt !== null) ?? [];
   const name = active?.name ?? "negócio atual";
 
-  const handleSelect = async (account: NonNullable<typeof accounts>[number]) => {
-    if (account.id === active?.id || switching !== null) return;
+  const handleSelect = (account: NonNullable<typeof accounts>[number]) => {
+    if (account.id === active?.id) return;
     if (account.onboardedAt === null) {
-      await navigate({ to: "/onboarding", search: { accountId: account.id } });
+      void navigate({ to: "/onboarding", search: { accountId: account.id } });
       return;
     }
-    setSwitching(account.id);
-    try {
-      await selectAccount(account.id);
-      setOpenMobile(false);
-      await navigate({ to: "/conversa", search: {} });
-    } finally {
-      setSwitching(null);
-    }
+    // Optimistic: the switcher highlights and the workspace swaps this frame.
+    selectAccount(account.id);
+    setOpenMobile(false);
+    void navigate({ to: "/conversa", search: {} });
   };
 
   const handleRemoveCurrent = async () => {
@@ -122,8 +117,7 @@ function ProfileDock() {
                 title={account.name}
                 aria-label={`Trocar para ${account.name}`}
                 aria-pressed={selected}
-                disabled={switching !== null}
-                onClick={() => void handleSelect(account)}
+                onClick={() => handleSelect(account)}
                 className={cn(
                   "flex size-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold text-text-3 transition-[background-color,color,box-shadow,transform] duration-150 active:scale-[0.97]",
                   selected
@@ -166,8 +160,7 @@ function ProfileDock() {
               <DropdownMenuItem
                 key={account.id}
                 className="gap-2 p-2"
-                disabled={switching !== null}
-                onClick={() => void handleSelect(account)}
+                onClick={() => handleSelect(account)}
               >
                 <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-border-strong text-[10px] font-semibold text-text-2">
                   {getInitials(account.name) || "?"}
