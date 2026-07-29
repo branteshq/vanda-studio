@@ -7,6 +7,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
+import { useUser } from "@clerk/tanstack-react-start";
 import { createFileRoute } from "@tanstack/react-router";
 import { useSmoothText, useUIMessages, type UIMessage } from "@convex-dev/agent/react";
 import { useAction, useMutation, useQuery } from "convex/react";
@@ -48,6 +49,7 @@ import { Spinner } from "@vanda-studio/ui/components/spinner";
 import { StatusPill } from "@vanda-studio/ui/components/status-pill";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { useActiveAccount } from "../components/active-account";
+import { VandaMark } from "../components/vanda-mark";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 
@@ -85,12 +87,6 @@ const TOOL_LABEL: Record<string, string> = {
   publish_project: "Publicação no Instagram",
   discard_project: "Arquivando projeto",
 };
-
-const SUGGESTIONS = [
-  "Procure uma oportunidade no meu mercado",
-  "O que você sabe sobre a minha marca?",
-  "Mostre meus projetos de conteúdo",
-];
 
 /** The loose view of a tool part — covers `tool-*` and `dynamic-tool` shapes. */
 interface ToolPartView {
@@ -173,6 +169,40 @@ function useEntranceOnMount(): boolean {
   return useState(ready)[0];
 }
 
+/** Hide the canned greeting stored by the pre-empty-state thread model. */
+function isDefaultWelcome(message: UIMessage): boolean {
+  if (message.role !== "assistant") return false;
+  const text = message.parts
+    .filter((part) => part.type === "text")
+    .map((part) => (part as { text: string }).text)
+    .join("\n")
+    .trim();
+  return text.startsWith("Oi! Eu sou a Vanda, sua operadora de crescimento no Instagram.");
+}
+
+function NewConversationHero() {
+  const { user } = useUser();
+  const firstName =
+    user?.firstName?.trim() ||
+    user?.fullName?.trim().split(/\s+/)[0] ||
+    user?.username?.trim() ||
+    null;
+
+  return (
+    <section className="relative flex min-h-72 w-full items-center justify-center overflow-hidden px-4 py-16 text-center">
+      <VandaMark
+        size={500}
+        from="currentColor"
+        to="currentColor"
+        className="pointer-events-none absolute h-auto w-[min(30rem,76vw)] text-brand-accent opacity-[0.035]"
+      />
+      <h1 className="relative max-w-2xl text-2xl leading-tight font-medium tracking-tight text-text md:text-[28px]">
+        {firstName ? `No que a Vanda pode ajudar, ${firstName}?` : "No que a Vanda pode ajudar?"}
+      </h1>
+    </section>
+  );
+}
+
 function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; threadId: string }) {
   const sendMessage = useMutation(api.chat.sendMessage);
   const [draft, setDraft] = useState("");
@@ -204,8 +234,9 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
   };
 
   const loading = messages.status === "LoadingFirstPage";
-  const showSuggestions = !loading && messages.results.length <= 1;
-  const streaming = messages.results.at(-1)?.status === "streaming";
+  const visibleMessages = messages.results.filter((message) => !isDefaultWelcome(message));
+  const empty = !loading && visibleMessages.length === 0;
+  const streaming = visibleMessages.at(-1)?.status === "streaming";
 
   // Flip entrance animations on one frame after the first history paint.
   const [entranceReady, setEntranceReady] = useState(false);
@@ -229,8 +260,15 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
                   >
                     {loading ? (
                       <ConversationSkeleton />
+                    ) : empty ? (
+                      <MessageScrollerItem
+                        messageId="new-conversation"
+                        className="flex flex-1 items-center justify-center"
+                      >
+                        <NewConversationHero />
+                      </MessageScrollerItem>
                     ) : (
-                      messages.results.map((message) => (
+                      visibleMessages.map((message) => (
                         <MessageScrollerItem
                           key={message.key}
                           messageId={message.key}
@@ -254,20 +292,6 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
 
           <footer className="shrink-0 border-t border-border bg-app px-4 py-3 md:px-6">
             <div className="mx-auto w-full max-w-3xl">
-              {showSuggestions ? (
-                <div className="mb-2.5 flex flex-wrap gap-2">
-                  {SUGGESTIONS.map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      type="button"
-                      onClick={() => void send(suggestion)}
-                      className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-text-3 transition-colors hover:border-border-strong hover:text-text"
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
               <form
                 onSubmit={onSubmit}
                 className="flex items-end gap-2 rounded-xl border border-border bg-surface p-2 focus-within:border-border-strong"

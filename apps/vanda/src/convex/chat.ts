@@ -30,10 +30,6 @@ import { vanda } from "./vanda";
  * underneath the conversation.
  */
 
-const WELCOME = `Oi! Eu sou a Vanda, sua operadora de crescimento no Instagram. Eu observo o seu mercado, encontro oportunidades com evidência real e crio carrosséis na voz da sua marca — e nada é publicado sem a sua aprovação.
-
-Você pode começar me pedindo, por exemplo: "procure uma oportunidade no meu mercado" ou "o que você sabe sobre a minha marca?".`;
-
 /** The component keys threads by an opaque string; ours is the account id. */
 const threadKey = (accountId: Id<"accounts">): string => String(accountId);
 
@@ -86,11 +82,6 @@ export const createNewThread = mutation({
     await requireOwnedAccount(ctx, accountId);
     const threadId = await createThread(ctx, components.agent, {
       userId: threadKey(accountId),
-    });
-    await saveMessage(ctx, components.agent, {
-      threadId,
-      agentName: "vanda",
-      message: { role: "assistant", content: WELCOME },
     });
     return threadId;
   },
