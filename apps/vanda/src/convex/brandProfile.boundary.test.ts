@@ -1,4 +1,5 @@
 // @vitest-environment edge-runtime
+import agentTest from "@convex-dev/agent/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "./_generated/api";
@@ -48,6 +49,7 @@ const analysis = {
 
 const setup = async (clerkId = "c1") => {
   const t = convexTest(schema, modules);
+  agentTest.register(t);
   const accountId = await t.run(async (ctx) => {
     const userId = await ctx.db.insert("users", { name: "Marina", email: "m@e.com", clerkId });
     return ctx.db.insert("accounts", {

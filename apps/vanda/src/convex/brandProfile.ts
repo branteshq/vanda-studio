@@ -1,4 +1,6 @@
+import { createThread, saveMessage } from "@convex-dev/agent";
 import { v } from "convex/values";
+import { components } from "./_generated/api";
 import { internalQuery, mutation, query } from "./_generated/server";
 import * as Schema from "effect/Schema";
 import { requireOwnedAccount } from "./authz";
@@ -114,6 +116,31 @@ export const approveBrandProfile = mutation({
     });
     if (account.ownerUserId !== undefined) {
       await ctx.db.patch(account.ownerUserId, { activeAccountId: accountId, updatedAt: now });
+    }
+
+    // Onboarding resolves into the conversation: Vanda opens the account's
+    // thread with what she learned and proposes the first action, so the first
+    // thing the owner sees in /conversa is an operator, not an empty chat.
+    if (account.vandaThreadId === undefined) {
+      const threadId = await createThread(ctx, components.agent, {
+        userId: account.ownerUserId ? String(account.ownerUserId) : null,
+        title: account.name ?? "Vanda",
+      });
+      await ctx.db.patch(accountId, { vandaThreadId: threadId, updatedAt: Date.now() });
+      const voice = analysis.voice.items.slice(0, 4).join(", ");
+      const themes = analysis.themes.items.slice(0, 4).join(", ");
+      await saveMessage(ctx, components.agent, {
+        threadId,
+        agentName: "vanda",
+        message: {
+          role: "assistant",
+          content:
+            `Prontinho — sua marca agora faz parte da minha memória. Entendi que ${analysis.identity.text} ` +
+            `A voz da marca é ${voice || "a que você confirmou"}, e os temas que mais aparecem no seu conteúdo são: ${themes || "os que confirmamos juntos"}.\n\n` +
+            `Você pode corrigir qualquer um desses fatos no Perfil quando quiser — eu só trabalho com o que você confirmou.\n\n` +
+            `Quer que eu já procure uma oportunidade no seu mercado? Eu observo criadores parecidos com você, encontro conteúdos com desempenho fora da curva e trago no máximo uma ideia forte para sua revisão. Nada é publicado sem a sua aprovação.`,
+        },
+      });
     }
   },
 });
