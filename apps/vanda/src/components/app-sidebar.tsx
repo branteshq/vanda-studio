@@ -356,11 +356,10 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
       <SidebarMenu className="px-1 pt-1">
         <SidebarMenuItem>
           <SidebarMenuButton
-            variant="outline"
             size="lg"
             tooltip="Nova conversa"
             onClick={startThread}
-            className="h-11 gap-2.5 px-3 text-[13px] font-semibold text-sidebar-foreground group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0!"
+            className="h-11 gap-2.5 bg-sidebar-primary px-3 text-[13px] font-semibold text-sidebar-primary-foreground hover:bg-sidebar-primary hover:brightness-110 active:bg-sidebar-primary group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0!"
           >
             <PencilLine className="size-4" />
             <span className="group-data-[collapsible=icon]:hidden">Nova conversa</span>
@@ -434,7 +433,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                             aria-label="Renomear conversa"
                             title="Renomear"
                             onClick={() => rename(thread)}
-                            className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-colors duration-150 ease-[var(--ease-out)] hover:bg-sidebar-primary hover:text-sidebar-primary-foreground focus-visible:bg-sidebar-primary focus-visible:text-sidebar-primary-foreground"
+                            className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-colors duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
                           >
                             <Pencil className="size-3.5" />
                           </button>
@@ -443,7 +442,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                             aria-label="Arquivar conversa"
                             title="Arquivar"
                             onClick={() => archive(thread)}
-                            className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-colors duration-150 ease-[var(--ease-out)] hover:bg-destructive hover:text-destructive-foreground focus-visible:bg-destructive focus-visible:text-destructive-foreground"
+                            className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-colors duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
                           >
                             <Archive className="size-3.5" />
                           </button>
