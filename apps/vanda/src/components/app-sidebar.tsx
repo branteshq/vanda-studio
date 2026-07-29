@@ -1,18 +1,16 @@
 import { useState, type ComponentType } from "react";
 import { useClerk, useUser } from "@clerk/tanstack-react-start";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import {
   BadgeCheckIcon,
   Calendar,
   ChevronsUpDown,
-  LayoutGrid,
   LogOutIcon,
+  MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
-  RefreshCw,
-  Sparkles,
   Trash2,
   User,
 } from "lucide-react";
@@ -33,7 +31,6 @@ import {
   SidebarGroup,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
@@ -41,42 +38,19 @@ import {
 import { api } from "../convex/_generated/api";
 import { useActiveAccount } from "./active-account";
 
-type DashboardPath = "/" | "/automatico" | "/galeria" | "/calendario" | "/perfil";
+type DashboardPath = "/conversa" | "/calendario" | "/perfil";
 
 interface NavItem {
   label: string;
   to: DashboardPath;
   icon: ComponentType<{ className?: string }>;
-  exact?: boolean;
-  live?: boolean;
 }
 
 const NAV: NavItem[] = [
-  { label: "Início", to: "/", icon: Home, exact: true },
-  { label: "Automático", to: "/automatico", icon: RefreshCw, live: true },
-  { label: "Galeria", to: "/galeria", icon: LayoutGrid },
+  { label: "Conversa", to: "/conversa", icon: MessageSquare },
   { label: "Calendário", to: "/calendario", icon: Calendar },
   { label: "Perfil", to: "/perfil", icon: User },
 ];
-
-function Home(props: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.7}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={props.className}
-      aria-hidden="true"
-    >
-      <path d="M3 10.5L12 3l9 7.5" />
-      <path d="M5 9.5V20h14V9.5" />
-      <path d="M9.5 20v-6h5v6" />
-    </svg>
-  );
-}
 
 const MODE_LABEL: Record<string, string> = {
   auto: "Automático",
@@ -301,11 +275,6 @@ function AccountMenu() {
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { state, toggleSidebar } = useSidebar();
-  const { activeAccount } = useActiveAccount();
-  const gallerySummary = useQuery(
-    api.contentStudio.gallerySummary,
-    activeAccount ? { accountId: activeAccount.id } : "skip",
-  );
 
   return (
     <Sidebar collapsible="icon" className="border-sidebar-border">
@@ -317,7 +286,7 @@ export function AppSidebar() {
         <SidebarGroup className="p-0">
           <SidebarMenu className="gap-0.5">
             {NAV.map((item) => {
-              const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
+              const active = pathname.startsWith(item.to);
               const Icon = item.icon;
               return (
                 <SidebarMenuItem key={item.to}>
@@ -331,21 +300,7 @@ export function AppSidebar() {
                     <span className="flex-1 group-data-[collapsible=icon]:hidden">
                       {item.label}
                     </span>
-                    {item.live ? (
-                      <span
-                        className="flex items-center group-data-[collapsible=icon]:hidden"
-                        aria-label="ao vivo"
-                        title="ao vivo"
-                      >
-                        <span className="size-1.5 rounded-full bg-green shadow-[0_0_6px_var(--green)]" />
-                      </span>
-                    ) : null}
                   </SidebarMenuButton>
-                  {item.to === "/galeria" && gallerySummary && gallerySummary.total > 0 ? (
-                    <SidebarMenuBadge className="rounded-full bg-brand-accent/12 text-[11px] font-semibold text-brand-accent">
-                      {gallerySummary.total}
-                    </SidebarMenuBadge>
-                  ) : null}
                 </SidebarMenuItem>
               );
             })}
@@ -354,19 +309,6 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="gap-0 px-3 pb-3 group-data-[collapsible=icon]:px-2">
-        <div className="mb-3 rounded-lg border border-border bg-surface p-3 group-data-[collapsible=icon]:hidden">
-          <div className="mb-[9px] flex items-center justify-between">
-            <span className="flex items-center gap-[7px] text-[12.5px] font-semibold text-text-2">
-              <Sparkles className="size-[15px] text-brand-accent" />
-              Vanda IA
-            </span>
-            <span className="text-[12px] font-semibold text-text-4">62%</span>
-          </div>
-          <div className="h-[5px] overflow-hidden rounded-full bg-border">
-            <div className="h-full rounded-full bg-primary" style={{ width: "62%" }} />
-          </div>
-        </div>
-
         <div className="border-t border-border px-1.5 pt-3 group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0">
           <AccountMenu />
         </div>

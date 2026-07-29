@@ -16,9 +16,8 @@ import { Route as DashboardRouteImport } from './routes/_dashboard'
 import { Route as DashboardIndexRouteImport } from './routes/_dashboard.index'
 import { Route as InstagramCallbackRouteImport } from './routes/instagram.callback'
 import { Route as DashboardPerfilRouteImport } from './routes/_dashboard.perfil'
-import { Route as DashboardGaleriaRouteImport } from './routes/_dashboard.galeria'
+import { Route as DashboardConversaRouteImport } from './routes/_dashboard.conversa'
 import { Route as DashboardCalendarioRouteImport } from './routes/_dashboard.calendario'
-import { Route as DashboardAutomaticoRouteImport } from './routes/_dashboard.automatico'
 import { Route as ApiIntegrationsInstagramCallbackRouteImport } from './routes/api.integrations.instagram.callback'
 
 const SsoCallbackRoute = SsoCallbackRouteImport.update({
@@ -55,19 +54,14 @@ const DashboardPerfilRoute = DashboardPerfilRouteImport.update({
   path: '/perfil',
   getParentRoute: () => DashboardRoute,
 } as any)
-const DashboardGaleriaRoute = DashboardGaleriaRouteImport.update({
-  id: '/galeria',
-  path: '/galeria',
+const DashboardConversaRoute = DashboardConversaRouteImport.update({
+  id: '/conversa',
+  path: '/conversa',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardCalendarioRoute = DashboardCalendarioRouteImport.update({
   id: '/calendario',
   path: '/calendario',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardAutomaticoRoute = DashboardAutomaticoRouteImport.update({
-  id: '/automatico',
-  path: '/automatico',
   getParentRoute: () => DashboardRoute,
 } as any)
 const ApiIntegrationsInstagramCallbackRoute =
@@ -82,9 +76,8 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/sso-callback': typeof SsoCallbackRoute
-  '/automatico': typeof DashboardAutomaticoRoute
   '/calendario': typeof DashboardCalendarioRoute
-  '/galeria': typeof DashboardGaleriaRoute
+  '/conversa': typeof DashboardConversaRoute
   '/perfil': typeof DashboardPerfilRoute
   '/instagram/callback': typeof InstagramCallbackRoute
   '/api/integrations/instagram/callback': typeof ApiIntegrationsInstagramCallbackRoute
@@ -93,9 +86,8 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/sso-callback': typeof SsoCallbackRoute
-  '/automatico': typeof DashboardAutomaticoRoute
   '/calendario': typeof DashboardCalendarioRoute
-  '/galeria': typeof DashboardGaleriaRoute
+  '/conversa': typeof DashboardConversaRoute
   '/perfil': typeof DashboardPerfilRoute
   '/instagram/callback': typeof InstagramCallbackRoute
   '/': typeof DashboardIndexRoute
@@ -107,9 +99,8 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/sso-callback': typeof SsoCallbackRoute
-  '/_dashboard/automatico': typeof DashboardAutomaticoRoute
   '/_dashboard/calendario': typeof DashboardCalendarioRoute
-  '/_dashboard/galeria': typeof DashboardGaleriaRoute
+  '/_dashboard/conversa': typeof DashboardConversaRoute
   '/_dashboard/perfil': typeof DashboardPerfilRoute
   '/instagram/callback': typeof InstagramCallbackRoute
   '/_dashboard/': typeof DashboardIndexRoute
@@ -122,9 +113,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/onboarding'
     | '/sso-callback'
-    | '/automatico'
     | '/calendario'
-    | '/galeria'
+    | '/conversa'
     | '/perfil'
     | '/instagram/callback'
     | '/api/integrations/instagram/callback'
@@ -133,9 +123,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/onboarding'
     | '/sso-callback'
-    | '/automatico'
     | '/calendario'
-    | '/galeria'
+    | '/conversa'
     | '/perfil'
     | '/instagram/callback'
     | '/'
@@ -146,9 +135,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/onboarding'
     | '/sso-callback'
-    | '/_dashboard/automatico'
     | '/_dashboard/calendario'
-    | '/_dashboard/galeria'
+    | '/_dashboard/conversa'
     | '/_dashboard/perfil'
     | '/instagram/callback'
     | '/_dashboard/'
@@ -215,11 +203,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardPerfilRouteImport
       parentRoute: typeof DashboardRoute
     }
-    '/_dashboard/galeria': {
-      id: '/_dashboard/galeria'
-      path: '/galeria'
-      fullPath: '/galeria'
-      preLoaderRoute: typeof DashboardGaleriaRouteImport
+    '/_dashboard/conversa': {
+      id: '/_dashboard/conversa'
+      path: '/conversa'
+      fullPath: '/conversa'
+      preLoaderRoute: typeof DashboardConversaRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/_dashboard/calendario': {
@@ -227,13 +215,6 @@ declare module '@tanstack/react-router' {
       path: '/calendario'
       fullPath: '/calendario'
       preLoaderRoute: typeof DashboardCalendarioRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/_dashboard/automatico': {
-      id: '/_dashboard/automatico'
-      path: '/automatico'
-      fullPath: '/automatico'
-      preLoaderRoute: typeof DashboardAutomaticoRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/api/integrations/instagram/callback': {
@@ -247,17 +228,15 @@ declare module '@tanstack/react-router' {
 }
 
 interface DashboardRouteChildren {
-  DashboardAutomaticoRoute: typeof DashboardAutomaticoRoute
   DashboardCalendarioRoute: typeof DashboardCalendarioRoute
-  DashboardGaleriaRoute: typeof DashboardGaleriaRoute
+  DashboardConversaRoute: typeof DashboardConversaRoute
   DashboardPerfilRoute: typeof DashboardPerfilRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
-  DashboardAutomaticoRoute: DashboardAutomaticoRoute,
   DashboardCalendarioRoute: DashboardCalendarioRoute,
-  DashboardGaleriaRoute: DashboardGaleriaRoute,
+  DashboardConversaRoute: DashboardConversaRoute,
   DashboardPerfilRoute: DashboardPerfilRoute,
   DashboardIndexRoute: DashboardIndexRoute,
 }

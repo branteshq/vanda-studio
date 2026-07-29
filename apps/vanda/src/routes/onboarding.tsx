@@ -59,7 +59,7 @@ function OnboardingFlow() {
   if (requested) return <AnalyzeFlow accountId={requested.id} />;
   if (flow === "add") return <ConnectStep />;
   if (accounts.some((account) => account.onboardedAt != null)) {
-    return <Navigate to="/automatico" />;
+    return <Navigate to="/conversa" />;
   }
   const pending = accounts.find((account) => account.onboardedAt == null);
   return pending === undefined ? <ConnectStep /> : <AnalyzeFlow accountId={pending.id} />;
@@ -70,7 +70,7 @@ function ActivateAndRedirect({ accountId }: { accountId: Id<"accounts"> }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    void selectActive({ accountId }).then(() => navigate({ to: "/automatico" }));
+    void selectActive({ accountId }).then(() => navigate({ to: "/conversa" }));
   }, [accountId, navigate, selectActive]);
 
   return <OnboardingLoading />;
@@ -91,7 +91,7 @@ function AnalyzeFlow({ accountId }: { accountId: Id<"accounts"> }) {
     setBusy(true);
     try {
       await approve({ accountId, mode, ...analysis });
-      await navigate({ to: "/automatico", search: { welcome: true } });
+      await navigate({ to: "/conversa" });
     } catch {
       setBusy(false);
     }
