@@ -19,8 +19,6 @@ import {
   ChevronRight,
   CircleDashed,
   Images,
-  Pencil,
-  Plus,
   RefreshCw,
   Send,
   Sparkles,
@@ -30,11 +28,7 @@ import { Button } from "@vanda-studio/ui/components/button";
 import { Bubble, BubbleContent } from "@vanda-studio/ui/components/bubble";
 import { Markdown } from "@vanda-studio/ui/components/markdown";
 import { Marker, MarkerContent, MarkerIcon } from "@vanda-studio/ui/components/marker";
-import {
-  Message,
-  MessageAvatar,
-  MessageContent,
-} from "@vanda-studio/ui/components/message";
+import { Message, MessageAvatar, MessageContent } from "@vanda-studio/ui/components/message";
 import {
   MessageScroller,
   MessageScrollerButton,
@@ -130,27 +124,9 @@ function ConversaPage() {
   return <ConversationShell key={activeAccount.id} accountId={activeAccount.id} />;
 }
 
-interface ThreadItem {
-  threadId: string;
-  title: string | null;
-  createdAt: number;
-}
-
-function relativeTime(timestamp: number): string {
-  const minutes = Math.floor((Date.now() - timestamp) / 60_000);
-  if (minutes < 1) return "agora";
-  if (minutes < 60) return `há ${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `há ${hours} h`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `há ${days} d`;
-  return new Date(timestamp).toLocaleDateString("pt-BR");
-}
-
 /**
- * Resolves the active conversation and hosts the thread rail. The URL (?t=…) is
- * the selection state — deep-linkable and refresh-safe; an absent or foreign `t`
- * falls back to the most recent conversation, and a first visit creates one.
+ * Resolves the active conversation from the URL. Thread navigation lives in the
+ * global app sidebar; this route only selects and renders the transcript.
  */
 function ConversationShell({ accountId }: { accountId: Id<"accounts"> }) {
   const threads = useQuery(api.chat.listThreads, { accountId });
@@ -177,151 +153,11 @@ function ConversationShell({ accountId }: { accountId: Id<"accounts"> }) {
       });
   }, [threads, createNewThread, accountId, navigate]);
 
-  const openThread = (id: string) => void navigate({ search: { t: id } });
-  const startNewThread = () =>
-    void createNewThread({ accountId }).then((id) => navigate({ search: { t: id } }));
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <MobileThreadBar
-        threads={threads ?? []}
-        activeThreadId={threadId ?? null}
-        onOpen={openThread}
-        onNew={startNewThread}
-      />
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <ThreadRail
-          accountId={accountId}
-          threads={threads ?? []}
-          activeThreadId={threadId ?? null}
-          onOpen={openThread}
-          onNew={startNewThread}
-        />
-        {threadId ? (
-          <Conversation key={threadId} accountId={accountId} threadId={threadId} />
-        ) : (
-          <div className="flex flex-1 items-center justify-center">
-            <Spinner className="size-5 text-text-4" />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ThreadRail({
-  accountId,
-  threads,
-  activeThreadId,
-  onOpen,
-  onNew,
-}: {
-  accountId: Id<"accounts">;
-  threads: ThreadItem[];
-  activeThreadId: string | null;
-  onOpen: (threadId: string) => void;
-  onNew: () => void;
-}) {
-  const renameThread = useMutation(api.chat.renameThread);
-  const archiveThread = useMutation(api.chat.archiveThread);
-
-  const rename = (thread: ThreadItem) => {
-    const title = window.prompt("Renomear conversa", thread.title ?? "");
-    if (title?.trim()) void renameThread({ accountId, threadId: thread.threadId, title });
-  };
-  const archive = (thread: ThreadItem) => {
-    if (!window.confirm("Arquivar esta conversa?")) return;
-    void archiveThread({ accountId, threadId: thread.threadId });
-  };
-
-  return (
-    <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-app md:flex">
-      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border pr-2 pl-4">
-        <h2 className="text-sm font-semibold text-text">Conversas</h2>
-        <Button variant="ghost" size="icon-sm" aria-label="Nova conversa" onClick={onNew}>
-          <Plus />
-        </Button>
-      </div>
-      <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2">
-        {threads.map((thread) => (
-          <div
-            key={thread.threadId}
-            className={cn(
-              "group flex items-center rounded-lg",
-              thread.threadId === activeThreadId ? "bg-surface" : "hover:bg-surface/60",
-            )}
-          >
-            <button
-              type="button"
-              onClick={() => onOpen(thread.threadId)}
-              className="min-w-0 flex-1 px-2.5 py-2 text-left"
-            >
-              <span
-                className={cn(
-                  "block truncate text-sm",
-                  thread.threadId === activeThreadId ? "text-text" : "text-text-3",
-                )}
-              >
-                {thread.title ?? "Nova conversa"}
-              </span>
-              <span className="block text-[11px] text-text-5">
-                {relativeTime(thread.createdAt)}
-              </span>
-            </button>
-            <div className="hidden shrink-0 items-center pr-1.5 group-hover:flex">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Renomear conversa"
-                onClick={() => rename(thread)}
-              >
-                <Pencil />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Arquivar conversa"
-                onClick={() => archive(thread)}
-              >
-                <Archive />
-              </Button>
-            </div>
-          </div>
-        ))}
-      </nav>
-    </aside>
-  );
-}
-
-/** Compact thread switcher for small screens, where the rail is hidden. */
-function MobileThreadBar({
-  threads,
-  activeThreadId,
-  onOpen,
-  onNew,
-}: {
-  threads: ThreadItem[];
-  activeThreadId: string | null;
-  onOpen: (threadId: string) => void;
-  onNew: () => void;
-}) {
-  return (
-    <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3 md:hidden">
-      <select
-        value={activeThreadId ?? ""}
-        onChange={(event) => onOpen(event.target.value)}
-        aria-label="Escolher conversa"
-        className="h-8 min-w-0 flex-1 rounded-md border border-border bg-surface px-2 text-sm text-text outline-none"
-      >
-        {threads.map((thread) => (
-          <option key={thread.threadId} value={thread.threadId}>
-            {thread.title ?? "Nova conversa"}
-          </option>
-        ))}
-      </select>
-      <Button variant="ghost" size="icon-sm" aria-label="Nova conversa" onClick={onNew}>
-        <Plus />
-      </Button>
+  return threadId ? (
+    <Conversation key={threadId} accountId={accountId} threadId={threadId} />
+  ) : (
+    <div className="flex min-h-0 flex-1 items-center justify-center">
+      <Spinner className="size-5 text-text-4" />
     </div>
   );
 }
@@ -382,83 +218,83 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
 
   return (
     <EntranceReadyContext.Provider value={entranceReady}>
-    <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <MessageScrollerProvider autoScroll>
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <MessageScroller>
-              <MessageScrollerViewport>
-                <MessageScrollerContent
-                  aria-busy={streaming}
-                  className="mx-auto w-full max-w-3xl justify-end gap-6 px-4 py-6 md:px-6"
-                >
-                  {loading ? (
-                    <ConversationSkeleton />
-                  ) : (
-                    messages.results.map((message) => (
-                      <MessageScrollerItem key={message.key} messageId={message.key}>
-                        <ChatMessage
-                          message={message}
-                          accountId={accountId}
-                          threadId={threadId}
-                          onOpenProject={setCanvasProjectId}
-                        />
-                      </MessageScrollerItem>
-                    ))
-                  )}
-                </MessageScrollerContent>
-              </MessageScrollerViewport>
-              <MessageScrollerButton />
-            </MessageScroller>
-          </div>
-        </MessageScrollerProvider>
-
-        <footer className="shrink-0 border-t border-border bg-app px-4 py-3 md:px-6">
-          <div className="mx-auto w-full max-w-3xl">
-            {showSuggestions ? (
-              <div className="mb-2.5 flex flex-wrap gap-2">
-                {SUGGESTIONS.map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    type="button"
-                    onClick={() => void send(suggestion)}
-                    className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-text-3 transition-colors hover:border-border-strong hover:text-text"
+      <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <MessageScrollerProvider autoScroll>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <MessageScroller>
+                <MessageScrollerViewport>
+                  <MessageScrollerContent
+                    aria-busy={streaming}
+                    className="mx-auto w-full max-w-3xl justify-end gap-6 px-4 py-6 md:px-6"
                   >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            <form
-              onSubmit={onSubmit}
-              className="flex items-end gap-2 rounded-xl border border-border bg-surface p-2 focus-within:border-border-strong"
-            >
-              <textarea
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={onComposerKeyDown}
-                placeholder="Mande uma mensagem para a Vanda…"
-                aria-label="Mensagem para a Vanda"
-                rows={1}
-                className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-text outline-none placeholder:text-text-5"
-              />
-              <Button type="submit" size="icon" aria-label="Enviar" disabled={!draft.trim()}>
-                <ArrowUp />
-              </Button>
-            </form>
-          </div>
-        </footer>
-      </div>
+                    {loading ? (
+                      <ConversationSkeleton />
+                    ) : (
+                      messages.results.map((message) => (
+                        <MessageScrollerItem key={message.key} messageId={message.key}>
+                          <ChatMessage
+                            message={message}
+                            accountId={accountId}
+                            threadId={threadId}
+                            onOpenProject={setCanvasProjectId}
+                          />
+                        </MessageScrollerItem>
+                      ))
+                    )}
+                  </MessageScrollerContent>
+                </MessageScrollerViewport>
+                <MessageScrollerButton />
+              </MessageScroller>
+            </div>
+          </MessageScrollerProvider>
 
-      {canvasProjectId ? (
-        <CarouselCanvas
-          projectId={canvasProjectId}
-          accountId={accountId}
-          threadId={threadId}
-          onClose={() => setCanvasProjectId(null)}
-        />
-      ) : null}
-    </div>
+          <footer className="shrink-0 border-t border-border bg-app px-4 py-3 md:px-6">
+            <div className="mx-auto w-full max-w-3xl">
+              {showSuggestions ? (
+                <div className="mb-2.5 flex flex-wrap gap-2">
+                  {SUGGESTIONS.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => void send(suggestion)}
+                      className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-text-3 transition-colors hover:border-border-strong hover:text-text"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              <form
+                onSubmit={onSubmit}
+                className="flex items-end gap-2 rounded-xl border border-border bg-surface p-2 focus-within:border-border-strong"
+              >
+                <textarea
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={onComposerKeyDown}
+                  placeholder="Mande uma mensagem para a Vanda…"
+                  aria-label="Mensagem para a Vanda"
+                  rows={1}
+                  className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-text outline-none placeholder:text-text-5"
+                />
+                <Button type="submit" size="icon" aria-label="Enviar" disabled={!draft.trim()}>
+                  <ArrowUp />
+                </Button>
+              </form>
+            </div>
+          </footer>
+        </div>
+
+        {canvasProjectId ? (
+          <CarouselCanvas
+            projectId={canvasProjectId}
+            accountId={accountId}
+            threadId={threadId}
+            onClose={() => setCanvasProjectId(null)}
+          />
+        ) : null}
+      </div>
     </EntranceReadyContext.Provider>
   );
 }
@@ -1010,9 +846,7 @@ function CarouselCanvas({
             {document?.reviewSummary ? (
               <section className="rounded-lg border border-border bg-inset p-3">
                 <h3 className="text-xs font-semibold text-text-2">Revisão editorial</h3>
-                <p className="mt-1 text-xs leading-relaxed text-text-3">
-                  {document.reviewSummary}
-                </p>
+                <p className="mt-1 text-xs leading-relaxed text-text-3">{document.reviewSummary}</p>
               </section>
             ) : null}
 

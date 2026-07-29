@@ -16,6 +16,7 @@ import { Route as DashboardRouteImport } from './routes/_dashboard'
 import { Route as DashboardIndexRouteImport } from './routes/_dashboard.index'
 import { Route as InstagramCallbackRouteImport } from './routes/instagram.callback'
 import { Route as DashboardPerfilRouteImport } from './routes/_dashboard.perfil'
+import { Route as DashboardGaleriaRouteImport } from './routes/_dashboard.galeria'
 import { Route as DashboardConversaRouteImport } from './routes/_dashboard.conversa'
 import { Route as DashboardCalendarioRouteImport } from './routes/_dashboard.calendario'
 import { Route as ApiIntegrationsInstagramCallbackRouteImport } from './routes/api.integrations.instagram.callback'
@@ -54,6 +55,11 @@ const DashboardPerfilRoute = DashboardPerfilRouteImport.update({
   path: '/perfil',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardGaleriaRoute = DashboardGaleriaRouteImport.update({
+  id: '/galeria',
+  path: '/galeria',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardConversaRoute = DashboardConversaRouteImport.update({
   id: '/conversa',
   path: '/conversa',
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/sso-callback': typeof SsoCallbackRoute
   '/calendario': typeof DashboardCalendarioRoute
   '/conversa': typeof DashboardConversaRoute
+  '/galeria': typeof DashboardGaleriaRoute
   '/perfil': typeof DashboardPerfilRoute
   '/instagram/callback': typeof InstagramCallbackRoute
   '/api/integrations/instagram/callback': typeof ApiIntegrationsInstagramCallbackRoute
@@ -88,6 +95,7 @@ export interface FileRoutesByTo {
   '/sso-callback': typeof SsoCallbackRoute
   '/calendario': typeof DashboardCalendarioRoute
   '/conversa': typeof DashboardConversaRoute
+  '/galeria': typeof DashboardGaleriaRoute
   '/perfil': typeof DashboardPerfilRoute
   '/instagram/callback': typeof InstagramCallbackRoute
   '/': typeof DashboardIndexRoute
@@ -101,6 +109,7 @@ export interface FileRoutesById {
   '/sso-callback': typeof SsoCallbackRoute
   '/_dashboard/calendario': typeof DashboardCalendarioRoute
   '/_dashboard/conversa': typeof DashboardConversaRoute
+  '/_dashboard/galeria': typeof DashboardGaleriaRoute
   '/_dashboard/perfil': typeof DashboardPerfilRoute
   '/instagram/callback': typeof InstagramCallbackRoute
   '/_dashboard/': typeof DashboardIndexRoute
@@ -115,6 +124,7 @@ export interface FileRouteTypes {
     | '/sso-callback'
     | '/calendario'
     | '/conversa'
+    | '/galeria'
     | '/perfil'
     | '/instagram/callback'
     | '/api/integrations/instagram/callback'
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
     | '/sso-callback'
     | '/calendario'
     | '/conversa'
+    | '/galeria'
     | '/perfil'
     | '/instagram/callback'
     | '/'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '/sso-callback'
     | '/_dashboard/calendario'
     | '/_dashboard/conversa'
+    | '/_dashboard/galeria'
     | '/_dashboard/perfil'
     | '/instagram/callback'
     | '/_dashboard/'
@@ -203,6 +215,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardPerfilRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/_dashboard/galeria': {
+      id: '/_dashboard/galeria'
+      path: '/galeria'
+      fullPath: '/galeria'
+      preLoaderRoute: typeof DashboardGaleriaRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/_dashboard/conversa': {
       id: '/_dashboard/conversa'
       path: '/conversa'
@@ -230,6 +249,7 @@ declare module '@tanstack/react-router' {
 interface DashboardRouteChildren {
   DashboardCalendarioRoute: typeof DashboardCalendarioRoute
   DashboardConversaRoute: typeof DashboardConversaRoute
+  DashboardGaleriaRoute: typeof DashboardGaleriaRoute
   DashboardPerfilRoute: typeof DashboardPerfilRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
 }
@@ -237,6 +257,7 @@ interface DashboardRouteChildren {
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardCalendarioRoute: DashboardCalendarioRoute,
   DashboardConversaRoute: DashboardConversaRoute,
+  DashboardGaleriaRoute: DashboardGaleriaRoute,
   DashboardPerfilRoute: DashboardPerfilRoute,
   DashboardIndexRoute: DashboardIndexRoute,
 }

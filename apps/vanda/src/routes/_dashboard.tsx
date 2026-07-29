@@ -3,7 +3,7 @@ import { RedirectToSignIn, Show } from "@clerk/tanstack-react-start";
 import { Navigate, Outlet, createFileRoute } from "@tanstack/react-router";
 import { SidebarInset, SidebarProvider } from "@vanda-studio/ui/components/sidebar";
 import { TooltipProvider } from "@vanda-studio/ui/components/tooltip";
-import { AppSidebar } from "../components/app-sidebar";
+import { AppSidebar, CollapsedSidebarControls } from "../components/app-sidebar";
 import { ActiveAccountProvider, useActiveAccount } from "../components/active-account";
 
 export const Route = createFileRoute("/_dashboard")({
@@ -38,9 +38,16 @@ function DashboardGate() {
   }
   return (
     <TooltipProvider>
-      <SidebarProvider style={{ "--sidebar-width": "15rem" } as CSSProperties}>
+      <SidebarProvider
+        style={
+          {
+            "--sidebar-width": "17rem",
+          } as CSSProperties
+        }
+      >
         <AppSidebar />
-        <SidebarInset className="flex h-svh flex-col overflow-hidden bg-app">
+        <SidebarInset className="relative flex h-svh flex-col overflow-hidden bg-app">
+          <CollapsedSidebarControls />
           <Outlet />
         </SidebarInset>
       </SidebarProvider>
