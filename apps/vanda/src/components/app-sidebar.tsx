@@ -235,23 +235,21 @@ function AccountMenu() {
 
   return (
     <DropdownMenu>
-      <ActionTooltip label={name} side="top">
-        <DropdownMenuTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={name}
-              className="size-10 shrink-0 rounded-full p-0 hover:bg-sidebar-accent data-popup-open:bg-sidebar-accent"
-            />
-          }
-        >
-          <Avatar className="size-8">
-            <AvatarImage src={user?.imageUrl} alt={name} />
-            <AvatarFallback className="text-[11px] font-semibold">{initials}</AvatarFallback>
-          </Avatar>
-        </DropdownMenuTrigger>
-      </ActionTooltip>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={name}
+            className="size-10 shrink-0 rounded-full p-0 hover:bg-sidebar-accent data-popup-open:bg-sidebar-accent"
+          />
+        }
+      >
+        <Avatar className="size-8">
+          <AvatarImage src={user?.imageUrl} alt={name} />
+          <AvatarFallback className="text-[11px] font-semibold">{initials}</AvatarFallback>
+        </Avatar>
+      </DropdownMenuTrigger>
       <DropdownMenuContent className="min-w-56 rounded-lg" align="end" side="right" sideOffset={4}>
         <DropdownMenuGroup>
           <DropdownMenuItem className="gap-2 p-2" onClick={() => clerk.openUserProfile()}>
