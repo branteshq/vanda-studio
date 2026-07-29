@@ -9,7 +9,12 @@ import {
 } from "react";
 import { useUser } from "@clerk/tanstack-react-start";
 import { createFileRoute } from "@tanstack/react-router";
-import { useSmoothText, useUIMessages, type UIMessage } from "@convex-dev/agent/react";
+import {
+  optimisticallySendMessage,
+  useSmoothText,
+  useUIMessages,
+  type UIMessage,
+} from "@convex-dev/agent/react";
 import { useAction, useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
 import {
@@ -205,7 +210,14 @@ function NewConversationHero() {
 }
 
 function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; threadId: string }) {
-  const sendMessage = useMutation(api.chat.sendMessage);
+  // Optimistic: the user's bubble renders the frame Enter is pressed, then is
+  // replaced by the server copy when the mutation round-trip lands.
+  const sendMessage = useMutation(api.chat.sendMessage).withOptimisticUpdate((store, args) => {
+    optimisticallySendMessage(api.chat.listMessages)(store, {
+      threadId: args.threadId,
+      prompt: args.prompt,
+    });
+  });
   const [draft, setDraft] = useState("");
   const [canvasProjectId, setCanvasProjectId] = useState<Id<"contentProjects"> | null>(null);
 
@@ -655,7 +667,12 @@ function CarouselCanvas({
   onClose: () => void;
 }) {
   const data = useQuery(api.contentStudio.project, { projectId });
-  const sendMessage = useMutation(api.chat.sendMessage);
+  const sendMessage = useMutation(api.chat.sendMessage).withOptimisticUpdate((store, args) => {
+    optimisticallySendMessage(api.chat.listMessages)(store, {
+      threadId: args.threadId,
+      prompt: args.prompt,
+    });
+  });
   const reviewDraft = useAction(api.contentStudioNode.reviewDraft);
   const requestRender = useMutation(api.contentStudio.requestRender);
   const archiveProject = useMutation(api.contentStudio.archiveProject);
