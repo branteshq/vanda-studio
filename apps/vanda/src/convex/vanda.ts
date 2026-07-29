@@ -33,7 +33,8 @@ Regras de comportamento:
 - Trabalhos longos (varredura de mercado, criação de carrossel, revisão de slide) rodam em segundo plano: avise que você começou e que retorna quando terminar.
 - Publicação é irreversível: ela sempre passa pelo fluxo de aprovação — nunca trate um "sim" em texto como aprovação.
 - Não invente fatos sobre a marca: o que você sabe vem da memória de marca confirmada pelo dono. Se faltar contexto, pergunte ou peça para completar o perfil.
-- Imagens com a pessoa do dono só podem ser geradas a partir de fotos de rosto autorizadas (list_reference_photos). Se o usuário pedir conteúdo consigo mesmo e não houver foto de rosto autorizada, peça para enviar uma no Perfil antes.`;
+- Imagens com a pessoa do dono só podem ser geradas a partir de fotos de rosto autorizadas (list_reference_photos). Se o usuário pedir conteúdo consigo mesmo e não houver foto de rosto autorizada, peça para enviar uma no Perfil antes.
+- Para retratar o dono com paint, primeiro chame list_reference_photos e passe o id de uma referência de rosto autorizada em referenceImageIds.`;
 
 const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });
 
@@ -117,7 +118,10 @@ const createCarousel = createTool({
   inputSchema: z.object({
     creativeBriefId: z.string().describe("id do brief criativo da oportunidade"),
   }),
-  execute: async (ctx: VandaToolCtx, { creativeBriefId }: { creativeBriefId: string }): Promise<string> => {
+  execute: async (
+    ctx: VandaToolCtx,
+    { creativeBriefId }: { creativeBriefId: string },
+  ): Promise<string> => {
     await ctx.scheduler.runAfter(0, internal.vanda.runCarouselCreation, {
       accountId: ctx.accountId,
       creativeBriefId: creativeBriefId as Id<"creativeBriefs">,
@@ -137,7 +141,11 @@ const reviseSlide = createTool({
   }),
   execute: async (
     ctx: VandaToolCtx,
-    { projectId, slideId, instruction }: { projectId: string; slideId: string; instruction: string },
+    {
+      projectId,
+      slideId,
+      instruction,
+    }: { projectId: string; slideId: string; instruction: string },
   ): Promise<string> => {
     await ctx.scheduler.runAfter(0, internal.vanda.runSlideRevision, {
       accountId: ctx.accountId,
@@ -179,13 +187,46 @@ const publishProject = createTool({
   ): Promise<unknown> => {
     const at = scheduledFor ? Date.parse(scheduledFor) : undefined;
     if (scheduledFor && Number.isNaN(at)) throw new Error("data de agendamento inválida");
-    const scheduledPostId: string = await ctx.runMutation(internal.contentStudio.approveProjectInternal, {
-      projectId: projectId as Id<"contentProjects">,
-      accountId: ctx.accountId,
-      ...(at !== undefined ? { scheduledFor: at } : {}),
-    });
+    const scheduledPostId: string = await ctx.runMutation(
+      internal.contentStudio.approveProjectInternal,
+      {
+        projectId: projectId as Id<"contentProjects">,
+        accountId: ctx.accountId,
+        ...(at !== undefined ? { scheduledFor: at } : {}),
+      },
+    );
     return { scheduledPostId, scheduledFor: at ?? "imediata" };
   },
+});
+
+const paint = createTool({
+  description:
+    "Gera uma imagem a partir de um prompt visual detalhado que VOCÊ escreve com base no pedido do usuário e na marca. Para retratar o dono, primeiro use list_reference_photos e passe uma foto de rosto autorizada em referenceImageIds. Pode usar referências autorizadas ou editar uma imagem existente da conta.",
+  inputSchema: z.object({
+    prompt: z.string().describe("prompt visual detalhado escrito pela Vanda"),
+    aspectRatio: z.enum(["1:1", "4:5", "9:16", "16:9"]).default("4:5"),
+    referenceImageIds: z.array(z.string()).optional(),
+    editOfImageId: z.string().optional(),
+  }),
+  execute: async (
+    ctx: VandaToolCtx,
+    args: {
+      prompt: string;
+      aspectRatio: "1:1" | "4:5" | "9:16" | "16:9";
+      referenceImageIds?: string[] | undefined;
+      editOfImageId?: string | undefined;
+    },
+  ): Promise<unknown> =>
+    ctx.runAction(internal.images.paint, {
+      accountId: ctx.accountId,
+      prompt: args.prompt,
+      aspectRatio: args.aspectRatio,
+      model: "openai/gpt-image-2",
+      ...(args.referenceImageIds
+        ? { referenceImageIds: args.referenceImageIds as Array<Id<"images">> }
+        : {}),
+      ...(args.editOfImageId ? { editOfImageId: args.editOfImageId as Id<"images"> } : {}),
+    }),
 });
 
 const discardProject = createTool({
@@ -215,6 +256,7 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
     create_carousel: createCarousel,
     revise_slide: reviseSlide,
     request_render: requestRender,
+    paint,
     publish_project: publishProject,
     discard_project: discardProject,
   },
