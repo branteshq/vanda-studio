@@ -172,17 +172,13 @@ function Conversation({ accountId }: { accountId: Id<"accounts"> }) {
               <MessageScrollerViewport>
                 <MessageScrollerContent
                   aria-busy={streaming}
-                  className="mx-auto w-full max-w-3xl gap-6 px-4 py-6 md:px-6"
+                  className="mx-auto w-full max-w-3xl justify-end gap-6 px-4 py-6 md:px-6"
                 >
                   {loading ? (
                     <ConversationSkeleton />
                   ) : (
                     messages.results.map((message) => (
-                      <MessageScrollerItem
-                        key={message.key}
-                        messageId={message.key}
-                        scrollAnchor={message.role === "user"}
-                      >
+                      <MessageScrollerItem key={message.key} messageId={message.key}>
                         <ChatMessage
                           message={message}
                           accountId={accountId}
