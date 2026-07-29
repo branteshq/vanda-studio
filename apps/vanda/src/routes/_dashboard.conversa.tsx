@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Bubble, BubbleContent } from "@vanda-studio/ui/components/bubble";
+import { Markdown } from "@vanda-studio/ui/components/markdown";
 import { Marker, MarkerContent, MarkerIcon } from "@vanda-studio/ui/components/marker";
 import {
   Message,
@@ -308,7 +309,9 @@ function MessagePart({
     if (!text.trim()) return null;
     return (
       <Bubble variant="ghost">
-        <BubbleContent className="whitespace-pre-wrap text-text-2">{text}</BubbleContent>
+        <BubbleContent>
+          <Markdown className="text-sm text-text-2">{text}</Markdown>
+        </BubbleContent>
       </Bubble>
     );
   }
