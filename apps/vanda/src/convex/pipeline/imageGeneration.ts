@@ -18,6 +18,8 @@ export interface ImageAssetGeneratorShape {
   readonly generate: (input: {
     readonly prompt: string;
     readonly referenceUrls?: ReadonlyArray<string> | undefined;
+    /** OpenRouter-supported output size; omitted keeps the carousel default. */
+    readonly size?: string | undefined;
   }) => Effect.Effect<GeneratedVisual, ImageGenerationFailed>;
 }
 
@@ -158,7 +160,7 @@ export const openRouterImageGeneratorLayer = (input: {
   readonly model: string;
 }): Layer.Layer<ImageAssetGenerator> =>
   Layer.succeed(ImageAssetGenerator, {
-    generate: ({ prompt, referenceUrls }) =>
+    generate: ({ prompt, referenceUrls, size }) =>
       Effect.tryPromise({
         try: async () => {
           const response = await fetch("https://openrouter.ai/api/v1/images", {
@@ -171,7 +173,7 @@ export const openRouterImageGeneratorLayer = (input: {
               model: input.model,
               prompt,
               n: 1,
-              size: "2048x2560",
+              size: size ?? "2048x2560",
               quality: "high",
               output_format: "jpeg",
               output_compression: 90,
