@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "convex/react";
+import { useQuery } from "convex-helpers/react/cache";
 import { CalendarDays, ChevronLeft, ChevronRight, Layers3 } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { StatusPill } from "@vanda-studio/ui/components/status-pill";

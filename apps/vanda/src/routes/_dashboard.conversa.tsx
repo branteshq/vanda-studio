@@ -10,7 +10,8 @@ import {
 import { useUser } from "@clerk/tanstack-react-start";
 import { createFileRoute } from "@tanstack/react-router";
 import { useSmoothText, useUIMessages, type UIMessage } from "@convex-dev/agent/react";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useAction, useMutation } from "convex/react";
+import { useQuery } from "convex-helpers/react/cache";
 import {
   Archive,
   ArrowUp,

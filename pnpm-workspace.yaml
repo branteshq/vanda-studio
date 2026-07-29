@@ -28,3 +28,6 @@ catalog:
 minimumReleaseAgeExclude:
   - "@base-ui/react@1.6.0"
   - "@base-ui/utils@0.3.1"
+
+patchedDependencies:
+  convex-helpers@0.1.120: patches/convex-helpers@0.1.120.patch

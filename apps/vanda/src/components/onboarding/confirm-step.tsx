@@ -1,5 +1,6 @@
 import { type ReactNode, useRef, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
+import { useQuery } from "convex-helpers/react/cache";
 import { ArrowRight, Plus, X } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Input } from "@vanda-studio/ui/components/input";
