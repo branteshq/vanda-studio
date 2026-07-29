@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type FormEvent,
   type KeyboardEvent,
@@ -18,6 +19,8 @@ import {
   ChevronRight,
   CircleDashed,
   Images,
+  Pencil,
+  Plus,
   RefreshCw,
   Send,
   Sparkles,
@@ -57,6 +60,8 @@ import type { Id } from "../convex/_generated/dataModel";
 
 export const Route = createFileRoute("/_dashboard/conversa")({
   component: ConversaPage,
+  validateSearch: (search: Record<string, unknown>): { t?: string } =>
+    typeof search.t === "string" && search.t ? { t: search.t } : {},
 });
 
 type StatusTone = "neutral" | "creating" | "needs" | "scheduled" | "done";
@@ -122,7 +127,203 @@ const projectIdOf = (part: ToolPartView): Id<"contentProjects"> | null => {
 function ConversaPage() {
   const { activeAccount } = useActiveAccount();
   if (!activeAccount) return null;
-  return <Conversation key={activeAccount.id} accountId={activeAccount.id} />;
+  return <ConversationShell key={activeAccount.id} accountId={activeAccount.id} />;
+}
+
+interface ThreadItem {
+  threadId: string;
+  title: string | null;
+  createdAt: number;
+}
+
+function relativeTime(timestamp: number): string {
+  const minutes = Math.floor((Date.now() - timestamp) / 60_000);
+  if (minutes < 1) return "agora";
+  if (minutes < 60) return `há ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `há ${hours} h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `há ${days} d`;
+  return new Date(timestamp).toLocaleDateString("pt-BR");
+}
+
+/**
+ * Resolves the active conversation and hosts the thread rail. The URL (?t=…) is
+ * the selection state — deep-linkable and refresh-safe; an absent or foreign `t`
+ * falls back to the most recent conversation, and a first visit creates one.
+ */
+function ConversationShell({ accountId }: { accountId: Id<"accounts"> }) {
+  const threads = useQuery(api.chat.listThreads, { accountId });
+  const createNewThread = useMutation(api.chat.createNewThread);
+  const { t } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const creatingRef = useRef(false);
+
+  const threadId =
+    threads === undefined
+      ? undefined
+      : t && threads.some((thread) => thread.threadId === t)
+        ? t
+        : (threads[0]?.threadId ?? null);
+
+  // First visit (or everything archived): open a fresh conversation.
+  useEffect(() => {
+    if (threads === undefined || threads.length > 0 || creatingRef.current) return;
+    creatingRef.current = true;
+    void createNewThread({ accountId })
+      .then((id) => navigate({ search: { t: id }, replace: true }))
+      .finally(() => {
+        creatingRef.current = false;
+      });
+  }, [threads, createNewThread, accountId, navigate]);
+
+  const openThread = (id: string) => void navigate({ search: { t: id } });
+  const startNewThread = () =>
+    void createNewThread({ accountId }).then((id) => navigate({ search: { t: id } }));
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <MobileThreadBar
+        threads={threads ?? []}
+        activeThreadId={threadId ?? null}
+        onOpen={openThread}
+        onNew={startNewThread}
+      />
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <ThreadRail
+          accountId={accountId}
+          threads={threads ?? []}
+          activeThreadId={threadId ?? null}
+          onOpen={openThread}
+          onNew={startNewThread}
+        />
+        {threadId ? (
+          <Conversation key={threadId} accountId={accountId} threadId={threadId} />
+        ) : (
+          <div className="flex flex-1 items-center justify-center">
+            <Spinner className="size-5 text-text-4" />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ThreadRail({
+  accountId,
+  threads,
+  activeThreadId,
+  onOpen,
+  onNew,
+}: {
+  accountId: Id<"accounts">;
+  threads: ThreadItem[];
+  activeThreadId: string | null;
+  onOpen: (threadId: string) => void;
+  onNew: () => void;
+}) {
+  const renameThread = useMutation(api.chat.renameThread);
+  const archiveThread = useMutation(api.chat.archiveThread);
+
+  const rename = (thread: ThreadItem) => {
+    const title = window.prompt("Renomear conversa", thread.title ?? "");
+    if (title?.trim()) void renameThread({ accountId, threadId: thread.threadId, title });
+  };
+  const archive = (thread: ThreadItem) => {
+    if (!window.confirm("Arquivar esta conversa?")) return;
+    void archiveThread({ accountId, threadId: thread.threadId });
+  };
+
+  return (
+    <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-app md:flex">
+      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border pr-2 pl-4">
+        <h2 className="text-sm font-semibold text-text">Conversas</h2>
+        <Button variant="ghost" size="icon-sm" aria-label="Nova conversa" onClick={onNew}>
+          <Plus />
+        </Button>
+      </div>
+      <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2">
+        {threads.map((thread) => (
+          <div
+            key={thread.threadId}
+            className={cn(
+              "group flex items-center rounded-lg",
+              thread.threadId === activeThreadId ? "bg-surface" : "hover:bg-surface/60",
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => onOpen(thread.threadId)}
+              className="min-w-0 flex-1 px-2.5 py-2 text-left"
+            >
+              <span
+                className={cn(
+                  "block truncate text-sm",
+                  thread.threadId === activeThreadId ? "text-text" : "text-text-3",
+                )}
+              >
+                {thread.title ?? "Nova conversa"}
+              </span>
+              <span className="block text-[11px] text-text-5">
+                {relativeTime(thread.createdAt)}
+              </span>
+            </button>
+            <div className="hidden shrink-0 items-center pr-1.5 group-hover:flex">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Renomear conversa"
+                onClick={() => rename(thread)}
+              >
+                <Pencil />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Arquivar conversa"
+                onClick={() => archive(thread)}
+              >
+                <Archive />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </nav>
+    </aside>
+  );
+}
+
+/** Compact thread switcher for small screens, where the rail is hidden. */
+function MobileThreadBar({
+  threads,
+  activeThreadId,
+  onOpen,
+  onNew,
+}: {
+  threads: ThreadItem[];
+  activeThreadId: string | null;
+  onOpen: (threadId: string) => void;
+  onNew: () => void;
+}) {
+  return (
+    <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3 md:hidden">
+      <select
+        value={activeThreadId ?? ""}
+        onChange={(event) => onOpen(event.target.value)}
+        aria-label="Escolher conversa"
+        className="h-8 min-w-0 flex-1 rounded-md border border-border bg-surface px-2 text-sm text-text outline-none"
+      >
+        {threads.map((thread) => (
+          <option key={thread.threadId} value={thread.threadId}>
+            {thread.title ?? "Nova conversa"}
+          </option>
+        ))}
+      </select>
+      <Button variant="ghost" size="icon-sm" aria-label="Nova conversa" onClick={onNew}>
+        <Plus />
+      </Button>
+    </div>
+  );
 }
 
 /**
@@ -137,24 +338,14 @@ function useEntranceOnMount(): boolean {
   return useState(ready)[0];
 }
 
-function Conversation({ accountId }: { accountId: Id<"accounts"> }) {
-  const existingThreadId = useQuery(api.chat.getThread, { accountId });
-  const ensureThread = useMutation(api.chat.ensureThread);
+function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; threadId: string }) {
   const sendMessage = useMutation(api.chat.sendMessage);
-  const [createdThreadId, setCreatedThreadId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [canvasProjectId, setCanvasProjectId] = useState<Id<"contentProjects"> | null>(null);
-  const threadId = existingThreadId ?? createdThreadId;
-
-  useEffect(() => {
-    if (existingThreadId === null && createdThreadId === null) {
-      void ensureThread({ accountId }).then(setCreatedThreadId);
-    }
-  }, [existingThreadId, createdThreadId, ensureThread, accountId]);
 
   const messages = useUIMessages(
     api.chat.listMessages,
-    threadId ? { accountId, threadId } : "skip",
+    { accountId, threadId },
     { initialNumItems: 60, stream: true },
   );
 
@@ -162,7 +353,7 @@ function Conversation({ accountId }: { accountId: Id<"accounts"> }) {
     const prompt = text.trim();
     if (!prompt) return;
     setDraft("");
-    await sendMessage({ accountId, prompt });
+    await sendMessage({ accountId, threadId, prompt });
   };
 
   const onSubmit = (event: FormEvent) => {
@@ -177,7 +368,7 @@ function Conversation({ accountId }: { accountId: Id<"accounts"> }) {
     }
   };
 
-  const loading = threadId === undefined || messages.status === "LoadingFirstPage";
+  const loading = messages.status === "LoadingFirstPage";
   const showSuggestions = !loading && messages.results.length <= 1;
   const streaming = messages.results.at(-1)?.status === "streaming";
 
@@ -191,7 +382,7 @@ function Conversation({ accountId }: { accountId: Id<"accounts"> }) {
 
   return (
     <EntranceReadyContext.Provider value={entranceReady}>
-    <div className="relative flex min-h-0 flex-1 overflow-hidden">
+    <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <MessageScrollerProvider autoScroll>
           <div className="min-h-0 flex-1 overflow-hidden">
@@ -209,6 +400,7 @@ function Conversation({ accountId }: { accountId: Id<"accounts"> }) {
                         <ChatMessage
                           message={message}
                           accountId={accountId}
+                          threadId={threadId}
                           onOpenProject={setCanvasProjectId}
                         />
                       </MessageScrollerItem>
@@ -262,6 +454,7 @@ function Conversation({ accountId }: { accountId: Id<"accounts"> }) {
         <CarouselCanvas
           projectId={canvasProjectId}
           accountId={accountId}
+          threadId={threadId}
           onClose={() => setCanvasProjectId(null)}
         />
       ) : null}
@@ -273,10 +466,12 @@ function Conversation({ accountId }: { accountId: Id<"accounts"> }) {
 function ChatMessage({
   message,
   accountId,
+  threadId,
   onOpenProject,
 }: {
   message: UIMessage;
   accountId: Id<"accounts">;
+  threadId: string;
   onOpenProject: (projectId: Id<"contentProjects">) => void;
 }) {
   const enter = useEntranceOnMount();
@@ -357,6 +552,7 @@ function ChatMessage({
               key={p.approval.id}
               part={p}
               accountId={accountId}
+              threadId={threadId}
               approvalId={p.approval.id}
               projectId={projectIdOf(p)}
               onOpenProject={onOpenProject}
@@ -511,12 +707,14 @@ function ProjectPreview({
 function ApprovalRequest({
   part,
   accountId,
+  threadId,
   approvalId,
   projectId,
   onOpenProject,
 }: {
   part: ToolPartView;
   accountId: Id<"accounts">;
+  threadId: string;
   approvalId: string;
   projectId: Id<"contentProjects"> | null;
   onOpenProject: (projectId: Id<"contentProjects">) => void;
@@ -532,7 +730,7 @@ function ApprovalRequest({
   const answer = async (approve: boolean) => {
     setBusy(approve ? "approve" : "deny");
     try {
-      await respond({ accountId, approvalId, approve });
+      await respond({ accountId, threadId, approvalId, approve });
     } finally {
       setBusy(null);
     }
@@ -587,10 +785,12 @@ function ApprovalRequest({
 function CarouselCanvas({
   projectId,
   accountId,
+  threadId,
   onClose,
 }: {
   projectId: Id<"contentProjects">;
   accountId: Id<"accounts">;
+  threadId: string;
   onClose: () => void;
 }) {
   const data = useQuery(api.contentStudio.project, { projectId });
@@ -640,6 +840,7 @@ function CarouselCanvas({
     await run("revise", async () => {
       await sendMessage({
         accountId,
+        threadId,
         prompt: `Refaça o slide ${slide.position} do projeto ${projectId} com esta instrução: ${text}`,
       });
       setRevisingSlideId(null);

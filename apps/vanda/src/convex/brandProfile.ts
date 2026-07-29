@@ -119,14 +119,18 @@ export const approveBrandProfile = mutation({
     }
 
     // Onboarding resolves into the conversation: Vanda opens the account's
-    // thread with what she learned and proposes the first action, so the first
-    // thing the owner sees in /conversa is an operator, not an empty chat.
-    if (account.vandaThreadId === undefined) {
+    // first thread with what she learned and proposes the first action, so the
+    // first thing the owner sees in /conversa is an operator, not an empty chat.
+    // Threads are keyed by the account id (multi-thread model — see chat.ts).
+    const existingThreads = await ctx.runQuery(components.agent.threads.listThreadsByUserId, {
+      userId: String(accountId),
+      paginationOpts: { cursor: null, numItems: 1 },
+    });
+    if (existingThreads.page.length === 0) {
       const threadId = await createThread(ctx, components.agent, {
-        userId: account.ownerUserId ? String(account.ownerUserId) : null,
-        title: account.name ?? "Vanda",
+        userId: String(accountId),
+        title: "Boas-vindas",
       });
-      await ctx.db.patch(accountId, { vandaThreadId: threadId, updatedAt: Date.now() });
       const voice = analysis.voice.items.slice(0, 4).join(", ");
       const themes = analysis.themes.items.slice(0, 4).join(", ");
       await saveMessage(ctx, components.agent, {

@@ -7,11 +7,13 @@ import type { Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
 
 /**
- * Vanda, the conversational operator. One persistent thread per Instagram
- * account; the agent converses, delegates to the product's capabilities through
- * a small set of typed tools, and stops at consequential decisions. Durable
- * workflows and domain tables remain the source of truth — the tools only reach
- * internal functions scoped to the thread's account.
+ * Vanda, the conversational operator. Threads are keyed per Instagram account
+ * (an owner can hold many conversations per account); the agent converses,
+ * delegates to the product's capabilities through a small set of typed tools,
+ * and stops at consequential decisions. Durable workflows and domain tables
+ * remain the source of truth — the tools only reach internal functions scoped
+ * to the thread's account. Background jobs carry the originating threadId so
+ * completion notes land in the conversation that asked for the work.
  */
 
 export const VANDA_MODEL = "openai/gpt-5-mini";
@@ -85,6 +87,7 @@ const startMarketScan = createTool({
   execute: async (ctx: VandaToolCtx): Promise<string> => {
     await ctx.scheduler.runAfter(0, internal.vanda.runMarketScan, {
       accountId: ctx.accountId,
+      ...(ctx.threadId ? { threadId: ctx.threadId } : {}),
     });
     return "Varredura iniciada em segundo plano.";
   },
@@ -118,6 +121,7 @@ const createCarousel = createTool({
     await ctx.scheduler.runAfter(0, internal.vanda.runCarouselCreation, {
       accountId: ctx.accountId,
       creativeBriefId: creativeBriefId as Id<"creativeBriefs">,
+      ...(ctx.threadId ? { threadId: ctx.threadId } : {}),
     });
     return "Criação do carrossel iniciada em segundo plano.";
   },
@@ -140,6 +144,7 @@ const reviseSlide = createTool({
       projectId: projectId as Id<"contentProjects">,
       slideId,
       instruction,
+      ...(ctx.threadId ? { threadId: ctx.threadId } : {}),
     });
     return "Revisão do slide iniciada em segundo plano.";
   },
@@ -217,12 +222,13 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
 });
 
 // --- Background jobs the tools delegate to ----------------------------------
-// Each runs the real pipeline, then reports back into the account's thread so
-// the user hears about completion without keeping the page (or the turn) open.
+// Each runs the real pipeline, then reports back into the conversation that
+// requested it (threadId), so the user hears about completion without keeping
+// the page (or the turn) open.
 
 export const runMarketScan = internalAction({
-  args: { accountId: v.id("accounts") },
-  handler: async (ctx, { accountId }): Promise<void> => {
+  args: { accountId: v.id("accounts"), threadId: v.optional(v.string()) },
+  handler: async (ctx, { accountId, threadId }): Promise<void> => {
     try {
       const result = (await ctx.runAction(internal.marketNode.runAccount, { accountId })) as {
         postsObserved: number;
@@ -230,6 +236,7 @@ export const runMarketScan = internalAction({
       };
       await ctx.runMutation(internal.chat.postAssistantNote, {
         accountId,
+        ...(threadId ? { threadId } : {}),
         text:
           result.opportunitiesDetected > 0
             ? `Terminei a varredura de mercado: observei ${result.postsObserved} posts e encontrei ${result.opportunitiesDetected} oportunidade(s) nova(s). Me peça para listá-las quando quiser.`
@@ -238,6 +245,7 @@ export const runMarketScan = internalAction({
     } catch (error) {
       await ctx.runMutation(internal.chat.postAssistantNote, {
         accountId,
+        ...(threadId ? { threadId } : {}),
         text: `A varredura de mercado falhou: ${error instanceof Error ? error.message : String(error)}. Me avise se quiser que eu tente de novo.`,
       });
     }
@@ -245,8 +253,12 @@ export const runMarketScan = internalAction({
 });
 
 export const runCarouselCreation = internalAction({
-  args: { accountId: v.id("accounts"), creativeBriefId: v.id("creativeBriefs") },
-  handler: async (ctx, { accountId, creativeBriefId }): Promise<void> => {
+  args: {
+    accountId: v.id("accounts"),
+    creativeBriefId: v.id("creativeBriefs"),
+    threadId: v.optional(v.string()),
+  },
+  handler: async (ctx, { accountId, creativeBriefId, threadId }): Promise<void> => {
     try {
       const projectId = (await ctx.runAction(internal.contentStudioNode.createFromBriefInternal, {
         creativeBriefId,
@@ -257,6 +269,7 @@ export const runCarouselCreation = internalAction({
       });
       await ctx.runMutation(internal.chat.postAssistantNote, {
         accountId,
+        ...(threadId ? { threadId } : {}),
         text: project
           ? `O carrossel "${project.title}" ficou pronto (status: ${project.status}). Me peça para mostrar o projeto quando quiser revisar.`
           : "O carrossel ficou pronto. Me peça para listar os projetos quando quiser revisar.",
@@ -264,6 +277,7 @@ export const runCarouselCreation = internalAction({
     } catch (error) {
       await ctx.runMutation(internal.chat.postAssistantNote, {
         accountId,
+        ...(threadId ? { threadId } : {}),
         text: `A criação do carrossel falhou: ${error instanceof Error ? error.message : String(error)}.`,
       });
     }
@@ -276,8 +290,9 @@ export const runSlideRevision = internalAction({
     projectId: v.id("contentProjects"),
     slideId: v.string(),
     instruction: v.string(),
+    threadId: v.optional(v.string()),
   },
-  handler: async (ctx, { accountId, projectId, slideId, instruction }): Promise<void> => {
+  handler: async (ctx, { accountId, projectId, slideId, instruction, threadId }): Promise<void> => {
     try {
       await ctx.runAction(internal.contentStudioNode.regenerateSlideInternal, {
         projectId,
@@ -286,11 +301,13 @@ export const runSlideRevision = internalAction({
       });
       await ctx.runMutation(internal.chat.postAssistantNote, {
         accountId,
+        ...(threadId ? { threadId } : {}),
         text: "Refiz o slide pedido e mandei o documento para nova revisão e render. Me peça para mostrar o projeto para conferir o resultado.",
       });
     } catch (error) {
       await ctx.runMutation(internal.chat.postAssistantNote, {
         accountId,
+        ...(threadId ? { threadId } : {}),
         text: `A revisão do slide falhou: ${error instanceof Error ? error.message : String(error)}.`,
       });
     }

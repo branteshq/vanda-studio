@@ -173,7 +173,9 @@ export default defineSchema({
     onboardedAt: v.optional(v.number()),
     // Brand type Vanda proposed and the owner confirmed at onboarding (negocio | pessoal).
     kind: v.optional(v.union(...brandKinds.map((k) => v.literal(k)))),
-    // The account's canonical Vanda conversation (an @convex-dev/agent thread).
+    // DEPRECATED (pre-multi-thread): the once-canonical conversation pointer.
+    // Threads are now keyed in the agent component by String(accountId); this
+    // field remains only for the one-time chat:migrateThreadKeys backfill.
     vandaThreadId: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
