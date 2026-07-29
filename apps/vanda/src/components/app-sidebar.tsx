@@ -5,7 +5,6 @@ import { useMutation, useQuery } from "convex/react";
 import {
   Archive,
   BadgeCheckIcon,
-  ChevronsUpDown,
   GalleryHorizontalEnd,
   LogOutIcon,
   MoreHorizontal,
@@ -16,6 +15,7 @@ import {
   Plus,
   Search,
   Trash2,
+  UsersRound,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@vanda-studio/ui/components/avatar";
 import { Button } from "@vanda-studio/ui/components/button";
@@ -45,12 +45,6 @@ import type { Id } from "../convex/_generated/dataModel";
 import { useActiveAccount } from "./active-account";
 import { VandaMark } from "./vanda-mark";
 
-const MODE_LABEL: Record<string, string> = {
-  auto: "Automático",
-  needs_approval: "Aprovação",
-  manual: "Manual",
-};
-
 interface ThreadItem {
   threadId: string;
   title: string | null;
@@ -62,44 +56,31 @@ interface ThreadSection {
   threads: ThreadItem[];
 }
 
-function WorkspaceSwitcher() {
+function ProfileDock() {
   const { isMobile, setOpenMobile } = useSidebar();
   const navigate = useNavigate();
   const { accounts, activeAccount: active, selectAccount } = useActiveAccount();
   const removeAccount = useMutation(api.accounts.remove);
   const [removing, setRemoving] = useState(false);
   const [switching, setSwitching] = useState<string | null>(null);
+  const readyAccounts = accounts?.filter((account) => account.onboardedAt !== null) ?? [];
+  const name = active?.name ?? "negócio atual";
 
-  if (accounts !== undefined && accounts.length === 0) {
-    return (
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuButton
-            size="lg"
-            render={<Link to="/perfil" />}
-            tooltip="Configurar negócio"
-            className="gap-[9px] border border-border-strong bg-inset px-2 transition-colors duration-150 hover:bg-accent"
-          >
-            <span className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-md border border-border-strong">
-              <Plus className="size-4 text-text-4" />
-            </span>
-            <span className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
-              <span className="truncate text-[13px] font-semibold">Configurar negócio</span>
-              <span className="truncate text-[11px] text-text-4">Conecte seu Instagram</span>
-            </span>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      </SidebarMenu>
-    );
-  }
-
-  const name = active?.name ?? "Vanda Studio";
-  const initials = getInitials(name) || "VS";
-  const subtitle = active
-    ? active.handle
-      ? `@${active.handle}`
-      : (MODE_LABEL[active.mode] ?? active.mode)
-    : "Carregando...";
+  const handleSelect = async (account: NonNullable<typeof accounts>[number]) => {
+    if (account.id === active?.id || switching !== null) return;
+    if (account.onboardedAt === null) {
+      await navigate({ to: "/onboarding", search: { accountId: account.id } });
+      return;
+    }
+    setSwitching(account.id);
+    try {
+      await selectAccount(account.id);
+      setOpenMobile(false);
+      await navigate({ to: "/conversa", search: {} });
+    } finally {
+      setSwitching(null);
+    }
+  };
 
   const handleRemoveCurrent = async () => {
     if (!active || removing) return;
@@ -120,105 +101,120 @@ function WorkspaceSwitcher() {
     }
   };
 
-  const handleSelect = async (account: NonNullable<typeof accounts>[number]) => {
-    if (account.id === active?.id || switching !== null) return;
-    if (account.onboardedAt === null) {
-      await navigate({ to: "/onboarding", search: { accountId: account.id } });
-      return;
-    }
-    setSwitching(account.id);
-    try {
-      await selectAccount(account.id);
-      setOpenMobile(false);
-      await navigate({ to: "/conversa", search: {} });
-    } finally {
-      setSwitching(null);
-    }
-  };
-
   return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <SidebarMenuButton
-                size="lg"
-                tooltip={name}
-                className="gap-[9px] border border-border bg-inset/70 px-2 transition-colors duration-150 hover:bg-accent data-popup-open:bg-accent group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent"
-              />
-            }
-          >
-            <span className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-md bg-border-strong text-[11px] font-semibold text-text-2">
-              {initials}
-            </span>
-            <span className="grid min-w-0 flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
-              <span className="truncate text-[13px] font-semibold">{name}</span>
-              <span className="truncate text-[11px] text-text-4">{subtitle}</span>
-            </span>
-            <ChevronsUpDown className="ml-auto size-4 text-text-4 group-data-[collapsible=icon]:hidden" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="min-w-56 rounded-lg"
-            align="start"
-            side={isMobile ? "bottom" : "right"}
-            sideOffset={4}
-          >
-            <DropdownMenuGroup>
-              <DropdownMenuLabel className="text-xs text-muted-foreground">
-                Negócios
-              </DropdownMenuLabel>
-              {accounts?.map((account) => (
-                <DropdownMenuItem
-                  key={account.id}
-                  className="gap-2 p-2"
-                  disabled={switching !== null}
-                  onClick={() => void handleSelect(account)}
-                >
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-border-strong text-[10px] font-semibold text-text-2">
-                    {getInitials(account.name) || "?"}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">
-                    {account.name}
-                    {account.onboardedAt === null ? (
-                      <span className="block text-[10px] text-muted-foreground">
-                        Configuração pendente
-                      </span>
-                    ) : null}
-                  </span>
-                  {account.id === active?.id ? <BadgeCheckIcon className="size-4" /> : null}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem
-                className="gap-2 p-2"
-                onClick={() => void navigate({ to: "/onboarding", search: { flow: "add" } })}
+    <div className="flex h-14 items-center gap-1 border-t border-border px-1 pt-1">
+      <AccountMenu />
+
+      <div className="flex min-w-0 flex-1 items-center justify-center gap-1">
+        {accounts === undefined ? (
+          <>
+            <Skeleton className="size-8 rounded-lg" />
+            <Skeleton className="size-8 rounded-lg" />
+          </>
+        ) : (
+          readyAccounts.slice(0, 3).map((account) => {
+            const selected = account.id === active?.id;
+            return (
+              <button
+                key={account.id}
+                type="button"
+                title={account.name}
+                aria-label={`Trocar para ${account.name}`}
+                aria-pressed={selected}
+                disabled={switching !== null}
+                onClick={() => void handleSelect(account)}
+                className={cn(
+                  "flex size-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold text-text-3 transition-[background-color,color,box-shadow,transform] duration-150 active:scale-[0.97]",
+                  selected
+                    ? "bg-accent text-text ring-1 ring-border-strong"
+                    : "hover:bg-accent hover:text-text",
+                )}
               >
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-md border">
-                  <Plus className="size-4" />
-                </span>
-                <span className="font-medium text-muted-foreground">Adicionar negócio</span>
-              </DropdownMenuItem>
+                {getInitials(account.name) || "?"}
+              </button>
+            );
+          })
+        )}
+      </div>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Selecionar negócio"
+              title="Selecionar negócio"
+              className="size-9 shrink-0 text-text-3 data-popup-open:bg-accent data-popup-open:text-text"
+            />
+          }
+        >
+          <UsersRound />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          className="min-w-64 rounded-lg"
+          align="end"
+          side={isMobile ? "top" : "right"}
+          sideOffset={6}
+        >
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="text-xs text-muted-foreground">
+              Negócios
+            </DropdownMenuLabel>
+            {accounts?.map((account) => (
               <DropdownMenuItem
-                variant="destructive"
+                key={account.id}
                 className="gap-2 p-2"
-                disabled={!active || removing}
-                onClick={() => void handleRemoveCurrent()}
+                disabled={switching !== null}
+                onClick={() => void handleSelect(account)}
               >
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-md border border-destructive/30">
-                  <Trash2 className="size-4" />
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-border-strong text-[10px] font-semibold text-text-2">
+                  {getInitials(account.name) || "?"}
                 </span>
-                <span className="font-medium">
-                  {removing ? "Removendo..." : "Remover negócio atual"}
+                <span className="min-w-0 flex-1 truncate">
+                  {account.name}
+                  {account.handle ? (
+                    <span className="block text-[10px] text-muted-foreground">
+                      @{account.handle}
+                    </span>
+                  ) : account.onboardedAt === null ? (
+                    <span className="block text-[10px] text-muted-foreground">
+                      Configuração pendente
+                    </span>
+                  ) : null}
                 </span>
+                {account.id === active?.id ? <BadgeCheckIcon className="size-4" /> : null}
               </DropdownMenuItem>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarMenuItem>
-    </SidebarMenu>
+            ))}
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuItem
+              className="gap-2 p-2"
+              onClick={() => void navigate({ to: "/onboarding", search: { flow: "add" } })}
+            >
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-md border">
+                <Plus className="size-4" />
+              </span>
+              <span className="font-medium text-muted-foreground">Adicionar negócio</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              className="gap-2 p-2"
+              disabled={!active || removing}
+              onClick={() => void handleRemoveCurrent()}
+            >
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-destructive/30">
+                <Trash2 className="size-4" />
+              </span>
+              <span className="font-medium">
+                {removing ? "Removendo..." : "Remover negócio atual"}
+              </span>
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
 
@@ -236,7 +232,6 @@ function AccountMenu() {
   const clerk = useClerk();
   const navigate = useNavigate();
   const name = user?.fullName ?? user?.username ?? "Minha conta";
-  const email = user?.primaryEmailAddress?.emailAddress ?? "";
   const initials = getInitials(name) || "MC";
   const handleSignOut = async () => {
     await clerk.signOut();
@@ -247,21 +242,19 @@ function AccountMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <SidebarMenuButton
-            size="lg"
-            tooltip={name}
-            className="h-auto gap-[10px] rounded-[10px] px-1.5 py-1 text-sidebar-foreground/90 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-0!"
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={name}
+            title={name}
+            className="size-10 shrink-0 rounded-full p-0 data-popup-open:bg-accent"
           />
         }
       >
-        <Avatar className="size-[30px]">
+        <Avatar className="size-8">
           <AvatarImage src={user?.imageUrl} alt={name} />
           <AvatarFallback className="text-[11px] font-semibold">{initials}</AvatarFallback>
         </Avatar>
-        <span className="min-w-0 flex-1 text-left group-data-[collapsible=icon]:hidden">
-          <span className="block truncate text-[12.5px] font-semibold">{name}</span>
-          <span className="block truncate text-[11px] text-text-4">{email}</span>
-        </span>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="min-w-56 rounded-lg" align="end" side="right" sideOffset={4}>
         <DropdownMenuGroup>
@@ -563,17 +556,14 @@ export function AppSidebar() {
             <GalleryHorizontalEnd />
           </Button>
         </div>
-        <WorkspaceSwitcher />
       </SidebarHeader>
 
       <SidebarContent className="min-h-0 px-2">
         {activeAccount ? <ThreadHistory accountId={activeAccount.id} /> : null}
       </SidebarContent>
 
-      <SidebarFooter className="px-2 pb-2.5">
-        <div className="border-t border-border px-1 pt-2 group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0">
-          <AccountMenu />
-        </div>
+      <SidebarFooter className="px-2 pb-2">
+        <ProfileDock />
       </SidebarFooter>
     </Sidebar>
   );
