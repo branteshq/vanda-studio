@@ -12,8 +12,8 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import {
   Archive,
   ArrowUp,
-  Brain,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleDashed,
@@ -21,7 +21,6 @@ import {
   RefreshCw,
   Send,
   Sparkles,
-  Wrench,
   X,
 } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
@@ -300,7 +299,40 @@ function ChatMessage({
   }
 
   const streaming = message.status === "streaming";
-  const streamingEmpty = streaming && message.parts.length === 0;
+
+  // Classify the turn's parts. Reasoning is never rendered (no thinking traces).
+  // Tool calls collapse into a single "Trabalhou" trace; answer text, carousel
+  // previews, and approval cards stay visible.
+  const answers: Array<{ key: number; text: string }> = [];
+  const toolRows: ToolPartView[] = [];
+  const approvals: ToolPartView[] = [];
+  const previewProjectIds: Id<"contentProjects">[] = [];
+  message.parts.forEach((part, index) => {
+    if (part.type === "text") {
+      const text = (part as { text: string }).text;
+      if (text.trim()) answers.push({ key: index, text });
+      return;
+    }
+    if (part.type === "dynamic-tool" || part.type.startsWith("tool-")) {
+      const p = part as unknown as ToolPartView;
+      if (p.state === "approval-requested" || p.state === "approval-responded") {
+        approvals.push(p);
+      } else {
+        toolRows.push(p);
+      }
+      const pid = projectIdOf(p);
+      if (pid && p.state === "output-available" && !previewProjectIds.includes(pid)) {
+        previewProjectIds.push(pid);
+      }
+    }
+    // reasoning and any other part type are intentionally hidden.
+  });
+
+  const anyToolRunning = toolRows.some(
+    (p) => p.state === "input-streaming" || p.state === "input-available",
+  );
+  const nothingYet =
+    streaming && answers.length === 0 && toolRows.length === 0 && approvals.length === 0;
 
   return (
     <Message align="start" className={cn(enter && "animate-message-in")}>
@@ -308,16 +340,32 @@ function ChatMessage({
         <VandaMark size={14} />
       </MessageAvatar>
       <MessageContent>
-        {message.parts.map((part, index) => (
-          <MessagePart
-            key={index}
-            part={part}
-            streaming={streaming}
-            accountId={accountId}
-            onOpenProject={onOpenProject}
-          />
+        {toolRows.length > 0 ? <ToolTrace parts={toolRows} running={anyToolRunning} /> : null}
+        {answers.map(({ key, text }) => (
+          <Bubble key={key} variant="ghost">
+            <BubbleContent>
+              <StreamingText text={text} streaming={streaming} />
+            </BubbleContent>
+          </Bubble>
         ))}
-        {streamingEmpty ? (
+        {previewProjectIds.map((pid) => (
+          <ProjectPreview key={pid} projectId={pid} onOpen={() => onOpenProject(pid)} />
+        ))}
+        {approvals.map((p, index) =>
+          p.state === "approval-requested" && p.approval ? (
+            <ApprovalRequest
+              key={p.approval.id}
+              part={p}
+              accountId={accountId}
+              approvalId={p.approval.id}
+              projectId={projectIdOf(p)}
+              onOpenProject={onOpenProject}
+            />
+          ) : (
+            <ApprovalResponded key={index} approved={p.approval?.approved === true} />
+          ),
+        )}
+        {nothingYet ? (
           <Marker role="status">
             <MarkerIcon>
               <Spinner />
@@ -337,111 +385,79 @@ function StreamingText({ text, streaming }: { text: string; streaming: boolean }
   return <Markdown>{visible}</Markdown>;
 }
 
-function MessagePart({
-  part,
-  streaming,
-  accountId,
-  onOpenProject,
-}: {
-  part: UIMessage["parts"][number];
-  streaming: boolean;
-  accountId: Id<"accounts">;
-  onOpenProject: (projectId: Id<"contentProjects">) => void;
-}) {
-  if (part.type === "text") {
-    const text = (part as { text: string }).text;
-    if (!text.trim()) return null;
-    return (
-      <Bubble variant="ghost">
-        <BubbleContent>
-          <StreamingText text={text} streaming={streaming} />
-        </BubbleContent>
-      </Bubble>
-    );
-  }
-
-  if (part.type === "reasoning") {
-    const text = (part as { text?: string }).text?.trim();
-    if (!text) return null;
-    return (
-      <Marker variant="border">
-        <MarkerIcon>
-          <Brain />
-        </MarkerIcon>
-        <MarkerContent className="text-text-4">{text}</MarkerContent>
-      </Marker>
-    );
-  }
-
-  if (part.type === "dynamic-tool" || part.type.startsWith("tool-")) {
-    return (
-      <ToolActivity
-        part={part as unknown as ToolPartView}
-        accountId={accountId}
-        onOpenProject={onOpenProject}
-      />
-    );
-  }
-  return null;
-}
-
-function ToolActivity({
-  part,
-  accountId,
-  onOpenProject,
-}: {
-  part: ToolPartView;
-  accountId: Id<"accounts">;
-  onOpenProject: (projectId: Id<"contentProjects">) => void;
-}) {
-  const name = toolNameOf(part);
-  const label = TOOL_LABEL[name] ?? name;
-  const projectId = projectIdOf(part);
-
-  if (part.state === "approval-requested" && part.approval) {
-    return (
-      <ApprovalRequest
-        part={part}
-        accountId={accountId}
-        approvalId={part.approval.id}
-        projectId={projectId}
-        onOpenProject={onOpenProject}
-      />
-    );
-  }
-
-  if (part.state === "approval-responded") {
-    const approved = part.approval?.approved === true;
-    return (
-      <Marker>
-        <MarkerIcon>
-          {approved ? <Check className="text-green" /> : <X />}
-        </MarkerIcon>
-        <MarkerContent>
-          {approved ? "Publicação aprovada por você" : "Publicação negada por você"}
-        </MarkerContent>
-      </Marker>
-    );
-  }
-
-  const running = part.state === "input-streaming" || part.state === "input-available";
-  const failed = part.state === "output-error";
-
+/**
+ * The turn's tool work, collapsed behind an Amp-style "Trabalhou" divider. Live
+ * while running (auto-expanded, so the owner watches progress), then it settles
+ * closed on completion — clickable to reopen. Reasoning never appears here.
+ */
+function ToolTrace({ parts, running }: { parts: ToolPartView[]; running: boolean }) {
+  const [override, setOverride] = useState<boolean | null>(null);
+  const open = override ?? running;
+  const label = running
+    ? "Trabalhando…"
+    : `Trabalhou · ${parts.length} ${parts.length === 1 ? "ação" : "ações"}`;
   return (
-    <div className="flex flex-col gap-2">
-      <Marker role={running ? "status" : undefined}>
-        <MarkerIcon>
-          {running ? <Spinner /> : failed ? <X className="text-destructive" /> : <Wrench />}
-        </MarkerIcon>
-        <MarkerContent className={cn(running && "shimmer", failed && "text-destructive")}>
-          {label}
-          {failed && part.errorText ? ` — ${part.errorText}` : null}
-        </MarkerContent>
+    <div className="w-full">
+      <Marker variant="separator" asChild>
+        <button
+          type="button"
+          onClick={() => setOverride((o) => !(o ?? running))}
+          aria-expanded={open}
+          className="cursor-pointer transition-colors hover:text-text-3"
+        >
+          <MarkerContent className={cn("inline-flex items-center gap-1", running && "shimmer")}>
+            {label}
+            <ChevronDown
+              className={cn("size-3.5 transition-transform duration-200", open && "rotate-180")}
+            />
+          </MarkerContent>
+        </button>
       </Marker>
-      {projectId && part.state === "output-available" ? (
-        <ProjectPreview projectId={projectId} onOpen={() => onOpenProject(projectId)} />
+      {open ? (
+        <div className="mt-1.5 space-y-1 pl-1">
+          {parts.map((part, index) => (
+            <ToolRow key={index} part={part} />
+          ))}
+        </div>
       ) : null}
     </div>
+  );
+}
+
+function ToolRow({ part }: { part: ToolPartView }) {
+  const name = toolNameOf(part);
+  const label = TOOL_LABEL[name] ?? name;
+  const running = part.state === "input-streaming" || part.state === "input-available";
+  const failed = part.state === "output-error";
+  return (
+    <Marker role={running ? "status" : undefined}>
+      <MarkerIcon>
+        {running ? (
+          <Spinner />
+        ) : failed ? (
+          <X className="text-destructive" />
+        ) : (
+          <Check className="text-text-5" />
+        )}
+      </MarkerIcon>
+      <MarkerContent
+        className={cn("text-text-4", running && "shimmer", failed && "text-destructive")}
+      >
+        {label}
+        {failed && part.errorText ? ` — ${part.errorText}` : null}
+      </MarkerContent>
+    </Marker>
+  );
+}
+
+function ApprovalResponded({ approved }: { approved: boolean }) {
+  return (
+    <Marker>
+      <MarkerIcon>{approved ? <Check className="text-green" /> : <X />}</MarkerIcon>
+      <MarkerContent>
+        {approved ? "Publicação aprovada por você" : "Publicação negada por você"}
+      </MarkerContent>
+    </Marker>
   );
 }
 
