@@ -486,35 +486,31 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
         }}
       >
         <DialogContent showCloseButton={false}>
-          <form className="grid gap-5" onSubmit={saveRename}>
+          <form className="grid gap-4" onSubmit={saveRename}>
             <DialogHeader>
               <DialogTitle>Renomear conversa</DialogTitle>
-              <DialogDescription>
-                Escolha um nome curto para encontrar esta conversa depois.
+              <DialogDescription className="sr-only">
+                Digite um novo nome para esta conversa.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="grid gap-2">
-              <label htmlFor="rename-thread-title" className="text-xs font-medium text-text-2">
-                Nome da conversa
-              </label>
-              <Input
-                id="rename-thread-title"
-                value={renameTitle}
-                onChange={(event) => setRenameTitle(event.target.value)}
-                onFocus={(event) => event.currentTarget.select()}
-                maxLength={80}
-                autoComplete="off"
-                autoFocus
-              />
-            </div>
+            <Input
+              id="rename-thread-title"
+              aria-label="Nome da conversa"
+              value={renameTitle}
+              onChange={(event) => setRenameTitle(event.target.value)}
+              onFocus={(event) => event.currentTarget.select()}
+              maxLength={80}
+              autoComplete="off"
+              autoFocus
+            />
 
             <DialogFooter>
               <DialogClose render={<Button type="button" variant="outline" />}>
                 Cancelar
               </DialogClose>
               <Button type="submit" disabled={!renameTitle.trim()}>
-                Renomear
+                Salvar
               </Button>
             </DialogFooter>
           </form>
