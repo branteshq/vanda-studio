@@ -4,6 +4,7 @@ import { useQuery } from "convex-helpers/react/cache";
 import { CalendarDays, ChevronLeft, ChevronRight, Layers3 } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { StatusPill } from "@vanda-studio/ui/components/status-pill";
+import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { useActiveAccount } from "../components/active-account";
 import { api } from "../convex/_generated/api";
@@ -83,25 +84,29 @@ function CalendarioPage() {
         >
           Hoje
         </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Mês anterior"
-          onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
-        >
-          <ChevronLeft />
-        </Button>
+        <ActionTooltip label="Mês anterior" side="bottom">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Mês anterior"
+            onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
+          >
+            <ChevronLeft />
+          </Button>
+        </ActionTooltip>
         <span className="min-w-36 text-center text-sm font-medium text-text-2 capitalize">
           {monthLabel}
         </span>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Próximo mês"
-          onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
-        >
-          <ChevronRight />
-        </Button>
+        <ActionTooltip label="Próximo mês" side="bottom">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Próximo mês"
+            onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
+          >
+            <ChevronRight />
+          </Button>
+        </ActionTooltip>
       </header>
 
       <main className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">

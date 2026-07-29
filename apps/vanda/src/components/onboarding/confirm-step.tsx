@@ -4,6 +4,7 @@ import { useQuery } from "convex-helpers/react/cache";
 import { ArrowRight, Plus, X } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Input } from "@vanda-studio/ui/components/input";
+import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -55,14 +56,16 @@ function ChipEditor({
           className="inline-flex items-center gap-1.5 rounded-md border border-border bg-inset px-2.5 py-1 text-[13px] text-text-2"
         >
           {item}
-          <button
-            type="button"
-            aria-label={`Remover ${item}`}
-            className="rounded-sm text-text-5 transition-colors hover:text-text-3 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
-            onClick={() => onChange(items.filter((i) => i !== item))}
-          >
-            <X className="size-3" />
-          </button>
+          <ActionTooltip label={`Remover ${item}`} side="top">
+            <button
+              type="button"
+              aria-label={`Remover ${item}`}
+              className="rounded-sm text-text-5 transition-colors hover:text-text-3 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+              onClick={() => onChange(items.filter((i) => i !== item))}
+            >
+              <X className="size-3" />
+            </button>
+          </ActionTooltip>
         </span>
       ))}
       {adding ? (
@@ -184,25 +187,29 @@ function ReferencePhotos({ accountId }: { accountId: Id<"accounts"> }) {
             className="group/photo relative size-16 overflow-hidden rounded-lg border border-border bg-surface"
           >
             {photo.url ? <img src={photo.url} alt="" className="size-full object-cover" /> : null}
-            <button
-              type="button"
-              aria-label="Remover foto"
-              onClick={() => void removeReferencePhoto({ imageId: photo.id })}
-              className="absolute top-1 right-1 rounded-full bg-app/70 p-0.5 text-text-3 opacity-0 transition-opacity group-hover/photo:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
-            >
-              <X className="size-3" />
-            </button>
+            <ActionTooltip label="Remover foto" side="top">
+              <button
+                type="button"
+                aria-label="Remover foto"
+                onClick={() => void removeReferencePhoto({ imageId: photo.id })}
+                className="absolute top-1 right-1 rounded-full bg-app/70 p-0.5 text-text-3 opacity-0 transition-opacity group-hover/photo:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+              >
+                <X className="size-3" />
+              </button>
+            </ActionTooltip>
           </div>
         ))}
-        <button
-          type="button"
-          disabled={uploading}
-          aria-label="Adicionar fotos de referência"
-          onClick={() => inputRef.current?.click()}
-          className="flex size-16 items-center justify-center rounded-lg border border-dashed border-border-strong text-text-4 transition-colors hover:text-text-2 focus-visible:text-text-2 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none disabled:opacity-50"
-        >
-          <Plus className="size-4" />
-        </button>
+        <ActionTooltip label="Adicionar fotos de referência" side="top">
+          <button
+            type="button"
+            disabled={uploading}
+            aria-label="Adicionar fotos de referência"
+            onClick={() => inputRef.current?.click()}
+            className="flex size-16 items-center justify-center rounded-lg border border-dashed border-border-strong text-text-4 transition-colors hover:text-text-2 focus-visible:text-text-2 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none disabled:opacity-50"
+          >
+            <Plus className="size-4" />
+          </button>
+        </ActionTooltip>
       </div>
       {error ? <p className="mt-2 text-[12.5px] text-amber">{error}</p> : null}
       <input
