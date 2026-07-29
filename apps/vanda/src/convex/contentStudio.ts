@@ -1057,7 +1057,22 @@ export const project = query({
           );
         })()
       : null;
-    return { project, document, assets, renders, coverUrl };
+    // The exact rendered slides (in order) — what the owner actually approves.
+    const post = project.postId ? await ctx.db.get(project.postId) : null;
+    const renderedSlideUrls = post
+      ? (
+          await Promise.all(
+            post.imageIds.map(async (imageId) => {
+              const image = await ctx.db.get(imageId);
+              return (
+                image?.externalUrl ??
+                (image?.storageId ? await ctx.storage.getUrl(image.storageId) : null)
+              );
+            }),
+          )
+        ).filter((url): url is string => url !== null)
+      : [];
+    return { project, document, assets, renders, coverUrl, renderedSlideUrls };
   },
 });
 

@@ -1,14 +1,739 @@
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useUIMessages, type UIMessage } from "@convex-dev/agent/react";
+import { useAction, useMutation, useQuery } from "convex/react";
+import {
+  Archive,
+  ArrowUp,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  CircleDashed,
+  Images,
+  RefreshCw,
+  Send,
+  Sparkles,
+  Wrench,
+  X,
+} from "lucide-react";
+import { Button } from "@vanda-studio/ui/components/button";
+import { Skeleton } from "@vanda-studio/ui/components/skeleton";
+import { Spinner } from "@vanda-studio/ui/components/spinner";
+import { StatusPill } from "@vanda-studio/ui/components/status-pill";
+import { cn } from "@vanda-studio/ui/lib/utils";
+import { useActiveAccount } from "../components/active-account";
+import { VandaMark } from "../components/vanda-mark";
+import { api } from "../convex/_generated/api";
+import type { Id } from "../convex/_generated/dataModel";
 
 export const Route = createFileRoute("/_dashboard/conversa")({
   component: ConversaPage,
 });
 
-// Placeholder shell — the conversation surface lands with the Vanda agent.
+type StatusTone = "neutral" | "creating" | "needs" | "scheduled" | "done";
+
+const STATUS_META: Record<string, { readonly label: string; readonly tone: StatusTone }> = {
+  planning: { label: "Planejando", tone: "creating" },
+  draft: { label: "Rascunho", tone: "neutral" },
+  blocked: { label: "Precisa de você", tone: "needs" },
+  ready_for_render: { label: "Pronto para renderizar", tone: "creating" },
+  rendering: { label: "Renderizando", tone: "creating" },
+  ready: { label: "Pronto para revisão", tone: "done" },
+  scheduled: { label: "Agendado", tone: "scheduled" },
+  published: { label: "Publicado", tone: "done" },
+  failed: { label: "Falhou", tone: "needs" },
+  archived: { label: "Arquivado", tone: "neutral" },
+};
+
+const TOOL_LABEL: Record<string, string> = {
+  get_brand_memory: "Consultando a memória da marca",
+  list_opportunities: "Listando oportunidades",
+  get_market_status: "Verificando a varredura de mercado",
+  start_market_scan: "Iniciando varredura de mercado",
+  list_projects: "Listando projetos",
+  get_project: "Abrindo projeto",
+  create_carousel: "Iniciando criação do carrossel",
+  revise_slide: "Enviando revisão de slide",
+  request_render: "Enfileirando render",
+  publish_project: "Publicação no Instagram",
+  discard_project: "Arquivando projeto",
+};
+
+const SUGGESTIONS = [
+  "Procure uma oportunidade no meu mercado",
+  "O que você sabe sobre a minha marca?",
+  "Mostre meus projetos de conteúdo",
+];
+
+/** The loose view of a tool part — covers `tool-*` and `dynamic-tool` shapes. */
+interface ToolPartView {
+  type: string;
+  toolName?: string;
+  toolCallId?: string;
+  state: string;
+  input?: unknown;
+  output?: unknown;
+  errorText?: string;
+  approval?: { id: string; approved?: boolean };
+}
+
+const toolNameOf = (part: ToolPartView): string =>
+  part.type === "dynamic-tool" ? (part.toolName ?? "tool") : part.type.slice("tool-".length);
+
+const projectIdOf = (part: ToolPartView): Id<"contentProjects"> | null => {
+  for (const value of [part.input, part.output]) {
+    if (value && typeof value === "object" && "projectId" in value) {
+      const id = (value as { projectId?: unknown }).projectId;
+      if (typeof id === "string") return id as Id<"contentProjects">;
+    }
+  }
+  return null;
+};
+
 function ConversaPage() {
+  const { activeAccount } = useActiveAccount();
+  if (!activeAccount) return null;
+  return <Conversation key={activeAccount.id} accountId={activeAccount.id} />;
+}
+
+function Conversation({ accountId }: { accountId: Id<"accounts"> }) {
+  const existingThreadId = useQuery(api.chat.getThread, { accountId });
+  const ensureThread = useMutation(api.chat.ensureThread);
+  const sendMessage = useMutation(api.chat.sendMessage);
+  const [createdThreadId, setCreatedThreadId] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const [canvasProjectId, setCanvasProjectId] = useState<Id<"contentProjects"> | null>(null);
+  const threadId = existingThreadId ?? createdThreadId;
+
+  useEffect(() => {
+    if (existingThreadId === null && createdThreadId === null) {
+      void ensureThread({ accountId }).then(setCreatedThreadId);
+    }
+  }, [existingThreadId, createdThreadId, ensureThread, accountId]);
+
+  const messages = useUIMessages(
+    api.chat.listMessages,
+    threadId ? { accountId, threadId } : "skip",
+    { initialNumItems: 60, stream: true },
+  );
+
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const lastMessage = messages.results.at(-1);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages.results.length, lastMessage?.status]);
+
+  const send = async (text: string) => {
+    const prompt = text.trim();
+    if (!prompt) return;
+    setDraft("");
+    await sendMessage({ accountId, prompt });
+  };
+
+  const onSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    void send(draft);
+  };
+
+  const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void send(draft);
+    }
+  };
+
+  const showSuggestions = messages.status !== "LoadingFirstPage" && messages.results.length <= 1;
+
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center">
-      <p className="text-sm text-text-4">A conversa com a Vanda chega em breve.</p>
+    <div className="relative flex min-h-0 flex-1 overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <main className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-6 md:px-6">
+            {threadId === undefined || messages.status === "LoadingFirstPage" ? (
+              <ConversationSkeleton />
+            ) : (
+              messages.results.map((message) => (
+                <Message
+                  key={message.key}
+                  message={message}
+                  accountId={accountId}
+                  onOpenProject={setCanvasProjectId}
+                />
+              ))
+            )}
+            <div ref={bottomRef} />
+          </div>
+        </main>
+
+        <footer className="shrink-0 border-t border-border bg-app px-4 py-3 md:px-6">
+          <div className="mx-auto w-full max-w-3xl">
+            {showSuggestions ? (
+              <div className="mb-2.5 flex flex-wrap gap-2">
+                {SUGGESTIONS.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => void send(suggestion)}
+                    className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-text-3 transition-colors hover:border-border-strong hover:text-text"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <form
+              onSubmit={onSubmit}
+              className="flex items-end gap-2 rounded-xl border border-border bg-surface p-2 focus-within:border-border-strong"
+            >
+              <textarea
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={onComposerKeyDown}
+                placeholder="Mande uma mensagem para a Vanda…"
+                aria-label="Mensagem para a Vanda"
+                rows={1}
+                className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-text outline-none placeholder:text-text-5"
+              />
+              <Button type="submit" size="icon" aria-label="Enviar" disabled={!draft.trim()}>
+                <ArrowUp />
+              </Button>
+            </form>
+          </div>
+        </footer>
+      </div>
+
+      {canvasProjectId ? (
+        <CarouselCanvas
+          projectId={canvasProjectId}
+          accountId={accountId}
+          onClose={() => setCanvasProjectId(null)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function Message({
+  message,
+  accountId,
+  onOpenProject,
+}: {
+  message: UIMessage;
+  accountId: Id<"accounts">;
+  onOpenProject: (projectId: Id<"contentProjects">) => void;
+}) {
+  if (message.role === "user") {
+    const text = message.parts
+      .filter((part) => part.type === "text")
+      .map((part) => (part as { text: string }).text)
+      .join("\n");
+    if (!text.trim()) return null;
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-inset px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap text-text">
+          {text}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-3">
+      <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-surface text-brand-accent shadow-sm">
+        <VandaMark size={14} />
+      </div>
+      <div className="min-w-0 flex-1 space-y-2">
+        {message.parts.map((part, index) => (
+          <MessagePart
+            key={index}
+            part={part}
+            accountId={accountId}
+            onOpenProject={onOpenProject}
+          />
+        ))}
+        {message.status === "streaming" && message.parts.length === 0 ? (
+          <Spinner className="size-4 text-text-4" />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function MessagePart({
+  part,
+  accountId,
+  onOpenProject,
+}: {
+  part: UIMessage["parts"][number];
+  accountId: Id<"accounts">;
+  onOpenProject: (projectId: Id<"contentProjects">) => void;
+}) {
+  if (part.type === "text") {
+    const text = (part as { text: string }).text;
+    if (!text.trim()) return null;
+    return <p className="text-sm leading-relaxed whitespace-pre-wrap text-text-2">{text}</p>;
+  }
+  if (part.type === "dynamic-tool" || part.type.startsWith("tool-")) {
+    return (
+      <ToolActivity
+        part={part as unknown as ToolPartView}
+        accountId={accountId}
+        onOpenProject={onOpenProject}
+      />
+    );
+  }
+  return null;
+}
+
+function ToolActivity({
+  part,
+  accountId,
+  onOpenProject,
+}: {
+  part: ToolPartView;
+  accountId: Id<"accounts">;
+  onOpenProject: (projectId: Id<"contentProjects">) => void;
+}) {
+  const name = toolNameOf(part);
+  const label = TOOL_LABEL[name] ?? name;
+  const projectId = projectIdOf(part);
+
+  if (part.state === "approval-requested" && part.approval) {
+    return (
+      <ApprovalRequest
+        part={part}
+        accountId={accountId}
+        approvalId={part.approval.id}
+        projectId={projectId}
+        onOpenProject={onOpenProject}
+      />
+    );
+  }
+
+  if (part.state === "approval-responded") {
+    const approved = part.approval?.approved === true;
+    return (
+      <div className="flex items-center gap-2 text-xs text-text-4">
+        {approved ? <Check className="size-3.5 text-green" /> : <X className="size-3.5" />}
+        {approved ? "Publicação aprovada por você" : "Publicação negada por você"}
+      </div>
+    );
+  }
+
+  const running = part.state === "input-streaming" || part.state === "input-available";
+  const failed = part.state === "output-error";
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1 text-[11px] text-text-4",
+          failed && "border-destructive/40 text-destructive",
+        )}
+      >
+        {running ? (
+          <Spinner className="size-3" />
+        ) : failed ? (
+          <X className="size-3" />
+        ) : (
+          <Wrench className="size-3" />
+        )}
+        {label}
+        {failed && part.errorText ? ` — ${part.errorText}` : null}
+      </span>
+      {projectId && part.state === "output-available" ? (
+        <Button variant="soft" size="sm" onClick={() => onOpenProject(projectId)}>
+          <Images />
+          Ver carrossel
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function ApprovalRequest({
+  part,
+  accountId,
+  approvalId,
+  projectId,
+  onOpenProject,
+}: {
+  part: ToolPartView;
+  accountId: Id<"accounts">;
+  approvalId: string;
+  projectId: Id<"contentProjects"> | null;
+  onOpenProject: (projectId: Id<"contentProjects">) => void;
+}) {
+  const respond = useMutation(api.chat.respondToApproval);
+  const [busy, setBusy] = useState<"approve" | "deny" | null>(null);
+  const scheduledFor =
+    part.input && typeof part.input === "object" && "scheduledFor" in part.input
+      ? (part.input as { scheduledFor?: string }).scheduledFor
+      : undefined;
+
+  const answer = async (approve: boolean) => {
+    setBusy(approve ? "approve" : "deny");
+    try {
+      await respond({ accountId, approvalId, approve });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-brand-accent/30 bg-brand-accent/5 p-4">
+      <div className="flex items-center gap-2">
+        <Send className="size-4 text-brand-accent" />
+        <h3 className="text-sm font-semibold text-text">
+          Vanda quer publicar este carrossel no Instagram
+        </h3>
+      </div>
+      <p className="mt-1.5 text-xs leading-relaxed text-text-3">
+        {scheduledFor
+          ? `Publicação agendada para ${new Date(scheduledFor).toLocaleString("pt-BR")}.`
+          : "Publicação imediata após a aprovação."}{" "}
+        Revise o carrossel exato antes de aprovar — nada é publicado sem a sua decisão.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {projectId ? (
+          <Button variant="outline" size="sm" onClick={() => onOpenProject(projectId)}>
+            <Images />
+            Revisar carrossel
+          </Button>
+        ) : null}
+        <Button size="sm" disabled={busy !== null} onClick={() => void answer(true)}>
+          {busy === "approve" ? <Spinner className="size-3.5" /> : <Check />}
+          Aprovar e publicar
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={busy !== null}
+          onClick={() => void answer(false)}
+        >
+          <X />
+          Negar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// --- Carousel canvas --------------------------------------------------------
+
+function CarouselCanvas({
+  projectId,
+  accountId,
+  onClose,
+}: {
+  projectId: Id<"contentProjects">;
+  accountId: Id<"accounts">;
+  onClose: () => void;
+}) {
+  const data = useQuery(api.contentStudio.project, { projectId });
+  const sendMessage = useMutation(api.chat.sendMessage);
+  const reviewDraft = useAction(api.contentStudioNode.reviewDraft);
+  const requestRender = useMutation(api.contentStudio.requestRender);
+  const archiveProject = useMutation(api.contentStudio.archiveProject);
+  const approveProject = useMutation(api.contentStudio.approveProject);
+  const [slideIndex, setSlideIndex] = useState(0);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [revisingSlideId, setRevisingSlideId] = useState<string | null>(null);
+  const [instruction, setInstruction] = useState("");
+
+  useEffect(() => {
+    setSlideIndex(0);
+    setRevisingSlideId(null);
+    setInstruction("");
+    setError(null);
+  }, [projectId]);
+
+  const project = data?.project;
+  const document = data?.document;
+  const rendered = data?.renderedSlideUrls ?? [];
+  const slides = document?.slides ?? [];
+  const slideCount = Math.max(rendered.length, slides.length);
+  const status = project ? STATUS_META[project.status] : undefined;
+  const currentSlide = slides[slideIndex];
+  const currentUrl = rendered[slideIndex] ?? null;
+
+  const run = async (key: string, work: () => Promise<unknown>) => {
+    setBusy(key);
+    setError(null);
+    try {
+      await work();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "A ação não terminou.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const requestRevision = async () => {
+    const slide = currentSlide;
+    const text = instruction.trim();
+    if (!slide || !text) return;
+    await run("revise", async () => {
+      await sendMessage({
+        accountId,
+        prompt: `Refaça o slide ${slide.position} do projeto ${projectId} com esta instrução: ${text}`,
+      });
+      setRevisingSlideId(null);
+      setInstruction("");
+    });
+  };
+
+  return (
+    <aside className="absolute inset-0 z-30 flex flex-col border-border bg-app md:static md:z-auto md:w-[26rem] md:shrink-0 md:border-l xl:w-[30rem]">
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
+        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-text">
+          {project?.title ?? "Carrossel"}
+        </h2>
+        {status ? <StatusPill tone={status.tone}>{status.label}</StatusPill> : null}
+        <Button variant="ghost" size="icon-sm" aria-label="Fechar" onClick={onClose}>
+          <X />
+        </Button>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {data === undefined ? (
+          <div className="space-y-4">
+            <Skeleton className="mx-auto aspect-[4/5] w-full max-w-80 rounded-xl" />
+            <Skeleton className="h-16 w-full rounded-lg" />
+          </div>
+        ) : !project ? (
+          <p className="text-sm text-text-4">Projeto não encontrado.</p>
+        ) : (
+          <div className="space-y-4">
+            <div className="relative mx-auto aspect-[4/5] w-full max-w-80 overflow-hidden rounded-xl border border-border bg-inset">
+              {currentUrl ? (
+                <img
+                  src={currentUrl}
+                  alt={`Slide ${slideIndex + 1}`}
+                  className="absolute inset-0 size-full object-cover"
+                />
+              ) : currentSlide ? (
+                <div className="absolute inset-0 flex flex-col justify-end p-6">
+                  <p className="text-xs font-medium text-text-4">
+                    Pré-visualização (ainda sem render)
+                  </p>
+                  <p className="mt-1 text-lg leading-snug font-semibold text-text">
+                    {currentSlide.headline}
+                  </p>
+                  <p className="mt-2 line-clamp-4 text-sm leading-relaxed text-text-3">
+                    {currentSlide.body || currentSlide.bullets.join(" · ")}
+                  </p>
+                </div>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center text-text-5">
+                  <CircleDashed className="size-6" />
+                </div>
+              )}
+
+              {slideCount > 1 ? (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Slide anterior"
+                    disabled={slideIndex === 0}
+                    onClick={() => setSlideIndex((index) => Math.max(0, index - 1))}
+                    className="absolute top-1/2 left-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-surface/90 text-text shadow-sm backdrop-blur-sm disabled:opacity-40"
+                  >
+                    <ChevronLeft className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Próximo slide"
+                    disabled={slideIndex >= slideCount - 1}
+                    onClick={() => setSlideIndex((index) => Math.min(slideCount - 1, index + 1))}
+                    className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-surface/90 text-text shadow-sm backdrop-blur-sm disabled:opacity-40"
+                  >
+                    <ChevronRight className="size-4" />
+                  </button>
+                  <span className="absolute right-2 bottom-2 rounded-md bg-surface/90 px-2 py-0.5 font-mono text-[11px] text-text shadow-sm backdrop-blur-sm">
+                    {slideIndex + 1}/{slideCount}
+                  </span>
+                </>
+              ) : null}
+            </div>
+
+            {slideCount > 1 ? (
+              <div className="flex gap-1.5 overflow-x-auto pb-1">
+                {Array.from({ length: slideCount }, (_, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    aria-label={`Ir para o slide ${index + 1}`}
+                    onClick={() => setSlideIndex(index)}
+                    className={cn(
+                      "relative aspect-[4/5] w-14 shrink-0 overflow-hidden rounded-md border",
+                      index === slideIndex
+                        ? "border-brand-accent ring-1 ring-brand-accent"
+                        : "border-border",
+                    )}
+                  >
+                    {rendered[index] ? (
+                      <img src={rendered[index]} alt="" className="size-full object-cover" />
+                    ) : (
+                      <span className="flex size-full items-center justify-center bg-inset font-mono text-[10px] text-text-4">
+                        {index + 1}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            {currentSlide ? (
+              <div className="rounded-lg border border-border bg-surface p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm leading-snug font-medium text-text">
+                    {currentSlide.headline}
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Pedir alteração no slide ${currentSlide.position}`}
+                    onClick={() => {
+                      setRevisingSlideId(
+                        revisingSlideId === currentSlide.slideId ? null : currentSlide.slideId,
+                      );
+                      setInstruction("");
+                    }}
+                  >
+                    <Sparkles />
+                  </Button>
+                </div>
+                {revisingSlideId === currentSlide.slideId ? (
+                  <div className="mt-2 flex gap-2 border-t border-border pt-2">
+                    <input
+                      value={instruction}
+                      onChange={(event) => setInstruction(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") void requestRevision();
+                      }}
+                      placeholder="O que deve mudar neste slide?"
+                      aria-label="Instrução de alteração"
+                      className="h-8 min-w-0 flex-1 rounded-md border border-border bg-inset px-2 text-sm text-text outline-none placeholder:text-text-5"
+                      autoFocus
+                    />
+                    <Button
+                      variant="soft"
+                      size="sm"
+                      disabled={!instruction.trim() || busy === "revise"}
+                      onClick={() => void requestRevision()}
+                    >
+                      {busy === "revise" ? <Spinner className="size-3.5" /> : <Sparkles />}
+                      Pedir
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {document ? (
+              <section>
+                <h3 className="text-sm font-semibold text-text">Legenda</h3>
+                <p className="mt-1.5 rounded-lg border border-border bg-surface p-3 text-sm leading-relaxed whitespace-pre-wrap text-text-3">
+                  {document.caption}
+                </p>
+              </section>
+            ) : null}
+
+            {document?.reviewSummary ? (
+              <section className="rounded-lg border border-border bg-inset p-3">
+                <h3 className="text-xs font-semibold text-text-2">Revisão editorial</h3>
+                <p className="mt-1 text-xs leading-relaxed text-text-3">
+                  {document.reviewSummary}
+                </p>
+              </section>
+            ) : null}
+
+            {error ? (
+              <p
+                role="alert"
+                className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive"
+              >
+                {error}
+              </p>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      {project ? (
+        <footer className="flex shrink-0 items-center gap-2 border-t border-border bg-surface p-3">
+          {project.status === "ready" ? (
+            <Button
+              className="flex-1"
+              disabled={busy !== null}
+              onClick={() => {
+                if (window.confirm("Aprovar este carrossel e publicar no Instagram conectado?"))
+                  void run("approve", () => approveProject({ projectId }));
+              }}
+            >
+              {busy === "approve" ? <Spinner className="size-4" /> : <Send />}
+              Aprovar e publicar
+            </Button>
+          ) : document?.reviewStatus === "pending" ? (
+            <Button
+              className="flex-1"
+              disabled={busy !== null}
+              onClick={() => void run("review", () => reviewDraft({ projectId }))}
+            >
+              {busy === "review" ? <Spinner className="size-4" /> : <Sparkles />}
+              Revisar alterações
+            </Button>
+          ) : project.status === "failed" ? (
+            <Button
+              className="flex-1"
+              disabled={busy !== null}
+              onClick={() => void run("render", () => requestRender({ projectId }))}
+            >
+              <RefreshCw />
+              Tentar renderizar de novo
+            </Button>
+          ) : (
+            <Button variant="outline" className="flex-1" disabled>
+              <CircleDashed />
+              {status?.label ?? project.status}
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Descartar projeto"
+            disabled={busy !== null}
+            onClick={() => {
+              if (window.confirm("Arquivar este carrossel?"))
+                void run("archive", async () => {
+                  await archiveProject({ projectId });
+                  onClose();
+                });
+            }}
+          >
+            <Archive />
+          </Button>
+        </footer>
+      ) : null}
+    </aside>
+  );
+}
+
+function ConversationSkeleton() {
+  return (
+    <div className="space-y-5" aria-hidden>
+      <div className="flex gap-3">
+        <Skeleton className="size-7 rounded-lg" />
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-4 w-2/3" />
+          <Skeleton className="h-4 w-1/2" />
+        </div>
+      </div>
+      <div className="flex justify-end">
+        <Skeleton className="h-9 w-1/3 rounded-2xl" />
+      </div>
     </div>
   );
 }
