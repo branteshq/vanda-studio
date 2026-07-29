@@ -53,6 +53,7 @@ import {
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { Spinner } from "@vanda-studio/ui/components/spinner";
 import { StatusPill } from "@vanda-studio/ui/components/status-pill";
+import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { useActiveAccount } from "../components/active-account";
 import { VandaMark } from "../components/vanda-mark";
@@ -331,14 +332,18 @@ function ChatComposer({
             autoFocus={autoFocus}
             className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-text outline-none placeholder:text-text-5"
           />
-          <Button
-            type="submit"
-            size="icon"
-            aria-label="Enviar"
-            disabled={disabled || !draft.trim()}
-          >
-            <ArrowUp />
-          </Button>
+          <ActionTooltip label="Enviar" side="top">
+            <span className="inline-flex">
+              <Button
+                type="submit"
+                size="icon"
+                aria-label="Enviar"
+                disabled={disabled || !draft.trim()}
+              >
+                <ArrowUp />
+              </Button>
+            </span>
+          </ActionTooltip>
         </form>
       </div>
     </footer>
@@ -727,7 +732,9 @@ function ProjectPreview({
             <AttachmentMedia variant="image">
               <img src={url} alt={`Slide ${index + 1}`} />
             </AttachmentMedia>
-            <AttachmentTrigger aria-label={`Abrir slide ${index + 1}`} onClick={onOpen} />
+            <ActionTooltip label={`Abrir slide ${index + 1}`} side="top">
+              <AttachmentTrigger aria-label={`Abrir slide ${index + 1}`} onClick={onOpen} />
+            </ActionTooltip>
           </Attachment>
         ))}
       </AttachmentGroup>
@@ -896,9 +903,11 @@ function CarouselCanvas({
           {project?.title ?? "Carrossel"}
         </h2>
         {status ? <StatusPill tone={status.tone}>{status.label}</StatusPill> : null}
-        <Button variant="ghost" size="icon-sm" aria-label="Fechar" onClick={onClose}>
-          <X />
-        </Button>
+        <ActionTooltip label="Fechar" side="bottom">
+          <Button variant="ghost" size="icon-sm" aria-label="Fechar" onClick={onClose}>
+            <X />
+          </Button>
+        </ActionTooltip>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
@@ -938,24 +947,28 @@ function CarouselCanvas({
 
               {slideCount > 1 ? (
                 <>
-                  <button
-                    type="button"
-                    aria-label="Slide anterior"
-                    disabled={slideIndex === 0}
-                    onClick={() => setSlideIndex((index) => Math.max(0, index - 1))}
-                    className="absolute top-1/2 left-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-surface/90 text-text shadow-sm backdrop-blur-sm disabled:opacity-40"
-                  >
-                    <ChevronLeft className="size-4" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Próximo slide"
-                    disabled={slideIndex >= slideCount - 1}
-                    onClick={() => setSlideIndex((index) => Math.min(slideCount - 1, index + 1))}
-                    className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-surface/90 text-text shadow-sm backdrop-blur-sm disabled:opacity-40"
-                  >
-                    <ChevronRight className="size-4" />
-                  </button>
+                  <ActionTooltip label="Slide anterior" side="right">
+                    <button
+                      type="button"
+                      aria-label="Slide anterior"
+                      disabled={slideIndex === 0}
+                      onClick={() => setSlideIndex((index) => Math.max(0, index - 1))}
+                      className="absolute top-1/2 left-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-surface/90 text-text shadow-sm backdrop-blur-sm disabled:opacity-40"
+                    >
+                      <ChevronLeft className="size-4" />
+                    </button>
+                  </ActionTooltip>
+                  <ActionTooltip label="Próximo slide" side="left">
+                    <button
+                      type="button"
+                      aria-label="Próximo slide"
+                      disabled={slideIndex >= slideCount - 1}
+                      onClick={() => setSlideIndex((index) => Math.min(slideCount - 1, index + 1))}
+                      className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-surface/90 text-text shadow-sm backdrop-blur-sm disabled:opacity-40"
+                    >
+                      <ChevronRight className="size-4" />
+                    </button>
+                  </ActionTooltip>
                   <span className="absolute right-2 bottom-2 rounded-md bg-surface/90 px-2 py-0.5 font-mono text-[11px] text-text shadow-sm backdrop-blur-sm">
                     {slideIndex + 1}/{slideCount}
                   </span>
@@ -966,26 +979,27 @@ function CarouselCanvas({
             {slideCount > 1 ? (
               <div className="flex gap-1.5 overflow-x-auto pb-1">
                 {Array.from({ length: slideCount }, (_, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    aria-label={`Ir para o slide ${index + 1}`}
-                    onClick={() => setSlideIndex(index)}
-                    className={cn(
-                      "relative aspect-[4/5] w-14 shrink-0 overflow-hidden rounded-md border",
-                      index === slideIndex
-                        ? "border-brand-accent ring-1 ring-brand-accent"
-                        : "border-border",
-                    )}
-                  >
-                    {rendered[index] ? (
-                      <img src={rendered[index]} alt="" className="size-full object-cover" />
-                    ) : (
-                      <span className="flex size-full items-center justify-center bg-inset font-mono text-[10px] text-text-4">
-                        {index + 1}
-                      </span>
-                    )}
-                  </button>
+                  <ActionTooltip key={index} label={`Slide ${index + 1}`} side="top">
+                    <button
+                      type="button"
+                      aria-label={`Ir para o slide ${index + 1}`}
+                      onClick={() => setSlideIndex(index)}
+                      className={cn(
+                        "relative aspect-[4/5] w-14 shrink-0 overflow-hidden rounded-md border",
+                        index === slideIndex
+                          ? "border-brand-accent ring-1 ring-brand-accent"
+                          : "border-border",
+                      )}
+                    >
+                      {rendered[index] ? (
+                        <img src={rendered[index]} alt="" className="size-full object-cover" />
+                      ) : (
+                        <span className="flex size-full items-center justify-center bg-inset font-mono text-[10px] text-text-4">
+                          {index + 1}
+                        </span>
+                      )}
+                    </button>
+                  </ActionTooltip>
                 ))}
               </div>
             ) : null}
@@ -996,19 +1010,21 @@ function CarouselCanvas({
                   <p className="text-sm leading-snug font-medium text-text">
                     {currentSlide.headline}
                   </p>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Pedir alteração no slide ${currentSlide.position}`}
-                    onClick={() => {
-                      setRevisingSlideId(
-                        revisingSlideId === currentSlide.slideId ? null : currentSlide.slideId,
-                      );
-                      setInstruction("");
-                    }}
-                  >
-                    <Sparkles />
-                  </Button>
+                  <ActionTooltip label="Pedir alteração" side="left">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Pedir alteração no slide ${currentSlide.position}`}
+                      onClick={() => {
+                        setRevisingSlideId(
+                          revisingSlideId === currentSlide.slideId ? null : currentSlide.slideId,
+                        );
+                        setInstruction("");
+                      }}
+                    >
+                      <Sparkles />
+                    </Button>
+                  </ActionTooltip>
                 </div>
                 {revisingSlideId === currentSlide.slideId ? (
                   <div className="mt-2 flex gap-2 border-t border-border pt-2">
@@ -1105,21 +1121,25 @@ function CarouselCanvas({
               {status?.label ?? project.status}
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label="Descartar projeto"
-            disabled={busy !== null}
-            onClick={() => {
-              if (window.confirm("Arquivar este carrossel?"))
-                void run("archive", async () => {
-                  await archiveProject({ projectId });
-                  onClose();
-                });
-            }}
-          >
-            <Archive />
-          </Button>
+          <ActionTooltip label="Descartar projeto" side="top">
+            <span className="inline-flex">
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Descartar projeto"
+                disabled={busy !== null}
+                onClick={() => {
+                  if (window.confirm("Arquivar este carrossel?"))
+                    void run("archive", async () => {
+                      await archiveProject({ projectId });
+                      onClose();
+                    });
+                }}
+              >
+                <Archive />
+              </Button>
+            </span>
+          </ActionTooltip>
         </footer>
       ) : null}
     </aside>
