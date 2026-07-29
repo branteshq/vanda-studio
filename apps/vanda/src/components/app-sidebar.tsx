@@ -422,18 +422,13 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                         >
                           {thread.title ?? "Nova conversa"}
                         </button>
-                        <div
-                          className={cn(
-                            "mr-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover/thread:opacity-100 group-focus-within/thread:opacity-100",
-                            active && "opacity-100",
-                          )}
-                        >
+                        <div className="pointer-events-none mr-1 flex shrink-0 translate-x-1 items-center gap-0.5 opacity-0 transition-[opacity,transform] duration-100 ease-[var(--ease-out)] group-hover/thread:pointer-events-auto group-hover/thread:translate-x-0 group-hover/thread:opacity-100 group-hover/thread:duration-150 group-focus-within/thread:pointer-events-auto group-focus-within/thread:translate-x-0 group-focus-within/thread:opacity-100 group-focus-within/thread:duration-150 motion-reduce:translate-x-0 motion-reduce:transition-opacity">
                           <button
                             type="button"
                             aria-label="Renomear conversa"
                             title="Renomear"
                             onClick={() => rename(thread)}
-                            className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-colors duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                            className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-[color,transform] duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-[0.94] motion-reduce:transform-none"
                           >
                             <Pencil className="size-3.5" />
                           </button>
@@ -442,7 +437,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                             aria-label="Arquivar conversa"
                             title="Arquivar"
                             onClick={() => archive(thread)}
-                            className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-colors duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                            className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-[color,transform] duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-[0.94] motion-reduce:transform-none"
                           >
                             <Archive className="size-3.5" />
                           </button>
