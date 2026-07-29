@@ -39,6 +39,7 @@ import {
   useSidebar,
 } from "@vanda-studio/ui/components/sidebar";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
+import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
@@ -110,41 +111,42 @@ function ProfileDock() {
           readyAccounts.slice(0, 3).map((account) => {
             const selected = account.id === active?.id;
             return (
-              <button
-                key={account.id}
-                type="button"
-                title={account.name}
-                aria-label={`Trocar para ${account.name}`}
-                aria-pressed={selected}
-                onClick={() => handleSelect(account)}
-                className={cn(
-                  "flex size-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold text-sidebar-foreground/70 transition-[background-color,color,box-shadow,transform] duration-150 ease-[var(--ease-out)] active:scale-[0.97]",
-                  selected
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-sidebar-border"
-                    : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                )}
-              >
-                {getInitials(account.name) || "?"}
-              </button>
+              <ActionTooltip key={account.id} label={account.name} side="top">
+                <button
+                  type="button"
+                  aria-label={`Trocar para ${account.name}`}
+                  aria-pressed={selected}
+                  onClick={() => handleSelect(account)}
+                  className={cn(
+                    "flex size-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold text-sidebar-foreground/70 transition-[background-color,color,box-shadow,transform] duration-150 ease-[var(--ease-out)] active:scale-[0.97]",
+                    selected
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-sidebar-border"
+                      : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  )}
+                >
+                  {getInitials(account.name) || "?"}
+                </button>
+              </ActionTooltip>
             );
           })
         )}
       </div>
 
       <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Selecionar negócio"
-              title="Selecionar negócio"
-              className="size-9 shrink-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
-            />
-          }
-        >
-          <UsersRound />
-        </DropdownMenuTrigger>
+        <ActionTooltip label="Selecionar negócio" side="top">
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Selecionar negócio"
+                className="size-9 shrink-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
+              />
+            }
+          >
+            <UsersRound />
+          </DropdownMenuTrigger>
+        </ActionTooltip>
         <DropdownMenuContent
           className="min-w-64 rounded-lg"
           align="end"
@@ -233,22 +235,23 @@ function AccountMenu() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={name}
-            title={name}
-            className="size-10 shrink-0 rounded-full p-0 hover:bg-sidebar-accent data-popup-open:bg-sidebar-accent"
-          />
-        }
-      >
-        <Avatar className="size-8">
-          <AvatarImage src={user?.imageUrl} alt={name} />
-          <AvatarFallback className="text-[11px] font-semibold">{initials}</AvatarFallback>
-        </Avatar>
-      </DropdownMenuTrigger>
+      <ActionTooltip label={name} side="top">
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={name}
+              className="size-10 shrink-0 rounded-full p-0 hover:bg-sidebar-accent data-popup-open:bg-sidebar-accent"
+            />
+          }
+        >
+          <Avatar className="size-8">
+            <AvatarImage src={user?.imageUrl} alt={name} />
+            <AvatarFallback className="text-[11px] font-semibold">{initials}</AvatarFallback>
+          </Avatar>
+        </DropdownMenuTrigger>
+      </ActionTooltip>
       <DropdownMenuContent className="min-w-56 rounded-lg" align="end" side="right" sideOffset={4}>
         <DropdownMenuGroup>
           <DropdownMenuItem className="gap-2 p-2" onClick={() => clerk.openUserProfile()}>
@@ -424,24 +427,26 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                         </button>
                         <div className="pointer-events-none mr-1 w-[3.625rem] shrink-0 overflow-hidden group-hover/thread:pointer-events-auto group-focus-within/thread:pointer-events-auto">
                           <div className="flex translate-x-full items-center gap-0.5 transition-transform duration-180 ease-[var(--ease-out)] group-hover/thread:translate-x-0 group-focus-within/thread:translate-x-0 motion-reduce:transition-none">
-                            <button
-                              type="button"
-                              aria-label="Renomear conversa"
-                              title="Renomear"
-                              onClick={() => rename(thread)}
-                              className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-[color,transform] duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-[0.94] motion-reduce:transform-none"
-                            >
-                              <Pencil className="size-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              aria-label="Arquivar conversa"
-                              title="Arquivar"
-                              onClick={() => archive(thread)}
-                              className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-[color,transform] duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-[0.94] motion-reduce:transform-none"
-                            >
-                              <Archive className="size-3.5" />
-                            </button>
+                            <ActionTooltip label="Renomear" side="bottom">
+                              <button
+                                type="button"
+                                aria-label="Renomear conversa"
+                                onClick={() => rename(thread)}
+                                className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-[color,transform] duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-[0.94] motion-reduce:transform-none"
+                              >
+                                <Pencil className="size-3.5" />
+                              </button>
+                            </ActionTooltip>
+                            <ActionTooltip label="Arquivar" side="bottom">
+                              <button
+                                type="button"
+                                aria-label="Arquivar conversa"
+                                onClick={() => archive(thread)}
+                                className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-[color,transform] duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-[0.94] motion-reduce:transform-none"
+                              >
+                                <Archive className="size-3.5" />
+                              </button>
+                            </ActionTooltip>
                           </div>
                         </div>
                       </div>
@@ -474,33 +479,26 @@ export function CollapsedSidebarControls() {
 
   return (
     <div className="absolute top-3 left-3 z-20 hidden items-center rounded-lg border border-border bg-surface/90 p-0.5 shadow-sm backdrop-blur-sm md:flex">
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Abrir barra lateral"
-        title="Abrir barra lateral"
-        onClick={() => setOpen(true)}
-      >
-        <PanelLeftOpen />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Buscar conversas"
-        title="Buscar conversas"
-        onClick={openSearch}
-      >
-        <Search />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Nova conversa"
-        title="Nova conversa"
-        onClick={startThread}
-      >
-        <Plus />
-      </Button>
+      <ActionTooltip label="Abrir barra lateral" side="bottom">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Abrir barra lateral"
+          onClick={() => setOpen(true)}
+        >
+          <PanelLeftOpen />
+        </Button>
+      </ActionTooltip>
+      <ActionTooltip label="Buscar conversas" side="bottom">
+        <Button variant="ghost" size="icon-sm" aria-label="Buscar conversas" onClick={openSearch}>
+          <Search />
+        </Button>
+      </ActionTooltip>
+      <ActionTooltip label="Nova conversa" side="bottom">
+        <Button variant="ghost" size="icon-sm" aria-label="Nova conversa" onClick={startThread}>
+          <Plus />
+        </Button>
+      </ActionTooltip>
     </div>
   );
 }
@@ -518,35 +516,42 @@ export function AppSidebar() {
     >
       <SidebarHeader className="gap-2 px-2 pt-2.5 pb-1.5">
         <div className="flex h-9 items-center gap-1 overflow-hidden px-0.5">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={state === "collapsed" ? "Expandir barra lateral" : "Recolher barra lateral"}
-            title={state === "collapsed" ? "Expandir" : "Recolher"}
-            onClick={toggleSidebar}
-            className="shrink-0 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          <ActionTooltip
+            label={state === "collapsed" ? "Expandir barra lateral" : "Recolher barra lateral"}
+            side="bottom"
           >
-            {state === "collapsed" ? <PanelLeftOpen /> : <PanelLeftClose />}
-          </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={
+                state === "collapsed" ? "Expandir barra lateral" : "Recolher barra lateral"
+              }
+              onClick={toggleSidebar}
+              className="shrink-0 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            >
+              {state === "collapsed" ? <PanelLeftOpen /> : <PanelLeftClose />}
+            </Button>
+          </ActionTooltip>
           <span className="flex size-7 shrink-0 items-center justify-center text-brand-accent">
             <VandaMark size={17} />
           </span>
           <span className="min-w-0 flex-1 truncate pl-1 text-[14px] font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
             Vanda Studio
           </span>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            render={<Link to="/galeria" />}
-            aria-label="Abrir galeria"
-            title="Galeria"
-            className={cn(
-              "shrink-0 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden",
-              galleryActive && "bg-sidebar-accent text-sidebar-accent-foreground",
-            )}
-          >
-            <GalleryHorizontalEnd />
-          </Button>
+          <ActionTooltip label="Galeria" side="bottom">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              render={<Link to="/galeria" />}
+              aria-label="Abrir galeria"
+              className={cn(
+                "shrink-0 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden",
+                galleryActive && "bg-sidebar-accent text-sidebar-accent-foreground",
+              )}
+            >
+              <GalleryHorizontalEnd />
+            </Button>
+          </ActionTooltip>
         </div>
       </SidebarHeader>
 
