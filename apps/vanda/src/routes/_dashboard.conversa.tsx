@@ -290,7 +290,7 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
             </div>
           </MessageScrollerProvider>
 
-          <footer className="shrink-0 border-t border-border bg-app px-4 py-3 md:px-6">
+          <footer className="shrink-0 bg-app px-4 py-3 md:px-6">
             <div className="mx-auto w-full max-w-3xl">
               <form
                 onSubmit={onSubmit}
