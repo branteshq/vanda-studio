@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type ClipboardEvent,
   type FormEvent,
   type KeyboardEvent,
 } from "react";
@@ -519,11 +520,28 @@ function ChatComposer({
     }
   };
 
-  const selectFiles = (files: FileList | null) => {
+  const selectFiles = (files: Iterable<File> | null) => {
     if (!files) return;
     const remaining = Math.max(0, 4 - attachments.length);
     for (const file of Array.from(files).slice(0, remaining)) void uploadFile(file);
     if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const clipboardFiles = Array.from(event.clipboardData.files).filter((file) =>
+      file.type.startsWith("image/"),
+    );
+    const images =
+      clipboardFiles.length > 0
+        ? clipboardFiles
+        : Array.from(event.clipboardData.items).flatMap((item) => {
+            if (item.kind !== "file" || !item.type.startsWith("image/")) return [];
+            const file = item.getAsFile();
+            return file ? [file] : [];
+          });
+    if (images.length === 0) return;
+    event.preventDefault();
+    selectFiles(images);
   };
 
   const removeAttachment = (attachment: ComposerAttachment) => {
@@ -645,6 +663,7 @@ function ChatComposer({
               value={draft}
               onChange={(event) => onDraftChange(event.target.value)}
               onKeyDown={onKeyDown}
+              onPaste={onPaste}
               placeholder="Mande uma mensagem para a Vanda…"
               aria-label="Mensagem para a Vanda"
               rows={1}
