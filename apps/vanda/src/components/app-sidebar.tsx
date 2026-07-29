@@ -359,7 +359,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
             size="lg"
             tooltip="Nova conversa"
             onClick={startThread}
-            className="h-11 gap-2.5 bg-sidebar-primary px-3 text-[13px] font-semibold text-sidebar-primary-foreground hover:bg-sidebar-primary hover:brightness-110 active:bg-sidebar-primary group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0!"
+            className="h-11 gap-2.5 border border-sidebar-primary-soft-border bg-sidebar-primary-soft px-3 text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-primary-soft hover:brightness-110 active:bg-sidebar-primary-soft group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0!"
           >
             <PencilLine className="size-4" />
             <span className="group-data-[collapsible=icon]:hidden">Nova conversa</span>
