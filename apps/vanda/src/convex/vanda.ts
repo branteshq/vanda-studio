@@ -16,7 +16,7 @@ import { internalAction } from "./_generated/server";
  * completion notes land in the conversation that asked for the work.
  */
 
-export const VANDA_MODEL = "openai/gpt-5-mini";
+export const VANDA_MODEL = "openai/gpt-5.6-terra";
 
 /** Every agent turn carries the account the thread belongs to. */
 type VandaCtx = { accountId: Id<"accounts"> };
@@ -33,9 +33,11 @@ Regras de comportamento:
 - Trabalhos longos (varredura de mercado, criação de carrossel, revisão de slide) rodam em segundo plano: avise que você começou e que retorna quando terminar.
 - Publicação é irreversível: ela sempre passa pelo fluxo de aprovação — nunca trate um "sim" em texto como aprovação.
 - Não invente fatos sobre a marca: o que você sabe vem da memória de marca confirmada pelo dono. Se faltar contexto, pergunte ou peça para completar o perfil.
-- Imagens com a pessoa do dono só podem ser geradas a partir de fotos de rosto autorizadas (list_reference_photos). Se o usuário pedir conteúdo consigo mesmo e não houver foto de rosto autorizada, peça para enviar uma no Perfil antes.
-- Para retratar o dono com paint, primeiro chame list_reference_photos e passe o id de uma referência de rosto autorizada em referenceImageIds.
-- Imagens anexadas pelo usuário chegam com imageIds no contexto interno da mensagem. Você pode analisá-las diretamente e usar esses IDs em ferramentas; para editar uma com paint, passe o ID em editOfImageId.`;
+- Imagens (paint) — regra de roteamento, siga à risca:
+  - A imagem que o usuário ANEXA na conversa já pertence à conta e já está autorizada. Use-a direto. Nunca peça "autorização" nem invente uma etapa de autorizar — esse passo não existe.
+  - Para MODIFICAR uma imagem que já existe (trocar fundo, cenário, roupa, etc.), passe o id dela em editOfImageId e descreva no prompt só o que muda. É o caso quando o usuário anexa uma foto e pede para editá-la.
+  - Para gerar uma imagem NOVA condicionada a um rosto, produto ou lugar específico, passe o(s) id(s) em referenceImageIds. Servem tanto imagens anexadas quanto as de list_reference_photos, sem autorização extra.
+  - Os IDs das imagens anexadas chegam no contexto interno da mensagem (vanda_attachment_context). Só peça para o usuário enviar/subir uma foto quando não houver NENHUMA imagem disponível (nem anexada, nem em list_reference_photos) e o pedido exigir uma pessoa/produto específico.`;
 
 const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });
 
@@ -60,7 +62,7 @@ const getBrandMemory = createTool({
 
 const listReferencePhotos = createTool({
   description:
-    "Lista as fotos de referência autorizadas pelo dono (rosto, produto, lugar). Somente fotos de rosto autorizadas podem condicionar a geração de imagens com a pessoa do dono.",
+    "Lista as fotos de referência salvas pelo dono (rosto, produto, lugar), com seus ids. Use quando precisar de um rosto/produto/lugar e o usuário NÃO tiver anexado uma imagem na conversa. Imagens anexadas pelo usuário também servem como referência direta, sem precisar estar nesta lista.",
   inputSchema: z.object({}),
   execute: (ctx: VandaToolCtx): Promise<unknown> =>
     ctx.runQuery(internal.brandProfile.listAuthorizedReferences, { accountId: ctx.accountId }),
@@ -202,7 +204,7 @@ const publishProject = createTool({
 
 const paint = createTool({
   description:
-    "Gera uma imagem a partir de um prompt visual detalhado que VOCÊ escreve com base no pedido do usuário e na marca. Para retratar o dono, primeiro use list_reference_photos e passe uma foto de rosto autorizada em referenceImageIds. Pode usar referências autorizadas ou editar uma imagem existente da conta.",
+    "Gera OU edita uma imagem a partir de um prompt visual detalhado que VOCÊ escreve. Para modificar uma imagem já existente da conta (inclusive uma que o usuário acabou de anexar) — trocar fundo, cenário, etc. — passe o id dela em editOfImageId e descreva só o que muda. Para condicionar uma imagem nova a um rosto, produto ou lugar, passe os ids em referenceImageIds. Imagens anexadas e as de list_reference_photos servem direto, sem autorização extra.",
   inputSchema: z.object({
     prompt: z.string().describe("prompt visual detalhado escrito pela Vanda"),
     aspectRatio: z.enum(["1:1", "4:5", "9:16", "16:9"]).default("4:5"),

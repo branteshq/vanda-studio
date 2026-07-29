@@ -63,14 +63,13 @@ describe("paint image identity boundary", () => {
     expect(resolved.editSource?.imageId).toBe(postImageId);
   });
 
-  it("rejects a non-reference image used as conditioning", async () => {
+  it("accepts any owned image as conditioning", async () => {
     const { t, accountId, postImageId } = await setup();
-    await expect(
-      t.query(internal.imagesData.resolvePaintInput, {
-        accountId,
-        referenceImageIds: [postImageId],
-      }),
-    ).rejects.toThrow("not an authorized reference");
+    const resolved = await t.query(internal.imagesData.resolvePaintInput, {
+      accountId,
+      referenceImageIds: [postImageId],
+    });
+    expect(resolved.references).toMatchObject([{ imageId: postImageId }]);
   });
 
   it("rejects foreign reference and edit ids", async () => {
@@ -90,7 +89,7 @@ describe("paint image identity boundary", () => {
     ).rejects.toThrow("image not found");
   });
 
-  it("records a reviewed image as a loose post asset", async () => {
+  it("records a painted image as a loose post asset", async () => {
     const { t, accountId } = await setup();
     const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["image"])));
     const imageId = await t.mutation(internal.imagesData.savePaintedImage, {
@@ -100,12 +99,6 @@ describe("paint image identity boundary", () => {
       mimeType: "image/jpeg",
       width: 1024,
       height: 1280,
-      visualDescription: "A warm breakfast table",
-      containsText: false,
-      containsFace: false,
-      safeForBrandUse: true,
-      inspectionWarnings: [],
-      inspectionConfidence: 0.98,
     });
     const image = await t.run((ctx) => ctx.db.get(imageId));
     expect(image).toMatchObject({
@@ -113,8 +106,7 @@ describe("paint image identity boundary", () => {
       origin: "generated",
       purpose: "post",
       prompt: "warm breakfast",
-      inspectionStatus: "ready",
-      safeForBrandUse: true,
+      description: "warm breakfast",
     });
     expect(image?.contentProjectId).toBeUndefined();
     expect(image?.carouselDocumentId).toBeUndefined();

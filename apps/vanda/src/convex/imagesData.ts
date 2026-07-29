@@ -20,8 +20,11 @@ export const resolvePaintInput = internalQuery({
 
     const references = await Promise.all(
       referenceImageIds.map(async (imageId) => {
+        // Account ownership is the boundary — any image the account owns (an
+        // attached upload, a painted asset, or a Perfil reference) may condition
+        // generation. The model can only reproduce a person's likeness from a
+        // photo already in this account, so `purpose` is not a security gate.
         const image = await loadOwnedImage(ctx, accountId, imageId);
-        if (image.purpose !== "reference") throw new Error("image is not an authorized reference");
         return {
           imageId: image._id,
           externalUrl: image.externalUrl ?? null,
@@ -43,7 +46,7 @@ export const resolvePaintInput = internalQuery({
   },
 });
 
-/** Record a reviewed loose image asset; it intentionally has no post/project link. */
+/** Record a loose painted image asset; it intentionally has no post/project link. */
 export const savePaintedImage = internalMutation({
   args: {
     accountId: v.id("accounts"),
@@ -52,12 +55,6 @@ export const savePaintedImage = internalMutation({
     mimeType: v.string(),
     width: v.number(),
     height: v.number(),
-    visualDescription: v.string(),
-    containsText: v.boolean(),
-    containsFace: v.boolean(),
-    safeForBrandUse: v.boolean(),
-    inspectionWarnings: v.array(v.string()),
-    inspectionConfidence: v.number(),
   },
   handler: async (ctx, args) => {
     if (!(await ctx.db.get(args.accountId))) throw new Error("account not found");
@@ -70,16 +67,8 @@ export const savePaintedImage = internalMutation({
       mimeType: args.mimeType,
       width: args.width,
       height: args.height,
-      description: args.visualDescription,
-      altText: args.visualDescription,
-      inspectionStatus: "ready",
-      visualDescription: args.visualDescription,
-      containsText: args.containsText,
-      containsFace: args.containsFace,
-      safeForBrandUse: args.safeForBrandUse,
-      inspectionWarnings: args.inspectionWarnings,
-      inspectionConfidence: args.inspectionConfidence,
-      inspectedAt: Date.now(),
+      description: args.prompt,
+      altText: args.prompt,
       createdAt: Date.now(),
     });
   },

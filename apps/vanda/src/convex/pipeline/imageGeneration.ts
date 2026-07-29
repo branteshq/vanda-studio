@@ -178,8 +178,15 @@ export const openRouterImageGeneratorLayer = (input: {
               output_format: "jpeg",
               output_compression: 90,
               background: "opaque",
+              // OpenRouter's /images endpoint expects reference images as objects,
+              // not raw URL strings ("expected object, received string" otherwise).
               ...(referenceUrls && referenceUrls.length > 0
-                ? { input_references: referenceUrls.slice(0, 3) }
+                ? {
+                    input_references: referenceUrls.slice(0, 3).map((url) => ({
+                      type: "image_url",
+                      image_url: { url },
+                    })),
+                  }
                 : {}),
             }),
           });

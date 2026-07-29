@@ -9,11 +9,7 @@ import { internalAction, type ActionCtx } from "./_generated/server";
 import {
   ImageAssetGenerator,
   openRouterImageGeneratorLayer,
-  reviewGeneratedAsset,
-  type GeneratedAssetReview,
-  type GeneratedVisual,
 } from "./pipeline/imageGeneration";
-import { PIPELINE_MODELS } from "./pipeline/liveModel";
 
 const DEFAULT_IMAGE_MODEL = "openai/gpt-image-2";
 
@@ -76,24 +72,10 @@ const cropToAspectRatio = (image: Awaited<ReturnType<typeof Jimp.read>>, ratio: 
   return { width, height };
 };
 
-const correctionPrompt = (review: GeneratedAssetReview, allowPerson: boolean): string =>
-  ` CORREÇÃO OBRIGATÓRIA APÓS REVISÃO: ${review.summary}. ` +
-  `Problemas a eliminar: ${[
-    ...review.prohibitedSubjects,
-    ...review.qualityIssues,
-    ...(review.containsText ? ["qualquer texto ou caractere"] : []),
-    ...(review.containsLogo ? ["qualquer logo"] : []),
-    ...(review.containsPerson && !allowPerson ? ["qualquer pessoa identificável"] : []),
-  ].join(", ")}. ${
-    allowPerson
-      ? "Mantenha a pessoa fiel às referências de rosto autorizadas."
-      : "Não inclua nenhuma pessoa identificável."
-  }`;
-
 /**
- * Generate one reviewed loose image asset for an account. This is the image
- * primitive: callers never reach the model, storage, or identity boundary
- * independently.
+ * Generate one loose image asset for an account. This is the image primitive:
+ * callers never reach the model or storage independently. There is no hidden
+ * editorial review — the orchestrator and the human judge the result.
  */
 export const paint = internalAction({
   args: {
@@ -127,10 +109,6 @@ export const paint = internalAction({
     const referenceUrls = await Promise.all(
       resolved.references.map((reference) => resolveSourceUrl(ctx, reference)),
     );
-    const identityReferenceUrls = referenceUrls.filter(
-      (_, index) => resolved.references[index]?.referenceKind === "face",
-    );
-    const allowPerson = identityReferenceUrls.length > 0;
     const editUrl = resolved.editSource
       ? await resolveSourceUrl(ctx, resolved.editSource)
       : undefined;
@@ -140,32 +118,15 @@ export const paint = internalAction({
     if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
     const selectedModel = model ?? DEFAULT_IMAGE_MODEL;
 
-    let generated: GeneratedVisual | undefined;
-    let review: GeneratedAssetReview | undefined;
-    let correction = "";
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      generated = await Effect.runPromise(
-        Effect.flatMap(ImageAssetGenerator, (generator) =>
-          generator.generate({
-            prompt: `${trimmedPrompt}${correction}`,
-            size: GENERATION_SIZE[aspectRatio],
-            ...(inputReferences.length > 0 ? { referenceUrls: inputReferences } : {}),
-          }),
-        ).pipe(Effect.provide(openRouterImageGeneratorLayer({ apiKey, model: selectedModel }))),
-      );
-      review = await reviewGeneratedAsset({
-        apiKey,
-        model: PIPELINE_MODELS.studioAssetReview,
-        visual: generated,
-        context: trimmedPrompt,
-        ...(allowPerson ? { identityReferenceUrls } : {}),
-      });
-      if (review.approved) break;
-      correction = correctionPrompt(review, allowPerson);
-    }
-    if (!generated || !review?.approved) {
-      throw new Error(`generated asset rejected: ${review?.summary ?? "unknown review failure"}`);
-    }
+    const generated = await Effect.runPromise(
+      Effect.flatMap(ImageAssetGenerator, (generator) =>
+        generator.generate({
+          prompt: trimmedPrompt,
+          size: GENERATION_SIZE[aspectRatio],
+          ...(inputReferences.length > 0 ? { referenceUrls: inputReferences } : {}),
+        }),
+      ).pipe(Effect.provide(openRouterImageGeneratorLayer({ apiKey, model: selectedModel }))),
+    );
 
     const image = await Jimp.read(Buffer.from(generated.bytes));
     const { width, height } = cropToAspectRatio(image, aspectRatio);
@@ -182,12 +143,6 @@ export const paint = internalAction({
       mimeType,
       width,
       height,
-      visualDescription: review.summary,
-      containsText: review.containsText,
-      containsFace: review.containsPerson,
-      safeForBrandUse: review.approved,
-      inspectionWarnings: [...review.prohibitedSubjects, ...review.qualityIssues],
-      inspectionConfidence: review.confidence,
     });
     const url = await ctx.storage.getUrl(storageId);
     if (!url) throw new Error("stored image URL is unavailable");
