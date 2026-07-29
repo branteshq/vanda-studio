@@ -450,7 +450,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                               autoComplete="off"
                               autoFocus
                               className={cn(
-                                "h-8 rounded-md border-0 bg-transparent px-2.5 py-2 text-[13px] text-sidebar-accent-foreground focus-visible:border-transparent focus-visible:ring-0 md:text-[13px] dark:bg-transparent",
+                                "h-auto rounded-md border-0 bg-transparent px-2.5 py-2 text-body text-sidebar-accent-foreground focus-visible:border-transparent focus-visible:ring-0 md:text-body dark:bg-transparent",
                                 active && "font-medium",
                               )}
                             />
@@ -461,7 +461,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                               type="button"
                               onClick={() => openThread(thread.threadId)}
                               className={cn(
-                                "min-w-0 flex-1 truncate px-2.5 py-2 text-left text-[13px] outline-none transition-colors duration-150 ease-[var(--ease-out)] group-hover/thread:text-sidebar-accent-foreground focus-visible:text-sidebar-accent-foreground",
+                                "min-w-0 flex-1 truncate px-2.5 py-2 text-left text-body outline-none transition-colors duration-150 ease-[var(--ease-out)] group-hover/thread:text-sidebar-accent-foreground focus-visible:text-sidebar-accent-foreground",
                                 active
                                   ? "font-medium text-sidebar-accent-foreground"
                                   : "text-sidebar-foreground/70",
