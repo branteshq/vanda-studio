@@ -1,11 +1,25 @@
 "use client";
 
+import type { ReactElement, ReactNode } from "react";
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 
 import { cn } from "@vanda-studio/ui/lib/utils";
 
-function TooltipProvider({ delay = 0, ...props }: TooltipPrimitive.Provider.Props) {
-  return <TooltipPrimitive.Provider data-slot="tooltip-provider" delay={delay} {...props} />;
+function TooltipProvider({
+  delay = 350,
+  closeDelay = 80,
+  timeout = 500,
+  ...props
+}: TooltipPrimitive.Provider.Props) {
+  return (
+    <TooltipPrimitive.Provider
+      data-slot="tooltip-provider"
+      delay={delay}
+      closeDelay={closeDelay}
+      timeout={timeout}
+      {...props}
+    />
+  );
 }
 
 function Tooltip({ ...props }: TooltipPrimitive.Root.Props) {
@@ -38,7 +52,7 @@ function TooltipContent({
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"
           className={cn(
-            "z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-xs text-background has-data-[slot=kbd]:pr-1.5 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-sm data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:zoom-in-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+            "z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-md bg-foreground px-2.5 py-1.5 text-xs font-medium text-background shadow-md transition-[opacity,transform] duration-150 ease-[var(--ease-out)] has-data-[slot=kbd]:pr-1.5 data-instant:transition-none data-ending-style:opacity-0 data-starting-style:opacity-0 data-[side=bottom]:data-ending-style:-translate-y-1 data-[side=bottom]:data-starting-style:-translate-y-1 data-[side=inline-end]:data-ending-style:-translate-x-1 data-[side=inline-end]:data-starting-style:-translate-x-1 data-[side=inline-start]:data-ending-style:translate-x-1 data-[side=inline-start]:data-starting-style:translate-x-1 data-[side=left]:data-ending-style:translate-x-1 data-[side=left]:data-starting-style:translate-x-1 data-[side=right]:data-ending-style:-translate-x-1 data-[side=right]:data-starting-style:-translate-x-1 data-[side=top]:data-ending-style:translate-y-1 data-[side=top]:data-starting-style:translate-y-1 motion-reduce:transform-none motion-reduce:transition-opacity **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-sm",
             className,
           )}
           {...props}
@@ -51,4 +65,28 @@ function TooltipContent({
   );
 }
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };
+interface ActionTooltipProps extends Pick<
+  TooltipPrimitive.Positioner.Props,
+  "align" | "alignOffset" | "side" | "sideOffset"
+> {
+  label: ReactNode;
+  children: ReactElement;
+  className?: string;
+}
+
+/**
+ * Standard tooltip for compact/icon actions. It composes directly onto its
+ * child, preserving the child's semantics, focus behavior, and event handlers.
+ */
+function ActionTooltip({ label, children, className, ...position }: ActionTooltipProps) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={children} />
+      <TooltipContent className={className} {...position}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+export { ActionTooltip, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };

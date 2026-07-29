@@ -2,7 +2,6 @@ import type { CSSProperties } from "react";
 import { RedirectToSignIn, Show } from "@clerk/tanstack-react-start";
 import { Navigate, Outlet, createFileRoute } from "@tanstack/react-router";
 import { SidebarInset, SidebarProvider } from "@vanda-studio/ui/components/sidebar";
-import { TooltipProvider } from "@vanda-studio/ui/components/tooltip";
 import { AppSidebar, CollapsedSidebarControls } from "../components/app-sidebar";
 import { ActiveAccountProvider, useActiveAccount } from "../components/active-account";
 
@@ -37,20 +36,18 @@ function DashboardGate() {
     return <Navigate to="/onboarding" />;
   }
   return (
-    <TooltipProvider>
-      <SidebarProvider
-        style={
-          {
-            "--sidebar-width": "17rem",
-          } as CSSProperties
-        }
-      >
-        <AppSidebar />
-        <SidebarInset className="relative flex h-svh flex-col overflow-hidden bg-app">
-          <CollapsedSidebarControls />
-          <Outlet />
-        </SidebarInset>
-      </SidebarProvider>
-    </TooltipProvider>
+    <SidebarProvider
+      style={
+        {
+          "--sidebar-width": "17rem",
+        } as CSSProperties
+      }
+    >
+      <AppSidebar />
+      <SidebarInset className="relative flex h-svh flex-col overflow-hidden bg-app">
+        <CollapsedSidebarControls />
+        <Outlet />
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

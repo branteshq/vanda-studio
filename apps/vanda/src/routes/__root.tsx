@@ -3,6 +3,7 @@ import { ClerkProvider, useAuth } from "@clerk/tanstack-react-start";
 import { Outlet, Scripts, createRootRoute, HeadContent } from "@tanstack/react-router";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexQueryCacheProvider } from "convex-helpers/react/cache";
+import { TooltipProvider } from "@vanda-studio/ui/components/tooltip";
 import { getConvexClient } from "../convexClient";
 import appCss from "../styles.css?url";
 import vandaMarkIconUrl from "@vanda-studio/ui/assets/vanda-mark.svg?url";
@@ -43,7 +44,9 @@ function RootDocument({ children }: { children: ReactNode }) {
           <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
             {/* Keeps query subscriptions warm ~5min after unmount: navigating back to
                 any screen renders instantly from live local data instead of a refetch. */}
-            <ConvexQueryCacheProvider>{children}</ConvexQueryCacheProvider>
+            <ConvexQueryCacheProvider>
+              <TooltipProvider>{children}</TooltipProvider>
+            </ConvexQueryCacheProvider>
           </ConvexProviderWithClerk>
         </ClerkProvider>
         <Scripts />
