@@ -304,7 +304,7 @@ function ChatMessage({
 
   return (
     <Message align="start" className={cn(enter && "animate-message-in")}>
-      <MessageAvatar className="bg-surface text-brand-accent shadow-sm">
+      <MessageAvatar className="size-6 min-w-6 self-start bg-surface text-brand-accent shadow-sm">
         <VandaMark size={14} />
       </MessageAvatar>
       <MessageContent>
