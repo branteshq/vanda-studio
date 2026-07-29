@@ -198,9 +198,6 @@ export const sendMessage = mutation({
           })),
         ],
       },
-      ...(images.length > 0
-        ? { metadata: { fileIds: images.map((image) => String(image.imageId)) } }
-        : {}),
     });
     const attachedAt = Date.now();
     await Promise.all(
