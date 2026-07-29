@@ -50,11 +50,13 @@ export const listMine = query({
     );
 
     return rows.sort((a, b) => {
-      if (a.active !== b.active) return a.active ? -1 : 1;
+      // Keep switcher positions stable: selecting an account changes only its
+      // active styling, never the physical order users build muscle memory for.
       const aReady = a.onboardedAt !== null;
       const bReady = b.onboardedAt !== null;
       if (aReady !== bReady) return aReady ? -1 : 1;
-      return a.createdAt - b.createdAt;
+      if (a.createdAt !== b.createdAt) return a.createdAt - b.createdAt;
+      return String(a.id).localeCompare(String(b.id));
     });
   },
 });
