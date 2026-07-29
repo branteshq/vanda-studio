@@ -28,7 +28,7 @@ import { Button } from "@vanda-studio/ui/components/button";
 import { Bubble, BubbleContent } from "@vanda-studio/ui/components/bubble";
 import { Markdown } from "@vanda-studio/ui/components/markdown";
 import { Marker, MarkerContent, MarkerIcon } from "@vanda-studio/ui/components/marker";
-import { Message, MessageAvatar, MessageContent } from "@vanda-studio/ui/components/message";
+import { Message, MessageContent } from "@vanda-studio/ui/components/message";
 import {
   MessageScroller,
   MessageScrollerButton,
@@ -48,7 +48,6 @@ import { Spinner } from "@vanda-studio/ui/components/spinner";
 import { StatusPill } from "@vanda-studio/ui/components/status-pill";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { useActiveAccount } from "../components/active-account";
-import { VandaMark } from "../components/vanda-mark";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 
@@ -371,9 +370,6 @@ function ChatMessage({
 
   return (
     <Message align="start" className={cn(enter && "animate-message-in")}>
-      <MessageAvatar className="size-6 min-w-6 self-start bg-surface text-brand-accent shadow-sm">
-        <VandaMark size={14} />
-      </MessageAvatar>
       <MessageContent>
         {toolRows.length > 0 ? <ToolTrace parts={toolRows} running={anyToolRunning} /> : null}
         {answers.map(({ key, text }) => (
