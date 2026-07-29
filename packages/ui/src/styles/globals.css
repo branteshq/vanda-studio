@@ -1,5 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* Typeset: owned typography system for rendered markdown / long-form content.
+ * Must come after Tailwind so its `@layer components` rules slot in correctly. */
+@import "./typeset.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -287,4 +290,26 @@
     text-rendering: optimizeLegibility;
     font-feature-settings: "cv05", "ss01";
   }
+}
+
+/* Typeset presets — density variants for the app's content surfaces. Unlayered
+ * so they win over typeset.css's @layer components defaults. Fonts pin to the
+ * app's sans (Inter) since the theme has no separate heading face. */
+.typeset {
+  --typeset-font-body: var(--font-sans);
+  --typeset-font-heading: var(--font-sans);
+}
+
+/* Chat: tighter rhythm at the app's body size for assistant messages. */
+.typeset-chat {
+  --typeset-size: 0.875rem;
+  --typeset-leading: 1.65;
+  --typeset-flow: 0.9em;
+}
+
+/* Reading: relaxed rhythm for longer-form surfaces (captions, summaries). */
+.typeset-reading {
+  --typeset-size: 0.9375rem;
+  --typeset-leading: 1.7;
+  --typeset-flow: 1.1em;
 }

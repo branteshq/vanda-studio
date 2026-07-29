@@ -310,7 +310,7 @@ function MessagePart({
     return (
       <Bubble variant="ghost">
         <BubbleContent>
-          <Markdown className="text-sm text-text-2">{text}</Markdown>
+          <Markdown>{text}</Markdown>
         </BubbleContent>
       </Bubble>
     );
@@ -725,9 +725,11 @@ function CarouselCanvas({
             {document ? (
               <section>
                 <h3 className="text-sm font-semibold text-text">Legenda</h3>
-                <p className="mt-1.5 rounded-lg border border-border bg-surface p-3 text-sm leading-relaxed whitespace-pre-wrap text-text-3">
-                  {document.caption}
-                </p>
+                <div className="mt-1.5 rounded-lg border border-border bg-surface p-3">
+                  <Markdown variant="reading" className="text-text-3">
+                    {document.caption}
+                  </Markdown>
+                </div>
               </section>
             ) : null}
 
