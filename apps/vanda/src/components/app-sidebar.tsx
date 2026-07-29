@@ -422,25 +422,27 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                         >
                           {thread.title ?? "Nova conversa"}
                         </button>
-                        <div className="pointer-events-none mr-1 flex shrink-0 translate-x-1 items-center gap-0.5 opacity-0 transition-[opacity,transform] duration-100 ease-[var(--ease-out)] group-hover/thread:pointer-events-auto group-hover/thread:translate-x-0 group-hover/thread:opacity-100 group-hover/thread:duration-150 group-focus-within/thread:pointer-events-auto group-focus-within/thread:translate-x-0 group-focus-within/thread:opacity-100 group-focus-within/thread:duration-150 motion-reduce:translate-x-0 motion-reduce:transition-opacity">
-                          <button
-                            type="button"
-                            aria-label="Renomear conversa"
-                            title="Renomear"
-                            onClick={() => rename(thread)}
-                            className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-[color,transform] duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-[0.94] motion-reduce:transform-none"
-                          >
-                            <Pencil className="size-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            aria-label="Arquivar conversa"
-                            title="Arquivar"
-                            onClick={() => archive(thread)}
-                            className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-[color,transform] duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-[0.94] motion-reduce:transform-none"
-                          >
-                            <Archive className="size-3.5" />
-                          </button>
+                        <div className="pointer-events-none mr-1 w-[3.625rem] shrink-0 overflow-hidden group-hover/thread:pointer-events-auto group-focus-within/thread:pointer-events-auto">
+                          <div className="flex translate-x-full items-center gap-0.5 transition-transform duration-180 ease-[var(--ease-out)] group-hover/thread:translate-x-0 group-focus-within/thread:translate-x-0 motion-reduce:transition-none">
+                            <button
+                              type="button"
+                              aria-label="Renomear conversa"
+                              title="Renomear"
+                              onClick={() => rename(thread)}
+                              className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-[color,transform] duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-[0.94] motion-reduce:transform-none"
+                            >
+                              <Pencil className="size-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Arquivar conversa"
+                              title="Arquivar"
+                              onClick={() => archive(thread)}
+                              className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-[color,transform] duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-[0.94] motion-reduce:transform-none"
+                            >
+                              <Archive className="size-3.5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
