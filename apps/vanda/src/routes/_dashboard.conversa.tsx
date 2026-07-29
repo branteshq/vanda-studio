@@ -93,6 +93,7 @@ const TOOL_LABEL: Record<string, string> = {
   request_render: "Enfileirando render",
   publish_project: "Publicação no Instagram",
   discard_project: "Arquivando projeto",
+  paint: "Criando imagem",
 };
 
 /** The loose view of a tool part — covers `tool-*` and `dynamic-tool` shapes. */
@@ -109,6 +110,31 @@ interface ToolPartView {
 
 const toolNameOf = (part: ToolPartView): string =>
   part.type === "dynamic-tool" ? (part.toolName ?? "tool") : part.type.slice("tool-".length);
+
+interface PaintedImageView {
+  imageId: string;
+  url: string;
+  width: number;
+  height: number;
+}
+
+const paintedImageOf = (part: ToolPartView): PaintedImageView | null => {
+  if (toolNameOf(part) !== "paint" || part.state !== "output-available") return null;
+  const output = part.output;
+  if (!output || typeof output !== "object") return null;
+  const value = output as Record<string, unknown>;
+  return typeof value.imageId === "string" &&
+    typeof value.url === "string" &&
+    typeof value.width === "number" &&
+    typeof value.height === "number"
+    ? {
+        imageId: value.imageId,
+        url: value.url,
+        width: value.width,
+        height: value.height,
+      }
+    : null;
+};
 
 const projectIdOf = (part: ToolPartView): Id<"contentProjects"> | null => {
   for (const value of [part.input, part.output]) {
@@ -545,6 +571,7 @@ function ChatMessage({
   const toolRows: ToolPartView[] = [];
   const approvals: ToolPartView[] = [];
   const previewProjectIds: Id<"contentProjects">[] = [];
+  const paintedImages: PaintedImageView[] = [];
   message.parts.forEach((part, index) => {
     if (part.type === "text") {
       const text = (part as { text: string }).text;
@@ -561,6 +588,10 @@ function ChatMessage({
       const pid = projectIdOf(p);
       if (pid && p.state === "output-available" && !previewProjectIds.includes(pid)) {
         previewProjectIds.push(pid);
+      }
+      const painted = paintedImageOf(p);
+      if (painted && !paintedImages.some((image) => image.imageId === painted.imageId)) {
+        paintedImages.push(painted);
       }
     }
     // reasoning and any other part type are intentionally hidden.
@@ -582,6 +613,9 @@ function ChatMessage({
               <StreamingText text={text} streaming={streaming} />
             </BubbleContent>
           </Bubble>
+        ))}
+        {paintedImages.map((image) => (
+          <PaintedImage key={image.imageId} image={image} />
         ))}
         {previewProjectIds.map((pid) => (
           <ProjectPreview key={pid} projectId={pid} onOpen={() => onOpenProject(pid)} />
@@ -694,6 +728,30 @@ function ApprovalResponded({ approved }: { approved: boolean }) {
         {approved ? "Publicação aprovada por você" : "Publicação negada por você"}
       </MarkerContent>
     </Marker>
+  );
+}
+
+/** A loose image returned directly by the synchronous paint tool. */
+function PaintedImage({ image }: { image: PaintedImageView }) {
+  const enter = useEntranceOnMount();
+  return (
+    <Attachment
+      orientation="vertical"
+      className={cn("w-full max-w-sm", enter && "animate-attachment-in")}
+    >
+      <AttachmentMedia
+        variant="image"
+        className="w-full"
+        style={{ aspectRatio: `${image.width} / ${image.height}` }}
+      >
+        <img
+          src={image.url}
+          alt="Imagem criada pela Vanda"
+          loading="lazy"
+          className="size-full object-cover"
+        />
+      </AttachmentMedia>
+    </Attachment>
   );
 }
 
