@@ -6,12 +6,9 @@ import * as Effect from "effect/Effect";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction, type ActionCtx } from "./_generated/server";
-import {
-  ImageAssetGenerator,
-  openRouterImageGeneratorLayer,
-} from "./pipeline/imageGeneration";
+import { ImageAssetGenerator, openRouterImageGeneratorLayer } from "./pipeline/imageGeneration";
 
-const DEFAULT_IMAGE_MODEL = "openai/gpt-image-2";
+const DEFAULT_IMAGE_MODEL = "google/gemini-3.1-flash-image";
 
 const aspectRatioValidator = v.union(
   v.literal("1:1"),

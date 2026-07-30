@@ -224,7 +224,7 @@ const paint = createTool({
       accountId: ctx.accountId,
       prompt: args.prompt,
       aspectRatio: args.aspectRatio,
-      model: "openai/gpt-image-2",
+      model: "google/gemini-3.1-flash-image",
       ...(args.referenceImageIds
         ? { referenceImageIds: args.referenceImageIds as Array<Id<"images">> }
         : {}),
