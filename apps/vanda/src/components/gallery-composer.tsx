@@ -60,7 +60,7 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
     <div className="flex h-full min-h-0 flex-col group-data-[collapsible=icon]:hidden">
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-1 pt-2 pb-4">
         <div>
-          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-sidebar-foreground/50">
+          <label className="mb-1.5 block text-note font-semibold uppercase tracking-wide text-sidebar-foreground/50">
             Prompt
           </label>
           <textarea
@@ -69,16 +69,16 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
             onChange={(event) => setPrompt(event.target.value)}
             rows={4}
             placeholder="Descreva a imagem que você quer criar…"
-            className="w-full resize-none rounded-lg border border-sidebar-border bg-sidebar-accent/40 px-3 py-2 text-sm text-sidebar-foreground outline-none placeholder:text-sidebar-foreground/40 focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+            className="w-full resize-none rounded-lg border border-sidebar-border bg-sidebar-accent/40 px-3 py-2 text-body text-sidebar-foreground outline-none placeholder:text-sidebar-foreground/40 focus-visible:ring-2 focus-visible:ring-brand-accent/40"
           />
         </div>
 
         <div>
           <div className="mb-1.5 flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-sidebar-foreground/50">
+            <span className="text-note font-semibold uppercase tracking-wide text-sidebar-foreground/50">
               Modelos
             </span>
-            <span className="text-[11px] text-sidebar-foreground/50">
+            <span className="text-note text-sidebar-foreground/50">
               {models.size} ativo{models.size === 1 ? "" : "s"}
             </span>
           </div>
@@ -99,14 +99,14 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
                 >
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5">
-                      <span className="truncate text-sm font-medium text-sidebar-foreground">
+                      <span className="truncate text-body font-medium text-sidebar-foreground">
                         {model.label}
                       </span>
-                      <span className="text-[11px] text-sidebar-foreground/45">
+                      <span className="text-note text-sidebar-foreground/45">
                         {model.priceTier}
                       </span>
                     </span>
-                    <span className="mt-0.5 block truncate text-[11px] text-sidebar-foreground/45">
+                    <span className="mt-0.5 block truncate text-note text-sidebar-foreground/45">
                       {model.blurb}
                     </span>
                   </span>
@@ -127,7 +127,7 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-sidebar-foreground/50">
+          <label className="mb-1.5 block text-note font-semibold uppercase tracking-wide text-sidebar-foreground/50">
             Proporção
           </label>
           <div className="grid grid-cols-4 gap-1.5">
@@ -137,7 +137,7 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
                 type="button"
                 onClick={() => setAspect(value)}
                 className={cn(
-                  "rounded-lg border py-2 text-xs font-medium transition-colors",
+                  "rounded-lg border py-2 text-body-sm font-medium transition-colors",
                   aspect === value
                     ? "border-brand-accent/60 bg-brand-accent/10 text-sidebar-foreground"
                     : "border-sidebar-border bg-sidebar-accent/40 text-sidebar-foreground/50 hover:border-sidebar-foreground/25",
@@ -150,7 +150,7 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-sidebar-foreground/50">
+          <label className="mb-1.5 block text-note font-semibold uppercase tracking-wide text-sidebar-foreground/50">
             Imagens por modelo
           </label>
           <div className="flex items-center gap-2">
@@ -160,7 +160,7 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
                 type="button"
                 onClick={() => setCount(value)}
                 className={cn(
-                  "size-9 rounded-lg border text-sm font-medium transition-colors",
+                  "size-9 rounded-lg border text-body font-medium transition-colors",
                   count === value
                     ? "border-brand-accent/60 bg-brand-accent/10 text-sidebar-foreground"
                     : "border-sidebar-border bg-sidebar-accent/40 text-sidebar-foreground/50 hover:border-sidebar-foreground/25",
@@ -174,7 +174,7 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
       </div>
 
       <div className="border-t border-sidebar-border px-1 pt-3 pb-1">
-        <div className="mb-2 flex items-center justify-between text-xs text-sidebar-foreground/50">
+        <div className="mb-2 flex items-center justify-between text-body-sm text-sidebar-foreground/50">
           <span>
             {models.size} {models.size === 1 ? "modelo" : "modelos"} × {count}
           </span>

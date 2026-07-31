@@ -67,7 +67,7 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
             <EmptyGallery hasQuery={normalized.length > 0} />
           ) : (
             <>
-              <div className="mx-auto max-w-[1600px] columns-2 gap-3 sm:columns-3 lg:columns-4 [&>*]:mb-3">
+              <div className="mx-auto max-w-7xl columns-2 gap-3 sm:columns-3 lg:columns-4 [&>*]:mb-3">
                 {items.map((item) => (
                   <GalleryCard
                     key={item.id}
@@ -138,7 +138,7 @@ function GalleryHeader({
           onChange={(event) => onQuery(event.target.value)}
           placeholder="Buscar imagens…"
           aria-label="Buscar na galeria"
-          className="h-8 w-full rounded-lg border border-border bg-surface-2 pl-8 pr-3 text-sm text-text outline-none transition-colors placeholder:text-text-4 hover:border-border-strong focus-visible:border-border-strong focus-visible:ring-2 focus-visible:ring-brand-accent/30"
+          className="h-8 w-full rounded-lg border border-border bg-muted pl-8 pr-3 text-body text-text outline-none transition-colors placeholder:text-text-4 hover:border-border-strong focus-visible:border-border-strong focus-visible:ring-2 focus-visible:ring-brand-accent/30"
         />
       </div>
       <div className="ml-auto">
@@ -212,7 +212,7 @@ function GalleryCard({ item, onOpen }: { item: GalleryItem; onOpen: () => void }
       onClick={onOpen}
       className="group relative block w-full overflow-hidden rounded-xl border border-border bg-surface text-left transition-colors hover:border-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
     >
-      <div style={{ aspectRatio: ratio }} className="w-full bg-surface-2">
+      <div style={{ aspectRatio: ratio }} className="w-full bg-muted">
         {item.url && (
           <img
             src={item.url}
@@ -223,9 +223,9 @@ function GalleryCard({ item, onOpen }: { item: GalleryItem; onOpen: () => void }
         )}
       </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2.5 opacity-0 transition-opacity group-hover:opacity-100">
-        <p className="truncate text-xs font-medium text-white">{item.name ?? "Sem nome"}</p>
+        <p className="truncate text-body-sm font-medium text-white">{item.name ?? "Sem nome"}</p>
         {item.model && (
-          <p className="truncate text-[11px] text-white/70">{imageModelLabel(item.model)}</p>
+          <p className="truncate text-note text-white/70">{imageModelLabel(item.model)}</p>
         )}
       </div>
     </button>
@@ -235,7 +235,7 @@ function GalleryCard({ item, onOpen }: { item: GalleryItem; onOpen: () => void }
 function MasonrySkeleton() {
   const heights = [220, 300, 180, 260, 340, 200, 280, 240];
   return (
-    <div className="mx-auto max-w-[1600px] columns-2 gap-3 sm:columns-3 lg:columns-4 [&>*]:mb-3">
+    <div className="mx-auto max-w-7xl columns-2 gap-3 sm:columns-3 lg:columns-4 [&>*]:mb-3">
       {heights.map((h, i) => (
         <Skeleton key={i} className="w-full rounded-xl" style={{ height: h }} />
       ))}
@@ -249,10 +249,10 @@ function EmptyGallery({ hasQuery }: { hasQuery: boolean }) {
       <span className="mx-auto flex size-11 items-center justify-center rounded-xl border border-border bg-surface text-text-3">
         <Sparkles className="size-5" />
       </span>
-      <h2 className="mt-4 text-base font-semibold text-text">
+      <h2 className="mt-4 text-card-title font-semibold text-text">
         {hasQuery ? "Nada encontrado" : "Sua galeria está vazia"}
       </h2>
-      <p className="mt-1.5 max-w-xs text-sm text-text-4">
+      <p className="mt-1.5 max-w-xs text-body text-text-4">
         {hasQuery
           ? "Nenhuma imagem com esse nome."
           : "Use o painel Criar ao lado para gerar imagens, ou envie as suas próprias."}
@@ -305,7 +305,7 @@ function ImageDetailDialog({
               <img
                 src={url}
                 alt={item?.name ?? "Imagem"}
-                className="max-h-[80vh] w-auto max-w-full rounded-lg object-contain"
+                className="max-h-full w-auto max-w-full rounded-lg object-contain"
               />
             ) : (
               <Spinner className="size-6 text-white/70" />
@@ -380,7 +380,7 @@ function DetailBody({
           onBlur={() => name.trim() && name.trim() !== item.name && onRename(name.trim())}
           placeholder="Sem nome"
           aria-label="Nome da imagem"
-          className="w-full rounded-md border border-transparent bg-transparent px-1 py-0.5 text-base font-semibold text-text outline-none hover:border-border focus-visible:border-border"
+          className="w-full rounded-md border border-transparent bg-transparent px-1 py-0.5 text-card-title font-semibold text-text outline-none hover:border-border focus-visible:border-border"
         />
 
         <div className="flex flex-wrap gap-1.5">
@@ -392,16 +392,16 @@ function DetailBody({
 
         {item.prompt && (
           <div>
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-4">
+            <p className="mb-1 text-note font-semibold uppercase tracking-wide text-text-4">
               Prompt
             </p>
-            <p className="rounded-lg bg-surface-2 p-2.5 text-xs leading-relaxed text-text-2">
+            <p className="rounded-lg bg-muted p-2.5 text-body-sm text-text-2">
               {item.prompt}
             </p>
           </div>
         )}
 
-        <p className="text-[11px] text-text-4">
+        <p className="text-note text-text-4">
           {new Date(item.createdAt).toLocaleString("pt-BR")}
         </p>
       </div>
@@ -413,7 +413,7 @@ function DetailBody({
             download
             target="_blank"
             rel="noreferrer"
-            className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface text-sm font-medium text-text transition-colors hover:border-border-strong"
+            className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface text-body font-medium text-text transition-colors hover:border-border-strong"
           >
             <Download className="size-4" />
             Baixar
@@ -435,7 +435,7 @@ function DetailBody({
 
 function MetaChip({ children }: { children: React.ReactNode }) {
   return (
-    <span className="rounded-md border border-border bg-surface-2 px-2 py-0.5 text-[11px] text-text-3">
+    <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-note text-text-3">
       {children}
     </span>
   );
