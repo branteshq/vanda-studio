@@ -581,40 +581,44 @@ export function AppSidebar() {
       className="border-sidebar-border transition-[left,right] duration-200 ease-[var(--ease-out)]"
     >
       <SidebarHeader className="gap-2 px-2 pt-2.5 pb-1.5">
-        <div className="flex h-9 items-center gap-1 overflow-hidden px-0.5">
-          <ActionTooltip
-            label={state === "collapsed" ? "Expandir barra lateral" : "Recolher barra lateral"}
-            side="bottom"
-          >
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={
-                state === "collapsed" ? "Expandir barra lateral" : "Recolher barra lateral"
-              }
-              onClick={toggleSidebar}
-              className="shrink-0 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        <div className="relative flex h-9 items-center justify-center overflow-hidden px-0.5">
+          <span className="absolute inset-y-0 left-0 flex items-center">
+            <ActionTooltip
+              label={state === "collapsed" ? "Expandir barra lateral" : "Recolher barra lateral"}
+              side="bottom"
             >
-              {state === "collapsed" ? <PanelLeftOpen /> : <PanelLeftClose />}
-            </Button>
-          </ActionTooltip>
-          <span className="flex size-7 shrink-0 items-center justify-center text-brand-accent">
-            <VandaMark size={17} />
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={
+                  state === "collapsed" ? "Expandir barra lateral" : "Recolher barra lateral"
+                }
+                onClick={toggleSidebar}
+                className="shrink-0 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              >
+                {state === "collapsed" ? <PanelLeftOpen /> : <PanelLeftClose />}
+              </Button>
+            </ActionTooltip>
           </span>
-          <span className="min-w-0 flex-1 truncate pl-1 text-[14px] font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
-            Vanda Studio
+          <div className="flex items-center gap-1.5 group-data-[collapsible=icon]:hidden">
+            <VandaMark size={18} />
+            <span className="text-body font-semibold tracking-tight text-sidebar-foreground">
+              Vanda Studio
+            </span>
+          </div>
+          <span className="absolute inset-y-0 right-0 flex items-center group-data-[collapsible=icon]:hidden">
+            <ActionTooltip label={galleryActive ? "Conversas" : "Galeria"} side="bottom">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={galleryActive ? toChat : toGallery}
+                aria-label={galleryActive ? "Ir para conversas" : "Ir para a galeria"}
+                className="shrink-0 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              >
+                {galleryActive ? <MessageSquareText /> : <Images />}
+              </Button>
+            </ActionTooltip>
           </span>
-          <ActionTooltip label={galleryActive ? "Conversas" : "Galeria"} side="bottom">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={galleryActive ? toChat : toGallery}
-              aria-label={galleryActive ? "Ir para conversas" : "Ir para a galeria"}
-              className="shrink-0 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden"
-            >
-              {galleryActive ? <MessageSquareText /> : <Images />}
-            </Button>
-          </ActionTooltip>
         </div>
       </SidebarHeader>
 

@@ -233,11 +233,17 @@ function GalleryCard({ item, onOpen }: { item: GalleryItem; onOpen: () => void }
 }
 
 function MasonrySkeleton() {
+  // Enough varied-height placeholders to fill the viewport across all columns
+  // (~5 per column at the widest breakpoint), not just the top rows.
   const heights = [220, 300, 180, 260, 340, 200, 280, 240];
   return (
     <div className="mx-auto max-w-7xl columns-2 gap-3 sm:columns-3 lg:columns-4 [&>*]:mb-3">
-      {heights.map((h, i) => (
-        <Skeleton key={i} className="w-full rounded-xl" style={{ height: h }} />
+      {Array.from({ length: 20 }, (_, i) => (
+        <Skeleton
+          key={i}
+          className="w-full rounded-xl"
+          style={{ height: heights[i % heights.length] }}
+        />
       ))}
     </div>
   );

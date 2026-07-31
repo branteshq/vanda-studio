@@ -1,16 +1,21 @@
 import { useId } from "react";
 
-const PETAL = "M50 44 C 40 37 40.5 17 50 11 C 59.5 17 60 37 50 44 Z";
-const ROTATIONS = [0, 72, 144, 216, 288];
+// The canonical Vanda mark (matches @vanda-studio/ui/assets/vanda-mark.svg, the
+// favicon): six gradient petals radiating from a light center. One petal path,
+// rotated in 60° steps.
+const PETAL = "M0,0 C -8,-14 -10,-31 0,-45 C 10,-31 8,-14 0,0 Z";
+const ROTATIONS = [0, 60, 120, 180, 240, 300];
 
 /**
- * The Vanda orchid: five gradient petals radiating from center. Used for the
- * brand lockup, the profile avatar and the Assistente launcher.
+ * The Vanda mark: six gradient petals radiating from center with a light core.
+ * Used for the brand lockup, the profile avatar and the Assistente launcher.
+ * Passing a single flat color to both `from` and `to` (e.g. `currentColor`)
+ * renders a monochrome silhouette — the core is dropped so it reads as one tint.
  */
 export function VandaMark({
   size = 26,
-  from = "#ee7aaa",
-  to = "#c4277f",
+  from = "#B83280",
+  to = "#F2719E",
   className,
 }: {
   size?: number;
@@ -19,20 +24,22 @@ export function VandaMark({
   className?: string;
 }) {
   const gradientId = useId();
+  const monochrome = from === to;
 
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden="true">
       <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor={from} />
-          <stop offset="100%" stopColor={to} />
+        <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1="14" y1="12" x2="86" y2="90">
+          <stop offset="0" stopColor={from} />
+          <stop offset="1" stopColor={to} />
         </linearGradient>
       </defs>
       <g fill={`url(#${gradientId})`}>
         {ROTATIONS.map((deg) => (
-          <path key={deg} d={PETAL} transform={`rotate(${deg} 50 50)`} />
+          <path key={deg} d={PETAL} transform={`translate(50,50) rotate(${deg})`} />
         ))}
       </g>
+      {monochrome ? null : <circle cx="50" cy="50" r="6" fill="#FBEFF6" />}
     </svg>
   );
 }
