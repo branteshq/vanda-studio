@@ -1,6 +1,8 @@
 import {
+  abortStream,
   createThread,
   getThreadMetadata,
+  listStreams,
   listUIMessages,
   saveMessage,
   syncStreams,
@@ -251,6 +253,49 @@ export const finishThreadActivity = internalMutation({
   args: { activityId: v.id("chatThreadActivity") },
   handler: async (ctx, { activityId }): Promise<void> => {
     if (await ctx.db.get(activityId)) await ctx.db.delete(activityId);
+  },
+});
+
+/**
+ * Stop the current Vanda turn. Aborting the live stream trips the abort signal
+ * inside `streamText`, which unwinds `generateResponse`; aborting by order also
+ * covers the turn's next step when the abort lands between streams (mid-tool).
+ * The activity row is cleared here so the UI settles immediately.
+ */
+export const stopGeneration = mutation({
+  args: { accountId: v.id("accounts"), threadId: v.string() },
+  handler: async (ctx, { accountId, threadId }): Promise<void> => {
+    await requireOwnedAccount(ctx, accountId);
+    await requireAccountThread(ctx, accountId, threadId);
+
+    const streams = await listStreams(ctx, components.agent, { threadId });
+    const live = streams.filter((stream) => stream.status === "streaming");
+    await Promise.all(
+      live.map((stream) =>
+        abortStream(ctx, components.agent, {
+          streamId: stream.streamId,
+          reason: "interrompido pelo dono",
+        }),
+      ),
+    );
+    const latestOrder = streams.reduce((max, stream) => Math.max(max, stream.order), -1);
+    if (latestOrder >= 0) {
+      await abortStream(ctx, components.agent, {
+        threadId,
+        order: latestOrder,
+        reason: "interrompido pelo dono",
+      });
+    }
+
+    const activity = await ctx.db
+      .query("chatThreadActivity")
+      .withIndex("by_account", (q) => q.eq("accountId", accountId))
+      .collect();
+    await Promise.all(
+      activity
+        .filter((row) => row.threadId === threadId)
+        .map((row) => ctx.db.delete(row._id)),
+    );
   },
 });
 

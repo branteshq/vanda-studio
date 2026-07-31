@@ -33,6 +33,7 @@ import {
   RefreshCw,
   Send,
   Sparkles,
+  Square,
   X,
 } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
@@ -421,6 +422,8 @@ function ChatComposer({
   onSend,
   disabled,
   autoFocus,
+  working,
+  onStop,
 }: {
   accountId: Id<"accounts">;
   draft: string;
@@ -428,6 +431,9 @@ function ChatComposer({
   onSend: (text: string, attachments: ReadyComposerAttachment[]) => Promise<void>;
   disabled?: boolean;
   autoFocus?: boolean;
+  /** Vanda is mid-turn — the send affordance becomes a stop button. */
+  working?: boolean;
+  onStop?: () => void;
 }) {
   const generateUploadUrl = useMutation(api.imageUploads.generateUploadUrl);
   const addImage = useMutation(api.imageUploads.addImage);
@@ -691,13 +697,21 @@ function ChatComposer({
               hidden
               onChange={(event) => selectFiles(event.target.files)}
             />
-            <ActionTooltip label="Enviar" side="top">
-              <span className="inline-flex">
-                <Button type="submit" size="icon-sm" aria-label="Enviar" disabled={!canSend}>
-                  <ArrowUp />
+            {working && onStop ? (
+              <ActionTooltip label="Parar" side="top">
+                <Button type="button" size="icon-sm" aria-label="Parar geração" onClick={onStop}>
+                  <Square className="size-3 fill-current" />
                 </Button>
-              </span>
-            </ActionTooltip>
+              </ActionTooltip>
+            ) : (
+              <ActionTooltip label="Enviar" side="top">
+                <span className="inline-flex">
+                  <Button type="submit" size="icon-sm" aria-label="Enviar" disabled={!canSend}>
+                    <ArrowUp />
+                  </Button>
+                </span>
+              </ActionTooltip>
+            )}
           </div>
         </form>
       </div>
@@ -789,6 +803,14 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
     }
   };
 
+  const stopGeneration = useMutation(api.chat.stopGeneration);
+  // The activity row covers the whole turn (tool phases included), while the
+  // message status only covers streamed text — the stop affordance needs both.
+  const threads = useQuery(api.chat.listThreads, { accountId });
+  const processing = threads?.some(
+    (thread) => thread.threadId === threadId && thread.processing,
+  ) ?? false;
+
   const loading = messages.status === "LoadingFirstPage";
   // Seamless first-send: while the fresh thread's history loads, keep showing
   // the message the user just sent instead of flashing a skeleton.
@@ -865,6 +887,8 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
             draft={draft}
             onDraftChange={setDraft}
             onSend={send}
+            working={processing || streaming}
+            onStop={() => void stopGeneration({ accountId, threadId })}
           />
         </div>
 
