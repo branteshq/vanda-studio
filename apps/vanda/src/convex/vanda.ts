@@ -204,9 +204,10 @@ const publishProject = createTool({
 
 const paint = createTool({
   description:
-    "Gera OU edita uma imagem a partir de um prompt visual detalhado que VOCÊ escreve. Para modificar uma imagem já existente da conta (inclusive uma que o usuário acabou de anexar) — trocar fundo, cenário, etc. — passe o id dela em editOfImageId e descreva só o que muda. Para condicionar uma imagem nova a um rosto, produto ou lugar, passe os ids em referenceImageIds. Imagens anexadas e as de list_reference_photos servem direto, sem autorização extra.",
+    "Gera OU edita uma imagem a partir de um prompt visual detalhado que VOCÊ escreve. Sempre dê um `name` curto e descritivo à imagem (2–4 palavras, na voz da marca) — é como ela aparece na galeria. Para modificar uma imagem já existente da conta (inclusive uma que o usuário acabou de anexar) — trocar fundo, cenário, etc. — passe o id dela em editOfImageId e descreva no prompt só o que muda. Para condicionar uma imagem nova a um rosto, produto ou lugar, passe os ids em referenceImageIds. Imagens anexadas e as de list_reference_photos servem direto, sem autorização extra.",
   inputSchema: z.object({
     prompt: z.string().describe("prompt visual detalhado escrito pela Vanda"),
+    name: z.string().describe("nome curto e descritivo para a imagem na galeria (2–4 palavras)"),
     aspectRatio: z.enum(["1:1", "4:5", "9:16", "16:9"]).default("4:5"),
     referenceImageIds: z.array(z.string()).optional(),
     editOfImageId: z.string().optional(),
@@ -215,6 +216,7 @@ const paint = createTool({
     ctx: VandaToolCtx,
     args: {
       prompt: string;
+      name: string;
       aspectRatio: "1:1" | "4:5" | "9:16" | "16:9";
       referenceImageIds?: string[] | undefined;
       editOfImageId?: string | undefined;
@@ -223,8 +225,8 @@ const paint = createTool({
     ctx.runAction(internal.images.paint, {
       accountId: ctx.accountId,
       prompt: args.prompt,
+      name: args.name,
       aspectRatio: args.aspectRatio,
-      model: "google/gemini-3.1-flash-image",
       ...(args.referenceImageIds
         ? { referenceImageIds: args.referenceImageIds as Array<Id<"images">> }
         : {}),

@@ -7,8 +7,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction, type ActionCtx } from "./_generated/server";
 import { ImageAssetGenerator, openRouterImageGeneratorLayer } from "./pipeline/imageGeneration";
-
-const DEFAULT_IMAGE_MODEL = "google/gemini-3.1-flash-image";
+import { DEFAULT_IMAGE_MODEL, isKnownImageModel } from "./imageModels";
 
 const aspectRatioValidator = v.union(
   v.literal("1:1"),
@@ -82,10 +81,11 @@ export const paint = internalAction({
     referenceImageIds: v.optional(v.array(v.id("images"))),
     editOfImageId: v.optional(v.id("images")),
     model: v.optional(v.string()),
+    name: v.optional(v.string()),
   },
   handler: async (
     ctx,
-    { accountId, prompt, aspectRatio, referenceImageIds, editOfImageId, model },
+    { accountId, prompt, aspectRatio, referenceImageIds, editOfImageId, model, name },
   ): Promise<{
     imageId: Id<"images">;
     url: string;
@@ -113,8 +113,10 @@ export const paint = internalAction({
 
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
+    if (model && !isKnownImageModel(model)) throw new Error(`unknown image model: ${model}`);
     const selectedModel = model ?? DEFAULT_IMAGE_MODEL;
 
+    const startedAt = Date.now();
     const generated = await Effect.runPromise(
       Effect.flatMap(ImageAssetGenerator, (generator) =>
         generator.generate({
@@ -124,6 +126,7 @@ export const paint = internalAction({
         }),
       ).pipe(Effect.provide(openRouterImageGeneratorLayer({ apiKey, model: selectedModel }))),
     );
+    const generationMs = Date.now() - startedAt;
 
     const image = await Jimp.read(Buffer.from(generated.bytes));
     const { width, height } = cropToAspectRatio(image, aspectRatio);
@@ -140,6 +143,10 @@ export const paint = internalAction({
       mimeType,
       width,
       height,
+      model: selectedModel,
+      generationMs,
+      ...(name && name.trim() ? { name: name.trim() } : {}),
+      ...(generated.costUsd !== undefined ? { costUsd: generated.costUsd } : {}),
     });
     const url = await ctx.storage.getUrl(storageId);
     if (!url) throw new Error("stored image URL is unavailable");

@@ -55,6 +55,10 @@ export const savePaintedImage = internalMutation({
     mimeType: v.string(),
     width: v.number(),
     height: v.number(),
+    model: v.optional(v.string()),
+    costUsd: v.optional(v.number()),
+    generationMs: v.optional(v.number()),
+    name: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     if (!(await ctx.db.get(args.accountId))) throw new Error("account not found");
@@ -68,7 +72,11 @@ export const savePaintedImage = internalMutation({
       width: args.width,
       height: args.height,
       description: args.prompt,
-      altText: args.prompt,
+      altText: args.name ?? args.prompt,
+      ...(args.name ? { name: args.name } : {}),
+      ...(args.model ? { model: args.model } : {}),
+      ...(args.costUsd !== undefined ? { costUsd: args.costUsd } : {}),
+      ...(args.generationMs !== undefined ? { generationMs: args.generationMs } : {}),
       createdAt: Date.now(),
     });
   },

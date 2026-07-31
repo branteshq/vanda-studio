@@ -7,6 +7,8 @@ export interface GeneratedVisual {
   readonly bytes: Uint8Array;
   readonly mimeType: string;
   readonly model: string;
+  /** Provider cost for this generation in USD, when OpenRouter reports it. */
+  readonly costUsd?: number | undefined;
 }
 
 export class ImageGenerationFailed extends Data.TaggedError("ImageGenerationFailed")<{
@@ -29,6 +31,7 @@ export class ImageAssetGenerator extends Context.Service<
 >()("@vanda/studio/ImageAssetGenerator") {}
 
 interface OpenRouterImageResponse {
+  readonly usage?: { readonly cost?: number };
   readonly data?: ReadonlyArray<{
     readonly b64_json?: string;
     readonly media_type?: string;
@@ -199,6 +202,7 @@ export const openRouterImageGeneratorLayer = (input: {
             bytes: Uint8Array.from(Buffer.from(result.b64_json, "base64")),
             mimeType: result.media_type ?? "image/jpeg",
             model: input.model,
+            costUsd: json.usage?.cost,
           };
         },
         catch: (error) =>

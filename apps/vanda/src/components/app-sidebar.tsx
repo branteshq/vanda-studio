@@ -6,8 +6,9 @@ import { useQuery } from "convex-helpers/react/cache";
 import {
   Archive,
   BadgeCheckIcon,
-  GalleryHorizontalEnd,
+  Images,
   LogOutIcon,
+  MessageSquareText,
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
@@ -46,6 +47,7 @@ import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { useActiveAccount } from "./active-account";
+import { GalleryComposer } from "./gallery-composer";
 import { VandaMark } from "./vanda-mark";
 
 interface ThreadItem {
@@ -518,11 +520,19 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
   );
 }
 
+/**
+ * The floating rail shown when the sidebar is collapsed in chat mode. Gallery
+ * mode has no floating rail — its grid header carries its own inline expand
+ * button, so the controls never overlap the always-visible search field.
+ */
 export function CollapsedSidebarControls() {
   const { state, setOpen } = useSidebar();
   const navigate = useNavigate();
+  const gallery = useRouterState({
+    select: (s) => s.location.pathname.startsWith("/galeria"),
+  });
 
-  if (state !== "collapsed") return null;
+  if (state !== "collapsed" || gallery) return null;
 
   const openSearch = () => {
     setOpen(true);
@@ -594,25 +604,28 @@ export function AppSidebar() {
           <span className="min-w-0 flex-1 truncate pl-1 text-[14px] font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
             Vanda Studio
           </span>
-          <ActionTooltip label="Galeria" side="bottom">
+          <ActionTooltip label={galleryActive ? "Conversas" : "Galeria"} side="bottom">
             <Button
               variant="ghost"
               size="icon-sm"
-              render={<Link to="/galeria" />}
-              aria-label="Abrir galeria"
-              className={cn(
-                "shrink-0 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden",
-                galleryActive && "bg-sidebar-accent text-sidebar-accent-foreground",
-              )}
+              render={<Link to={galleryActive ? "/conversa" : "/galeria"} search={{}} />}
+              aria-label={galleryActive ? "Ir para conversas" : "Ir para a galeria"}
+              className="shrink-0 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden"
             >
-              <GalleryHorizontalEnd />
+              {galleryActive ? <MessageSquareText /> : <Images />}
             </Button>
           </ActionTooltip>
         </div>
       </SidebarHeader>
 
       <SidebarContent className="min-h-0 px-2">
-        {activeAccount ? <ThreadHistory accountId={activeAccount.id} /> : null}
+        {activeAccount ? (
+          galleryActive ? (
+            <GalleryComposer accountId={activeAccount.id} />
+          ) : (
+            <ThreadHistory accountId={activeAccount.id} />
+          )
+        ) : null}
       </SidebarContent>
 
       <SidebarFooter className="px-2 pb-2">

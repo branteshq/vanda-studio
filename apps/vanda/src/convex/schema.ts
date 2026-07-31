@@ -773,9 +773,16 @@ export default defineSchema({
     inspectedAt: v.optional(v.number()),
     // Once attached to chat, composer cleanup may no longer delete this asset.
     lastAttachedAt: v.optional(v.number()),
+    // Gallery metadata: a human/agent-given title plus the generation record shown
+    // in the image detail view. Absent on uploads and legacy rows.
+    name: v.optional(v.string()),
+    model: v.optional(v.string()),
+    costUsd: v.optional(v.number()),
+    generationMs: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_account", ["accountId"])
+    .index("by_account_created", ["accountId", "createdAt"])
     .index("by_storage", ["storageId"]),
 
   posts: defineTable({
