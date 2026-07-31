@@ -4,6 +4,7 @@ import { Navigate, Outlet, createFileRoute } from "@tanstack/react-router";
 import { SidebarInset, SidebarProvider } from "@vanda-studio/ui/components/sidebar";
 import { AppSidebar, CollapsedSidebarControls } from "../components/app-sidebar";
 import { ActiveAccountProvider, useActiveAccount } from "../components/active-account";
+import { ModeNavProvider } from "../components/mode-nav";
 
 export const Route = createFileRoute("/_dashboard")({
   component: DashboardLayout,
@@ -43,11 +44,13 @@ function DashboardGate() {
         } as CSSProperties
       }
     >
-      <AppSidebar />
-      <SidebarInset className="relative flex h-svh flex-col overflow-hidden bg-app">
-        <CollapsedSidebarControls />
-        <Outlet />
-      </SidebarInset>
+      <ModeNavProvider>
+        <AppSidebar />
+        <SidebarInset className="relative flex h-svh flex-col overflow-hidden bg-app">
+          <CollapsedSidebarControls />
+          <Outlet />
+        </SidebarInset>
+      </ModeNavProvider>
     </SidebarProvider>
   );
 }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useClerk, useUser } from "@clerk/tanstack-react-start";
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
 import {
@@ -48,6 +48,7 @@ import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { useActiveAccount } from "./active-account";
 import { GalleryComposer } from "./gallery-composer";
+import { useModeNav } from "./mode-nav";
 import { VandaMark } from "./vanda-mark";
 
 interface ThreadItem {
@@ -570,10 +571,9 @@ export function CollapsedSidebarControls() {
 }
 
 export function AppSidebar() {
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { state, toggleSidebar } = useSidebar();
   const { activeAccount } = useActiveAccount();
-  const galleryActive = pathname.startsWith("/galeria");
+  const { galleryActive, toChat, toGallery } = useModeNav();
 
   return (
     <Sidebar
@@ -608,7 +608,7 @@ export function AppSidebar() {
             <Button
               variant="ghost"
               size="icon-sm"
-              render={<Link to={galleryActive ? "/conversa" : "/galeria"} search={{}} />}
+              onClick={galleryActive ? toChat : toGallery}
               aria-label={galleryActive ? "Ir para conversas" : "Ir para a galeria"}
               className="shrink-0 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden"
             >
