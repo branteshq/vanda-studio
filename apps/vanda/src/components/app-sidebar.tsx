@@ -578,6 +578,8 @@ export function AppSidebar() {
   return (
     <Sidebar
       collapsible="offcanvas"
+      resizable
+      resizeLabel="Redimensionar barra lateral"
       className="border-sidebar-border transition-[left,right] duration-200 ease-[var(--ease-out)]"
     >
       <SidebarHeader className="gap-2 px-2 pt-2.5 pb-1.5">

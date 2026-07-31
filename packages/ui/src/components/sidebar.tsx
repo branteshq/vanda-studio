@@ -22,11 +22,18 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@vanda-studio/ui/compon
 import { PanelLeftIcon } from "lucide-react";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
+const SIDEBAR_WIDTH_COOKIE_NAME = "sidebar_width";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
-const SIDEBAR_WIDTH = "16rem";
+const SIDEBAR_WIDTH = 256;
+const SIDEBAR_MIN_WIDTH = 224;
+const SIDEBAR_MAX_WIDTH = 480;
+const SIDEBAR_RESIZE_STEP = 16;
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
+
+const clampSidebarWidth = (value: number) =>
+  Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(value)));
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed";
@@ -36,6 +43,11 @@ type SidebarContextProps = {
   setOpenMobile: (open: boolean) => void;
   isMobile: boolean;
   toggleSidebar: () => void;
+  width: number;
+  setWidth: (width: number) => void;
+  resetWidth: () => void;
+  resizing: boolean;
+  setResizing: (resizing: boolean) => void;
 };
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null);
@@ -51,6 +63,7 @@ function useSidebar() {
 
 function SidebarProvider({
   defaultOpen = true,
+  defaultWidth = SIDEBAR_WIDTH,
   open: openProp,
   onOpenChange: setOpenProp,
   className,
@@ -59,11 +72,29 @@ function SidebarProvider({
   ...props
 }: React.ComponentProps<"div"> & {
   defaultOpen?: boolean;
+  defaultWidth?: number;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
   const isMobile = useIsMobile();
   const [openMobile, setOpenMobile] = React.useState(false);
+  const [width, _setWidth] = React.useState(defaultWidth);
+  const [resizing, setResizing] = React.useState(false);
+
+  // The persisted width is applied after mount, not read during render: the
+  // server has no cookie access, so reading it inline would desync hydration.
+  React.useEffect(() => {
+    const stored = document.cookie.match(/(?:^|;\s*)sidebar_width=(\d+)/)?.[1];
+    if (stored) _setWidth(clampSidebarWidth(Number(stored)));
+  }, []);
+
+  const setWidth = React.useCallback((value: number) => {
+    const next = clampSidebarWidth(value);
+    _setWidth(next);
+    document.cookie = `${SIDEBAR_WIDTH_COOKIE_NAME}=${next}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+  }, []);
+
+  const resetWidth = React.useCallback(() => setWidth(defaultWidth), [setWidth, defaultWidth]);
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
@@ -115,8 +146,25 @@ function SidebarProvider({
       openMobile,
       setOpenMobile,
       toggleSidebar,
+      width,
+      setWidth,
+      resetWidth,
+      resizing,
+      setResizing,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar],
+    [
+      state,
+      open,
+      setOpen,
+      isMobile,
+      openMobile,
+      setOpenMobile,
+      toggleSidebar,
+      width,
+      setWidth,
+      resetWidth,
+      resizing,
+    ],
   );
 
   return (
@@ -125,9 +173,10 @@ function SidebarProvider({
         data-slot="sidebar-wrapper"
         style={
           {
-            "--sidebar-width": SIDEBAR_WIDTH,
             "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
             ...style,
+            // Provider-owned: the drag handle writes it, so it wins over `style`.
+            "--sidebar-width": `${width}px`,
           } as React.CSSProperties
         }
         className={cn(
@@ -146,6 +195,8 @@ function Sidebar({
   side = "left",
   variant = "sidebar",
   collapsible = "offcanvas",
+  resizable = false,
+  resizeLabel = "Resize sidebar",
   className,
   children,
   dir,
@@ -154,8 +205,10 @@ function Sidebar({
   side?: "left" | "right";
   variant?: "sidebar" | "floating" | "inset";
   collapsible?: "offcanvas" | "icon" | "none";
+  resizable?: boolean;
+  resizeLabel?: string;
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+  const { isMobile, state, openMobile, setOpenMobile, resizing } = useSidebar();
 
   if (collapsible === "none") {
     return (
@@ -205,6 +258,7 @@ function Sidebar({
       data-collapsible={state === "collapsed" ? collapsible : ""}
       data-variant={variant}
       data-side={side}
+      data-resizing={resizing ? "true" : undefined}
       data-slot="sidebar"
     >
       {/* This is what handles the sidebar gap on desktop */}
@@ -212,6 +266,8 @@ function Sidebar({
         data-slot="sidebar-gap"
         className={cn(
           "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
+          // A drag has to track the pointer 1:1 — an eased width would lag it.
+          "group-data-[resizing=true]:transition-none",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
@@ -228,6 +284,7 @@ function Sidebar({
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
             : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
+          "group-data-[resizing=true]:transition-none",
           className,
         )}
         {...props}
@@ -239,8 +296,105 @@ function Sidebar({
         >
           {children}
         </div>
+        {resizable ? <SidebarResizeHandle side={side} aria-label={resizeLabel} /> : null}
       </div>
     </div>
+  );
+}
+
+/**
+ * The drag handle living on the sidebar's inner edge. It is an invisible strip
+ * straddling the border that reveals a hairline on hover; dragging it resizes,
+ * double-click restores the default, and arrow keys nudge it for keyboard users.
+ */
+function SidebarResizeHandle({
+  side = "left",
+  className,
+  ...props
+}: React.ComponentProps<"button"> & { side?: "left" | "right" }) {
+  const { width, setWidth, resetWidth, resizing, setResizing, state } = useSidebar();
+  // The pointer listeners are registered once per drag, so they read the grab-time
+  // width from a ref rather than closing over the render-scoped value.
+  const widthRef = React.useRef(width);
+  widthRef.current = width;
+
+  if (state === "collapsed") return null;
+
+  const direction = side === "left" ? 1 : -1;
+
+  const startResize = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const originX = event.clientX;
+    const originWidth = widthRef.current;
+
+    // Cursor and selection are locked on <body> so the drag survives crossing
+    // other elements instead of flickering into their cursors.
+    const previousCursor = document.body.style.cursor;
+    const previousSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    setResizing(true);
+
+    const move = (moveEvent: PointerEvent) => {
+      setWidth(originWidth + (moveEvent.clientX - originX) * direction);
+    };
+    const stop = () => {
+      setResizing(false);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousSelect;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    };
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+  };
+
+  const nudge = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    const step =
+      event.key === "ArrowLeft"
+        ? -SIDEBAR_RESIZE_STEP
+        : event.key === "ArrowRight"
+          ? SIDEBAR_RESIZE_STEP
+          : 0;
+    if (step === 0) return;
+    event.preventDefault();
+    setWidth(width + step * direction);
+  };
+
+  return (
+    <button
+      type="button"
+      data-slot="sidebar-resize-handle"
+      data-sidebar="resize-handle"
+      role="separator"
+      aria-orientation="vertical"
+      aria-valuenow={width}
+      aria-valuemin={SIDEBAR_MIN_WIDTH}
+      aria-valuemax={SIDEBAR_MAX_WIDTH}
+      onPointerDown={startResize}
+      onKeyDown={nudge}
+      onDoubleClick={resetWidth}
+      className={cn(
+        "group/resize absolute inset-y-0 z-20 hidden w-3 cursor-col-resize touch-none outline-none select-none md:block",
+        side === "left" ? "-right-1.5" : "-left-1.5",
+        className,
+      )}
+      {...props}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 rounded-full bg-sidebar-ring transition-opacity duration-150 ease-[var(--ease-out)] motion-reduce:transition-none",
+          resizing
+            ? "opacity-100"
+            : "opacity-0 group-hover/resize:opacity-60 group-focus-visible/resize:opacity-100",
+        )}
+      />
+    </button>
   );
 }
 
@@ -686,6 +840,7 @@ export {
   SidebarMenuSubItem,
   SidebarProvider,
   SidebarRail,
+  SidebarResizeHandle,
   SidebarSeparator,
   SidebarTrigger,
   useSidebar,

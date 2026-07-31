@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import { RedirectToSignIn, Show } from "@clerk/tanstack-react-start";
 import { Navigate, Outlet, createFileRoute } from "@tanstack/react-router";
 import { SidebarInset, SidebarProvider } from "@vanda-studio/ui/components/sidebar";
@@ -37,13 +36,7 @@ function DashboardGate() {
     return <Navigate to="/onboarding" />;
   }
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "17rem",
-        } as CSSProperties
-      }
-    >
+    <SidebarProvider defaultWidth={272}>
       <ModeNavProvider>
         <AppSidebar />
         <SidebarInset className="relative flex h-svh flex-col overflow-hidden bg-app">
