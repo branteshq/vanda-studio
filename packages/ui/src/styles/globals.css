@@ -281,6 +281,20 @@
   }
 }
 
+/* The one tasteful treatment for small section headers ("Prompt", "Proporção",
+ * "Hoje"). Replaces the tiny ALL-CAPS, wide-tracked, mono "eyebrow" cliché:
+ * sentence case, medium weight, no letter-spacing, no monospace. Compose a
+ * muted color at the call site (text-text-3 in content, sidebar-foreground/60
+ * in the sidebar) — the token owns typography, not color. */
+@utility section-label {
+  font-family: inherit;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
 /* Chat entrance animations. Transform/opacity only — never height/margin/padding —
  * so they never fight the message-scroller's row measurement. Gated in JS to fire
  * on new content, not on initial history load. */

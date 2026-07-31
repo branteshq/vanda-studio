@@ -138,7 +138,7 @@ function GalleryHeader({
           onChange={(event) => onQuery(event.target.value)}
           placeholder="Buscar imagens…"
           aria-label="Buscar na galeria"
-          className="h-8 w-full rounded-lg border border-border bg-muted pl-8 pr-3 text-body text-text outline-none transition-colors placeholder:text-text-4 hover:border-border-strong focus-visible:border-border-strong focus-visible:ring-2 focus-visible:ring-brand-accent/30"
+          className="h-9 w-full rounded-md border border-transparent bg-transparent pr-2 pl-8 text-body text-text outline-none transition-colors duration-150 ease-[var(--ease-out)] placeholder:text-text-4 hover:bg-muted focus:border-border-strong focus:bg-muted"
         />
       </div>
       <div className="ml-auto">
@@ -392,7 +392,7 @@ function DetailBody({
 
         {item.prompt && (
           <div>
-            <p className="mb-1 text-note font-semibold uppercase tracking-wide text-text-4">
+            <p className="mb-1 section-label text-text-2">
               Prompt
             </p>
             <p className="rounded-lg bg-muted p-2.5 text-body-sm text-text-2">

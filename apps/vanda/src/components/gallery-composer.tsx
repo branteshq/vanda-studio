@@ -11,23 +11,32 @@ import { DEFAULT_IMAGE_MODEL, IMAGE_MODELS } from "../convex/imageModels";
 const ASPECT_RATIOS = ["1:1", "4:5", "9:16", "16:9"] as const;
 type AspectRatio = (typeof ASPECT_RATIOS)[number];
 
+// Mini-rectangle geometry (px) per ratio, drawn as an icon so orientation reads
+// at a glance — the shape is iconography, not layout, hence inline dimensions.
+const ASPECT_ICON: Record<AspectRatio, { w: number; h: number }> = {
+  "1:1": { w: 16, h: 16 },
+  "4:5": { w: 13, h: 16 },
+  "9:16": { w: 9, h: 16 },
+  "16:9": { w: 16, h: 9 },
+};
+
 const MAX_FANOUT = 12;
 
 /**
  * The image generator, rendered inside the sidebar when the app is in gallery
  * mode (the thread list's counterpart). Fans generation out through
- * `gallery.generate`; results stream into the grid on the /galeria surface.
+ * `gallery.generate` — one image per selected model — and the results stream
+ * into the grid on the /galeria surface.
  */
 export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
   const generate = useMutation(api.gallery.generate);
   const [prompt, setPrompt] = useState("");
   const [models, setModels] = useState<Set<string>>(new Set([DEFAULT_IMAGE_MODEL]));
   const [aspect, setAspect] = useState<AspectRatio>("1:1");
-  const [count, setCount] = useState(1);
   const [busy, setBusy] = useState(false);
 
-  const total = models.size * count;
-  const canGenerate = prompt.trim().length > 0 && models.size > 0 && total <= MAX_FANOUT && !busy;
+  const total = models.size;
+  const canGenerate = prompt.trim().length > 0 && total > 0 && total <= MAX_FANOUT && !busy;
 
   const toggleModel = (id: string) =>
     setModels((prev) => {
@@ -49,7 +58,7 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
         prompt: prompt.trim(),
         modelIds: [...models],
         aspectRatio: aspect,
-        count,
+        count: 1,
       });
     } finally {
       setBusy(false);
@@ -60,9 +69,7 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
     <div className="flex h-full min-h-0 flex-col group-data-[collapsible=icon]:hidden">
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-1 pt-2 pb-4">
         <div>
-          <label className="mb-1.5 block text-note font-semibold uppercase tracking-wide text-sidebar-foreground/50">
-            Prompt
-          </label>
+          <label className="section-label mb-1.5 block text-sidebar-foreground/75">Prompt</label>
           <textarea
             id="gallery-prompt"
             value={prompt}
@@ -74,14 +81,7 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
         </div>
 
         <div>
-          <div className="mb-1.5 flex items-center justify-between">
-            <span className="text-note font-semibold uppercase tracking-wide text-sidebar-foreground/50">
-              Modelos
-            </span>
-            <span className="text-note text-sidebar-foreground/50">
-              {models.size} ativo{models.size === 1 ? "" : "s"}
-            </span>
-          </div>
+          <span className="section-label mb-1.5 block text-sidebar-foreground/75">Modelos</span>
           <div className="space-y-2">
             {IMAGE_MODELS.map((model) => {
               const active = models.has(model.id);
@@ -102,11 +102,9 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
                       <span className="truncate text-body font-medium text-sidebar-foreground">
                         {model.label}
                       </span>
-                      <span className="text-note text-sidebar-foreground/45">
-                        {model.priceTier}
-                      </span>
+                      <span className="text-note font-semibold text-green">{model.priceTier}</span>
                     </span>
-                    <span className="mt-0.5 block truncate text-note text-sidebar-foreground/45">
+                    <span className="mt-0.5 block text-note text-sidebar-foreground/45">
                       {model.blurb}
                     </span>
                   </span>
@@ -127,60 +125,44 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-note font-semibold uppercase tracking-wide text-sidebar-foreground/50">
-            Proporção
-          </label>
+          <label className="section-label mb-1.5 block text-sidebar-foreground/75">Proporção</label>
           <div className="grid grid-cols-4 gap-1.5">
-            {ASPECT_RATIOS.map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setAspect(value)}
-                className={cn(
-                  "rounded-lg border py-2 text-body-sm font-medium transition-colors",
-                  aspect === value
-                    ? "border-brand-accent/60 bg-brand-accent/10 text-sidebar-foreground"
-                    : "border-sidebar-border bg-sidebar-accent/40 text-sidebar-foreground/50 hover:border-sidebar-foreground/25",
-                )}
-              >
-                {value}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="mb-1.5 block text-note font-semibold uppercase tracking-wide text-sidebar-foreground/50">
-            Imagens por modelo
-          </label>
-          <div className="flex items-center gap-2">
-            {[1, 2, 3, 4].map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setCount(value)}
-                className={cn(
-                  "size-9 rounded-lg border text-body font-medium transition-colors",
-                  count === value
-                    ? "border-brand-accent/60 bg-brand-accent/10 text-sidebar-foreground"
-                    : "border-sidebar-border bg-sidebar-accent/40 text-sidebar-foreground/50 hover:border-sidebar-foreground/25",
-                )}
-              >
-                {value}
-              </button>
-            ))}
+            {ASPECT_RATIOS.map((value) => {
+              const active = aspect === value;
+              const dims = ASPECT_ICON[value];
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setAspect(value)}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 rounded-lg border py-2.5 transition-colors",
+                    active
+                      ? "border-brand-accent/60 bg-brand-accent/10 text-sidebar-foreground"
+                      : "border-sidebar-border bg-sidebar-accent/40 text-sidebar-foreground/45 hover:border-sidebar-foreground/25",
+                  )}
+                >
+                  <span className="flex h-4 items-center justify-center">
+                    <span
+                      style={{ width: dims.w, height: dims.h }}
+                      className="rounded-sm border border-current"
+                    />
+                  </span>
+                  <span className="text-note font-medium">{value}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      <div className="border-t border-sidebar-border px-1 pt-3 pb-1">
-        <div className="mb-2 flex items-center justify-between text-body-sm text-sidebar-foreground/50">
-          <span>
-            {models.size} {models.size === 1 ? "modelo" : "modelos"} × {count}
-          </span>
-          <span className={cn(total > MAX_FANOUT && "text-destructive")}>{total} imagens</span>
-        </div>
-        <Button onClick={() => void run()} disabled={!canGenerate} className="w-full gap-1.5">
+      <div className="px-1 pt-3 pb-1">
+        <Button
+          onClick={() => void run()}
+          disabled={!canGenerate}
+          variant="ghost"
+          className="h-11 w-full gap-2 border border-sidebar-primary-soft-border bg-sidebar-primary-soft font-semibold text-sidebar-foreground hover:bg-sidebar-primary-soft hover:brightness-110 active:bg-sidebar-primary-soft"
+        >
           {busy ? <Spinner className="size-4" /> : <Sparkles className="size-4" />}
           Gerar {total} {total === 1 ? "imagem" : "imagens"}
         </Button>

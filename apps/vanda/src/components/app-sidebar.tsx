@@ -376,7 +376,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
             size="lg"
             tooltip="Nova conversa"
             onClick={startThread}
-            className="h-11 gap-2.5 border border-sidebar-primary-soft-border bg-sidebar-primary-soft px-3 text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-primary-soft hover:brightness-110 active:bg-sidebar-primary-soft group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0!"
+            className="h-11 justify-center gap-2.5 border border-sidebar-primary-soft-border bg-sidebar-primary-soft px-3 text-body font-semibold text-sidebar-foreground hover:bg-sidebar-primary-soft hover:brightness-110 active:bg-sidebar-primary-soft group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0!"
           >
             <PencilLine className="size-4" />
             <span className="group-data-[collapsible=icon]:hidden">Nova conversa</span>
@@ -411,7 +411,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
           <div className="space-y-4 pb-4">
             {sections.map((section) => (
               <section key={section.label}>
-                <h3 className="px-2 py-1 font-mono text-[10px] tracking-[0.18em] text-sidebar-foreground/50 uppercase">
+                <h3 className="section-label px-2 py-1 text-sidebar-foreground/75">
                   {section.label}
                 </h3>
                 <div className="space-y-0.5">
