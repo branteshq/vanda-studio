@@ -59,13 +59,14 @@ export const savePaintedImage = internalMutation({
     costUsd: v.optional(v.number()),
     generationMs: v.optional(v.number()),
     name: v.optional(v.string()),
+    promptAuthor: v.optional(v.union(v.literal("vanda"), v.literal("user"))),
+    // Gallery fan-outs pre-insert a "generating" row; passing it here fills
+    // that row in place (keeping its grid position) instead of inserting.
+    placeholderId: v.optional(v.id("images")),
   },
   handler: async (ctx, args) => {
     if (!(await ctx.db.get(args.accountId))) throw new Error("account not found");
-    return ctx.db.insert("images", {
-      accountId: args.accountId,
-      origin: "generated",
-      purpose: "post",
+    const fields = {
       storageId: args.storageId,
       prompt: args.prompt,
       mimeType: args.mimeType,
@@ -77,7 +78,36 @@ export const savePaintedImage = internalMutation({
       ...(args.model ? { model: args.model } : {}),
       ...(args.costUsd !== undefined ? { costUsd: args.costUsd } : {}),
       ...(args.generationMs !== undefined ? { generationMs: args.generationMs } : {}),
+      ...(args.promptAuthor ? { promptAuthor: args.promptAuthor } : {}),
+    };
+    if (args.placeholderId) {
+      const placeholder = await ctx.db.get(args.placeholderId);
+      if (!placeholder || placeholder.accountId !== args.accountId) {
+        throw new Error("placeholder not found");
+      }
+      await ctx.db.patch(args.placeholderId, {
+        ...fields,
+        status: undefined,
+        generationError: undefined,
+      });
+      return args.placeholderId;
+    }
+    return ctx.db.insert("images", {
+      accountId: args.accountId,
+      origin: "generated",
+      purpose: "post",
+      ...fields,
       createdAt: Date.now(),
     });
+  },
+});
+
+/** Mark a gallery placeholder as failed so the grid can show why. */
+export const markPaintFailed = internalMutation({
+  args: { imageId: v.id("images"), error: v.string() },
+  handler: async (ctx, { imageId, error }) => {
+    const image = await ctx.db.get(imageId);
+    if (!image || image.status !== "generating") return;
+    await ctx.db.patch(imageId, { status: "failed", generationError: error.slice(0, 300) });
   },
 });

@@ -82,10 +82,13 @@ export const paint = internalAction({
     editOfImageId: v.optional(v.id("images")),
     model: v.optional(v.string()),
     name: v.optional(v.string()),
+    promptAuthor: v.optional(v.union(v.literal("vanda"), v.literal("user"))),
+    // Pre-inserted "generating" gallery row to fill (success) or mark (failure).
+    placeholderImageId: v.optional(v.id("images")),
   },
   handler: async (
     ctx,
-    { accountId, prompt, aspectRatio, referenceImageIds, editOfImageId, model, name },
+    args,
   ): Promise<{
     imageId: Id<"images">;
     url: string;
@@ -93,6 +96,51 @@ export const paint = internalAction({
     width: number;
     height: number;
   }> => {
+    try {
+      return await paintImage(ctx, args);
+    } catch (error) {
+      if (args.placeholderImageId) {
+        await ctx.runMutation(internal.imagesData.markPaintFailed, {
+          imageId: args.placeholderImageId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      throw error;
+    }
+  },
+});
+
+async function paintImage(
+  ctx: ActionCtx,
+  {
+    accountId,
+    prompt,
+    aspectRatio,
+    referenceImageIds,
+    editOfImageId,
+    model,
+    name,
+    promptAuthor,
+    placeholderImageId,
+  }: {
+    accountId: Id<"accounts">;
+    prompt: string;
+    aspectRatio: AspectRatio;
+    referenceImageIds?: Id<"images">[] | undefined;
+    editOfImageId?: Id<"images"> | undefined;
+    model?: string | undefined;
+    name?: string | undefined;
+    promptAuthor?: "vanda" | "user" | undefined;
+    placeholderImageId?: Id<"images"> | undefined;
+  },
+): Promise<{
+  imageId: Id<"images">;
+  url: string;
+  mimeType: string;
+  width: number;
+  height: number;
+}> {
+  {
     const trimmedPrompt = prompt.trim();
     if (!trimmedPrompt) throw new Error("image prompt is empty");
 
@@ -147,9 +195,11 @@ export const paint = internalAction({
       generationMs,
       ...(name && name.trim() ? { name: name.trim() } : {}),
       ...(generated.costUsd !== undefined ? { costUsd: generated.costUsd } : {}),
+      ...(promptAuthor ? { promptAuthor } : {}),
+      ...(placeholderImageId ? { placeholderId: placeholderImageId } : {}),
     });
     const url = await ctx.storage.getUrl(storageId);
     if (!url) throw new Error("stored image URL is unavailable");
     return { imageId, url, mimeType, width, height };
-  },
-});
+  }
+}

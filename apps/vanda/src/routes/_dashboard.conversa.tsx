@@ -26,6 +26,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleDashed,
+  ImageOff,
   Images,
   Paperclip,
   RefreshCw,
@@ -958,7 +959,7 @@ function ChatMessage({
           </Bubble>
         ))}
         {paintedImages.map((image) => (
-          <PaintedImage key={image.imageId} image={image} />
+          <PaintedImage key={image.imageId} image={image} accountId={accountId} />
         ))}
         {previewProjectIds.map((pid) => (
           <ProjectPreview key={pid} projectId={pid} onOpen={() => onOpenProject(pid)} />
@@ -1074,9 +1075,21 @@ function ApprovalResponded({ approved }: { approved: boolean }) {
   );
 }
 
-/** A loose image returned directly by the synchronous paint tool. */
-function PaintedImage({ image }: { image: PaintedImageView }) {
+/**
+ * A loose image returned directly by the synchronous paint tool. The transcript
+ * freezes the URL at generation time, so liveness comes from the gallery: when
+ * the record is gone (deleted from the canvas), the frame gives way to a quiet
+ * tombstone instead of a broken image.
+ */
+function PaintedImage({ image, accountId }: { image: PaintedImageView; accountId: Id<"accounts"> }) {
   const enter = useEntranceOnMount();
+  const live = useQuery(api.gallery.get, {
+    accountId,
+    imageId: image.imageId as Id<"images">,
+  });
+
+  if (live === null) return <DeletedImageNotice />;
+
   return (
     <Attachment
       orientation="vertical"
@@ -1088,13 +1101,28 @@ function PaintedImage({ image }: { image: PaintedImageView }) {
         style={{ aspectRatio: `${image.width} / ${image.height}` }}
       >
         <img
-          src={image.url}
+          src={live?.url ?? image.url}
           alt="Imagem criada pela Vanda"
           loading="lazy"
           className="size-full object-cover"
         />
       </AttachmentMedia>
     </Attachment>
+  );
+}
+
+/** The tombstone left behind when a painted image was deleted from the gallery. */
+function DeletedImageNotice() {
+  return (
+    <div className="flex w-full max-w-sm items-center gap-3 rounded-xl border border-dashed border-border bg-muted/40 px-3.5 py-3">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-text-4">
+        <ImageOff className="size-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-body font-medium text-text-2">Imagem excluída</p>
+        <p className="text-body-sm text-text-4">Esta imagem foi removida da galeria.</p>
+      </div>
+    </div>
   );
 }
 

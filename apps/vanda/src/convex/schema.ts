@@ -779,6 +779,14 @@ export default defineSchema({
     model: v.optional(v.string()),
     costUsd: v.optional(v.number()),
     generationMs: v.optional(v.number()),
+    // Who wrote the generation prompt: Vanda (from chat) or the owner (gallery
+    // composer). Absent on uploads and legacy rows.
+    promptAuthor: v.optional(v.union(v.literal("vanda"), v.literal("user"))),
+    // Generation lifecycle for gallery fan-outs: rows are inserted as
+    // "generating" placeholders, then filled in place (status cleared) or
+    // marked "failed". Absent = ready.
+    status: v.optional(v.union(v.literal("generating"), v.literal("failed"))),
+    generationError: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_account", ["accountId"])

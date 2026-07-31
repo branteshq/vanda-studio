@@ -227,6 +227,7 @@ const paint = createTool({
       prompt: args.prompt,
       name: args.name,
       aspectRatio: args.aspectRatio,
+      promptAuthor: "vanda",
       ...(args.referenceImageIds
         ? { referenceImageIds: args.referenceImageIds as Array<Id<"images">> }
         : {}),
