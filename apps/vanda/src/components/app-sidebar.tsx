@@ -620,11 +620,16 @@ export function AppSidebar() {
 
       <SidebarContent className="min-h-0 px-2">
         {activeAccount ? (
-          galleryActive ? (
-            <GalleryComposer accountId={activeAccount.id} />
-          ) : (
-            <ThreadHistory accountId={activeAccount.id} />
-          )
+          <div
+            key={galleryActive ? "gallery" : "chat"}
+            className="animate-mode-in flex min-h-0 flex-1 flex-col"
+          >
+            {galleryActive ? (
+              <GalleryComposer accountId={activeAccount.id} />
+            ) : (
+              <ThreadHistory accountId={activeAccount.id} />
+            )}
+          </div>
         ) : null}
       </SidebarContent>
 

@@ -347,6 +347,29 @@
   }
 }
 
+/* Chat ⇄ gallery mode switch: the whole workspace (sidebar tools + main surface)
+ * settles into place together — a subtle lift + micro-scale that reads as
+ * re-composition, not a hard cut. Resolves to transform:none so no containing
+ * block lingers on the scroll surfaces. */
+@keyframes vanda-mode-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes vanda-mode-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .animate-message-in {
   animation: vanda-message-in 220ms var(--ease-out) both;
 }
@@ -366,6 +389,9 @@
     animation: vanda-panel-in-column 260ms var(--ease-out) both;
   }
 }
+.animate-mode-in {
+  animation: vanda-mode-in 260ms var(--ease-out) both;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .animate-message-in,
@@ -373,6 +399,10 @@
   .animate-card-in,
   .animate-canvas-in {
     animation: none;
+  }
+  /* Keep the crossfade for comprehension; drop the movement. */
+  .animate-mode-in {
+    animation: vanda-mode-fade 180ms var(--ease-out) both;
   }
 }
 

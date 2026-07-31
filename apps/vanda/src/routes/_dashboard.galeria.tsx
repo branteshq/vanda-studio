@@ -57,7 +57,7 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
     : results;
 
   return (
-    <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <main className="animate-mode-in flex min-h-0 flex-1 flex-col overflow-hidden">
       <GalleryHeader query={query} onQuery={setQuery} accountId={accountId} />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">

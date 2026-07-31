@@ -221,7 +221,7 @@ function ConversationShell({ accountId }: { accountId: Id<"accounts"> }) {
   }, [t, threads, navigate]);
 
   return (
-    <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+    <div className="animate-mode-in relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
       {visited.map((id) => (
         <div
           key={id}
