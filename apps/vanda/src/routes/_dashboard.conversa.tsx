@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ClipboardEvent,
@@ -246,6 +247,9 @@ function ConversationShell({ accountId }: { accountId: Id<"accounts"> }) {
  * this echo instead of a skeleton while the new thread's history subscription
  * makes its first round-trip, so the transition is seamless.
  */
+/** The composer stops growing here (~8 lines) and scrolls internally instead. */
+const MAX_COMPOSER_HEIGHT = 224;
+
 interface ReadyComposerAttachment {
   imageId: Id<"images">;
   url: string;
@@ -429,8 +433,20 @@ function ChatComposer({
   const addImage = useMutation(api.imageUploads.addImage);
   const removeImage = useMutation(api.imageUploads.removeImage);
   const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [submitting, setSubmitting] = useState(false);
+
+  // Auto-grow: the textarea tracks its content height up to the threshold,
+  // then freezes and scrolls internally. Layout effect so the height is right
+  // before paint (no one-frame jump when a draft is restored).
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, MAX_COMPOSER_HEIGHT)}px`;
+    el.style.overflowY = el.scrollHeight > MAX_COMPOSER_HEIGHT ? "auto" : "hidden";
+  }, [draft]);
   const attachmentsRef = useRef(attachments);
   attachmentsRef.current = attachments;
   const cancelledUploads = useRef(new Set<string>());
@@ -638,16 +654,31 @@ function ChatComposer({
             </AttachmentGroup>
           ) : null}
 
-          <div className="flex items-end gap-1">
+          <textarea
+            ref={textareaRef}
+            value={draft}
+            onChange={(event) => onDraftChange(event.target.value)}
+            onKeyDown={onKeyDown}
+            onPaste={onPaste}
+            placeholder="Mande uma mensagem para a Vanda…"
+            aria-label="Mensagem para a Vanda"
+            rows={1}
+            autoFocus={autoFocus}
+            className="min-h-9 w-full resize-none bg-transparent px-2 py-1.5 text-sm text-text outline-none placeholder:text-text-5"
+          />
+
+          {/* Amp-style control row: attach on the left, send on the right,
+              both riding the input's bottom edge. */}
+          <div className="flex items-center justify-between">
             <ActionTooltip label="Adicionar imagens" side="top">
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
+                size="icon-sm"
                 aria-label="Adicionar imagens"
                 disabled={disabled || submitting || attachments.length >= 4}
                 onClick={() => inputRef.current?.click()}
-                className="text-text-4"
+                className="text-text-4 hover:text-text"
               >
                 <Paperclip />
               </Button>
@@ -660,20 +691,9 @@ function ChatComposer({
               hidden
               onChange={(event) => selectFiles(event.target.files)}
             />
-            <textarea
-              value={draft}
-              onChange={(event) => onDraftChange(event.target.value)}
-              onKeyDown={onKeyDown}
-              onPaste={onPaste}
-              placeholder="Mande uma mensagem para a Vanda…"
-              aria-label="Mensagem para a Vanda"
-              rows={1}
-              autoFocus={autoFocus}
-              className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-text outline-none placeholder:text-text-5"
-            />
             <ActionTooltip label="Enviar" side="top">
               <span className="inline-flex">
-                <Button type="submit" size="icon" aria-label="Enviar" disabled={!canSend}>
+                <Button type="submit" size="icon-sm" aria-label="Enviar" disabled={!canSend}>
                   <ArrowUp />
                 </Button>
               </span>
@@ -980,12 +1000,10 @@ function ChatMessage({
           ),
         )}
         {nothingYet ? (
-          <Marker role="status">
-            <MarkerIcon>
-              <Spinner />
-            </MarkerIcon>
-            <MarkerContent className="shimmer">Pensando…</MarkerContent>
-          </Marker>
+          // Amp-style: a single breathing dot where the answer will appear.
+          <div role="status" aria-label="Vanda está pensando" className="px-1 py-2">
+            <span className="animate-breathe block size-2.5 rounded-full bg-text-4" />
+          </div>
         ) : null}
       </MessageContent>
     </Message>
