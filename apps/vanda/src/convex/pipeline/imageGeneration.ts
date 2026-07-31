@@ -20,8 +20,14 @@ export interface ImageAssetGeneratorShape {
   readonly generate: (input: {
     readonly prompt: string;
     readonly referenceUrls?: ReadonlyArray<string> | undefined;
-    /** OpenRouter-supported output size; omitted keeps the carousel default. */
-    readonly size?: string | undefined;
+    /** OpenRouter aspect ratio ("1:1", "4:5", …); omitted keeps the carousel default. */
+    readonly aspectRatio?: string | undefined;
+    /**
+     * Resolution tier ("2K"/"4K") for endpoints that accept the `resolution`
+     * param. Omit for 1K — it's every provider's default, and models without
+     * the knob (gpt-image, flux) reject the parameter outright.
+     */
+    readonly resolution?: "2K" | "4K" | undefined;
   }) => Effect.Effect<GeneratedVisual, ImageGenerationFailed>;
 }
 
@@ -163,7 +169,7 @@ export const openRouterImageGeneratorLayer = (input: {
   readonly model: string;
 }): Layer.Layer<ImageAssetGenerator> =>
   Layer.succeed(ImageAssetGenerator, {
-    generate: ({ prompt, referenceUrls, size }) =>
+    generate: ({ prompt, referenceUrls, aspectRatio, resolution }) =>
       Effect.tryPromise({
         try: async () => {
           const response = await fetch("https://openrouter.ai/api/v1/images", {
@@ -176,7 +182,10 @@ export const openRouterImageGeneratorLayer = (input: {
               model: input.model,
               prompt,
               n: 1,
-              size: size ?? "2048x2560",
+              // Ratio + tier, never explicit pixels: an explicit size is
+              // authoritative and 400s when combined with tier params.
+              aspect_ratio: aspectRatio ?? "4:5",
+              ...(resolution ? { resolution } : {}),
               quality: "high",
               output_format: "jpeg",
               output_compression: 90,

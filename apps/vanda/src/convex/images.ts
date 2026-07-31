@@ -7,7 +7,12 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction, type ActionCtx } from "./_generated/server";
 import { ImageAssetGenerator, openRouterImageGeneratorLayer } from "./pipeline/imageGeneration";
-import { DEFAULT_IMAGE_MODEL, isKnownImageModel } from "./imageModels";
+import {
+  DEFAULT_IMAGE_MODEL,
+  clampResolution,
+  isKnownImageModel,
+  type ImageResolution,
+} from "./imageModels";
 
 const aspectRatioValidator = v.union(
   v.literal("1:1"),
@@ -16,14 +21,6 @@ const aspectRatioValidator = v.union(
   v.literal("16:9"),
 );
 type AspectRatio = "1:1" | "4:5" | "9:16" | "16:9";
-
-/** Nearest explicit sizes accepted by OpenRouter's dedicated Images API. */
-const GENERATION_SIZE: Record<AspectRatio, string> = {
-  "1:1": "1024x1024",
-  "4:5": "1024x1536",
-  "9:16": "1024x1536",
-  "16:9": "1536x1024",
-};
 
 const RATIO_PARTS: Record<AspectRatio, readonly [width: number, height: number]> = {
   "1:1": [1, 1],
@@ -51,6 +48,46 @@ const resolveSourceUrl = async (ctx: ActionCtx, source: ResolvedSource): Promise
   }
   throw new Error("image has no resolvable URL");
 };
+
+/**
+ * Read pixel dimensions from JPEG/PNG headers without decoding the bitmap.
+ * Decoding a 4K image inflates to a ~67MB bitmap plus codec workspace — enough
+ * to blow the action's memory cap — so dimensions are sniffed from a few bytes.
+ */
+function sniffDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  // PNG: 8-byte signature, then IHDR with width/height at offsets 16/20.
+  if (bytes.length > 24 && bytes[0] === 0x89 && bytes[1] === 0x50) {
+    return { width: view.getUint32(16), height: view.getUint32(20) };
+  }
+  // JPEG: walk the marker stream to the first SOFn frame header.
+  if (bytes.length > 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+    let offset = 2;
+    while (offset + 9 < bytes.length) {
+      if (bytes[offset] !== 0xff) {
+        offset += 1;
+        continue;
+      }
+      const marker = bytes[offset + 1]!;
+      if (marker === 0xff) {
+        offset += 1;
+        continue;
+      }
+      if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd9) || marker === 0x01) {
+        offset += 2;
+        continue;
+      }
+      const length = view.getUint16(offset + 2);
+      const isSOF = marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker);
+      if (isSOF) return { height: view.getUint16(offset + 5), width: view.getUint16(offset + 7) };
+      offset += 2 + length;
+    }
+  }
+  return null;
+}
+
+/** Above this, a Jimp decode risks the action's memory cap — never decode. */
+const MAX_DECODE_PIXELS = 9_000_000;
 
 /** Largest centered integer crop with the exact requested ratio. */
 const cropToAspectRatio = (image: Awaited<ReturnType<typeof Jimp.read>>, ratio: AspectRatio) => {
@@ -83,6 +120,8 @@ export const paint = internalAction({
     model: v.optional(v.string()),
     name: v.optional(v.string()),
     promptAuthor: v.optional(v.union(v.literal("vanda"), v.literal("user"))),
+    // Output tier. Clamped to what the model actually supports; default 1K.
+    resolution: v.optional(v.union(v.literal("1K"), v.literal("2K"), v.literal("4K"))),
     // Pre-inserted "generating" gallery row to fill (success) or mark (failure).
     placeholderImageId: v.optional(v.id("images")),
   },
@@ -121,6 +160,7 @@ async function paintImage(
     model,
     name,
     promptAuthor,
+    resolution,
     placeholderImageId,
   }: {
     accountId: Id<"accounts">;
@@ -131,6 +171,7 @@ async function paintImage(
     model?: string | undefined;
     name?: string | undefined;
     promptAuthor?: "vanda" | "user" | undefined;
+    resolution?: ImageResolution | undefined;
     placeholderImageId?: Id<"images"> | undefined;
   },
 ): Promise<{
@@ -163,26 +204,53 @@ async function paintImage(
     if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
     if (model && !isKnownImageModel(model)) throw new Error(`unknown image model: ${model}`);
     const selectedModel = model ?? DEFAULT_IMAGE_MODEL;
+    // Never ask a model for a tier it can't produce — clamp to its best.
+    const tier = clampResolution(selectedModel, resolution ?? "1K");
 
     const startedAt = Date.now();
     const generated = await Effect.runPromise(
       Effect.flatMap(ImageAssetGenerator, (generator) =>
         generator.generate({
           prompt: trimmedPrompt,
-          size: GENERATION_SIZE[aspectRatio],
+          aspectRatio,
+          // 1K is every provider's default; sending the param only when
+          // raising keeps models without the knob (gpt-image, flux) happy.
+          ...(tier !== "1K" ? { resolution: tier } : {}),
           ...(inputReferences.length > 0 ? { referenceUrls: inputReferences } : {}),
         }),
       ).pipe(Effect.provide(openRouterImageGeneratorLayer({ apiKey, model: selectedModel }))),
     );
     const generationMs = Date.now() - startedAt;
 
-    const image = await Jimp.read(Buffer.from(generated.bytes));
-    const { width, height } = cropToAspectRatio(image, aspectRatio);
-    const mimeType = generated.mimeType === "image/png" ? "image/png" : "image/jpeg";
-    const outputBytes =
-      mimeType === "image/png"
-        ? new Uint8Array(await image.getBuffer("image/png"))
-        : new Uint8Array(await image.getBuffer("image/jpeg", { quality: 90 }));
+    // The provider was asked for this exact aspect ratio, so the center-crop is
+    // only insurance. Sniff dimensions from the header: when the ratio already
+    // matches (or the image is too big to decode within the action's memory
+    // cap — a 4K bitmap alone is ~67MB), store the original bytes untouched.
+    const [ratioWidth, ratioHeight] = RATIO_PARTS[aspectRatio];
+    const targetRatio = ratioWidth / ratioHeight;
+    const sniffed = sniffDimensions(generated.bytes);
+    const ratioMatches =
+      sniffed !== null && Math.abs(sniffed.width / sniffed.height - targetRatio) / targetRatio < 0.01;
+    const tooBigToDecode = sniffed !== null && sniffed.width * sniffed.height > MAX_DECODE_PIXELS;
+
+    let width: number;
+    let height: number;
+    let mimeType: string;
+    let outputBytes: Uint8Array;
+    if (sniffed && (ratioMatches || tooBigToDecode)) {
+      // Off-ratio but huge: an uncropped 4K beats an OOM-killed action.
+      ({ width, height } = sniffed);
+      mimeType = generated.mimeType === "image/png" ? "image/png" : "image/jpeg";
+      outputBytes = generated.bytes;
+    } else {
+      const image = await Jimp.read(Buffer.from(generated.bytes));
+      ({ width, height } = cropToAspectRatio(image, aspectRatio));
+      mimeType = generated.mimeType === "image/png" ? "image/png" : "image/jpeg";
+      outputBytes =
+        mimeType === "image/png"
+          ? new Uint8Array(await image.getBuffer("image/png"))
+          : new Uint8Array(await image.getBuffer("image/jpeg", { quality: 90 }));
+    }
     const storageId = await ctx.storage.store(bytesBlob(outputBytes, mimeType));
     const imageId = await ctx.runMutation(internal.imagesData.savePaintedImage, {
       accountId,

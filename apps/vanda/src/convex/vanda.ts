@@ -209,6 +209,13 @@ const paint = createTool({
     prompt: z.string().describe("prompt visual detalhado escrito pela Vanda"),
     name: z.string().describe("nome curto e descritivo para a imagem na galeria (2–4 palavras)"),
     aspectRatio: z.enum(["1:1", "4:5", "9:16", "16:9"]).default("4:5"),
+    resolution: z
+      .enum(["1K", "2K", "4K"])
+      .optional()
+      .describe(
+        "resolução de saída; padrão 1K. Use 2K/4K só quando o dono pedir alta resolução " +
+          "(custa mais). Nem todo modelo suporta — o sistema ajusta para o máximo disponível.",
+      ),
     referenceImageIds: z.array(z.string()).optional(),
     editOfImageId: z.string().optional(),
   }),
@@ -218,6 +225,7 @@ const paint = createTool({
       prompt: string;
       name: string;
       aspectRatio: "1:1" | "4:5" | "9:16" | "16:9";
+      resolution?: "1K" | "2K" | "4K" | undefined;
       referenceImageIds?: string[] | undefined;
       editOfImageId?: string | undefined;
     },
@@ -228,6 +236,7 @@ const paint = createTool({
       name: args.name,
       aspectRatio: args.aspectRatio,
       promptAuthor: "vanda",
+      ...(args.resolution ? { resolution: args.resolution } : {}),
       ...(args.referenceImageIds
         ? { referenceImageIds: args.referenceImageIds as Array<Id<"images">> }
         : {}),

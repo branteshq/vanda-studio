@@ -134,6 +134,9 @@ const generateVisual = async (input: {
         Effect.flatMap(ImageAssetGenerator, (generator) =>
           generator.generate({
             prompt: `${basePrompt}${correction}`,
+            // The carousel's historical output class: 4:5 at 2K (was 2048x2560).
+            aspectRatio: "4:5",
+            resolution: "2K",
             ...(allowPerson ? { referenceUrls: input.identityRefs } : {}),
           }),
         ).pipe(

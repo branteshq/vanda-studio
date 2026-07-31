@@ -176,12 +176,13 @@ export const generate = mutation({
     modelIds: v.array(v.string()),
     aspectRatio: aspectRatioValidator,
     count: v.number(),
+    resolution: v.optional(v.union(v.literal("1K"), v.literal("2K"), v.literal("4K"))),
     referenceImageIds: v.optional(v.array(v.id("images"))),
     editOfImageId: v.optional(v.id("images")),
   },
   handler: async (
     ctx,
-    { accountId, prompt, modelIds, aspectRatio, count, referenceImageIds, editOfImageId },
+    { accountId, prompt, modelIds, aspectRatio, count, resolution, referenceImageIds, editOfImageId },
   ): Promise<{ scheduled: number }> => {
     await requireOwnedAccount(ctx, accountId);
     const trimmed = prompt.trim();
@@ -219,6 +220,8 @@ export const generate = mutation({
           model,
           promptAuthor: "user",
           placeholderImageId,
+          // paint clamps per model, so a mixed selection degrades gracefully.
+          ...(resolution ? { resolution } : {}),
           ...(referenceImageIds && referenceImageIds.length > 0 ? { referenceImageIds } : {}),
           ...(editOfImageId ? { editOfImageId } : {}),
         });

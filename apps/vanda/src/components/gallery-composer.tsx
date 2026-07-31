@@ -3,10 +3,17 @@ import { useMutation } from "convex/react";
 import { Check, Sparkles } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Spinner } from "@vanda-studio/ui/components/spinner";
+import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
-import { DEFAULT_IMAGE_MODEL, IMAGE_MODELS } from "../convex/imageModels";
+import {
+  DEFAULT_IMAGE_MODEL,
+  IMAGE_MODELS,
+  IMAGE_RESOLUTIONS,
+  sharedResolutions,
+  type ImageResolution,
+} from "../convex/imageModels";
 
 const ASPECT_RATIOS = ["1:1", "4:5", "9:16", "16:9"] as const;
 type AspectRatio = (typeof ASPECT_RATIOS)[number];
@@ -22,6 +29,12 @@ const ASPECT_ICON: Record<AspectRatio, { w: number; h: number }> = {
 
 const MAX_FANOUT = 12;
 
+const RESOLUTION_LABEL: Record<ImageResolution, string> = {
+  "1K": "Padrão",
+  "2K": "Alta",
+  "4K": "Ultra",
+};
+
 /**
  * The image generator, rendered inside the sidebar when the app is in gallery
  * mode (the thread list's counterpart). Fans generation out through
@@ -33,10 +46,24 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
   const [prompt, setPrompt] = useState("");
   const [models, setModels] = useState<Set<string>>(new Set([DEFAULT_IMAGE_MODEL]));
   const [aspect, setAspect] = useState<AspectRatio>("1:1");
+  const [resolution, setResolution] = useState<ImageResolution>("1K");
   const [busy, setBusy] = useState(false);
 
   const total = models.size;
   const canGenerate = prompt.trim().length > 0 && total > 0 && total <= MAX_FANOUT && !busy;
+
+  // Tiers every selected model supports. The choice is kept non-destructively:
+  // picking 4K, then adding a 1K-only model, degrades the EFFECTIVE tier to the
+  // best shared one — and springs back to 4K when that model leaves again.
+  const allowedResolutions = sharedResolutions(models);
+  let effectiveResolution: ImageResolution = "1K";
+  for (let i = IMAGE_RESOLUTIONS.indexOf(resolution); i >= 0; i -= 1) {
+    const tier = IMAGE_RESOLUTIONS[i]!;
+    if (allowedResolutions.includes(tier)) {
+      effectiveResolution = tier;
+      break;
+    }
+  }
 
   const toggleModel = (id: string) =>
     setModels((prev) => {
@@ -58,6 +85,7 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
         prompt: prompt.trim(),
         modelIds: [...models],
         aspectRatio: aspect,
+        resolution: effectiveResolution,
         count: 1,
       });
     } finally {
@@ -150,6 +178,52 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
                   </span>
                   <span className="text-note font-medium">{value}</span>
                 </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <label className="section-label mb-1.5 block text-sidebar-foreground/75">
+            Resolução
+          </label>
+          <div className="grid grid-cols-3 gap-1.5">
+            {IMAGE_RESOLUTIONS.map((tier) => {
+              const supported = allowedResolutions.includes(tier);
+              const active = effectiveResolution === tier;
+              // Which of the selected models cap this tier out.
+              const blockers = IMAGE_MODELS.filter(
+                (model) => models.has(model.id) && !model.resolutions.includes(tier),
+              ).map((model) => model.label);
+              const button = (
+                <button
+                  key={tier}
+                  type="button"
+                  aria-disabled={!supported}
+                  aria-pressed={active}
+                  onClick={() => supported && setResolution(tier)}
+                  className={cn(
+                    "flex w-full flex-col items-center gap-0.5 rounded-lg border py-2.5 transition-colors",
+                    active
+                      ? "border-brand-accent/60 bg-brand-accent/10 text-sidebar-foreground"
+                      : "border-sidebar-border bg-sidebar-accent/40 text-sidebar-foreground/45",
+                    supported
+                      ? !active && "hover:border-sidebar-foreground/25"
+                      : "cursor-not-allowed opacity-40",
+                  )}
+                >
+                  <span className="text-body font-medium">{RESOLUTION_LABEL[tier]}</span>
+                  <span className="text-note">{tier}</span>
+                </button>
+              );
+              // Kept clickable-looking enough to explain itself: hovering a
+              // gated tier names the models that don't support it.
+              return supported ? (
+                button
+              ) : (
+                <ActionTooltip key={tier} label={`Sem suporte: ${blockers.join(", ")}`} side="top">
+                  {button}
+                </ActionTooltip>
               );
             })}
           </div>
