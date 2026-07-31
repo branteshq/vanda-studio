@@ -236,6 +236,8 @@ const paint = createTool({
       name: args.name,
       aspectRatio: args.aspectRatio,
       promptAuthor: "vanda",
+      // Lets the owner's stop button cancel the generation mid-flight.
+      ...(ctx.threadId ? { threadId: ctx.threadId } : {}),
       ...(args.resolution ? { resolution: args.resolution } : {}),
       ...(args.referenceImageIds
         ? { referenceImageIds: args.referenceImageIds as Array<Id<"images">> }

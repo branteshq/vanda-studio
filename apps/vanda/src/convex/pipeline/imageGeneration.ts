@@ -28,6 +28,8 @@ export interface ImageAssetGeneratorShape {
      * the knob (gpt-image, flux) reject the parameter outright.
      */
     readonly resolution?: "2K" | "4K" | undefined;
+    /** Cancels the provider call mid-flight (cooperative stop). */
+    readonly signal?: AbortSignal | undefined;
   }) => Effect.Effect<GeneratedVisual, ImageGenerationFailed>;
 }
 
@@ -169,11 +171,12 @@ export const openRouterImageGeneratorLayer = (input: {
   readonly model: string;
 }): Layer.Layer<ImageAssetGenerator> =>
   Layer.succeed(ImageAssetGenerator, {
-    generate: ({ prompt, referenceUrls, aspectRatio, resolution }) =>
+    generate: ({ prompt, referenceUrls, aspectRatio, resolution, signal }) =>
       Effect.tryPromise({
         try: async () => {
           const response = await fetch("https://openrouter.ai/api/v1/images", {
             method: "POST",
+            ...(signal ? { signal } : {}),
             headers: {
               authorization: `Bearer ${input.apiKey}`,
               "content-type": "application/json",

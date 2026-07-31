@@ -16,6 +16,7 @@ import type { Id } from "./_generated/dataModel";
 import {
   internalAction,
   internalMutation,
+  internalQuery,
   mutation,
   query,
   type MutationCtx,
@@ -253,6 +254,22 @@ export const finishThreadActivity = internalMutation({
   args: { activityId: v.id("chatThreadActivity") },
   handler: async (ctx, { activityId }): Promise<void> => {
     if (await ctx.db.get(activityId)) await ctx.db.delete(activityId);
+  },
+});
+
+/**
+ * Whether a Vanda turn is still running on this thread. The stop button (and
+ * normal completion) deletes the activity row, so long-running tools poll this
+ * to cancel cooperatively mid-flight.
+ */
+export const threadHasActivity = internalQuery({
+  args: { accountId: v.id("accounts"), threadId: v.string() },
+  handler: async (ctx, { accountId, threadId }): Promise<boolean> => {
+    const rows = await ctx.db
+      .query("chatThreadActivity")
+      .withIndex("by_account", (q) => q.eq("accountId", accountId))
+      .collect();
+    return rows.some((row) => row.threadId === threadId);
   },
 });
 

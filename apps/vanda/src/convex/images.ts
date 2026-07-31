@@ -124,6 +124,8 @@ export const paint = internalAction({
     resolution: v.optional(v.union(v.literal("1K"), v.literal("2K"), v.literal("4K"))),
     // Pre-inserted "generating" gallery row to fill (success) or mark (failure).
     placeholderImageId: v.optional(v.id("images")),
+    // Chat paints carry their thread so the owner's stop cancels them mid-flight.
+    threadId: v.optional(v.string()),
   },
   handler: async (
     ctx,
@@ -162,6 +164,7 @@ async function paintImage(
     promptAuthor,
     resolution,
     placeholderImageId,
+    threadId,
   }: {
     accountId: Id<"accounts">;
     prompt: string;
@@ -173,6 +176,7 @@ async function paintImage(
     promptAuthor?: "vanda" | "user" | undefined;
     resolution?: ImageResolution | undefined;
     placeholderImageId?: Id<"images"> | undefined;
+    threadId?: string | undefined;
   },
 ): Promise<{
   imageId: Id<"images">;
@@ -207,19 +211,55 @@ async function paintImage(
     // Never ask a model for a tier it can't produce — clamp to its best.
     const tier = clampResolution(selectedModel, resolution ?? "1K");
 
+    // Cooperative stop for chat paints: the owner's stop button deletes the
+    // thread's activity row; a watcher polls it and aborts the provider fetch
+    // mid-flight. (Streams can't signal us here — no deltas flow during tools.)
+    const abort = new AbortController();
+    let cancelled = false;
+    const watcher = threadId
+      ? setInterval(() => {
+          ctx
+            .runQuery(internal.chat.threadHasActivity, { accountId, threadId })
+            .then((active) => {
+              if (!active) {
+                cancelled = true;
+                abort.abort();
+              }
+            })
+            .catch(() => {});
+        }, 2500)
+      : undefined;
+
     const startedAt = Date.now();
-    const generated = await Effect.runPromise(
-      Effect.flatMap(ImageAssetGenerator, (generator) =>
-        generator.generate({
-          prompt: trimmedPrompt,
-          aspectRatio,
-          // 1K is every provider's default; sending the param only when
-          // raising keeps models without the knob (gpt-image, flux) happy.
-          ...(tier !== "1K" ? { resolution: tier } : {}),
-          ...(inputReferences.length > 0 ? { referenceUrls: inputReferences } : {}),
-        }),
-      ).pipe(Effect.provide(openRouterImageGeneratorLayer({ apiKey, model: selectedModel }))),
-    );
+    let generated;
+    try {
+      generated = await Effect.runPromise(
+        Effect.flatMap(ImageAssetGenerator, (generator) =>
+          generator.generate({
+            prompt: trimmedPrompt,
+            aspectRatio,
+            // 1K is every provider's default; sending the param only when
+            // raising keeps models without the knob (gpt-image, flux) happy.
+            ...(tier !== "1K" ? { resolution: tier } : {}),
+            ...(inputReferences.length > 0 ? { referenceUrls: inputReferences } : {}),
+            signal: abort.signal,
+          }),
+        ).pipe(Effect.provide(openRouterImageGeneratorLayer({ apiKey, model: selectedModel }))),
+      );
+    } catch (error) {
+      if (cancelled) throw new Error("geração interrompida pelo dono", { cause: error });
+      throw error;
+    } finally {
+      if (watcher) clearInterval(watcher);
+    }
+    // The generation may have finished in the polling gap — never save a
+    // result the owner already walked away from.
+    if (
+      cancelled ||
+      (threadId && !(await ctx.runQuery(internal.chat.threadHasActivity, { accountId, threadId })))
+    ) {
+      throw new Error("geração interrompida pelo dono");
+    }
     const generationMs = Date.now() - startedAt;
 
     // The provider was asked for this exact aspect ratio, so the center-crop is
