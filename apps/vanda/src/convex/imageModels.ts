@@ -73,9 +73,14 @@ const BY_ID = new Map(IMAGE_MODELS.map((model) => [model.id, model]));
 /** True when `id` is one of the models we allow callers to request. */
 export const isKnownImageModel = (id: string): boolean => BY_ID.has(id);
 
+/** Recorded as `model` on images produced by the run_code tool, not a real provider. */
+export const CODE_IMAGE_MODEL = "python/pillow";
+
 /** The display label for a model id, falling back to the raw id if unknown. */
-export const imageModelLabel = (id: string | undefined): string =>
-  (id && BY_ID.get(id)?.label) ?? id ?? "Desconhecido";
+export const imageModelLabel = (id: string | undefined): string => {
+  if (id === CODE_IMAGE_MODEL) return "Pillow (código)";
+  return (id && BY_ID.get(id)?.label) ?? id ?? "Desconhecido";
+};
 
 /** Resolution tiers a model accepts; unknown models are treated as 1K-only. */
 export const modelResolutions = (id: string): ReadonlyArray<ImageResolution> =>

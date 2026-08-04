@@ -104,6 +104,7 @@ const TOOL_LABEL: Record<string, string> = {
   publish_project: "Publicação no Instagram",
   discard_project: "Arquivando projeto",
   paint: "Criando imagem",
+  run_code: "Editando imagem com código",
 };
 
 /** The loose view of a tool part — covers `tool-*` and `dynamic-tool` shapes. */
@@ -123,7 +124,8 @@ const toolNameOf = (part: ToolPartView): string =>
 
 interface PaintedImageView {
   imageId: string;
-  url: string;
+  /** Frozen at generation time by paint; run_code images resolve live from the gallery. */
+  url?: string | undefined;
   width: number;
   height: number;
 }
@@ -144,6 +146,36 @@ const paintedImageOf = (part: ToolPartView): PaintedImageView | null => {
         height: value.height,
       }
     : null;
+};
+
+/** Images produced by a completed run_code call (no frozen URL — gallery is live source). */
+const codeImagesOf = (part: ToolPartView): PaintedImageView[] => {
+  if (toolNameOf(part) !== "run_code" || part.state !== "output-available") return [];
+  const output = part.output;
+  if (!output || typeof output !== "object") return [];
+  const images = (output as { images?: unknown }).images;
+  if (!Array.isArray(images)) return [];
+  return images.flatMap((image) => {
+    const value = image as Record<string, unknown>;
+    return typeof value.imageId === "string" &&
+      typeof value.width === "number" &&
+      typeof value.height === "number"
+      ? [{ imageId: value.imageId, width: value.width, height: value.height }]
+      : [];
+  });
+};
+
+/** The agent-facing fields of a run_code part, for the expandable code trace. */
+const codeRunViewOf = (part: ToolPartView) => {
+  const input = (part.input ?? {}) as { code?: unknown; description?: unknown };
+  const output = (part.output ?? {}) as { ok?: unknown; stdout?: unknown; stderr?: unknown };
+  return {
+    code: typeof input.code === "string" ? input.code : "",
+    description: typeof input.description === "string" ? input.description : "",
+    ok: typeof output.ok === "boolean" ? output.ok : null,
+    stdout: typeof output.stdout === "string" ? output.stdout : "",
+    stderr: typeof output.stderr === "string" ? output.stderr : "",
+  };
 };
 
 const projectIdOf = (part: ToolPartView): Id<"contentProjects"> | null => {
@@ -981,6 +1013,11 @@ function ChatMessage({
       if (painted && !paintedImages.some((image) => image.imageId === painted.imageId)) {
         paintedImages.push(painted);
       }
+      for (const codeImage of codeImagesOf(p)) {
+        if (!paintedImages.some((image) => image.imageId === codeImage.imageId)) {
+          paintedImages.push(codeImage);
+        }
+      }
     }
     // reasoning and any other part type are intentionally hidden.
   });
@@ -1082,6 +1119,7 @@ function ToolTrace({ parts, running }: { parts: ToolPartView[]; running: boolean
 
 function ToolRow({ part }: { part: ToolPartView }) {
   const name = toolNameOf(part);
+  if (name === "run_code") return <CodeRunRow part={part} />;
   const label = TOOL_LABEL[name] ?? name;
   const running = part.state === "input-streaming" || part.state === "input-available";
   const failed = part.state === "output-error";
@@ -1103,6 +1141,68 @@ function ToolRow({ part }: { part: ToolPartView }) {
         {failed && part.errorText ? ` — ${part.errorText}` : null}
       </MarkerContent>
     </Marker>
+  );
+}
+
+/**
+ * A run_code call in the trace: the description is the row label; expanding it
+ * reveals the Python and, once finished, its stdout/stderr — the traceback the
+ * agent self-corrects from is the same one the owner can inspect.
+ */
+function CodeRunRow({ part }: { part: ToolPartView }) {
+  const [open, setOpen] = useState(false);
+  const running = part.state === "input-streaming" || part.state === "input-available";
+  const failed = part.state === "output-error";
+  const view = codeRunViewOf(part);
+  const errored = failed || view.ok === false;
+  const label = view.description.trim() || TOOL_LABEL.run_code!;
+  return (
+    <div>
+      <Marker role={running ? "status" : undefined}>
+        <MarkerIcon>
+          {running ? (
+            <Spinner />
+          ) : errored ? (
+            <X className="text-destructive" />
+          ) : (
+            <Check className="text-text-5" />
+          )}
+        </MarkerIcon>
+        <MarkerContent
+          className={cn("text-text-4", running && "shimmer", errored && "text-destructive")}
+        >
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            className="inline-flex cursor-pointer items-center gap-1 text-left transition-colors hover:text-text-3"
+          >
+            {label}
+            {failed && part.errorText ? ` — ${part.errorText}` : null}
+            <ChevronDown
+              className={cn("size-3 transition-transform duration-200", open && "rotate-180")}
+            />
+          </button>
+        </MarkerContent>
+      </Marker>
+      {open && view.code ? (
+        <div className="mt-1.5 mb-1 ml-5 space-y-1.5">
+          <pre className="max-h-64 overflow-auto rounded-lg border border-border bg-muted/40 p-3 font-mono text-body-sm whitespace-pre text-text-3">
+            {view.code}
+          </pre>
+          {view.stdout ? (
+            <pre className="max-h-32 overflow-auto rounded-lg border border-border bg-muted/40 p-3 font-mono text-body-sm whitespace-pre text-text-4">
+              {view.stdout}
+            </pre>
+          ) : null}
+          {view.stderr ? (
+            <pre className="max-h-32 overflow-auto rounded-lg border border-destructive/30 bg-destructive/5 p-3 font-mono text-body-sm whitespace-pre text-destructive">
+              {view.stderr}
+            </pre>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -1142,12 +1242,18 @@ function PaintedImage({ image, accountId }: { image: PaintedImageView; accountId
         className="w-full"
         style={{ aspectRatio: `${image.width} / ${image.height}` }}
       >
-        <img
-          src={live?.url ?? image.url}
-          alt="Imagem criada pela Vanda"
-          loading="lazy"
-          className="size-full object-cover"
-        />
+        {(live?.url ?? image.url) ? (
+          <img
+            src={live?.url ?? image.url}
+            alt="Imagem criada pela Vanda"
+            loading="lazy"
+            className="size-full object-cover"
+          />
+        ) : (
+          // run_code outputs carry no frozen URL — hold the frame until the
+          // gallery subscription resolves.
+          <Skeleton className="size-full" />
+        )}
       </AttachmentMedia>
     </Attachment>
   );

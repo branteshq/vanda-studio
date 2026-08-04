@@ -12,6 +12,7 @@ import {
   type SandboxInputFile,
   type SandboxRunResult,
 } from "./pipeline/codeExecution";
+import { CODE_IMAGE_MODEL } from "./imageModels";
 import { sniffImage } from "./pipeline/imageBytes";
 
 /** Sandbox output above this is rejected: nothing legitimate composes >32MP. */
@@ -218,7 +219,7 @@ export const run = internalAction({
         mimeType: sniffed.mimeType,
         width: sniffed.width,
         height: sniffed.height,
-        model: "python/pillow",
+        model: CODE_IMAGE_MODEL,
         generationMs: durationMs,
         costUsd: costUsd / result.outputs.length,
         name: filenameToName(output.filename),

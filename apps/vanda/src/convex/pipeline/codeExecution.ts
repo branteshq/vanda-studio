@@ -1,3 +1,5 @@
+"use node";
+
 import { Sandbox } from "@e2b/code-interpreter";
 import * as Context from "effect/Context";
 import * as Data from "effect/Data";
@@ -133,13 +135,14 @@ export const e2bCodeSandboxLayer = (input: {
               const outputs: SandboxOutputFile[] = [];
               const skipped: string[] = [];
               const entries = await sandbox.files.list(SANDBOX_OUT_DIR).catch(() => []);
-              const candidates = entries
-                .filter(
-                  (entry) =>
-                    entry.type === "file" &&
-                    OUTPUT_EXTENSIONS.some((ext) => entry.name.toLowerCase().endsWith(ext)),
-                )
-                .sort((a, b) => a.name.localeCompare(b.name));
+              // Deterministic ingestion order regardless of listing order.
+              // (lib target predates Array#toSorted, hence copy-then-sort.)
+              const candidates = entries.filter(
+                (entry) =>
+                  entry.type === "file" &&
+                  OUTPUT_EXTENSIONS.some((ext) => entry.name.toLowerCase().endsWith(ext)),
+              );
+              candidates.sort((a, b) => a.name.localeCompare(b.name));
               for (const entry of candidates) {
                 if (outputs.length >= MAX_OUTPUT_FILES) {
                   skipped.push(`${entry.name}: limite de ${MAX_OUTPUT_FILES} arquivos`);
