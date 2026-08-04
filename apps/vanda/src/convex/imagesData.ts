@@ -60,6 +60,8 @@ export const savePaintedImage = internalMutation({
     generationMs: v.optional(v.number()),
     name: v.optional(v.string()),
     promptAuthor: v.optional(v.union(v.literal("vanda"), v.literal("user"))),
+    // Links a run_code output back to its execution record.
+    codeRunId: v.optional(v.id("codeRuns")),
     // Gallery fan-outs pre-insert a "generating" row; passing it here fills
     // that row in place (keeping its grid position) instead of inserting.
     placeholderId: v.optional(v.id("images")),
@@ -79,6 +81,7 @@ export const savePaintedImage = internalMutation({
       ...(args.costUsd !== undefined ? { costUsd: args.costUsd } : {}),
       ...(args.generationMs !== undefined ? { generationMs: args.generationMs } : {}),
       ...(args.promptAuthor ? { promptAuthor: args.promptAuthor } : {}),
+      ...(args.codeRunId ? { codeRunId: args.codeRunId } : {}),
     };
     if (args.placeholderId) {
       const placeholder = await ctx.db.get(args.placeholderId);

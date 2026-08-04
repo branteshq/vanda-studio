@@ -20,6 +20,7 @@
     "@convex-dev/agent": "^0.6.4",
     "@convex-dev/react-query": "^0.1.0",
     "@convex-dev/workflow": "^0.4.4",
+    "@e2b/code-interpreter": "^2.7.0",
     "@effect/ai-openrouter": "4.0.0-beta.85",
     "@openrouter/ai-sdk-provider": "^2.10.0",
     "@resvg/resvg-js": "^2.6.2",

@@ -787,11 +787,32 @@ export default defineSchema({
     // marked "failed". Absent = ready.
     status: v.optional(v.union(v.literal("generating"), v.literal("failed"))),
     generationError: v.optional(v.string()),
+    // Set when this image was produced by a run_code execution.
+    codeRunId: v.optional(v.id("codeRuns")),
     createdAt: v.number(),
   })
     .index("by_account", ["accountId"])
     .index("by_account_created", ["accountId", "createdAt"])
     .index("by_storage", ["storageId"]),
+
+  // Audit log of run_code executions: the agent-authored Python, its output, and
+  // the images it produced. Doubles as the rate-limit counter and the seed for
+  // promoting successful runs into reusable templates later.
+  codeRuns: defineTable({
+    accountId: v.id("accounts"),
+    threadId: v.optional(v.string()),
+    code: v.string(),
+    description: v.string(),
+    status: v.union(v.literal("running"), v.literal("ok"), v.literal("failed")),
+    stdout: v.optional(v.string()),
+    stderr: v.optional(v.string()),
+    // Infra failures only — Python tracebacks land in stderr instead.
+    error: v.optional(v.string()),
+    durationMs: v.optional(v.number()),
+    costUsd: v.optional(v.number()),
+    imageIds: v.optional(v.array(v.id("images"))),
+    createdAt: v.number(),
+  }).index("by_account_created", ["accountId", "createdAt"]),
 
   posts: defineTable({
     accountId: v.id("accounts"),

@@ -17,6 +17,7 @@ import type * as brandProfile from "../brandProfile.js";
 import type * as brandProfileNode from "../brandProfileNode.js";
 import type * as calendar from "../calendar.js";
 import type * as chat from "../chat.js";
+import type * as codeRunsData from "../codeRunsData.js";
 import type * as connections from "../connections.js";
 import type * as contentStudio from "../contentStudio.js";
 import type * as contentStudioActions from "../contentStudioActions.js";
@@ -82,6 +83,7 @@ declare const fullApi: ApiFromModules<{
   brandProfileNode: typeof brandProfileNode;
   calendar: typeof calendar;
   chat: typeof chat;
+  codeRunsData: typeof codeRunsData;
   connections: typeof connections;
   contentStudio: typeof contentStudio;
   contentStudioActions: typeof contentStudioActions;
