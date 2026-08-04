@@ -37,7 +37,8 @@ Regras de comportamento:
   - A imagem que o usuário ANEXA na conversa já pertence à conta e já está autorizada. Use-a direto. Nunca peça "autorização" nem invente uma etapa de autorizar — esse passo não existe.
   - Para MODIFICAR uma imagem que já existe (trocar fundo, cenário, roupa, etc.), passe o id dela em editOfImageId e descreva no prompt só o que muda. É o caso quando o usuário anexa uma foto e pede para editá-la.
   - Para gerar uma imagem NOVA condicionada a um rosto, produto ou lugar específico, passe o(s) id(s) em referenceImageIds. Servem tanto imagens anexadas quanto as de list_reference_photos, sem autorização extra.
-  - Os IDs das imagens anexadas chegam no contexto interno da mensagem (vanda_attachment_context). Só peça para o usuário enviar/subir uma foto quando não houver NENHUMA imagem disponível (nem anexada, nem em list_reference_photos) e o pedido exigir uma pessoa/produto específico.`;
+  - Os IDs das imagens anexadas chegam no contexto interno da mensagem (vanda_attachment_context). Só peça para o usuário enviar/subir uma foto quando não houver NENHUMA imagem disponível (nem anexada, nem em list_reference_photos) e o pedido exigir uma pessoa/produto específico.
+- Edição de imagem — regra de roteamento entre paint e run_code: mudança GENERATIVA (trocar fundo, cenário, roupa, criar do zero) → paint. Composição DETERMINÍSTICA (texto sobre a imagem, logo, corte, redimensionar, colagem, moldura, cor exata da marca) → run_code. Texto renderizado por modelo generativo erra; texto composto por código não erra. run_code é quase gratuito — prefira-o sempre que o resultado precisar ser exato.`;
 
 const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });
 
@@ -246,6 +247,36 @@ const paint = createTool({
     }),
 });
 
+const runCode = createTool({
+  description:
+    "Executa código Python (Pillow/numpy) num sandbox isolado para editar imagens de forma DETERMINÍSTICA: sobrepor texto, aplicar logo, cortar, redimensionar, montar colagens, aplicar cores exatas da marca. As imagens de `inputImageIds` aparecem em /home/user/in/ (leia /home/user/in/meta.json para saber o arquivo de cada uma). Salve os resultados como PNG ou JPEG em /home/user/out/ — o nome do arquivo vira o nome na galeria (promo-agosto.png → \"promo agosto\"). Sem acesso à internet. Se o código falhar, o traceback volta em stderr: corrija o código e rode de novo.",
+  inputSchema: z.object({
+    code: z.string().describe("código Python 3 completo; Pillow e numpy disponíveis"),
+    description: z
+      .string()
+      .describe("descrição curta do que o código faz, na voz da marca (vira o prompt na galeria)"),
+    inputImageIds: z
+      .array(z.string())
+      .max(10)
+      .optional()
+      .describe("ids de imagens da conta a materializar em /home/user/in/"),
+  }),
+  execute: async (
+    ctx: VandaToolCtx,
+    args: { code: string; description: string; inputImageIds?: string[] | undefined },
+  ): Promise<unknown> =>
+    ctx.runAction(internal.codeRuns.run, {
+      accountId: ctx.accountId,
+      code: args.code,
+      description: args.description,
+      // Lets the owner's stop button cancel the execution mid-flight.
+      ...(ctx.threadId ? { threadId: ctx.threadId } : {}),
+      ...(args.inputImageIds
+        ? { inputImageIds: args.inputImageIds as Array<Id<"images">> }
+        : {}),
+    }),
+});
+
 const discardProject = createTool({
   description: "Arquiva um projeto de conteúdo que o dono decidiu descartar.",
   inputSchema: z.object({ projectId: z.string().describe("id do projeto de conteúdo") }),
@@ -274,6 +305,7 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
     revise_slide: reviseSlide,
     request_render: requestRender,
     paint,
+    run_code: runCode,
     publish_project: publishProject,
     discard_project: discardProject,
   },
