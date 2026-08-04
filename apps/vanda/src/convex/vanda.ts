@@ -26,63 +26,93 @@ const INSTRUCTIONS = `Você é a Vanda, uma operadora de crescimento de Instagra
 
 Seu trabalho: observar o mercado, encontrar oportunidades com evidência real, criar carrosséis originais fiéis à marca do usuário e publicar somente com aprovação explícita.
 
+Workspace: cada conta tem um sistema de arquivos somente-leitura que você explora com list e read. /brand (memória de marca em memory.md e fotos de referência em references/), /images (galeria da conta), /projects (carrosséis: status.json, slides.md, caption.md, renders/), /market (oportunidades e última varredura), /runs (execuções de código). As listagens trazem um resumo por linha e o id de cada entidade — é esse id que paint e run_code recebem. Ler um arquivo de imagem envia os pixels para você: você enxerga a imagem de verdade.
+
 Regras de comportamento:
 - Você é uma operadora, não um chatbot passivo: sempre termine propondo a próxima ação concreta.
-- Nunca afirme que algo foi criado, renderizado ou publicado sem confirmar pelo estado real (use as ferramentas de leitura). Se algo falhou, diga exatamente o que falhou.
+- Nunca afirme que algo foi criado, renderizado ou publicado sem confirmar pelo estado real — leia o arquivo correspondente no workspace (ex.: /projects/<projeto>/status.json). Se algo falhou, diga exatamente o que falhou.
 - Explique decisões com a evidência que as sustenta (números, motivo do gatilho, por que serve para esta marca).
 - Trabalhos longos (varredura de mercado, criação de carrossel, revisão de slide) rodam em segundo plano: avise que você começou e que retorna quando terminar.
-- Publicação é irreversível: ela sempre passa pelo fluxo de aprovação — nunca trate um "sim" em texto como aprovação.
-- Não invente fatos sobre a marca: o que você sabe vem da memória de marca confirmada pelo dono. Se faltar contexto, pergunte ou peça para completar o perfil.
+- Publicação é irreversível: ela sempre passa pelo fluxo de aprovação — nunca trate um "sim" em texto como aprovação. Antes de propor publicar, leia os renders do projeto e avalie visualmente.
+- Não invente fatos sobre a marca: o que você sabe vem de /brand/memory.md. Se faltar contexto, pergunte ou peça para completar o perfil.
 - Imagens (paint) — regra de roteamento, siga à risca:
   - A imagem que o usuário ANEXA na conversa já pertence à conta e já está autorizada. Use-a direto. Nunca peça "autorização" nem invente uma etapa de autorizar — esse passo não existe.
   - Para MODIFICAR uma imagem que já existe (trocar fundo, cenário, roupa, etc.), passe o id dela em editOfImageId e descreva no prompt só o que muda. É o caso quando o usuário anexa uma foto e pede para editá-la.
-  - Para gerar uma imagem NOVA condicionada a um rosto, produto ou lugar específico, passe o(s) id(s) em referenceImageIds. Servem tanto imagens anexadas quanto as de list_reference_photos, sem autorização extra.
-  - Os IDs das imagens anexadas chegam no contexto interno da mensagem (vanda_attachment_context). Só peça para o usuário enviar/subir uma foto quando não houver NENHUMA imagem disponível (nem anexada, nem em list_reference_photos) e o pedido exigir uma pessoa/produto específico.
+  - Para gerar uma imagem NOVA condicionada a um rosto, produto ou lugar específico, passe o(s) id(s) em referenceImageIds. Servem tanto imagens anexadas quanto as de /brand/references, sem autorização extra.
+  - Os IDs das imagens anexadas chegam no contexto interno da mensagem (vanda_attachment_context). Só peça para o usuário enviar/subir uma foto quando não houver NENHUMA imagem disponível (nem anexada, nem em /brand/references) e o pedido exigir uma pessoa/produto específico.
 - Edição de imagem — regra de roteamento entre paint e run_code: mudança GENERATIVA (trocar fundo, cenário, roupa, criar do zero) → paint. Composição DETERMINÍSTICA (texto sobre a imagem, logo, corte, redimensionar, colagem, moldura, cor exata da marca) → run_code. Texto renderizado por modelo generativo erra; texto composto por código não erra. run_code é quase gratuito — prefira-o sempre que o resultado precisar ser exato.`;
 
 const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });
 
 // --- Tools ------------------------------------------------------------------
 
-const getBrandMemory = createTool({
+type WorkspaceToolEntry = { name: string; kind: "dir" | "file"; summary?: string | undefined };
+type WorkspaceToolResult =
+  | { ok: true; path: string; entries?: WorkspaceToolEntry[]; file?: WorkspaceToolFile }
+  | { ok: false; error: string; nearest: string; entries: WorkspaceToolEntry[] };
+type WorkspaceToolFile =
+  | { kind: "text"; text: string }
+  | { kind: "image"; header: string; url: string; mimeType: string };
+
+const renderEntries = (entries: WorkspaceToolEntry[]): string =>
+  entries
+    .map(
+      (entry) =>
+        `${entry.kind === "dir" ? `${entry.name}/` : entry.name}${entry.summary ? `  — ${entry.summary}` : ""}`,
+    )
+    .join("\n") || "(vazio)";
+
+const renderMiss = (result: { error: string; nearest: string; entries: WorkspaceToolEntry[] }) =>
+  `${result.error}\nConteúdo de ${result.nearest}:\n${renderEntries(result.entries)}`;
+
+const listFiles = createTool({
   description:
-    "Lê a memória de marca confirmada pelo dono (fatos, voz, restrições) e o quão pronto o perfil está.",
-  inputSchema: z.object({}),
-  execute: async (ctx: VandaToolCtx): Promise<unknown> => {
-    const brand: { ownHandle?: string | undefined; context: string; readiness: unknown } =
-      await ctx.runQuery(internal.market.loadBrandContext, {
-        accountId: ctx.accountId,
-      });
-    return {
-      handle: brand.ownHandle ?? null,
-      brand: brand.context,
-      readiness: brand.readiness,
-    };
+    "Lista um diretório do workspace da conta. A raiz / contém: /brand (memória de marca e referências), /images (galeria), /projects (carrosséis), /market (oportunidades e varredura), /runs (execuções de código). Cada linha traz um resumo e o id da entidade (o mesmo id que paint e run_code recebem).",
+  inputSchema: z.object({
+    path: z.string().describe('caminho do diretório, ex.: "/", "/images", "/projects/<nome>"'),
+  }),
+  execute: (ctx: VandaToolCtx, { path }: { path: string }): Promise<unknown> =>
+    ctx.runQuery(internal.workspaceData.list, { accountId: ctx.accountId, path }),
+  toModelOutput: (_ctx, { output }) => {
+    const result = output as WorkspaceToolResult;
+    if (!result.ok) return { type: "text", value: renderMiss(result) };
+    return { type: "text", value: `${result.path}\n${renderEntries(result.entries ?? [])}` };
   },
 });
 
-const listReferencePhotos = createTool({
+const readFile = createTool({
   description:
-    "Lista as fotos de referência salvas pelo dono (rosto, produto, lugar), com seus ids. Use quando precisar de um rosto/produto/lugar e o usuário NÃO tiver anexado uma imagem na conversa. Imagens anexadas pelo usuário também servem como referência direta, sem precisar estar nesta lista.",
-  inputSchema: z.object({}),
-  execute: (ctx: VandaToolCtx): Promise<unknown> =>
-    ctx.runQuery(internal.brandProfile.listAuthorizedReferences, { accountId: ctx.accountId }),
-});
-
-const listOpportunities = createTool({
-  description:
-    "Lista as oportunidades de mercado recentes (posts de outros criadores com desempenho fora da curva) e o estágio de cada uma.",
-  inputSchema: z.object({}),
-  execute: (ctx: VandaToolCtx): Promise<unknown> =>
-    ctx.runQuery(internal.market.listOpportunitiesForAgent, { accountId: ctx.accountId }),
-});
-
-const getMarketStatus = createTool({
-  description:
-    "Consulta a última varredura de mercado desta conta: estágio, resultado e erros, se houver.",
-  inputSchema: z.object({}),
-  execute: (ctx: VandaToolCtx): Promise<unknown> =>
-    ctx.runQuery(internal.market.latestRunForAgent, { accountId: ctx.accountId }),
+    "Lê um arquivo do workspace. Texto (.md/.json) volta direto — use offset/limit em arquivos longos. Ler uma IMAGEM (.jpg/.png) envia os pixels: você enxerga a imagem de verdade — use quando precisar avaliar visualmente (o header traz o imageId para paint/run_code). Para só escolher entre muitas imagens, comece pela listagem, que é mais barata.",
+  inputSchema: z.object({
+    path: z.string().describe("caminho do arquivo, ex.: /brand/memory.md"),
+    offset: z.number().optional().describe("linha inicial (1-indexada), só para texto"),
+    limit: z.number().optional().describe("máximo de linhas, só para texto"),
+  }),
+  execute: (
+    ctx: VandaToolCtx,
+    { path, offset, limit }: { path: string; offset?: number | undefined; limit?: number | undefined },
+  ): Promise<unknown> =>
+    ctx.runQuery(internal.workspaceData.read, {
+      accountId: ctx.accountId,
+      path,
+      ...(offset !== undefined ? { offset } : {}),
+      ...(limit !== undefined ? { limit } : {}),
+    }),
+  toModelOutput: (_ctx, { output }) => {
+    const result = output as WorkspaceToolResult;
+    if (!result.ok) return { type: "text", value: renderMiss(result) };
+    const file = result.file!;
+    if (file.kind === "image") {
+      return {
+        type: "content",
+        value: [
+          { type: "text", text: `${result.path}\n${file.header}` },
+          { type: "file", data: { type: "url", url: file.url }, mediaType: file.mimeType },
+        ],
+      };
+    }
+    return { type: "text", value: `${result.path}\n---\n${file.text}` };
+  },
 });
 
 const startMarketScan = createTool({
@@ -96,24 +126,6 @@ const startMarketScan = createTool({
     });
     return "Varredura iniciada em segundo plano.";
   },
-});
-
-const listProjects = createTool({
-  description: "Lista os projetos de conteúdo recentes da conta com status de cada um.",
-  inputSchema: z.object({}),
-  execute: (ctx: VandaToolCtx): Promise<unknown> =>
-    ctx.runQuery(internal.contentStudio.listProjectsForAgent, { accountId: ctx.accountId }),
-});
-
-const getProject = createTool({
-  description:
-    "Lê um projeto de carrossel: slides, legenda, revisão editorial, mídia renderizada e estado de publicação.",
-  inputSchema: z.object({ projectId: z.string().describe("id do projeto de conteúdo") }),
-  execute: (ctx: VandaToolCtx, { projectId }: { projectId: string }): Promise<unknown> =>
-    ctx.runQuery(internal.contentStudio.projectForAgent, {
-      projectId: projectId as Id<"contentProjects">,
-      accountId: ctx.accountId,
-    }),
 });
 
 const createCarousel = createTool({
@@ -205,7 +217,7 @@ const publishProject = createTool({
 
 const paint = createTool({
   description:
-    "Gera OU edita uma imagem a partir de um prompt visual detalhado que VOCÊ escreve. Sempre dê um `name` curto e descritivo à imagem (2–4 palavras, na voz da marca) — é como ela aparece na galeria. Para modificar uma imagem já existente da conta (inclusive uma que o usuário acabou de anexar) — trocar fundo, cenário, etc. — passe o id dela em editOfImageId e descreva no prompt só o que muda. Para condicionar uma imagem nova a um rosto, produto ou lugar, passe os ids em referenceImageIds. Imagens anexadas e as de list_reference_photos servem direto, sem autorização extra.",
+    "Gera OU edita uma imagem a partir de um prompt visual detalhado que VOCÊ escreve. Sempre dê um `name` curto e descritivo à imagem (2–4 palavras, na voz da marca) — é como ela aparece na galeria. Para modificar uma imagem já existente da conta (inclusive uma que o usuário acabou de anexar) — trocar fundo, cenário, etc. — passe o id dela em editOfImageId e descreva no prompt só o que muda. Para condicionar uma imagem nova a um rosto, produto ou lugar, passe os ids em referenceImageIds. Imagens anexadas e as de /brand/references servem direto, sem autorização extra.",
   inputSchema: z.object({
     prompt: z.string().describe("prompt visual detalhado escrito pela Vanda"),
     name: z.string().describe("nome curto e descritivo para a imagem na galeria (2–4 palavras)"),
@@ -294,13 +306,9 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
   languageModel: openrouter.chat(VANDA_MODEL),
   instructions: INSTRUCTIONS,
   tools: {
-    get_brand_memory: getBrandMemory,
-    list_reference_photos: listReferencePhotos,
-    list_opportunities: listOpportunities,
-    get_market_status: getMarketStatus,
+    list: listFiles,
+    read: readFile,
     start_market_scan: startMarketScan,
-    list_projects: listProjects,
-    get_project: getProject,
     create_carousel: createCarousel,
     revise_slide: reviseSlide,
     request_render: requestRender,
