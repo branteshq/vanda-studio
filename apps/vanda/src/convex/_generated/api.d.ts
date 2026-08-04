@@ -69,6 +69,14 @@ import type * as users from "../users.js";
 import type * as vanda from "../vanda.js";
 import type * as visualBrand from "../visualBrand.js";
 import type * as visualBrandNode from "../visualBrandNode.js";
+import type * as workspace_index from "../workspace/index.js";
+import type * as workspace_mounts_brand from "../workspace/mounts/brand.js";
+import type * as workspace_mounts_images from "../workspace/mounts/images.js";
+import type * as workspace_mounts_market from "../workspace/mounts/market.js";
+import type * as workspace_mounts_projects from "../workspace/mounts/projects.js";
+import type * as workspace_mounts_runs from "../workspace/mounts/runs.js";
+import type * as workspace_types from "../workspace/types.js";
+import type * as workspaceData from "../workspaceData.js";
 
 import type {
   ApiFromModules,
@@ -138,6 +146,14 @@ declare const fullApi: ApiFromModules<{
   vanda: typeof vanda;
   visualBrand: typeof visualBrand;
   visualBrandNode: typeof visualBrandNode;
+  "workspace/index": typeof workspace_index;
+  "workspace/mounts/brand": typeof workspace_mounts_brand;
+  "workspace/mounts/images": typeof workspace_mounts_images;
+  "workspace/mounts/market": typeof workspace_mounts_market;
+  "workspace/mounts/projects": typeof workspace_mounts_projects;
+  "workspace/mounts/runs": typeof workspace_mounts_runs;
+  "workspace/types": typeof workspace_types;
+  workspaceData: typeof workspaceData;
 }>;
 
 /**
