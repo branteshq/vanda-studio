@@ -46,6 +46,7 @@ import type * as pipeline_constants from "../pipeline/constants.js";
 import type * as pipeline_contentStudio from "../pipeline/contentStudio.js";
 import type * as pipeline_creativeDirector from "../pipeline/creativeDirector.js";
 import type * as pipeline_igGraph from "../pipeline/igGraph.js";
+import type * as pipeline_imageBytes from "../pipeline/imageBytes.js";
 import type * as pipeline_imageGeneration from "../pipeline/imageGeneration.js";
 import type * as pipeline_inputQuality from "../pipeline/inputQuality.js";
 import type * as pipeline_liveBrand from "../pipeline/liveBrand.js";
@@ -112,6 +113,7 @@ declare const fullApi: ApiFromModules<{
   "pipeline/contentStudio": typeof pipeline_contentStudio;
   "pipeline/creativeDirector": typeof pipeline_creativeDirector;
   "pipeline/igGraph": typeof pipeline_igGraph;
+  "pipeline/imageBytes": typeof pipeline_imageBytes;
   "pipeline/imageGeneration": typeof pipeline_imageGeneration;
   "pipeline/inputQuality": typeof pipeline_inputQuality;
   "pipeline/liveBrand": typeof pipeline_liveBrand;

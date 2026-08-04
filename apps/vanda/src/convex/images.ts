@@ -7,6 +7,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction, type ActionCtx } from "./_generated/server";
 import { ImageAssetGenerator, openRouterImageGeneratorLayer } from "./pipeline/imageGeneration";
+import { MAX_DECODE_PIXELS, sniffImage } from "./pipeline/imageBytes";
 import {
   DEFAULT_IMAGE_MODEL,
   clampResolution,
@@ -48,46 +49,6 @@ const resolveSourceUrl = async (ctx: ActionCtx, source: ResolvedSource): Promise
   }
   throw new Error("image has no resolvable URL");
 };
-
-/**
- * Read pixel dimensions from JPEG/PNG headers without decoding the bitmap.
- * Decoding a 4K image inflates to a ~67MB bitmap plus codec workspace — enough
- * to blow the action's memory cap — so dimensions are sniffed from a few bytes.
- */
-function sniffDimensions(bytes: Uint8Array): { width: number; height: number } | null {
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  // PNG: 8-byte signature, then IHDR with width/height at offsets 16/20.
-  if (bytes.length > 24 && bytes[0] === 0x89 && bytes[1] === 0x50) {
-    return { width: view.getUint32(16), height: view.getUint32(20) };
-  }
-  // JPEG: walk the marker stream to the first SOFn frame header.
-  if (bytes.length > 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
-    let offset = 2;
-    while (offset + 9 < bytes.length) {
-      if (bytes[offset] !== 0xff) {
-        offset += 1;
-        continue;
-      }
-      const marker = bytes[offset + 1]!;
-      if (marker === 0xff) {
-        offset += 1;
-        continue;
-      }
-      if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd9) || marker === 0x01) {
-        offset += 2;
-        continue;
-      }
-      const length = view.getUint16(offset + 2);
-      const isSOF = marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker);
-      if (isSOF) return { height: view.getUint16(offset + 5), width: view.getUint16(offset + 7) };
-      offset += 2 + length;
-    }
-  }
-  return null;
-}
-
-/** Above this, a Jimp decode risks the action's memory cap — never decode. */
-const MAX_DECODE_PIXELS = 9_000_000;
 
 /** Largest centered integer crop with the exact requested ratio. */
 const cropToAspectRatio = (image: Awaited<ReturnType<typeof Jimp.read>>, ratio: AspectRatio) => {
@@ -268,7 +229,7 @@ async function paintImage(
     // cap — a 4K bitmap alone is ~67MB), store the original bytes untouched.
     const [ratioWidth, ratioHeight] = RATIO_PARTS[aspectRatio];
     const targetRatio = ratioWidth / ratioHeight;
-    const sniffed = sniffDimensions(generated.bytes);
+    const sniffed = sniffImage(generated.bytes);
     const ratioMatches =
       sniffed !== null && Math.abs(sniffed.width / sniffed.height - targetRatio) / targetRatio < 0.01;
     const tooBigToDecode = sniffed !== null && sniffed.width * sniffed.height > MAX_DECODE_PIXELS;
