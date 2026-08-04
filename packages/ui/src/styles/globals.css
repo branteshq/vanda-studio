@@ -410,11 +410,28 @@
   animation: vanda-breathe 1.6s var(--ease-in-out) infinite;
 }
 
+/* A freshly generated title takes the place of its blurred placeholder:
+ * it sharpens into focus rather than popping in. */
+@keyframes vanda-title-in {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+.animate-title-in {
+  animation: vanda-title-in 0.5s var(--ease-out) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-message-in,
   .animate-attachment-in,
   .animate-card-in,
-  .animate-canvas-in {
+  .animate-canvas-in,
+  .animate-title-in {
     animation: none;
   }
   /* Keep the crossfade for comprehension; drop the movement. */

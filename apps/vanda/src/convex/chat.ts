@@ -206,13 +206,12 @@ export const sendMessage = mutation({
     await Promise.all(
       images.map((image) => ctx.db.patch(image.imageId, { lastAttachedAt: attachedAt })),
     );
-    // The first user message names the conversation.
+    // The titling model names the conversation from its first message; until
+    // the title lands, the sidebar shows a placeholder (title === null).
     if (!title) {
-      const titleSource = trimmed || "Imagem anexada";
-      const generated = titleSource.length > 60 ? `${titleSource.slice(0, 57)}…` : titleSource;
-      await updateThreadMetadata(ctx, components.agent, {
+      await ctx.scheduler.runAfter(0, internal.chat.generateTitle, {
         threadId: target,
-        patch: { title: generated },
+        prompt: trimmed || "Imagem anexada",
       });
     }
     const activityId = await startThreadActivity(ctx, accountId, target, messageId);
@@ -223,6 +222,59 @@ export const sendMessage = mutation({
       activityId,
     });
     return { threadId: target, messageId };
+  },
+});
+
+/** The titling model — fast and cheap; never blocks the conversation itself. */
+const VANDA_TITLE_MODEL = "openai/gpt-5.6-luna";
+
+/**
+ * Name a fresh thread from its first message. Falls back to the truncated
+ * message on any failure — a thread never stays untitled — and never clobbers
+ * a title the owner set while the model was thinking.
+ */
+export const generateTitle = internalAction({
+  args: { threadId: v.string(), prompt: v.string() },
+  handler: async (ctx, { threadId, prompt }): Promise<void> => {
+    const fallback = prompt.length > 60 ? `${prompt.slice(0, 57)}…` : prompt;
+    let title = fallback;
+    try {
+      const apiKey = process.env.OPENROUTER_API_KEY;
+      if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set");
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+        body: JSON.stringify({
+          model: VANDA_TITLE_MODEL,
+          messages: [
+            {
+              role: "system",
+              content:
+                "Você nomeia conversas de um estúdio de marketing para Instagram. Responda APENAS " +
+                "com um título curto (3 a 6 palavras) em português do Brasil que resuma o pedido " +
+                "do usuário. Sem aspas, sem ponto final, sem emojis, sem explicações.",
+            },
+            { role: "user", content: prompt.slice(0, 2000) },
+          ],
+          max_tokens: 100,
+        }),
+      });
+      if (!response.ok) throw new Error(`OpenRouter HTTP ${response.status}`);
+      const json = (await response.json()) as {
+        choices?: ReadonlyArray<{ message?: { content?: string } }>;
+      };
+      const raw = (json.choices?.[0]?.message?.content ?? "")
+        .trim()
+        .replace(/^["'“”]+|["'“”]+$/g, "")
+        .replace(/\.+$/, "")
+        .trim();
+      if (raw) title = raw.slice(0, 80);
+    } catch {
+      // fallback title stands
+    }
+    const meta = await getThreadMetadata(ctx, components.agent, { threadId }).catch(() => null);
+    if (!meta || meta.title) return;
+    await updateThreadMetadata(ctx, components.agent, { threadId, patch: { title } });
   },
 });
 

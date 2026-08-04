@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useClerk, useUser } from "@clerk/tanstack-react-start";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
@@ -273,6 +273,30 @@ function AccountMenu() {
   );
 }
 
+/**
+ * A thread's name in the list. While the titling model runs (title === null)
+ * it renders as a blurred placeholder streak; when the title lands, it
+ * un-blurs into place. Threads that mount already titled render statically.
+ */
+function ThreadTitle({ title }: { title: string | null }) {
+  const [reveal, setReveal] = useState(false);
+  const wasPending = useRef(title === null);
+  useEffect(() => {
+    if (wasPending.current && title !== null) {
+      wasPending.current = false;
+      setReveal(true);
+    }
+  }, [title]);
+  if (title === null) {
+    return (
+      <span className="flex h-full items-center" role="status" aria-label="Gerando título">
+        <span aria-hidden className="h-3 w-32 max-w-[75%] rounded-full bg-sidebar-foreground/20 blur-[3px]" />
+      </span>
+    );
+  }
+  return <span className={cn("block truncate", reveal && "animate-title-in")}>{title}</span>;
+}
+
 function sectionThreads(threads: ThreadItem[]): ThreadSection[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -478,7 +502,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                                   : "text-sidebar-foreground/70",
                               )}
                             >
-                              {thread.title ?? "Nova conversa"}
+                              <ThreadTitle title={thread.title} />
                             </button>
                             {thread.processing ? (
                               <Spinner
