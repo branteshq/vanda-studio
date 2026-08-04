@@ -26,7 +26,7 @@ const INSTRUCTIONS = `Você é a Vanda, uma operadora de crescimento de Instagra
 
 Seu trabalho: observar o mercado, encontrar oportunidades com evidência real, criar carrosséis originais fiéis à marca do usuário e publicar somente com aprovação explícita.
 
-Workspace: cada conta tem um sistema de arquivos somente-leitura que você explora com list e read. /brand (memória de marca em memory.md e fotos de referência em references/), /images (galeria da conta), /projects (carrosséis: status.json, slides.md, caption.md, renders/), /market (oportunidades e última varredura), /runs (execuções de código). As listagens trazem um resumo por linha e o id de cada entidade — é esse id que paint e run_code recebem. Ler um arquivo de imagem envia os pixels para você: você enxerga a imagem de verdade.
+Workspace: cada conta tem um sistema de arquivos somente-leitura que você explora com list e read. /brand (memória de marca em memory.md e fotos de referência em references/), /images (galeria da conta), /projects (carrosséis: status.json, slides.md, caption.md, renders/), /market (oportunidades e última varredura), /runs (execuções de código). As listagens trazem um resumo por linha e o id de cada entidade — paint recebe esses ids; run_code recebe os próprios caminhos do workspace (e também aceita ids de anexos). Ler um arquivo de imagem envia os pixels para você: você enxerga a imagem de verdade.
 
 Regras de comportamento:
 - Você é uma operadora, não um chatbot passivo: sempre termine propondo a próxima ação concreta.
@@ -261,21 +261,23 @@ const paint = createTool({
 
 const runCode = createTool({
   description:
-    "Executa código Python (Pillow/numpy) num sandbox isolado para editar imagens de forma DETERMINÍSTICA: sobrepor texto, aplicar logo, cortar, redimensionar, montar colagens, aplicar cores exatas da marca. As imagens de `inputImageIds` aparecem em /home/user/in/ (leia /home/user/in/meta.json para saber o arquivo de cada uma). Salve os resultados como PNG ou JPEG em /home/user/out/ — o nome do arquivo vira o nome na galeria (promo-agosto.png → \"promo agosto\"). Fontes instaladas (Poppins, Inter, Montserrat, Lora, Playfair Display, Roboto) estão listadas em /home/user/fonts/manifest.json com o caminho de cada uma. Sem acesso à internet. Se o código falhar, o traceback volta em stderr: corrija o código e rode de novo.",
+    "Executa código Python (Pillow/numpy) num sandbox isolado para editar imagens de forma DETERMINÍSTICA: sobrepor texto, aplicar logo, cortar, redimensionar, montar colagens, aplicar cores exatas da marca. As imagens de `inputPaths` aparecem no sandbox no MESMO caminho do workspace, sob /home/user (ex.: /images/promo-x1y2z3.jpg → /home/user/images/promo-x1y2z3.jpg); /home/user/meta.json lista todas com dimensões e imageId. Salve os resultados como PNG ou JPEG em /home/user/out/ — o nome do arquivo vira o nome na galeria (promo-agosto.png → \"promo agosto\"). Fontes instaladas (Poppins, Inter, Montserrat, Lora, Playfair Display, Roboto) estão listadas em /home/user/fonts/manifest.json com o caminho de cada uma. Sem acesso à internet. Se o código falhar, o traceback volta em stderr: corrija o código e rode de novo.",
   inputSchema: z.object({
     code: z.string().describe("código Python 3 completo; Pillow e numpy disponíveis"),
     description: z
       .string()
       .describe("descrição curta do que o código faz, na voz da marca (vira o prompt na galeria)"),
-    inputImageIds: z
+    inputPaths: z
       .array(z.string())
       .max(10)
       .optional()
-      .describe("ids de imagens da conta a materializar em /home/user/in/"),
+      .describe(
+        "caminhos do workspace (/images/…, /brand/references/…, /projects/<p>/renders/NN) ou imageIds diretos (anexos)",
+      ),
   }),
   execute: async (
     ctx: VandaToolCtx,
-    args: { code: string; description: string; inputImageIds?: string[] | undefined },
+    args: { code: string; description: string; inputPaths?: string[] | undefined },
   ): Promise<unknown> =>
     ctx.runAction(internal.codeRuns.run, {
       accountId: ctx.accountId,
@@ -283,9 +285,7 @@ const runCode = createTool({
       description: args.description,
       // Lets the owner's stop button cancel the execution mid-flight.
       ...(ctx.threadId ? { threadId: ctx.threadId } : {}),
-      ...(args.inputImageIds
-        ? { inputImageIds: args.inputImageIds as Array<Id<"images">> }
-        : {}),
+      ...(args.inputPaths ? { inputPaths: args.inputPaths } : {}),
     }),
 });
 

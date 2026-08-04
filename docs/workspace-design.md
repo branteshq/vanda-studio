@@ -99,13 +99,14 @@ Named `list`/`read` (pi-style) betting on the model's filesystem training transf
 Retired at the same time: the six reader tools; INSTRUCTIONS rewritten to describe the
 workspace and reference paths (`/brand/references`) instead of tool names.
 
-## 6. Interaction with run_code (phase 3, later)
+## 6. Interaction with run_code (phase 3 — implemented)
 
-The same resolver will materialize sandbox slices: run_code inputs become paths
-(`/images/promo-agosto-bvn9.jpg`) instead of raw ids, `/brand/kit/` mounts into the
-sandbox, and the path Vanda reads in conversation is the path her Python opens. Until
-then, listings and read headers always carry the `imageId` join key that `paint` and
-`run_code` v1 speak.
+run_code takes `inputPaths`: workspace paths resolved by `workspace/resolveImage.ts`
+(scanning the whole account, not just the listing window) or bare imageIds for
+attachments. Each input materializes at its workspace mirror path under `/home/user` —
+the path Vanda reads in conversation is the path her Python opens; `/home/user/meta.json`
+lists them. `paint` still speaks imageIds (listings and read headers always carry them).
+Future: `/brand/kit/` mounted into the sandbox.
 
 ## 7. Testing
 

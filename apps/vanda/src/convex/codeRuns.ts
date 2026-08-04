@@ -8,7 +8,6 @@ import { internalAction, type ActionCtx } from "./_generated/server";
 import {
   CodeSandbox,
   e2bCodeSandboxLayer,
-  SANDBOX_IN_DIR,
   type SandboxInputFile,
   type SandboxRunResult,
 } from "./pipeline/codeExecution";
@@ -25,27 +24,12 @@ const SANDBOX_USD_PER_MS = 3.7e-8;
 const truncateKeepTail = (text: string, max = MAX_LOG_CHARS): string =>
   text.length <= max ? text : `…${text.slice(text.length - max)}`;
 
-const slugify = (text: string): string =>
-  text
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "") || "imagem";
-
 /** `promo-agosto.png` → "promo agosto" — the filename is the gallery name. */
 const filenameToName = (filename: string): string =>
   filename
     .replace(/\.[^.]+$/, "")
     .replace(/[-_]+/g, " ")
     .trim() || "imagem";
-
-const EXTENSION_BY_MIME: Record<string, string> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/webp": "webp",
-  "image/gif": "gif",
-};
 
 type ResolvedSource = {
   readonly externalUrl: string | null;
@@ -78,13 +62,16 @@ export const run = internalAction({
     accountId: v.id("accounts"),
     code: v.string(),
     description: v.string(),
-    inputImageIds: v.optional(v.array(v.id("images"))),
+    // Workspace paths (/images/…, /brand/references/…, /projects/…/renders/NN)
+    // or bare imageIds (attachments). Each mirrors into the sandbox at the
+    // same path under /home/user.
+    inputPaths: v.optional(v.array(v.string())),
     // Chat runs carry their thread so the owner's stop cancels them mid-flight.
     threadId: v.optional(v.string()),
   },
   handler: async (
     ctx,
-    { accountId, code, description, inputImageIds, threadId },
+    { accountId, code, description, inputPaths, threadId },
   ): Promise<{
     ok: boolean;
     stdout: string;
@@ -99,7 +86,7 @@ export const run = internalAction({
     // Identity wall + rate limit before any bytes move.
     const inputs = await ctx.runQuery(internal.codeRunsData.resolveCodeRunInput, {
       accountId,
-      inputImageIds: inputImageIds ?? [],
+      inputs: inputPaths ?? [],
     });
     const codeRunId = await ctx.runMutation(internal.codeRunsData.beginCodeRun, {
       accountId,
@@ -117,30 +104,27 @@ export const run = internalAction({
       throw new Error(error);
     };
 
-    // Materialize inputs: /home/user/in/<n>-<slug>.<ext> plus meta.json so the
-    // code selects images by name instead of magic indexes.
+    // Materialize inputs at their workspace mirror path — the path the agent
+    // read in conversation is the path its Python opens. meta.json lists them.
     const files: SandboxInputFile[] = [];
     const meta: Array<Record<string, unknown>> = [];
-    for (const [index, input] of inputs.entries()) {
+    for (const input of inputs) {
       const url = await resolveSourceUrl(ctx, input);
       const response = await fetch(url);
       if (!response.ok) return fail(`falha ao carregar imagem de entrada (${response.status})`);
       const bytes = new Uint8Array(await response.arrayBuffer());
       const sniffed = sniffImage(bytes);
-      const mimeType = sniffed?.mimeType ?? input.mimeType ?? "image/jpeg";
-      const extension = EXTENSION_BY_MIME[mimeType] ?? "jpg";
-      const filename = `${index + 1}-${slugify(input.name ?? "imagem")}.${extension}`;
-      files.push({ path: `${SANDBOX_IN_DIR}/${filename}`, data: bytes });
+      files.push({ path: input.sandboxPath, data: bytes });
       meta.push({
-        file: filename,
+        path: input.sandboxPath,
         imageId: input.imageId,
         name: input.name,
         width: sniffed?.width ?? input.width,
         height: sniffed?.height ?? input.height,
-        mimeType,
+        mimeType: sniffed?.mimeType ?? input.mimeType ?? "image/jpeg",
       });
     }
-    files.push({ path: `${SANDBOX_IN_DIR}/meta.json`, data: JSON.stringify(meta, null, 2) });
+    files.push({ path: "/home/user/meta.json", data: JSON.stringify(meta, null, 2) });
 
     // Cooperative stop, same shape as paint: the owner's stop button deletes
     // the thread's activity row; a watcher polls it and kills the sandbox.

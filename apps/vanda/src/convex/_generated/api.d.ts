@@ -75,6 +75,7 @@ import type * as workspace_mounts_images from "../workspace/mounts/images.js";
 import type * as workspace_mounts_market from "../workspace/mounts/market.js";
 import type * as workspace_mounts_projects from "../workspace/mounts/projects.js";
 import type * as workspace_mounts_runs from "../workspace/mounts/runs.js";
+import type * as workspace_resolveImage from "../workspace/resolveImage.js";
 import type * as workspace_types from "../workspace/types.js";
 import type * as workspaceData from "../workspaceData.js";
 
@@ -152,6 +153,7 @@ declare const fullApi: ApiFromModules<{
   "workspace/mounts/market": typeof workspace_mounts_market;
   "workspace/mounts/projects": typeof workspace_mounts_projects;
   "workspace/mounts/runs": typeof workspace_mounts_runs;
+  "workspace/resolveImage": typeof workspace_resolveImage;
   "workspace/types": typeof workspace_types;
   workspaceData: typeof workspaceData;
 }>;

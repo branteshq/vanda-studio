@@ -4,6 +4,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { internal } from "./_generated/api";
 import { CODE_RUN_RATE_LIMIT } from "./codeRunsData";
+import { entitySuffix } from "./workspace/types";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -44,25 +45,49 @@ const setup = async () => {
 };
 
 describe("run_code identity boundary", () => {
-  it("resolves owned inputs with the metadata meta.json needs", async () => {
+  it("resolves a bare imageId with its canonical sandbox mirror path", async () => {
     const { t, accountId, ownedImageId } = await setup();
     const resolved = await t.query(internal.codeRunsData.resolveCodeRunInput, {
       accountId,
-      inputImageIds: [ownedImageId],
+      inputs: [ownedImageId],
     });
     expect(resolved).toMatchObject([
-      { imageId: ownedImageId, name: "foto própria", width: 1080, height: 1350 },
+      {
+        imageId: ownedImageId,
+        name: "foto própria",
+        width: 1080,
+        height: 1350,
+        sandboxPath: `/home/user/images/foto-propria-${entitySuffix(ownedImageId)}.jpg`,
+      },
     ]);
   });
 
-  it("rejects foreign input ids", async () => {
+  it("resolves a workspace path and mirrors it under /home/user", async () => {
+    const { t, accountId, ownedImageId } = await setup();
+    const workspacePath = `/images/foto-propria-${entitySuffix(ownedImageId)}.jpg`;
+    const resolved = await t.query(internal.codeRunsData.resolveCodeRunInput, {
+      accountId,
+      inputs: [workspacePath],
+    });
+    expect(resolved).toMatchObject([
+      { imageId: ownedImageId, sandboxPath: `/home/user${workspacePath}` },
+    ]);
+  });
+
+  it("rejects foreign ids and unknown workspace paths", async () => {
     const { t, accountId, foreignImageId } = await setup();
     await expect(
       t.query(internal.codeRunsData.resolveCodeRunInput, {
         accountId,
-        inputImageIds: [foreignImageId],
+        inputs: [foreignImageId],
       }),
     ).rejects.toThrow("image not found");
+    await expect(
+      t.query(internal.codeRunsData.resolveCodeRunInput, {
+        accountId,
+        inputs: [`/images/segredo-alheio-${entitySuffix(foreignImageId)}.jpg`],
+      }),
+    ).rejects.toThrow("imagem não encontrada no workspace");
   });
 });
 

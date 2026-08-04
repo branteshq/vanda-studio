@@ -6,8 +6,10 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
-/** Filesystem contract inside the sandbox — mirrored in the tool description. */
-export const SANDBOX_IN_DIR = "/home/user/in";
+/**
+ * Filesystem contract inside the sandbox: inputs mirror their workspace path
+ * under /home/user; outputs are collected from here.
+ */
 export const SANDBOX_OUT_DIR = "/home/user/out";
 
 /** Wall-clock budget for the agent's Python; any legit Pillow job is single-digit seconds. */

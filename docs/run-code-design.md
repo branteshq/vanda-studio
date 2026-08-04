@@ -80,9 +80,12 @@ timeout, output validation) throw normally.
 
 ### Filesystem contract inside the sandbox
 
-- `/home/user/in/<index>-<slug>.<ext>` — input images, index matches `inputImageIds` order.
-- `/home/user/in/meta.json` — `[{ file, imageId, name, width, height, mimeType }]` so code
-  can pick inputs by name instead of magic indexes.
+- Inputs are **workspace paths** (`inputPaths`: `/images/…`, `/brand/references/…`,
+  `/projects/<p>/renders/NN`) or bare imageIds (attachments). Each materializes at its
+  workspace mirror path under `/home/user` — the path the agent read in conversation is
+  the path its Python opens. Bare ids land at their canonical `/images` or
+  `/brand/references` path.
+- `/home/user/meta.json` — `[{ path, imageId, name, width, height, mimeType }]`.
 - `/home/user/out/` — anything `*.png` / `*.jpg` / `*.jpeg` here is ingested (WebP is out
   of v1: the byte-sniffing validator only speaks PNG/JPEG).
   **The filename becomes the gallery name** (`promo-agosto.png` → "promo agosto") — naming

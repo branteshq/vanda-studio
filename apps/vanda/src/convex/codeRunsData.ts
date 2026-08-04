@@ -1,28 +1,54 @@
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery } from "./_generated/server";
+import { resolveImagePath } from "./workspace/resolveImage";
+import { entityName, imageFileParts } from "./workspace/types";
 
 /** Max run_code executions per account inside the rate window. */
 export const CODE_RUN_RATE_LIMIT = 20;
 export const CODE_RUN_RATE_WINDOW_MS = 5 * 60_000;
 
+/** Where the workspace mirrors into the sandbox: /images/x.jpg → /home/user/images/x.jpg. */
+const SANDBOX_HOME = "/home/user";
+
+/** The canonical workspace path for an image row (used when input was a bare id). */
+const canonicalPath = (image: Doc<"images">): string => {
+  const extension = imageFileParts(image.mimeType).extension;
+  const name = `${entityName(image.name ?? image.prompt?.split(/\s+/).slice(0, 4).join(" ") ?? "imagem", image._id)}.${extension}`;
+  return image.purpose === "reference" ? `/brand/references/${name}` : `/images/${name}`;
+};
+
 /**
  * Identity wall for run_code inputs, sibling of resolvePaintInput: only images
- * the account owns may be materialized into the sandbox. Returns the metadata
- * the sandbox's meta.json is built from.
+ * the account owns may be materialized into the sandbox. Each input is a
+ * workspace path (/images/…, /brand/references/…, /projects/…/renders/NN) or a
+ * bare imageId (attachments). Returns the sandbox mirror path plus the
+ * metadata meta.json is built from.
  */
 export const resolveCodeRunInput = internalQuery({
   args: {
     accountId: v.id("accounts"),
-    inputImageIds: v.array(v.id("images")),
+    inputs: v.array(v.string()),
   },
-  handler: async (ctx, { accountId, inputImageIds }) => {
+  handler: async (ctx, { accountId, inputs }) => {
     if (!(await ctx.db.get(accountId))) throw new Error("account not found");
     return Promise.all(
-      inputImageIds.map(async (imageId) => {
-        const image = await ctx.db.get(imageId);
-        if (!image || image.accountId !== accountId) throw new Error("image not found");
+      inputs.map(async (input) => {
+        let image: Doc<"images"> | null = null;
+        let sandboxPath: string;
+        if (input.startsWith("/")) {
+          image = await resolveImagePath(ctx, accountId, input);
+          if (!image) throw new Error(`imagem não encontrada no workspace: ${input}`);
+          sandboxPath = `${SANDBOX_HOME}/${input.split("/").filter(Boolean).join("/")}`;
+        } else {
+          const imageId = ctx.db.normalizeId("images", input);
+          image = imageId ? await ctx.db.get(imageId) : null;
+          if (!image) throw new Error(`imagem não encontrada: ${input}`);
+          sandboxPath = `${SANDBOX_HOME}${canonicalPath(image)}`;
+        }
+        if (image.accountId !== accountId) throw new Error("image not found");
         return {
+          sandboxPath,
           imageId: image._id,
           name: image.name ?? null,
           width: image.width ?? null,
