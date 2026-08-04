@@ -1,0 +1,14 @@
+{
+  "note": "Fontes disponíveis para ImageFont.truetype. Fontes variáveis: use font.set_variation_by_name('Bold') etc.",
+  "fonts": [
+    { "family": "Poppins", "weight": "regular", "path": "/home/user/fonts/Poppins-Regular.ttf" },
+    { "family": "Poppins", "weight": "medium", "path": "/home/user/fonts/Poppins-Medium.ttf" },
+    { "family": "Poppins", "weight": "semibold", "path": "/home/user/fonts/Poppins-SemiBold.ttf" },
+    { "family": "Poppins", "weight": "bold", "path": "/home/user/fonts/Poppins-Bold.ttf" },
+    { "family": "Inter", "variable": true, "path": "/home/user/fonts/Inter.ttf" },
+    { "family": "Montserrat", "variable": true, "path": "/home/user/fonts/Montserrat.ttf" },
+    { "family": "Lora", "variable": true, "path": "/home/user/fonts/Lora.ttf" },
+    { "family": "Playfair Display", "variable": true, "path": "/home/user/fonts/PlayfairDisplay.ttf" },
+    { "family": "Roboto", "variable": true, "path": "/home/user/fonts/Roboto.ttf" }
+  ]
+}

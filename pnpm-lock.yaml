@@ -193,6 +193,9 @@ importers:
       convex-test:
         specifier: ^0.0.53
         version: 0.0.53(convex@1.41.0(@clerk/react@6.10.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7))
+      e2b:
+        specifier: ^2.37.0
+        version: 2.37.0
       eslint:
         specifier: ^9
         version: 9.39.4(jiti@2.7.0)

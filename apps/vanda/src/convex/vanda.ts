@@ -249,7 +249,7 @@ const paint = createTool({
 
 const runCode = createTool({
   description:
-    "Executa código Python (Pillow/numpy) num sandbox isolado para editar imagens de forma DETERMINÍSTICA: sobrepor texto, aplicar logo, cortar, redimensionar, montar colagens, aplicar cores exatas da marca. As imagens de `inputImageIds` aparecem em /home/user/in/ (leia /home/user/in/meta.json para saber o arquivo de cada uma). Salve os resultados como PNG ou JPEG em /home/user/out/ — o nome do arquivo vira o nome na galeria (promo-agosto.png → \"promo agosto\"). Sem acesso à internet. Se o código falhar, o traceback volta em stderr: corrija o código e rode de novo.",
+    "Executa código Python (Pillow/numpy) num sandbox isolado para editar imagens de forma DETERMINÍSTICA: sobrepor texto, aplicar logo, cortar, redimensionar, montar colagens, aplicar cores exatas da marca. As imagens de `inputImageIds` aparecem em /home/user/in/ (leia /home/user/in/meta.json para saber o arquivo de cada uma). Salve os resultados como PNG ou JPEG em /home/user/out/ — o nome do arquivo vira o nome na galeria (promo-agosto.png → \"promo agosto\"). Fontes instaladas (Poppins, Inter, Montserrat, Lora, Playfair Display, Roboto) estão listadas em /home/user/fonts/manifest.json com o caminho de cada uma. Sem acesso à internet. Se o código falhar, o traceback volta em stderr: corrija o código e rode de novo.",
   inputSchema: z.object({
     code: z.string().describe("código Python 3 completo; Pillow e numpy disponíveis"),
     description: z

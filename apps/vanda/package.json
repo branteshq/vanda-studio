@@ -57,6 +57,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "catalog:",
     "convex-test": "^0.0.53",
+    "e2b": "^2.37.0",
     "eslint": "^9",
     "fast-check": "^4.8.0",
     "tailwindcss": "^4",

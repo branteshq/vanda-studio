@@ -83,13 +83,17 @@ timeout, output validation) throw normally.
 - `/home/user/in/<index>-<slug>.<ext>` — input images, index matches `inputImageIds` order.
 - `/home/user/in/meta.json` — `[{ file, imageId, name, width, height, mimeType }]` so code
   can pick inputs by name instead of magic indexes.
-- `/home/user/out/` — anything `*.png` / `*.jpg` / `*.jpeg` / `*.webp` here is ingested.
+- `/home/user/out/` — anything `*.png` / `*.jpg` / `*.jpeg` here is ingested (WebP is out
+  of v1: the byte-sniffing validator only speaks PNG/JPEG).
   **The filename becomes the gallery name** (`promo-agosto.png` → "promo agosto") — naming
   stays filesystem-native, no extra schema field.
 
 ## 4. Execution environment
 
-Custom E2B template **`vanda-imaging`**, built once via `e2b template build`:
+Custom E2B template **`vanda-imaging`**, defined and built by
+`apps/vanda/e2b/vanda-imaging/build.mjs` (E2B's v2 SDK cloud build — no local Docker;
+`E2B_API_KEY=... node build.mjs` to rebuild). The base image's runCode server must be
+booted explicitly via `setStartCmd("sudo /root/.jupyter/start-up.sh", waitForPort(49999))`:
 
 - `python:3.12-slim` base + `pillow`, `numpy`.
 - Font pack installed system-wide (deterministic text needs fonts *in the image*):
