@@ -105,6 +105,18 @@ const TOOL_LABEL: Record<string, string> = {
   discard_project: "Arquivando projeto",
   paint: "Criando imagem",
   run_code: "Editando imagem com código",
+  list: "Explorando",
+  read: "Lendo",
+};
+
+/** Workspace tools carry the touched path — surface it in the trace row. */
+const toolPathOf = (part: ToolPartView): string | null => {
+  const name = toolNameOf(part);
+  if (name !== "read" && name !== "list") return null;
+  const input = part.input;
+  if (!input || typeof input !== "object") return null;
+  const path = (input as { path?: unknown }).path;
+  return typeof path === "string" ? path : null;
 };
 
 /** The loose view of a tool part — covers `tool-*` and `dynamic-tool` shapes. */
@@ -1138,6 +1150,7 @@ function ToolRow({ part }: { part: ToolPartView }) {
         className={cn("text-text-4", running && "shimmer", failed && "text-destructive")}
       >
         {label}
+        {toolPathOf(part) ? <span className="font-mono"> {toolPathOf(part)}</span> : null}
         {failed && part.errorText ? ` — ${part.errorText}` : null}
       </MarkerContent>
     </Marker>

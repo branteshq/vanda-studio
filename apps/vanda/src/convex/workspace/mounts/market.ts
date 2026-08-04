@@ -17,7 +17,9 @@ const loadOpportunities = async (ctx: QueryCtx, accountId: Id<"accounts">) => {
     .query("opportunities")
     .withIndex("by_account_status", (q) => q.eq("accountId", accountId))
     .collect();
-  return [...opportunities].sort((a, b) => b.createdAt - a.createdAt).slice(0, LISTING_CAP);
+  const recent = [...opportunities];
+  recent.sort((a, b) => b.createdAt - a.createdAt);
+  return recent.slice(0, LISTING_CAP);
 };
 
 const opportunityContext = async (ctx: QueryCtx, opportunity: Doc<"opportunities">) => {

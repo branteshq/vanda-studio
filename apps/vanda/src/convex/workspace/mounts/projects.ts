@@ -43,7 +43,9 @@ const slidesMarkdown = (document: Doc<"carouselDocuments">): string => {
   if (document.deterministicIssues.length > 0) {
     lines.push(`Problemas: ${document.deterministicIssues.join("; ")}`);
   }
-  for (const slide of [...document.slides].sort((a, b) => a.position - b.position)) {
+  const slides = [...document.slides];
+  slides.sort((a, b) => a.position - b.position);
+  for (const slide of slides) {
     lines.push("", `## Slide ${slide.position} — ${slide.role} (slideId: ${slide.slideId})`, "");
     if (slide.kicker) lines.push(`*${slide.kicker}*`);
     lines.push(`**${slide.headline}**`);

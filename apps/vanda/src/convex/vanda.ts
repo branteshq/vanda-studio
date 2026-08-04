@@ -107,7 +107,7 @@ const readFile = createTool({
         type: "content",
         value: [
           { type: "text", text: `${result.path}\n${file.header}` },
-          { type: "file", data: { type: "url", url: file.url }, mediaType: file.mimeType },
+          { type: "file", data: { type: "url", url: new URL(file.url) }, mediaType: file.mimeType },
         ],
       };
     }

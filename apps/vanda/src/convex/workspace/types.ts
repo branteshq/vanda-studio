@@ -60,9 +60,24 @@ export const slugify = (text: string): string =>
     .slice(0, 48)
     .replace(/-+$/, "") || "item";
 
+/**
+ * Stable 6-hex-char token derived from the entity id (FNV-1a). A hash instead
+ * of the id's raw tail: Convex ids have no distribution guarantee at their
+ * tail, and test ids all end in the table name — a hash keeps suffixes
+ * discriminating everywhere while staying rename-proof.
+ */
+export const entitySuffix = (id: string): string => {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < id.length; index++) {
+    hash ^= id.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0").slice(-ID_SUFFIX_LENGTH);
+};
+
 /** Stable, rename-proof entity name: slug is decoration, the id suffix is truth. */
 export const entityName = (title: string, id: string): string =>
-  `${slugify(title)}-${id.slice(-ID_SUFFIX_LENGTH)}`;
+  `${slugify(title)}-${entitySuffix(id)}`;
 
 /**
  * Resolve a path segment to an entity by its trailing id suffix. Accepts a full
@@ -77,8 +92,8 @@ export const resolveByName = <T extends { _id: string }>(
   const full = entities.find((entity) => entity._id === base);
   if (full) return full;
   const suffix = base.split("-").at(-1) ?? base;
-  if (suffix.length < 4) return null;
-  const matches = entities.filter((entity) => entity._id.endsWith(suffix));
+  if (suffix.length !== ID_SUFFIX_LENGTH) return null;
+  const matches = entities.filter((entity) => entitySuffix(entity._id) === suffix);
   return matches.length === 1 ? (matches[0] ?? null) : null;
 };
 
