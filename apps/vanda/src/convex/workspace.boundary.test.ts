@@ -74,6 +74,8 @@ describe("workspace navigation", () => {
     if (result.ok) {
       expect(result.entries.map((entry) => entry.name)).toEqual([
         "brand",
+        "memory",
+        "templates",
         "images",
         "projects",
         "market",

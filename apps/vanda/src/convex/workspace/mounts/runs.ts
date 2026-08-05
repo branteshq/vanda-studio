@@ -22,6 +22,8 @@ const loadRuns = async (ctx: QueryCtx, accountId: Id<"accounts">) =>
 export const runsMount: WorkspaceMount = {
   root: "runs",
   summary: "execuções de run_code: código, saída e imagens produzidas",
+  writeHint:
+    "histórico de execuções — somente leitura; promova código que deu certo para /templates/.",
   list: async (ctx, accountId, segments): Promise<WorkspaceEntry[] | null> => {
     if (segments.length !== 0) return null;
     const runs = await loadRuns(ctx, accountId);

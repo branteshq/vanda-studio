@@ -29,6 +29,7 @@ import {
   CircleDashed,
   ImageOff,
   Images,
+  NotebookPen,
   Paperclip,
   RefreshCw,
   Send,
@@ -107,12 +108,13 @@ const TOOL_LABEL: Record<string, string> = {
   run_code: "Editando imagem com código",
   list: "Explorando",
   read: "Lendo",
+  write: "Gravando",
 };
 
 /** Workspace tools carry the touched path — surface it in the trace row. */
 const toolPathOf = (part: ToolPartView): string | null => {
   const name = toolNameOf(part);
-  if (name !== "read" && name !== "list") return null;
+  if (name !== "read" && name !== "list" && name !== "write") return null;
   const input = part.input;
   if (!input || typeof input !== "object") return null;
   const path = (input as { path?: unknown }).path;
@@ -1367,6 +1369,48 @@ function ApprovalRequest({
       setBusy(null);
     }
   };
+
+  if (toolNameOf(part) === "write") {
+    const input = (part.input ?? {}) as { path?: string; content?: string };
+    return (
+      <div
+        className={cn(
+          "rounded-xl border border-brand-accent/30 bg-brand-accent/5 p-4",
+          enter && "animate-card-in",
+        )}
+      >
+        <div className="flex items-center gap-2">
+          <NotebookPen className="size-4 text-brand-accent" />
+          <h3 className="text-sm font-semibold text-text">
+            Vanda quer gravar em <span className="font-mono">{input.path ?? "?"}</span>
+          </h3>
+        </div>
+        {input.content ? (
+          <pre className="mt-2 max-h-48 overflow-auto rounded-lg border border-border bg-muted/40 p-3 text-body-sm leading-relaxed whitespace-pre-wrap text-text-2">
+            {input.content}
+          </pre>
+        ) : null}
+        <p className="mt-1.5 text-xs leading-relaxed text-text-3">
+          O conteúdo acima substitui o arquivo inteiro. Nada é gravado sem a sua decisão.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button size="sm" disabled={busy !== null} onClick={() => void answer(true)}>
+            {busy === "approve" ? <Spinner className="size-3.5" /> : <Check />}
+            Aprovar e gravar
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busy !== null}
+            onClick={() => void answer(false)}
+          >
+            <X />
+            Negar
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

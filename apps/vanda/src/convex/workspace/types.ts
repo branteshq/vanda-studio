@@ -1,5 +1,5 @@
 import type { Id } from "../_generated/dataModel";
-import type { QueryCtx } from "../_generated/server";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
 
 /**
  * The account workspace: a read-only virtual filesystem projected over the
@@ -25,10 +25,19 @@ export type WorkspaceFile =
       readonly mimeType: string;
     };
 
+export type WorkspaceWriteResult =
+  | { readonly ok: true; readonly path: string; readonly note: string }
+  | { readonly ok: false; readonly error: string };
+
 /**
  * A mount resolves paths under its root. `segments` excludes the root segment.
  * Returning null means "no such path" — the resolver turns that into an
  * errors-as-navigation response (the nearest listing), never a bare not-found.
+ *
+ * Writes follow the VFS shape: one `write(path, content)` tool on the surface,
+ * a per-mount handler underneath (like /proc's writable files). A mount with
+ * no handler is a projection — its `writeHint` names the verb that changes the
+ * underlying state, so a refused write teaches the model the right move.
  */
 export interface WorkspaceMount {
   readonly root: string;
@@ -44,6 +53,15 @@ export interface WorkspaceMount {
     accountId: Id<"accounts">,
     segments: readonly string[],
   ) => Promise<WorkspaceFile | null>;
+  /** Present only on mounts with writable files. */
+  readonly write?: (
+    ctx: MutationCtx,
+    accountId: Id<"accounts">,
+    segments: readonly string[],
+    content: string,
+  ) => Promise<WorkspaceWriteResult>;
+  /** Returned when a write lands on this mount's read-only files. */
+  readonly writeHint: string;
 }
 
 /** Length of the id suffix appended to entity names (`cafe-gelado-3kb2xq`). */

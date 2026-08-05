@@ -1,6 +1,6 @@
-# workspace — the account as a read-only virtual filesystem
+# workspace — the account as a virtual filesystem
 
-**Status:** design (agreed) · **Depends on:** nothing new — pure projection over existing tables
+**Status:** implemented (reads + v1 writes) · **Depends on:** existing tables + `workspaceFiles`
 
 ## 1. Purpose
 
@@ -15,9 +15,19 @@ First principles:
 - **Editorial projection, not a database mirror.** 27 tables exist; five mounts are
   exposed. Each file is a curated view rendered on read (like `/proc`), each mount is an
   API contract. Internal pipeline artifacts never leak into the namespace.
-- **Read-only, forever.** Reads generalize safely because they can't violate invariants.
-  Writes stay verbs (`paint`, `run_code`, `publish_project`) — that's where approval
-  gates and irreversibility live. There will be no generic `write()`.
+- **One write surface, per-mount handlers (the VFS shape).** `write(path, content)` is
+  the only write tool, forever — dispatch lives in the resolver, not in the model's tool
+  selection (like Linux: one `write()` syscall, per-driver handlers; writable `/proc`
+  files parse input per-file). v1 handlers cover the files that ARE the data —
+  `/memory/*.md` (free), `/templates/*.py` (free), `/brand/notes.md` (owner-approval,
+  via `needsApproval` as a function of the path). Projections stay read-only: a refused
+  write returns the verb that changes that state (`revise_slide`, `paint`,
+  `publish_project`…) — errors as navigation, applied to writes. New writable targets
+  are new handlers behind the same tool, never new tools; a projection can later gain a
+  true inverse (e.g. `caption.md` parse → document edit) without touching the surface.
+  Every write upserts the head in `workspaceFiles` and appends to
+  `workspaceFileRevisions` (audit trail / undo). `/memory` is NOT auto-injected into the
+  system prompt — the agent reads what it needs, keeping a poisoned note inspectable.
 - **Multimodal read (v1).** Reading an image path returns a metadata header AND the
   pixels — the model sees the image. Tool results carry image parts by URL:
   `createTool.toModelOutput` → AI SDK `ToolResultOutput {type:'content'}` with a file
@@ -31,8 +41,13 @@ First principles:
 ├── brand/
 │   ├── memory.md              ← confirmed brandCanon + readiness, rendered as prose
 │   ├── profile.json           ← handle, mode, kind, readiness
+│   ├── notes.md               ← WRITABLE (owner approval): free-form brand notes
 │   └── references/
 │       └── rosto-ana-8xk2.jpg ← read = header (imageId, kind, autorização) + pixels
+├── memory/                    ← WRITABLE (free): durable agent notes — owner
+│   └── preferencias.md          preferences, plans, learnings across conversations
+├── templates/                 ← WRITABLE (free): reusable Python for run_code
+│   └── moldura-branca.py
 ├── images/                    ← gallery (non-reference images), newest first, cap 100
 │   └── promo-agosto-bvn9.jpg  ← read = header (prompt, model, custo, dims, imageId) + pixels
 ├── projects/
@@ -72,12 +87,13 @@ step (same philosophy as run_code returning tracebacks).
 
 ```
 convex/workspace/
-├── types.ts        WorkspaceEntry / WorkspaceFile / WorkspaceMount
-├── mounts/         brand.ts · images.ts · projects.ts · market.ts · runs.ts
-└── index.ts        registry, path parsing, suffix resolution helpers
+├── types.ts        WorkspaceEntry / WorkspaceFile / WorkspaceMount (list/read/write?)
+├── documents.ts    workspaceFiles store: save/read/list + documentMount factory
+├── mounts/         brand · memory · templates · images · projects · market · runs
+└── index.ts        registry, path parsing, writePath, writeNeedsApproval
 
-convex/workspaceData.ts   internalQuery list / read — dispatch by first path segment
-vanda.ts                  tools `list` and `read` (pi-shaped)
+convex/workspaceData.ts   internalQuery list / read + internalMutation write
+vanda.ts                  tools `list`, `read`, `write` (pi-shaped)
 ```
 
 - Mounts are pure functions of `(QueryCtx, accountId, segments)`. The account is the
@@ -94,6 +110,9 @@ vanda.ts                  tools `list` and `read` (pi-shaped)
 
 - `list(path)` — directory listing with summaries. Root `/` lists the mounts.
 - `read(path, offset?, limit?)` — text content, or header + pixels for images.
+- `write(path, content)` — full-content write into the writable files;
+  `needsApproval` computed from the path (only `/brand/notes.md` in v1). Listings mark
+  writable files (`gravável` / `gravável com aprovação`).
 
 Named `list`/`read` (pi-style) betting on the model's filesystem training transferring.
 Retired at the same time: the six reader tools; INSTRUCTIONS rewritten to describe the

@@ -1,14 +1,23 @@
 import type { Id } from "../_generated/dataModel";
-import type { QueryCtx } from "../_generated/server";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { brandMount } from "./mounts/brand";
 import { imagesMount } from "./mounts/images";
 import { marketMount } from "./mounts/market";
+import { memoryMount } from "./mounts/memory";
 import { projectsMount } from "./mounts/projects";
 import { runsMount } from "./mounts/runs";
-import type { WorkspaceEntry, WorkspaceFile, WorkspaceMount } from "./types";
+import { templatesMount } from "./mounts/templates";
+import type {
+  WorkspaceEntry,
+  WorkspaceFile,
+  WorkspaceMount,
+  WorkspaceWriteResult,
+} from "./types";
 
 const MOUNTS: readonly WorkspaceMount[] = [
   brandMount,
+  memoryMount,
+  templatesMount,
   imagesMount,
   projectsMount,
   marketMount,
@@ -91,3 +100,34 @@ export const readPath = async (
   }
   return { ok: true, path: `/${segments.join("/")}`, file };
 };
+
+export type WriteResult = WorkspaceWriteResult;
+
+const WRITABLE_HELP =
+  "graváveis: /memory/<nome>.md (livre), /templates/<nome>.py (livre), /brand/notes.md (com aprovação do dono)";
+
+/**
+ * One write surface, per-mount handlers underneath (the VFS shape — like
+ * /proc's writable files). A refusal is guidance, not a dead end: it names the
+ * verb that changes the underlying state.
+ */
+export const writePath = async (
+  ctx: MutationCtx,
+  accountId: Id<"accounts">,
+  path: string,
+  content: string,
+): Promise<WorkspaceWriteResult> => {
+  const segments = parsePath(path);
+  const mount = MOUNTS.find((candidate) => candidate.root === segments[0]);
+  if (!mount) {
+    return { ok: false, error: `não há /${segments[0] ?? ""} no workspace — ${WRITABLE_HELP}` };
+  }
+  if (!mount.write) {
+    return { ok: false, error: `/${mount.root} é somente leitura — ${mount.writeHint}` };
+  }
+  return mount.write(ctx, accountId, segments.slice(1), content);
+};
+
+/** Per-path approval policy for the write tool: brand notes need the owner. */
+export const writeNeedsApproval = (path: string): boolean =>
+  parsePath(path).join("/") === "brand/notes.md";

@@ -1,6 +1,13 @@
 import { v } from "convex/values";
-import { internalQuery } from "./_generated/server";
-import { listPath, readPath, type ListResult, type ReadResult } from "./workspace";
+import { internalMutation, internalQuery } from "./_generated/server";
+import {
+  listPath,
+  readPath,
+  writePath,
+  type ListResult,
+  type ReadResult,
+  type WriteResult,
+} from "./workspace";
 
 /**
  * The workspace query surface for the agent's list/read tools. The accountId is
@@ -39,5 +46,14 @@ export const read = internalQuery({
         ? `\n\n[linhas ${start + 1}–${Math.min(end, lines.length)} de ${lines.length}]`
         : "";
     return { ...result, file: { kind: "text", text: slice + note } };
+  },
+});
+
+/** Full-content write into the workspace's writable files (see writePath). */
+export const write = internalMutation({
+  args: { accountId: v.id("accounts"), path: v.string(), content: v.string() },
+  handler: async (ctx, { accountId, path, content }): Promise<WriteResult> => {
+    if (!(await ctx.db.get(accountId))) throw new Error("account not found");
+    return writePath(ctx, accountId, path, content);
   },
 });

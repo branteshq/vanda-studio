@@ -68,6 +68,8 @@ const opportunityMarkdown = (
 export const marketMount: WorkspaceMount = {
   root: "market",
   summary: "varredura de mercado: oportunidades detectadas, criadores e última execução",
+  writeHint:
+    "fatos observados do mercado — somente leitura; uma nova varredura (start_market_scan) é o que os atualiza.",
   list: async (ctx, accountId, segments): Promise<WorkspaceEntry[] | null> => {
     if (segments.length === 0) {
       return [

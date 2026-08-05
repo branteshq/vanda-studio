@@ -1,6 +1,7 @@
 import type { Id } from "../../_generated/dataModel";
 import type { QueryCtx } from "../../_generated/server";
 import { assessBrandReadiness } from "../../pipeline/inputQuality";
+import { readDocument, saveDocument } from "../documents";
 import {
   entityName,
   imageFileParts,
@@ -68,14 +69,24 @@ const memoryMarkdown = (brand: Awaited<ReturnType<typeof loadBrand>>): string =>
   return lines.join("\n");
 };
 
+/** The one writable file in /brand — free-form notes, gated by owner approval. */
+const NOTES_PATH = "/brand/notes.md";
+
 export const brandMount: WorkspaceMount = {
   root: "brand",
   summary: "memória de marca confirmada e fotos de referência autorizadas",
+  writeHint:
+    "memory.md e profile.json são projeções dos fatos confirmados pelo dono — eles mudam pelo fluxo de perfil. Anotações livres de marca vão em /brand/notes.md; notas de trabalho, em /memory/.",
   list: async (ctx, accountId, segments): Promise<WorkspaceEntry[] | null> => {
     if (segments.length === 0) {
       return [
         { name: "memory.md", kind: "file", summary: "fatos de marca confirmados pelo dono" },
         { name: "profile.json", kind: "file", summary: "handle, modo e prontidão do perfil" },
+        {
+          name: "notes.md",
+          kind: "file",
+          summary: "anotações livres de marca (gravável com aprovação do dono)",
+        },
         { name: "references", kind: "dir", summary: "fotos de referência (rosto, produto, lugar)" },
       ];
     }
@@ -94,6 +105,14 @@ export const brandMount: WorkspaceMount = {
   read: async (ctx, accountId, segments): Promise<WorkspaceFile | null> => {
     if (segments.length === 1 && segments[0] === "memory.md") {
       return { kind: "text", text: memoryMarkdown(await loadBrand(ctx, accountId)) };
+    }
+    if (segments.length === 1 && segments[0] === "notes.md") {
+      return (
+        (await readDocument(ctx, accountId, NOTES_PATH)) ?? {
+          kind: "text",
+          text: "(sem anotações ainda — grave em /brand/notes.md para criar)",
+        }
+      );
     }
     if (segments.length === 1 && segments[0] === "profile.json") {
       const brand = await loadBrand(ctx, accountId);
@@ -126,5 +145,11 @@ export const brandMount: WorkspaceMount = {
       };
     }
     return null;
+  },
+  write: async (ctx, accountId, segments, content) => {
+    if (segments.length !== 1 || segments[0] !== "notes.md") {
+      return { ok: false, error: brandMount.writeHint };
+    }
+    return saveDocument(ctx, accountId, NOTES_PATH, content);
   },
 };

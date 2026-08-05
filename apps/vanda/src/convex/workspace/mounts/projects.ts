@@ -84,6 +84,8 @@ const projectFiles = (
 export const projectsMount: WorkspaceMount = {
   root: "projects",
   summary: "projetos de carrossel: brief, slides, legenda, renders e status",
+  writeHint:
+    "arquivos de projeto são projeções — o estado muda pelos verbos: revise_slide, request_render, publish_project, discard_project.",
   list: async (ctx, accountId, segments): Promise<WorkspaceEntry[] | null> => {
     const projects = await loadProjects(ctx, accountId);
     if (segments.length === 0) {

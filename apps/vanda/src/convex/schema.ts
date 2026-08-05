@@ -814,6 +814,25 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_account_created", ["accountId", "createdAt"]),
 
+  // Writable workspace documents (/memory, /templates, /brand/notes.md). Unlike
+  // the projected views, these files ARE the data: this table holds the head of
+  // each file; every write also appends to workspaceFileRevisions.
+  workspaceFiles: defineTable({
+    accountId: v.id("accounts"),
+    path: v.string(),
+    content: v.string(),
+    updatedAt: v.number(),
+    updatedBy: v.string(),
+  }).index("by_account_path", ["accountId", "path"]),
+
+  workspaceFileRevisions: defineTable({
+    accountId: v.id("accounts"),
+    path: v.string(),
+    content: v.string(),
+    savedAt: v.number(),
+    savedBy: v.string(),
+  }).index("by_account_path", ["accountId", "path"]),
+
   posts: defineTable({
     accountId: v.id("accounts"),
     type: v.union(...postTypes.map((type) => v.literal(type))),

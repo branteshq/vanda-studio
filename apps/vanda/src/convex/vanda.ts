@@ -5,6 +5,7 @@ import { z } from "zod";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
+import { writeNeedsApproval } from "./workspace";
 
 /**
  * Vanda, the conversational operator. Threads are keyed per Instagram account
@@ -26,7 +27,9 @@ const INSTRUCTIONS = `Você é a Vanda, uma operadora de crescimento de Instagra
 
 Seu trabalho: observar o mercado, encontrar oportunidades com evidência real, criar carrosséis originais fiéis à marca do usuário e publicar somente com aprovação explícita.
 
-Workspace: cada conta tem um sistema de arquivos somente-leitura que você explora com list e read. /brand (memória de marca em memory.md e fotos de referência em references/), /images (galeria da conta), /projects (carrosséis: status.json, slides.md, caption.md, renders/), /market (oportunidades e última varredura), /runs (execuções de código). As listagens trazem um resumo por linha e o id de cada entidade — paint recebe esses ids; run_code recebe os próprios caminhos do workspace (e também aceita ids de anexos). Ler um arquivo de imagem envia os pixels para você: você enxerga a imagem de verdade.
+Workspace: cada conta tem um sistema de arquivos que você explora com list e read. /brand (memória de marca em memory.md, anotações em notes.md e fotos de referência em references/), /memory (suas notas duráveis), /templates (trechos Python reutilizáveis), /images (galeria da conta), /projects (carrosséis: status.json, slides.md, caption.md, renders/), /market (oportunidades e última varredura), /runs (execuções de código). As listagens trazem um resumo por linha e o id de cada entidade — paint recebe esses ids; run_code recebe os próprios caminhos do workspace (e também aceita ids de anexos). Ler um arquivo de imagem envia os pixels para você: você enxerga a imagem de verdade.
+
+Memória durável: quando o dono expressar uma preferência ou fato permanente no meio da conversa ("nunca use essa cor", "sempre assine com o nome da loja"), grave em /memory com write antes de seguir — e diga que anotou. Ao começar um trabalho de criação, liste /memory e leia as notas relevantes; o que não está gravado será esquecido entre conversas. Código Python que deu certo e tende a se repetir vale gravar em /templates. Os demais arquivos são projeções somente-leitura: eles mudam pelos verbos (revise_slide, paint, publish_project…), e uma tentativa de write neles explica qual verbo usar.
 
 Regras de comportamento:
 - Você é uma operadora, não um chatbot passivo: sempre termine propondo a próxima ação concreta.
@@ -67,7 +70,7 @@ const renderMiss = (result: { error: string; nearest: string; entries: Workspace
 
 const listFiles = createTool({
   description:
-    "Lista um diretório do workspace da conta. A raiz / contém: /brand (memória de marca e referências), /images (galeria), /projects (carrosséis), /market (oportunidades e varredura), /runs (execuções de código). Cada linha traz um resumo e o id da entidade (o mesmo id que paint e run_code recebem).",
+    "Lista um diretório do workspace da conta. A raiz / contém: /brand (memória de marca e referências), /memory (suas notas duráveis), /templates (Python reutilizável), /images (galeria), /projects (carrosséis), /market (oportunidades e varredura), /runs (execuções de código). Cada linha traz um resumo e o id da entidade (o mesmo id que paint e run_code recebem).",
   inputSchema: z.object({
     path: z.string().describe('caminho do diretório, ex.: "/", "/images", "/projects/<nome>"'),
   }),
@@ -112,6 +115,25 @@ const readFile = createTool({
       };
     }
     return { type: "text", value: `${result.path}\n---\n${file.text}` };
+  },
+});
+
+const writeFile = createTool({
+  description:
+    'Grava um arquivo de texto no workspace (cria ou substitui o conteúdo INTEIRO — leia antes se quiser preservar o que já existe). Graváveis: /memory/<nome>.md — suas notas duráveis desta conta (preferências que o dono expressar, planos, aprendizados; ex.: "nunca usar vermelho"); /templates/<nome>.py — trechos Python reutilizáveis para run_code; /brand/notes.md — anotações de marca (pede aprovação do dono automaticamente). Os demais arquivos são projeções somente-leitura que mudam pelos verbos — uma tentativa de write neles responde qual verbo usar.',
+  inputSchema: z.object({
+    path: z.string().describe('caminho do arquivo, ex.: "/memory/preferencias.md"'),
+    content: z.string().describe("conteúdo completo do arquivo (substitui o anterior)"),
+  }),
+  needsApproval: (_ctx, { path }: { path: string }) => writeNeedsApproval(path),
+  execute: (
+    ctx: VandaToolCtx,
+    { path, content }: { path: string; content: string },
+  ): Promise<unknown> =>
+    ctx.runMutation(internal.workspaceData.write, { accountId: ctx.accountId, path, content }),
+  toModelOutput: (_ctx, { output }) => {
+    const result = output as { ok: true; path: string; note: string } | { ok: false; error: string };
+    return { type: "text", value: result.ok ? `${result.path} ${result.note}` : result.error };
   },
 });
 
@@ -308,6 +330,7 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
   tools: {
     list: listFiles,
     read: readFile,
+    write: writeFile,
     start_market_scan: startMarketScan,
     create_carousel: createCarousel,
     revise_slide: reviseSlide,
