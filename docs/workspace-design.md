@@ -42,6 +42,9 @@ First principles:
 │   ├── memory.md              ← confirmed brandCanon + readiness, rendered as prose
 │   ├── profile.json           ← handle, mode, kind, readiness
 │   ├── notes.md               ← WRITABLE (owner approval): free-form brand notes
+│   ├── kit.json               ← WRITABLE (owner approval): visual identity — exact
+│   │                            colors/fonts/tagline; writes are schema-validated and
+│   │                            normalized (the first per-target write parser)
 │   └── references/
 │       └── rosto-ana-8xk2.jpg ← read = header (imageId, kind, autorização) + pixels
 ├── memory/                    ← WRITABLE (free): durable agent notes — owner

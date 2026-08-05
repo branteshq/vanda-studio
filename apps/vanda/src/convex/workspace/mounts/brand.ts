@@ -1,6 +1,7 @@
 import type { Id } from "../../_generated/dataModel";
 import type { QueryCtx } from "../../_generated/server";
 import { assessBrandReadiness } from "../../pipeline/inputQuality";
+import { validateBrandKit } from "../brandKit";
 import { readDocument, saveDocument } from "../documents";
 import {
   entityName,
@@ -69,14 +70,22 @@ const memoryMarkdown = (brand: Awaited<ReturnType<typeof loadBrand>>): string =>
   return lines.join("\n");
 };
 
-/** The one writable file in /brand — free-form notes, gated by owner approval. */
+/** The writable files in /brand — both gated by owner approval. */
 const NOTES_PATH = "/brand/notes.md";
+const KIT_PATH = "/brand/kit.json";
+
+/** Read fallback that teaches the kit's schema in-band. */
+const EMPTY_KIT = {
+  colors: [],
+  fonts: [],
+  dica: 'sem identidade visual ainda — grave com write: {"colors":[{"hex":"#d81b60","name":"rosa","role":"primária"}],"fonts":[{"family":"Poppins","role":"títulos"}],"tagline":"..."} (pede aprovação do dono)',
+};
 
 export const brandMount: WorkspaceMount = {
   root: "brand",
   summary: "memória de marca confirmada e fotos de referência autorizadas",
   writeHint:
-    "memory.md e profile.json são projeções dos fatos confirmados pelo dono — eles mudam pelo fluxo de perfil. Anotações livres de marca vão em /brand/notes.md; notas de trabalho, em /memory/.",
+    "memory.md e profile.json são projeções dos fatos confirmados pelo dono — eles mudam pelo fluxo de perfil. Graváveis aqui: /brand/notes.md (anotações) e /brand/kit.json (identidade visual); notas de trabalho vão em /memory/.",
   list: async (ctx, accountId, segments): Promise<WorkspaceEntry[] | null> => {
     if (segments.length === 0) {
       return [
@@ -86,6 +95,12 @@ export const brandMount: WorkspaceMount = {
           name: "notes.md",
           kind: "file",
           summary: "anotações livres de marca (gravável com aprovação do dono)",
+        },
+        {
+          name: "kit.json",
+          kind: "file",
+          summary:
+            "identidade visual: cores exatas, fontes e tagline (gravável com aprovação do dono)",
         },
         { name: "references", kind: "dir", summary: "fotos de referência (rosto, produto, lugar)" },
       ];
@@ -113,6 +128,9 @@ export const brandMount: WorkspaceMount = {
           text: "(sem anotações ainda — grave em /brand/notes.md para criar)",
         }
       );
+    }
+    if (segments.length === 1 && segments[0] === "kit.json") {
+      return (await readDocument(ctx, accountId, KIT_PATH)) ?? jsonFile(EMPTY_KIT);
     }
     if (segments.length === 1 && segments[0] === "profile.json") {
       const brand = await loadBrand(ctx, accountId);
@@ -147,9 +165,14 @@ export const brandMount: WorkspaceMount = {
     return null;
   },
   write: async (ctx, accountId, segments, content) => {
-    if (segments.length !== 1 || segments[0] !== "notes.md") {
-      return { ok: false, error: brandMount.writeHint };
+    if (segments.length === 1 && segments[0] === "notes.md") {
+      return saveDocument(ctx, accountId, NOTES_PATH, content);
     }
-    return saveDocument(ctx, accountId, NOTES_PATH, content);
+    if (segments.length === 1 && segments[0] === "kit.json") {
+      const kit = validateBrandKit(content);
+      if (!kit.ok) return { ok: false, error: kit.error };
+      return saveDocument(ctx, accountId, KIT_PATH, kit.normalized);
+    }
+    return { ok: false, error: brandMount.writeHint };
   },
 };

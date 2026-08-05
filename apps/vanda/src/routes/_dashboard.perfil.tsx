@@ -10,6 +10,7 @@ import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+import { parseBrandKit } from "../convex/workspace/brandKit";
 import { useActiveAccount } from "../components/active-account";
 
 export const Route = createFileRoute("/_dashboard/perfil")({
@@ -250,6 +251,8 @@ function BrandTab({ accountId }: { accountId: Id<"accounts"> }) {
         </section>
       ) : null}
 
+      <BrandKitCard accountId={accountId} />
+
       <SectionCard title="Memória de marca" caption="fatos confirmados por você">
         <FileBody result={memory} format="markdown" />
       </SectionCard>
@@ -258,6 +261,82 @@ function BrandTab({ accountId }: { accountId: Id<"accounts"> }) {
         <FileBody result={notes} format="markdown" />
       </SectionCard>
     </>
+  );
+}
+
+/**
+ * The Pomelli-style identity card: swatches with exact hexes, font previews,
+ * tagline — rendered straight from /brand/kit.json. The kit only changes
+ * through the write approval flow, so what's shown here is what Vanda uses.
+ */
+function BrandKitCard({ accountId }: { accountId: Id<"accounts"> }) {
+  const result = useFileText(accountId, "/brand/kit.json");
+  const kit = result.text !== null ? parseBrandKit(result.text) : null;
+  const empty = kit === null || (kit.colors.length === 0 && kit.fonts.length === 0 && !kit.tagline);
+
+  return (
+    <SectionCard title="Identidade visual" caption="a Vanda usa exatamente estas cores e fontes">
+      {result.loading ? (
+        <div className="flex gap-3" aria-hidden>
+          <Skeleton className="size-14 rounded-full" />
+          <Skeleton className="size-14 rounded-full" />
+          <Skeleton className="size-14 rounded-full" />
+        </div>
+      ) : empty ? (
+        <p className="text-body-sm leading-relaxed text-text-3">
+          Nenhuma identidade registrada ainda. Diga na conversa algo como{" "}
+          <em>"nossas cores são #d81b60 e #fdfcfb, e a fonte é Poppins"</em> — a Vanda monta o
+          kit e pede a sua aprovação antes de gravar.
+        </p>
+      ) : (
+        <div className="space-y-5">
+          {kit.colors.length > 0 ? (
+            <div className="flex flex-wrap gap-x-6 gap-y-4">
+              {kit.colors.map((color) => (
+                <div key={color.hex} className="flex flex-col items-center gap-1.5">
+                  <span
+                    aria-hidden
+                    className="size-14 rounded-full border border-border shadow-sm"
+                    style={{ backgroundColor: color.hex }}
+                  />
+                  <span className="font-mono text-xs text-text-2">{color.hex}</span>
+                  {color.name || color.role ? (
+                    <span className="max-w-24 truncate text-[11px] text-text-4">
+                      {color.name ?? color.role}
+                    </span>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {kit.fonts.length > 0 ? (
+            <div className="flex flex-wrap gap-3">
+              {kit.fonts.map((font) => (
+                <div
+                  key={`${font.family}-${font.role ?? ""}`}
+                  className="flex min-w-36 flex-col items-center rounded-lg border border-border px-5 py-3"
+                >
+                  <span
+                    aria-hidden
+                    className="text-3xl leading-tight text-text"
+                    style={{ fontFamily: `"${font.family}", sans-serif` }}
+                  >
+                    Aa
+                  </span>
+                  <span className="mt-1 text-body-sm font-medium">{font.family}</span>
+                  {font.role ? <span className="text-[11px] text-text-4">{font.role}</span> : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {kit.tagline ? (
+            <p className="text-body-sm text-text-2 italic">“{kit.tagline}”</p>
+          ) : null}
+        </div>
+      )}
+    </SectionCard>
   );
 }
 

@@ -69,6 +69,7 @@ import type * as users from "../users.js";
 import type * as vanda from "../vanda.js";
 import type * as visualBrand from "../visualBrand.js";
 import type * as visualBrandNode from "../visualBrandNode.js";
+import type * as workspace_brandKit from "../workspace/brandKit.js";
 import type * as workspace_documents from "../workspace/documents.js";
 import type * as workspace_index from "../workspace/index.js";
 import type * as workspace_mounts_brand from "../workspace/mounts/brand.js";
@@ -151,6 +152,7 @@ declare const fullApi: ApiFromModules<{
   vanda: typeof vanda;
   visualBrand: typeof visualBrand;
   visualBrandNode: typeof visualBrandNode;
+  "workspace/brandKit": typeof workspace_brandKit;
   "workspace/documents": typeof workspace_documents;
   "workspace/index": typeof workspace_index;
   "workspace/mounts/brand": typeof workspace_mounts_brand;

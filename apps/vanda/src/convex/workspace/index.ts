@@ -104,7 +104,7 @@ export const readPath = async (
 export type WriteResult = WorkspaceWriteResult;
 
 const WRITABLE_HELP =
-  "graváveis: /memory/<nome>.md (livre), /templates/<nome>.py (livre), /brand/notes.md (com aprovação do dono)";
+  "graváveis: /memory/<nome>.md (livre), /templates/<nome>.py (livre), /brand/notes.md e /brand/kit.json (com aprovação do dono)";
 
 /**
  * One write surface, per-mount handlers underneath (the VFS shape — like
@@ -128,6 +128,8 @@ export const writePath = async (
   return mount.write(ctx, accountId, segments.slice(1), content);
 };
 
-/** Per-path approval policy for the write tool: brand notes need the owner. */
+/** Per-path approval policy for the write tool: brand files need the owner. */
+const APPROVAL_PATHS = new Set(["brand/notes.md", "brand/kit.json"]);
+
 export const writeNeedsApproval = (path: string): boolean =>
-  parsePath(path).join("/") === "brand/notes.md";
+  APPROVAL_PATHS.has(parsePath(path).join("/"));

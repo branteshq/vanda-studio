@@ -96,8 +96,52 @@ describe("workspace writes", () => {
 
     expect(writeNeedsApproval("/brand/notes.md")).toBe(true);
     expect(writeNeedsApproval("brand/notes.md/")).toBe(true);
+    expect(writeNeedsApproval("/brand/kit.json")).toBe(true);
     expect(writeNeedsApproval("/memory/preferencias.md")).toBe(false);
     expect(writeNeedsApproval("/templates/moldura.py")).toBe(false);
+  });
+
+  it("validates and normalizes brand kit writes", async () => {
+    const { t, accountId } = await setup();
+    const written = await t.mutation(internal.workspaceData.write, {
+      accountId,
+      path: "/brand/kit.json",
+      content: JSON.stringify({
+        colors: [{ hex: "#D81B60", name: "rosa", role: "primária" }, { hex: "#fdfcfb" }],
+        fonts: [{ family: "Poppins", role: "títulos" }],
+        tagline: "café com afeto",
+      }),
+    });
+    expect(written.ok).toBe(true);
+
+    const read = await t.query(internal.workspaceData.read, {
+      accountId,
+      path: "/brand/kit.json",
+    });
+    expect(read.ok).toBe(true);
+    if (read.ok && read.file.kind === "text") {
+      const kit = JSON.parse(read.file.text) as {
+        colors: Array<{ hex: string }>;
+        tagline: string;
+      };
+      expect(kit.colors[0]!.hex).toBe("#d81b60");
+      expect(kit.tagline).toBe("café com afeto");
+    }
+
+    const cases: Array<[string, string]> = [
+      ["não é json", "JSON válido"],
+      [JSON.stringify({ colors: [{ hex: "rosa" }] }), "hex"],
+      [JSON.stringify({ palette: [] }), "campo desconhecido"],
+    ];
+    for (const [content, hint] of cases) {
+      const result = await t.mutation(internal.workspaceData.write, {
+        accountId,
+        path: "/brand/kit.json",
+        content,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toContain(hint);
+    }
   });
 
   it("refuses projection writes with the verb that changes them", async () => {
