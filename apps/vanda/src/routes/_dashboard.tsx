@@ -1,5 +1,5 @@
 import { RedirectToSignIn, Show } from "@clerk/tanstack-react-start";
-import { Navigate, Outlet, createFileRoute } from "@tanstack/react-router";
+import { Navigate, Outlet, createFileRoute, useRouterState } from "@tanstack/react-router";
 import { SidebarInset, SidebarProvider } from "@vanda-studio/ui/components/sidebar";
 import { AppSidebar, CollapsedSidebarControls } from "../components/app-sidebar";
 import { ActiveAccountProvider, useActiveAccount } from "../components/active-account";
@@ -31,10 +31,16 @@ function DashboardLayout() {
  */
 function DashboardGate() {
   const { accounts } = useActiveAccount();
+  // /perfil is a full-page view (T3-style settings): same auth + account
+  // context as the dashboard, none of the sidebar chrome.
+  const fullBleed = useRouterState({
+    select: (state) => state.location.pathname.startsWith("/perfil"),
+  });
   if (accounts === undefined) return <div className="min-h-svh bg-app" />;
   if (!accounts.some((account) => account.onboardedAt != null)) {
     return <Navigate to="/onboarding" />;
   }
+  if (fullBleed) return <Outlet />;
   return (
     <SidebarProvider defaultWidth={272}>
       <ModeNavProvider>

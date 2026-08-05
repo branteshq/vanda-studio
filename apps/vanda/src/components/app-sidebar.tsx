@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useClerk, useUser } from "@clerk/tanstack-react-start";
+import { useUser } from "@clerk/tanstack-react-start";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
@@ -7,7 +7,6 @@ import {
   Archive,
   BadgeCheckIcon,
   Images,
-  LogOutIcon,
   MessageSquareText,
   PanelLeftClose,
   PanelLeftOpen,
@@ -230,46 +229,25 @@ function getInitials(name: string) {
 
 function AccountMenu() {
   const { user } = useUser();
-  const clerk = useClerk();
   const navigate = useNavigate();
   const name = user?.fullName ?? user?.username ?? "Minha conta";
   const initials = getInitials(name) || "MC";
-  const handleSignOut = async () => {
-    await clerk.signOut();
-    await navigate({ to: "/login" });
-  };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={name}
-            className="size-10 shrink-0 rounded-full p-0 hover:bg-sidebar-accent data-popup-open:bg-sidebar-accent"
-          />
-        }
+    <ActionTooltip label="Minha conta" side="top">
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Abrir minha conta"
+        onClick={() => void navigate({ to: "/perfil" })}
+        className="size-10 shrink-0 rounded-full p-0 hover:bg-sidebar-accent"
       >
         <Avatar className="size-8">
           <AvatarImage src={user?.imageUrl} alt={name} />
           <AvatarFallback className="text-[11px] font-semibold">{initials}</AvatarFallback>
         </Avatar>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="min-w-56 rounded-lg" align="end" side="right" sideOffset={4}>
-        <DropdownMenuGroup>
-          <DropdownMenuItem className="gap-2 p-2" onClick={() => clerk.openUserProfile()}>
-            <BadgeCheckIcon className="size-4" />
-            Gerenciar conta
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="gap-2 p-2" onClick={() => void handleSignOut()}>
-          <LogOutIcon className="size-4" />
-          Sair
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </Button>
+    </ActionTooltip>
   );
 }
 

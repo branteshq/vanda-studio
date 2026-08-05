@@ -81,6 +81,7 @@ import type * as workspace_mounts_templates from "../workspace/mounts/templates.
 import type * as workspace_resolveImage from "../workspace/resolveImage.js";
 import type * as workspace_types from "../workspace/types.js";
 import type * as workspaceData from "../workspaceData.js";
+import type * as workspacePublic from "../workspacePublic.js";
 
 import type {
   ApiFromModules,
@@ -162,6 +163,7 @@ declare const fullApi: ApiFromModules<{
   "workspace/resolveImage": typeof workspace_resolveImage;
   "workspace/types": typeof workspace_types;
   workspaceData: typeof workspaceData;
+  workspacePublic: typeof workspacePublic;
 }>;
 
 /**
