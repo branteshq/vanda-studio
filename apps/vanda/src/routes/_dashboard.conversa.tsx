@@ -37,6 +37,7 @@ import {
   Square,
   X,
 } from "lucide-react";
+import { ThinkingOrb, type OrbState } from "thinking-orbs";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Bubble, BubbleContent } from "@vanda-studio/ui/components/bubble";
 import { Markdown } from "@vanda-studio/ui/components/markdown";
@@ -110,6 +111,43 @@ const TOOL_LABEL: Record<string, string> = {
   read: "Lendo",
   write: "Gravando",
 };
+
+/**
+ * Which orb animates while a tool runs — the motion mirrors the verb:
+ * reading scans, writing composes, code solves, images take shape,
+ * carousels weave, publishing connects.
+ */
+const TOOL_ORB_STATE: Record<string, OrbState> = {
+  list: "searching",
+  read: "searching",
+  write: "composing",
+  start_market_scan: "searching",
+  create_carousel: "weaving",
+  revise_slide: "shaping",
+  request_render: "shaping",
+  paint: "shaping",
+  run_code: "solving",
+  publish_project: "connecting",
+};
+
+const orbStateOf = (name: string): OrbState => TOOL_ORB_STATE[name] ?? "working";
+
+/** A 20px-preset orb scaled into the 16px marker-icon slot. */
+function MarkerOrb({ state }: { state: OrbState }) {
+  return <ThinkingOrb state={state} size={20} style={{ width: 16, height: 16 }} />;
+}
+
+/** The shared thinking state: a breathing orb where the answer will appear. */
+function ThinkingMarker() {
+  return (
+    <Marker role="status">
+      <MarkerIcon>
+        <MarkerOrb state="breathing" />
+      </MarkerIcon>
+      <MarkerContent className="shimmer">Pensando…</MarkerContent>
+    </Marker>
+  );
+}
 
 /** Workspace tools carry the touched path — surface it in the trace row. */
 const toolPathOf = (part: ToolPartView): string | null => {
@@ -385,12 +423,7 @@ function PendingFirstMessage({
       </Message>
       <Message align="start">
         <MessageContent>
-          <Marker role="status">
-            <MarkerIcon>
-              <Spinner />
-            </MarkerIcon>
-            <MarkerContent className="shimmer">Pensando…</MarkerContent>
-          </Marker>
+          <ThinkingMarker />
         </MessageContent>
       </Message>
     </div>
@@ -1074,12 +1107,7 @@ function ChatMessage({
             <ApprovalResponded key={index} approved={p.approval?.approved === true} />
           ),
         )}
-        {nothingYet ? (
-          // Amp-style: a single breathing dot where the answer will appear.
-          <div role="status" aria-label="Vanda está pensando" className="px-1 py-2">
-            <span className="animate-breathe block size-2.5 rounded-full bg-text-4" />
-          </div>
-        ) : null}
+        {nothingYet ? <ThinkingMarker /> : null}
       </MessageContent>
     </Message>
   );
@@ -1141,7 +1169,7 @@ function ToolRow({ part }: { part: ToolPartView }) {
     <Marker role={running ? "status" : undefined}>
       <MarkerIcon>
         {running ? (
-          <Spinner />
+          <MarkerOrb state={orbStateOf(name)} />
         ) : failed ? (
           <X className="text-destructive" />
         ) : (
@@ -1176,7 +1204,7 @@ function CodeRunRow({ part }: { part: ToolPartView }) {
       <Marker role={running ? "status" : undefined}>
         <MarkerIcon>
           {running ? (
-            <Spinner />
+            <MarkerOrb state="solving" />
           ) : errored ? (
             <X className="text-destructive" />
           ) : (
@@ -1266,8 +1294,13 @@ function PaintedImage({ image, accountId }: { image: PaintedImageView; accountId
           />
         ) : (
           // run_code outputs carry no frozen URL — hold the frame until the
-          // gallery subscription resolves.
-          <Skeleton className="size-full" />
+          // gallery subscription resolves, with the image "taking shape".
+          <span className="relative block size-full">
+            <Skeleton className="size-full" />
+            <span className="absolute inset-0 flex items-center justify-center">
+              <ThinkingOrb state="shaping" size={64} aria-label="Preparando a imagem…" />
+            </span>
+          </span>
         )}
       </AttachmentMedia>
     </Attachment>

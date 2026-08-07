@@ -393,23 +393,6 @@
   animation: vanda-mode-in 260ms var(--ease-out) both;
 }
 
-/* The waiting dot: a quiet breath (opacity + scale) where an answer will
- * appear. Calm on purpose — it marks presence, not urgency. */
-@keyframes vanda-breathe {
-  0%,
-  100% {
-    opacity: 0.3;
-    transform: scale(0.8);
-  }
-  50% {
-    opacity: 0.9;
-    transform: scale(1);
-  }
-}
-.animate-breathe {
-  animation: vanda-breathe 1.6s var(--ease-in-out) infinite;
-}
-
 /* A freshly generated title takes the place of its blurred placeholder:
  * it sharpens into focus rather than popping in. */
 @keyframes vanda-title-in {
@@ -437,11 +420,6 @@
   /* Keep the crossfade for comprehension; drop the movement. */
   .animate-mode-in {
     animation: vanda-mode-fade 180ms var(--ease-out) both;
-  }
-  /* Static presence dot — no pulse. */
-  .animate-breathe {
-    animation: none;
-    opacity: 0.6;
   }
 }
 
