@@ -37,6 +37,7 @@ import {
   Send,
   Sparkles,
   Square,
+  SquarePen,
   Trash2,
   X,
 } from "lucide-react";
@@ -77,6 +78,7 @@ import {
   MediaTile,
   MediaTileAction,
   MediaTileActions,
+  MediaTileBadge,
   MediaTileCaption,
   MediaTileMedia,
   copyImageToClipboard,
@@ -1351,6 +1353,12 @@ function PaintedImage({
         )}
       </MediaTileMedia>
 
+      {live?.edited ? (
+        <MediaTileBadge label="Editada">
+          <SquarePen />
+        </MediaTileBadge>
+      ) : null}
+
       {url && (
         <MediaTileActions>
           <MediaTileAction label="Copiar imagem" onClick={copy.run}>
@@ -1431,6 +1439,7 @@ function ChatImageLightbox({
         costUsd: detail.costUsd,
         createdAt: detail.createdAt,
         origin: detail.origin,
+        edited: detail.edited,
         promptAuthor: detail.promptAuthor,
       }
     : fallback

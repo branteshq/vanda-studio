@@ -1,5 +1,15 @@
 import { useState, type ReactNode } from "react";
-import { Clock, Copy, DollarSign, Download, Frame, Proportions, Trash2, Upload } from "lucide-react";
+import {
+  Clock,
+  Copy,
+  DollarSign,
+  Download,
+  Frame,
+  Proportions,
+  SquarePen,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import {
   Lightbox,
   LightboxContent,
@@ -40,6 +50,8 @@ export interface ImageLightboxData {
   costUsd?: number | null | undefined;
   createdAt?: number | null | undefined;
   origin?: string | null | undefined;
+  /** Produced by editing an existing image (paint edit or run_code). */
+  edited?: boolean | undefined;
   /** Who wrote the generation prompt — Vanda (chat) or the owner (gallery). */
   promptAuthor?: "vanda" | "user" | null | undefined;
 }
@@ -168,6 +180,7 @@ function ImageDetails({
             </>
           )}
           {uploaded && <MetaChip icon={<Upload />}>Enviada por você</MetaChip>}
+          {image.edited && <MetaChip icon={<SquarePen />}>Editada</MetaChip>}
         </div>
 
         {generated && (

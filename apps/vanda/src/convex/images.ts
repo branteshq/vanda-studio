@@ -266,6 +266,7 @@ async function paintImage(
       ...(generated.costUsd !== undefined ? { costUsd: generated.costUsd } : {}),
       ...(promptAuthor ? { promptAuthor } : {}),
       ...(placeholderImageId ? { placeholderId: placeholderImageId } : {}),
+      ...(editOfImageId ? { editOfImageId } : {}),
     });
     const url = await ctx.storage.getUrl(storageId);
     if (!url) throw new Error("stored image URL is unavailable");

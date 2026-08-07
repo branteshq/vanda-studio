@@ -14,6 +14,7 @@ import {
   PanelLeftOpen,
   Search,
   Sparkles,
+  SquarePen,
   Trash2,
   Upload,
   X,
@@ -55,7 +56,7 @@ function GalleryPage() {
   return <GalleryStudio key={activeAccount.id} accountId={activeAccount.id} />;
 }
 
-type OriginFilter = "all" | "generated" | "uploaded";
+type OriginFilter = "all" | "generated" | "edited" | "uploaded";
 type OrderFilter = "recent" | "oldest";
 
 function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
@@ -75,9 +76,21 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
   );
 
   const normalized = query.trim().toLocaleLowerCase("pt-BR");
+  const matchesOrigin = (item: GalleryItem): boolean => {
+    switch (origin) {
+      case "uploaded":
+        return item.origin === "uploaded";
+      case "edited":
+        return item.edited;
+      case "generated":
+        return item.origin !== "uploaded";
+      default:
+        return true;
+    }
+  };
   const filtered = results.filter(
     (item) =>
-      (origin === "all" || (origin === "uploaded") === (item.origin === "uploaded")) &&
+      matchesOrigin(item) &&
       (model === "all" || item.model === model) &&
       (!normalized || (item.name ?? "").toLocaleLowerCase("pt-BR").includes(normalized)),
   );
@@ -354,6 +367,7 @@ function GalleryHeader({
 const ORIGIN_FILTERS: ReadonlyArray<FilterOption<OriginFilter>> = [
   { value: "all", label: "Todas", icon: <Images /> },
   { value: "generated", label: "Geradas", icon: <Sparkles /> },
+  { value: "edited", label: "Editadas", icon: <SquarePen /> },
   { value: "uploaded", label: "Enviadas", icon: <Upload /> },
 ];
 
@@ -539,11 +553,15 @@ function GalleryCard({
         label={selected ? "Remover da seleção" : "Selecionar imagem"}
       />
 
-      {item.origin === "uploaded" && (
+      {item.origin === "uploaded" ? (
         <MediaTileBadge label="Enviada por você">
           <Upload />
         </MediaTileBadge>
-      )}
+      ) : item.edited ? (
+        <MediaTileBadge label="Editada">
+          <SquarePen />
+        </MediaTileBadge>
+      ) : null}
 
       {item.url && (
         <MediaTileActions>
@@ -714,6 +732,7 @@ function ImageDetailDialog({
         costUsd: detail?.costUsd,
         createdAt: source.createdAt,
         origin: source.origin,
+        edited: source.edited,
         promptAuthor: detail?.promptAuthor,
       }
     : null;

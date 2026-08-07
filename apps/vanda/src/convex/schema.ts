@@ -789,6 +789,8 @@ export default defineSchema({
     generationError: v.optional(v.string()),
     // Set when this image was produced by a run_code execution.
     codeRunId: v.optional(v.id("codeRuns")),
+    // Set when this image is a paint edit of another image (provenance).
+    editOfImageId: v.optional(v.id("images")),
     createdAt: v.number(),
   })
     .index("by_account", ["accountId"])

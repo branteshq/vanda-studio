@@ -32,6 +32,8 @@ export interface GalleryItem {
   height: number | null;
   origin: Doc<"images">["origin"];
   model: string | null;
+  /** Produced by editing an existing image (paint edit or run_code). */
+  edited: boolean;
   createdAt: number;
   /** Generation lifecycle: "generating" placeholder, "failed", or null = ready. */
   status: "generating" | "failed" | null;
@@ -62,6 +64,7 @@ const toItem = async (ctx: QueryCtx, image: Doc<"images">): Promise<GalleryItem>
   height: image.height ?? null,
   origin: image.origin,
   model: image.model ?? null,
+  edited: image.editOfImageId !== undefined || image.codeRunId !== undefined,
   createdAt: image.createdAt,
   status: image.status ?? null,
   generationError: image.generationError ?? null,
