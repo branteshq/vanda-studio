@@ -27,6 +27,8 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleDashed,
+  Copy,
+  Download,
   ImageOff,
   Images,
   NotebookPen,
@@ -35,6 +37,7 @@ import {
   Send,
   Sparkles,
   Square,
+  Trash2,
   X,
 } from "lucide-react";
 import { ThinkingOrb, type OrbState } from "thinking-orbs";
@@ -69,6 +72,17 @@ import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { useActiveAccount } from "../components/active-account";
 import { ImageLightbox, type ImageLightboxData } from "../components/image-lightbox";
+import {
+  ActionStateIcon,
+  MediaTile,
+  MediaTileAction,
+  MediaTileActions,
+  MediaTileCaption,
+  MediaTileMedia,
+  copyImageToClipboard,
+  downloadImageFile,
+  useMediaAction,
+} from "../components/media-tile";
 import { VandaMark } from "../components/vanda-mark";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
@@ -1284,6 +1298,12 @@ function ApprovalResponded({ approved }: { approved: boolean }) {
  * the record is gone (deleted from the canvas), the frame gives way to a quiet
  * tombstone instead of a broken image.
  */
+/**
+ * A generated image in the conversation — the same MediaTile surface as the
+ * gallery (hover zoom, copy/download/delete chips, name+model caption scrim),
+ * minus the selection toggle: chat has no multi-select. Clicking opens the
+ * shared lightbox.
+ */
 function PaintedImage({
   image,
   accountId,
@@ -1298,47 +1318,66 @@ function PaintedImage({
     accountId,
     imageId: image.imageId as Id<"images">,
   });
+  const url = live?.url ?? image.url;
+  const remove = useMutation(api.gallery.remove);
+  const copy = useMediaAction(() => copyImageToClipboard(url!));
+  const download = useMediaAction(() => downloadImageFile(url!, live?.name ?? null));
 
   if (live === null) return <DeletedImageNotice />;
-  const url = live?.url ?? image.url;
 
   return (
-    <Attachment
-      orientation="vertical"
-      className={cn("w-full max-w-sm", enter && "animate-attachment-in")}
+    <MediaTile
+      label={live?.name ?? "Imagem criada pela Vanda"}
+      {...(url ? { onOpen } : {})}
+      className={cn("max-w-sm", enter && "animate-attachment-in")}
     >
-      <button
-        type="button"
-        onClick={onOpen}
-        disabled={!url}
-        aria-label="Ampliar imagem"
-        className="block w-full cursor-zoom-in rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
-      >
-        <AttachmentMedia
-          variant="image"
-          className="w-full"
-          style={{ aspectRatio: `${image.width} / ${image.height}` }}
-        >
-          {url ? (
-            <img
-              src={url}
-              alt="Imagem criada pela Vanda"
-              loading="lazy"
-              className="size-full object-cover"
-            />
-          ) : (
-            // run_code outputs carry no frozen URL — hold the frame until the
-            // gallery subscription resolves, with the image "taking shape".
-            <span className="relative block size-full">
-              <Skeleton className="size-full" />
-              <span className="absolute inset-0 flex items-center justify-center">
-                <ThinkingOrb state="shaping" size={64} aria-label="Preparando a imagem…" />
-              </span>
+      <MediaTileMedia aspectRatio={image.width / image.height}>
+        {url ? (
+          <img
+            src={url}
+            alt={live?.name ?? "Imagem criada pela Vanda"}
+            loading="lazy"
+            className="size-full object-cover"
+          />
+        ) : (
+          // run_code outputs carry no frozen URL — hold the frame until the
+          // gallery subscription resolves, with the image "taking shape".
+          <span className="relative block size-full">
+            <Skeleton className="size-full" />
+            <span className="absolute inset-0 flex items-center justify-center">
+              <ThinkingOrb state="shaping" size={64} aria-label="Preparando a imagem…" />
             </span>
-          )}
-        </AttachmentMedia>
-      </button>
-    </Attachment>
+          </span>
+        )}
+      </MediaTileMedia>
+
+      {url && (
+        <MediaTileActions>
+          <MediaTileAction label="Copiar imagem" onClick={copy.run}>
+            <ActionStateIcon state={copy.state} icon={<Copy />} />
+          </MediaTileAction>
+          <MediaTileAction label="Baixar" onClick={download.run}>
+            <ActionStateIcon state={download.state} icon={<Download />} />
+          </MediaTileAction>
+          <MediaTileAction
+            label="Excluir"
+            onClick={() => void remove({ accountId, imageId: image.imageId as Id<"images"> })}
+            className="hover:bg-destructive/85"
+          >
+            <Trash2 />
+          </MediaTileAction>
+        </MediaTileActions>
+      )}
+
+      {live ? (
+        <MediaTileCaption>
+          <p className="truncate text-body-sm font-medium text-white">{live.name ?? "Sem nome"}</p>
+          {live.model ? (
+            <p className="truncate text-note text-white/70">{imageModelLabel(live.model)}</p>
+          ) : null}
+        </MediaTileCaption>
+      ) : null}
+    </MediaTile>
   );
 }
 
