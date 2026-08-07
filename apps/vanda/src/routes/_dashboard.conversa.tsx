@@ -68,9 +68,11 @@ import { StatusPill } from "@vanda-studio/ui/components/status-pill";
 import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { useActiveAccount } from "../components/active-account";
+import { ImageLightbox, type ImageLightboxData } from "../components/image-lightbox";
 import { VandaMark } from "../components/vanda-mark";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+import { imageModelLabel } from "../convex/imageModels";
 
 export const Route = createFileRoute("/_dashboard/conversa")({
   component: ConversaPage,
@@ -999,6 +1001,8 @@ function ChatMessage({
   onOpenProject: (projectId: Id<"contentProjects">) => void;
 }) {
   const enter = useEntranceOnMount();
+  // Which of this turn's generated images is expanded in the lightbox.
+  const [lightboxId, setLightboxId] = useState<string | null>(null);
 
   if (message.role === "user") {
     const text = visibleUserText(
@@ -1087,8 +1091,22 @@ function ChatMessage({
           </Bubble>
         ))}
         {paintedImages.map((image) => (
-          <PaintedImage key={image.imageId} image={image} accountId={accountId} />
+          <PaintedImage
+            key={image.imageId}
+            image={image}
+            accountId={accountId}
+            onOpen={() => setLightboxId(image.imageId)}
+          />
         ))}
+        {paintedImages.length > 0 ? (
+          <ChatImageLightbox
+            accountId={accountId}
+            images={paintedImages}
+            selectedId={lightboxId}
+            onSelect={setLightboxId}
+            onClose={() => setLightboxId(null)}
+          />
+        ) : null}
         {previewProjectIds.map((pid) => (
           <ProjectPreview key={pid} projectId={pid} onOpen={() => onOpenProject(pid)} />
         ))}
@@ -1266,7 +1284,15 @@ function ApprovalResponded({ approved }: { approved: boolean }) {
  * the record is gone (deleted from the canvas), the frame gives way to a quiet
  * tombstone instead of a broken image.
  */
-function PaintedImage({ image, accountId }: { image: PaintedImageView; accountId: Id<"accounts"> }) {
+function PaintedImage({
+  image,
+  accountId,
+  onOpen,
+}: {
+  image: PaintedImageView;
+  accountId: Id<"accounts">;
+  onOpen: () => void;
+}) {
   const enter = useEntranceOnMount();
   const live = useQuery(api.gallery.get, {
     accountId,
@@ -1274,36 +1300,126 @@ function PaintedImage({ image, accountId }: { image: PaintedImageView; accountId
   });
 
   if (live === null) return <DeletedImageNotice />;
+  const url = live?.url ?? image.url;
 
   return (
     <Attachment
       orientation="vertical"
       className={cn("w-full max-w-sm", enter && "animate-attachment-in")}
     >
-      <AttachmentMedia
-        variant="image"
-        className="w-full"
-        style={{ aspectRatio: `${image.width} / ${image.height}` }}
+      <button
+        type="button"
+        onClick={onOpen}
+        disabled={!url}
+        aria-label="Ampliar imagem"
+        className="block w-full cursor-zoom-in rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
       >
-        {(live?.url ?? image.url) ? (
-          <img
-            src={live?.url ?? image.url}
-            alt="Imagem criada pela Vanda"
-            loading="lazy"
-            className="size-full object-cover"
-          />
-        ) : (
-          // run_code outputs carry no frozen URL — hold the frame until the
-          // gallery subscription resolves, with the image "taking shape".
-          <span className="relative block size-full">
-            <Skeleton className="size-full" />
-            <span className="absolute inset-0 flex items-center justify-center">
-              <ThinkingOrb state="shaping" size={64} aria-label="Preparando a imagem…" />
+        <AttachmentMedia
+          variant="image"
+          className="w-full"
+          style={{ aspectRatio: `${image.width} / ${image.height}` }}
+        >
+          {url ? (
+            <img
+              src={url}
+              alt="Imagem criada pela Vanda"
+              loading="lazy"
+              className="size-full object-cover"
+            />
+          ) : (
+            // run_code outputs carry no frozen URL — hold the frame until the
+            // gallery subscription resolves, with the image "taking shape".
+            <span className="relative block size-full">
+              <Skeleton className="size-full" />
+              <span className="absolute inset-0 flex items-center justify-center">
+                <ThinkingOrb state="shaping" size={64} aria-label="Preparando a imagem…" />
+              </span>
             </span>
-          </span>
-        )}
-      </AttachmentMedia>
+          )}
+        </AttachmentMedia>
+      </button>
     </Attachment>
+  );
+}
+
+/**
+ * Bridges a turn's generated images to the same ImageLightbox the gallery
+ * uses — identical panel (rename, copy, download, delete, prompt, cost),
+ * arrows navigating the turn's images. `gallery.get` is already subscribed by
+ * the inline preview, so opening the viewer costs nothing extra.
+ */
+function ChatImageLightbox({
+  accountId,
+  images,
+  selectedId,
+  onSelect,
+  onClose,
+}: {
+  accountId: Id<"accounts">;
+  images: PaintedImageView[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onClose: () => void;
+}) {
+  const detail = useQuery(
+    api.gallery.get,
+    selectedId ? { accountId, imageId: selectedId as Id<"images"> } : "skip",
+  );
+  const rename = useMutation(api.gallery.rename);
+  const remove = useMutation(api.gallery.remove);
+
+  // The record vanished under the viewer (deleted from another surface) — close
+  // instead of spinning forever on a query that will never resolve.
+  useEffect(() => {
+    if (selectedId && detail === null) onClose();
+  }, [selectedId, detail, onClose]);
+
+  const index = images.findIndex((image) => image.imageId === selectedId);
+  const prev = index > 0 ? images[index - 1] : undefined;
+  const next = index >= 0 && index < images.length - 1 ? images[index + 1] : undefined;
+  const fallback = index >= 0 ? images[index] : undefined;
+
+  const image: ImageLightboxData | null = detail
+    ? {
+        id: detail.id,
+        url: detail.url,
+        name: detail.name,
+        model: detail.model ? imageModelLabel(detail.model) : null,
+        prompt: detail.prompt,
+        width: detail.width,
+        height: detail.height,
+        generationMs: detail.generationMs,
+        costUsd: detail.costUsd,
+        createdAt: detail.createdAt,
+        origin: detail.origin,
+        promptAuthor: detail.promptAuthor,
+      }
+    : fallback
+      ? {
+          id: fallback.imageId,
+          url: fallback.url ?? null,
+          name: null,
+          width: fallback.width,
+          height: fallback.height,
+        }
+      : null;
+
+  return (
+    <ImageLightbox
+      open={selectedId !== null}
+      onClose={onClose}
+      image={image}
+      loading={detail === undefined}
+      onPrev={prev ? () => onSelect(prev.imageId) : undefined}
+      onNext={next ? () => onSelect(next.imageId) : undefined}
+      onRename={(name) => {
+        if (selectedId) void rename({ accountId, imageId: selectedId as Id<"images">, name });
+      }}
+      onDelete={() => {
+        if (!selectedId) return;
+        void remove({ accountId, imageId: selectedId as Id<"images"> }).then(onClose);
+      }}
+    />
   );
 }
 
