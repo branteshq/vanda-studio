@@ -10,7 +10,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useUser } from "@clerk/tanstack-react-start";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   optimisticallySendMessage,
   useSmoothText,
@@ -535,6 +535,8 @@ function ChatComposer({
   const generateUploadUrl = useMutation(api.imageUploads.generateUploadUrl);
   const addImage = useMutation(api.imageUploads.addImage);
   const removeImage = useMutation(api.imageUploads.removeImage);
+  const usage = useQuery(api.usage.summary);
+  const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
@@ -710,6 +712,28 @@ function ChatComposer({
       void submit();
     }
   };
+
+  // Over the usage limit nothing is generated server-side; the composer says
+  // so instead of failing sends — a static card, never an LLM-written apology.
+  if (usage?.limited) {
+    return (
+      <footer className="shrink-0 bg-app px-4 py-3 md:px-6">
+        <div className="mx-auto w-full max-w-3xl">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4">
+            <div className="min-w-0">
+              <p className="text-body font-medium text-text">Limite de uso do plano atingido</p>
+              <p className="mt-0.5 text-body-sm leading-relaxed text-text-3">
+                A Vanda pausa por aqui até a renovação — ou faça upgrade para continuar agora.
+              </p>
+            </div>
+            <Button size="sm" onClick={() => void navigate({ to: "/perfil" })}>
+              Ver planos
+            </Button>
+          </div>
+        </div>
+      </footer>
+    );
+  }
 
   return (
     <footer className="shrink-0 bg-app px-4 py-3 md:px-6">

@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useClerk, useUser } from "@clerk/tanstack-react-start";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useAction } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
 import { ArrowLeft, FileCode2, LogOut, NotebookPen } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@vanda-studio/ui/components/avatar";
@@ -10,6 +11,7 @@ import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+import { PLAN_TIERS, planLabel } from "../convex/billing/plans";
 import { parseBrandKit } from "../convex/workspace/brandKit";
 import { useActiveAccount } from "../components/active-account";
 
@@ -86,6 +88,8 @@ function ProfilePage() {
             </Avatar>
             <h1 className="mt-4 text-lg font-semibold tracking-tight">{name}</h1>
             {email ? <p className="mt-0.5 text-body-sm text-text-3">{email}</p> : null}
+
+            <PlanSection />
 
             <section className="mt-8 w-full">
               <h2 className="section-label px-1 text-text-3">Negócios</h2>
@@ -180,6 +184,140 @@ function ProfilePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * The t3-style plan block: current plan, the usage bar (the owner only ever
+ * sees a percentage — never the underlying money), and subscribe/manage
+ * actions riding Autumn checkout + billing portal.
+ */
+function PlanSection() {
+  const summary = useQuery(api.usage.summary);
+  const syncBilling = useAction(api.billing.autumn.syncBilling);
+  const startCheckout = useAction(api.billing.autumn.startCheckout);
+  const getPortalUrl = useAction(api.billing.autumn.getBillingPortalUrl);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  // Refresh the enforcement snapshot from Autumn whenever the page opens —
+  // this is also the post-checkout landing, so new subscriptions take effect
+  // the moment Stripe redirects back.
+  useEffect(() => {
+    void syncBilling().catch(() => {});
+  }, [syncBilling]);
+
+  const subscribe = async (planId: string) => {
+    setBusy(planId);
+    try {
+      const { checkoutUrl } = await startCheckout({ planId });
+      if (checkoutUrl) window.location.href = checkoutUrl;
+    } finally {
+      setBusy(null);
+    }
+  };
+  const manage = async () => {
+    setBusy("portal");
+    try {
+      const { url } = await getPortalUrl();
+      if (url) window.location.href = url;
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const pct = summary?.usedPct ?? 0;
+  const subscribed = summary?.plan != null;
+
+  return (
+    <section className="mt-8 w-full">
+      <h2 className="section-label px-1 text-text-3">Plano</h2>
+      <div className="mt-2 rounded-xl border border-border bg-surface p-4 text-left">
+        {summary === undefined ? (
+          <div className="space-y-2" aria-hidden>
+            <Skeleton className="h-3.5 w-24" />
+            <Skeleton className="h-1.5 w-full rounded-full" />
+          </div>
+        ) : (
+          <>
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="text-body font-medium">{planLabel(summary?.plan ?? null)}</p>
+              <span className="text-body-sm text-text-3">{pct}%</span>
+            </div>
+            <div
+              className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
+              role="progressbar"
+              aria-valuenow={pct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Uso do plano"
+            >
+              <div
+                className={cn(
+                  "h-full rounded-full transition-[width] duration-300 ease-[var(--ease-out)]",
+                  summary?.limited ? "bg-destructive" : "bg-brand-accent",
+                )}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <p className="mt-2 text-xs text-text-4">
+              {summary?.limited
+                ? "Limite atingido — faça upgrade para continuar."
+                : summary?.renewsAt
+                  ? `Renova em ${new Date(summary.renewsAt).toLocaleDateString("pt-BR")}`
+                  : "Crédito de teste — assine para renovar todo mês."}
+            </p>
+          </>
+        )}
+      </div>
+
+      {subscribed ? (
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-2 w-full"
+          disabled={busy !== null}
+          onClick={() => void manage()}
+        >
+          {busy === "portal" ? "Abrindo…" : "Gerenciar assinatura"}
+        </Button>
+      ) : (
+        <div className="mt-2 space-y-2">
+          {PLAN_TIERS.map((tier) => (
+            <div key={tier.tier} className="rounded-xl border border-border bg-surface p-4">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-body font-semibold">{tier.label}</p>
+                <p className="text-body-sm text-text-2">
+                  R${tier.monthly.priceBrl}
+                  <span className="text-text-4">/mês</span>
+                </p>
+              </div>
+              <p className="mt-0.5 text-xs text-text-4">
+                ou R${tier.annual.perMonthBrl}/mês no plano anual
+              </p>
+              <div className="mt-3 flex gap-2">
+                <Button
+                  size="sm"
+                  className="flex-1"
+                  disabled={busy !== null}
+                  onClick={() => void subscribe(tier.monthly.productId)}
+                >
+                  {busy === tier.monthly.productId ? "Abrindo…" : "Mensal"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  disabled={busy !== null}
+                  onClick={() => void subscribe(tier.annual.productId)}
+                >
+                  {busy === tier.annual.productId ? "Abrindo…" : "Anual"}
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
