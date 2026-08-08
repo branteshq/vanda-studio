@@ -277,6 +277,7 @@ function AccountTab() {
   const getPortalUrl = useAction(api.billing.autumn.getBillingPortalUrl);
   const [interval, setInterval] = useState<"monthly" | "annual">("monthly");
   const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     void syncBilling().catch(() => {});
@@ -286,18 +287,30 @@ function AccountTab() {
 
   const subscribe = async (planId: string) => {
     setBusy(planId);
+    setError(null);
     try {
-      const { checkoutUrl } = await startCheckout({ planId });
-      if (checkoutUrl) window.location.href = checkoutUrl;
+      const { checkoutUrl, attached } = await startCheckout({ planId });
+      if (checkoutUrl) {
+        window.location.href = checkoutUrl;
+        return;
+      }
+      // The purchase completed without a payment page — refresh the snapshot
+      // so the cards and the usage bar flip to the new plan reactively.
+      if (attached) await syncBilling();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setBusy(null);
     }
   };
   const manage = async () => {
     setBusy("portal");
+    setError(null);
     try {
       const { url } = await getPortalUrl();
       if (url) window.location.href = url;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setBusy(null);
     }
@@ -318,6 +331,12 @@ function AccountTab() {
           </Button>
         ) : null}
       </div>
+
+      {error ? (
+        <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-body-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
 
       <div className="mt-4 flex w-fit gap-1 rounded-lg border border-border bg-surface p-1">
         {(

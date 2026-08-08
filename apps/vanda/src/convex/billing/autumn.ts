@@ -91,7 +91,10 @@ export const syncBilling = action({
 
 export const startCheckout = action({
   args: { planId: PlanIdSchema },
-  handler: async (ctx, args): Promise<{ checkoutUrl: string | null }> => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ checkoutUrl: string | null; attached: boolean }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
     const result = await autumn.checkout(ctx, {
@@ -102,7 +105,13 @@ export const startCheckout = action({
       },
     });
     if (result.error) throw new Error(result.error.message || "Autumn checkout failed");
-    return { checkoutUrl: result.data?.url ?? null };
+    const url = result.data?.url ?? null;
+    if (url) return { checkoutUrl: url, attached: false };
+    // No payment page needed (card on file, upgrades, sandbox): Autumn's
+    // checkout is only a preview — attach executes the purchase.
+    const attach = await autumn.attach(ctx, { productId: args.planId });
+    if (attach.error) throw new Error(attach.error.message || "Autumn attach failed");
+    return { checkoutUrl: null, attached: true };
   },
 });
 
