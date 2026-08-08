@@ -14,5 +14,8 @@ crons.interval(
   internal.marketNode.measureAllPublications,
   {},
 );
+// Billing snapshots refresh on dashboard load; this catches period rollovers
+// and cancellations for users who never open the app.
+crons.interval("billing sync", { hours: 24 }, internal.billing.autumn.syncAllSubscribed, {});
 
 export default crons;
