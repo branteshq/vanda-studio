@@ -65,6 +65,7 @@ import type * as pipeline_testLanguageModel from "../pipeline/testLanguageModel.
 import type * as pipeline_visualBrand from "../pipeline/visualBrand.js";
 import type * as publishScheduled from "../publishScheduled.js";
 import type * as publishScheduledNode from "../publishScheduledNode.js";
+import type * as usage from "../usage.js";
 import type * as users from "../users.js";
 import type * as vanda from "../vanda.js";
 import type * as visualBrand from "../visualBrand.js";
@@ -148,6 +149,7 @@ declare const fullApi: ApiFromModules<{
   "pipeline/visualBrand": typeof pipeline_visualBrand;
   publishScheduled: typeof publishScheduled;
   publishScheduledNode: typeof publishScheduledNode;
+  usage: typeof usage;
   users: typeof users;
   vanda: typeof vanda;
   visualBrand: typeof visualBrand;

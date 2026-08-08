@@ -44,6 +44,7 @@ import {
   openRouterSourceUnderstandingLayer,
   type SourceEvidence,
 } from "./pipeline/sourceUnderstanding";
+import { USAGE_LIMIT_MESSAGE } from "./usage";
 
 const ACTIVE_WINDOW_MS = 1000 * 60 * 60 * 24 * 30;
 const MIN_FOLLOWERS = 50;
@@ -371,6 +372,12 @@ export const qualifyOpportunity = internalAction({
     } | null = await ctx.runQuery(internal.market.loadQualificationSource, { opportunityId });
     if (!source) throw new Error("opportunity source not found");
     if (source.opportunity.status === "rejected") return false;
+    await ctx.runMutation(internal.usage.charge, {
+      accountId: source.opportunity.accountId,
+      kind: "scan",
+      usd: APIFY_QUALIFY_ESTIMATE_USD,
+      ref: "qualify",
+    });
     if (!source.opportunity.brandSnapshotId) {
       const snapshot: Doc<"brandSnapshots"> = await ctx.runMutation(
         internal.market.ensureBrandSnapshot,
@@ -792,10 +799,23 @@ export const measureAllPublications = internalAction({
   },
 });
 
-/** The manual button and hourly cron share this complete discover → observe entry point. */
+/** Flat Apify estimates per pass — tuned against the real bill via usageEvents. */
+const APIFY_OBSERVE_ESTIMATE_USD = 0.05;
+const APIFY_QUALIFY_ESTIMATE_USD = 0.01;
+
+/** The manual button and the daily cron share this complete discover → observe entry point. */
 export const runAccount = internalAction({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<MarketRunResult> => {
+    const budget = await ctx.runQuery(internal.usage.budget, { accountId });
+    if (!budget.ok) throw new Error(USAGE_LIMIT_MESSAGE);
+    // Charged up front: the Apify fetches happen regardless of what we find.
+    await ctx.runMutation(internal.usage.charge, {
+      accountId,
+      kind: "scan",
+      usd: APIFY_OBSERVE_ESTIMATE_USD,
+      ref: "market-run",
+    });
     let creators: ReadonlyArray<{
       readonly _id: Id<"marketCreators">;
       readonly relevanceScore: number;

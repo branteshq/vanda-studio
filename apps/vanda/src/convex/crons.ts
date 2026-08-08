@@ -5,10 +5,12 @@ const crons = cronJobs();
 
 // The market growth loop observes monitored creators and qualifies breakout
 // opportunities; publication metrics measures our own published posts.
-crons.interval("market growth loop", { hours: 1 }, internal.marketNode.runAllAccounts, {});
+// Cadence is a cost decision: each market pass burns real Apify + model money
+// against the account's usage budget (hourly would eat an entire plan alone).
+crons.interval("market growth loop", { hours: 24 }, internal.marketNode.runAllAccounts, {});
 crons.interval(
   "publication metrics",
-  { hours: 1 },
+  { hours: 6 },
   internal.marketNode.measureAllPublications,
   {},
 );

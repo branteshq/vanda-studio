@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type QueryCtx } from "./_generated/server";
+import { chargeUsage } from "./usage";
 
 const loadOwnedImage = async (ctx: QueryCtx, accountId: Id<"accounts">, imageId: Id<"images">) => {
   const image = await ctx.db.get(imageId);
@@ -86,6 +87,16 @@ export const savePaintedImage = internalMutation({
       ...(args.codeRunId ? { codeRunId: args.codeRunId } : {}),
       ...(args.editOfImageId ? { editOfImageId: args.editOfImageId } : {}),
     };
+    // run_code images carry a share of the sandbox cost for display, but the
+    // sandbox itself is charged once in finishCodeRun — only paints bill here.
+    if (args.costUsd && !args.codeRunId) {
+      await chargeUsage(ctx, {
+        accountId: args.accountId,
+        kind: "paint",
+        usd: args.costUsd,
+        ...(args.model ? { ref: args.model } : {}),
+      });
+    }
     if (args.placeholderId) {
       const placeholder = await ctx.db.get(args.placeholderId);
       if (!placeholder || placeholder.accountId !== args.accountId) {

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
+import { USAGE_LIMIT_MESSAGE } from "./usage";
 import { writeNeedsApproval } from "./workspace";
 
 /**
@@ -325,9 +326,34 @@ const discardProject = createTool({
   },
 });
 
+/** Fallback pricing when OpenRouter's in-band cost is missing (per token). */
+const CHAT_FALLBACK_USD_PER_INPUT_TOKEN = 2e-6;
+const CHAT_FALLBACK_USD_PER_OUTPUT_TOKEN = 8e-6;
+
 export const vanda = new Agent<VandaCtx>(components.agent, {
   name: "vanda",
-  languageModel: openrouter.chat(VANDA_MODEL),
+  // usage accounting makes OpenRouter return the exact request cost in-band.
+  languageModel: openrouter.chat(VANDA_MODEL, { usage: { include: true } }),
+  // Every chat turn burns the owner's usage meter. The thread's opaque userId
+  // is the account id (threadKey), which charge() resolves to the owner.
+  usageHandler: async (ctx, { userId, usage, providerMetadata, model }) => {
+    if (!userId) return;
+    const reported = (
+      providerMetadata?.openrouter as { usage?: { cost?: unknown } } | undefined
+    )?.usage?.cost;
+    const usd =
+      typeof reported === "number"
+        ? reported
+        : (usage.inputTokens ?? 0) * CHAT_FALLBACK_USD_PER_INPUT_TOKEN +
+          (usage.outputTokens ?? 0) * CHAT_FALLBACK_USD_PER_OUTPUT_TOKEN;
+    if (usd <= 0) return;
+    await ctx.runMutation(internal.usage.charge, {
+      accountId: userId as Id<"accounts">,
+      kind: "chat",
+      usd,
+      ref: model,
+    });
+  },
   instructions: INSTRUCTIONS,
   tools: {
     list: listFiles,
@@ -384,6 +410,8 @@ export const runCarouselCreation = internalAction({
   },
   handler: async (ctx, { accountId, creativeBriefId, threadId }): Promise<void> => {
     try {
+      const budget = await ctx.runQuery(internal.usage.budget, { accountId });
+      if (!budget.ok) throw new Error(USAGE_LIMIT_MESSAGE);
       const projectId = (await ctx.runAction(internal.contentStudioNode.createFromBriefInternal, {
         creativeBriefId,
       })) as Id<"contentProjects">;
@@ -418,6 +446,8 @@ export const runSlideRevision = internalAction({
   },
   handler: async (ctx, { accountId, projectId, slideId, instruction, threadId }): Promise<void> => {
     try {
+      const budget = await ctx.runQuery(internal.usage.budget, { accountId });
+      if (!budget.ok) throw new Error(USAGE_LIMIT_MESSAGE);
       await ctx.runAction(internal.contentStudioNode.regenerateSlideInternal, {
         projectId,
         slideId,

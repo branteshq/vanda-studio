@@ -23,6 +23,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
+import { budgetOf, USAGE_LIMIT_MESSAGE } from "./usage";
 import { vanda } from "./vanda";
 
 /**
@@ -166,7 +167,15 @@ export const sendMessage = mutation({
     ctx,
     { accountId, threadId, prompt, imageIds },
   ): Promise<{ threadId: string; messageId: string }> => {
-    await requireOwnedAccount(ctx, accountId);
+    const account = await requireOwnedAccount(ctx, accountId);
+    // The budget gate lives before any model work is scheduled: over the
+    // limit, nothing is generated (a generated apology would itself cost).
+    if (account.ownerUserId) {
+      const owner = await ctx.db.get(account.ownerUserId);
+      if (owner && !(await budgetOf(ctx, owner)).ok) {
+        throw new Error(USAGE_LIMIT_MESSAGE);
+      }
+    }
     const trimmed = prompt.trim();
     const images = await resolveMessageImages(ctx, accountId, imageIds ?? []);
     if (!trimmed && images.length === 0) throw new Error("mensagem vazia");
@@ -210,6 +219,7 @@ export const sendMessage = mutation({
     // the title lands, the sidebar shows a placeholder (title === null).
     if (!title) {
       await ctx.scheduler.runAfter(0, internal.chat.generateTitle, {
+        accountId,
         threadId: target,
         prompt: trimmed || "Imagem anexada",
       });
@@ -234,8 +244,13 @@ const VANDA_TITLE_MODEL = "openai/gpt-5.6-luna";
  * a title the owner set while the model was thinking.
  */
 export const generateTitle = internalAction({
-  args: { threadId: v.string(), prompt: v.string() },
-  handler: async (ctx, { threadId, prompt }): Promise<void> => {
+  args: {
+    // Optional keeps already-scheduled titles from older deployments compatible.
+    accountId: v.optional(v.id("accounts")),
+    threadId: v.string(),
+    prompt: v.string(),
+  },
+  handler: async (ctx, { accountId, threadId, prompt }): Promise<void> => {
     const fallback = prompt.length > 60 ? `${prompt.slice(0, 57)}…` : prompt;
     let title = fallback;
     try {
@@ -246,6 +261,7 @@ export const generateTitle = internalAction({
         headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
         body: JSON.stringify({
           model: VANDA_TITLE_MODEL,
+          usage: { include: true },
           messages: [
             {
               role: "system",
@@ -262,7 +278,16 @@ export const generateTitle = internalAction({
       if (!response.ok) throw new Error(`OpenRouter HTTP ${response.status}`);
       const json = (await response.json()) as {
         choices?: ReadonlyArray<{ message?: { content?: string } }>;
+        usage?: { cost?: number };
       };
+      if (accountId && typeof json.usage?.cost === "number" && json.usage.cost > 0) {
+        await ctx.runMutation(internal.usage.charge, {
+          accountId,
+          kind: "title",
+          usd: json.usage.cost,
+          ref: VANDA_TITLE_MODEL,
+        });
+      }
       const raw = (json.choices?.[0]?.message?.content ?? "")
         .trim()
         .replace(/^["'“”]+|["'“”]+$/g, "")

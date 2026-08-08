@@ -12,6 +12,7 @@ import {
   type SandboxRunResult,
 } from "./pipeline/codeExecution";
 import { CODE_IMAGE_MODEL } from "./imageModels";
+import { USAGE_LIMIT_MESSAGE } from "./usage";
 import { sniffImage } from "./pipeline/imageBytes";
 
 /** Sandbox output above this is rejected: nothing legitimate composes >32MP. */
@@ -78,6 +79,8 @@ export const run = internalAction({
     stderr: string;
     images: Array<{ imageId: Id<"images">; name: string; width: number; height: number }>;
   }> => {
+    const budget = await ctx.runQuery(internal.usage.budget, { accountId });
+    if (!budget.ok) throw new Error(USAGE_LIMIT_MESSAGE);
     const trimmedCode = code.trim();
     if (!trimmedCode) throw new Error("código vazio");
     const apiKey = process.env.E2B_API_KEY;

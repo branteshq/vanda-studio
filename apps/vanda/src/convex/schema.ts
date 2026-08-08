@@ -110,9 +110,39 @@ export default defineSchema({
     clerkId: v.string(),
     imageUrl: v.optional(v.string()),
     activeAccountId: v.optional(v.id("accounts")),
+    // Billing snapshot cached from Autumn so usage enforcement never leaves
+    // Convex: the active plan, its usage allowance, and the current period.
+    // Absent = trial (a one-time allowance, no period reset).
+    planId: v.optional(v.string()),
+    usageAllowanceMicroUsd: v.optional(v.number()),
+    billingPeriodStart: v.optional(v.number()),
+    billingPeriodEnd: v.optional(v.number()),
+    billingSyncedAt: v.optional(v.number()),
     createdAt: v.optional(v.number()),
     updatedAt: v.optional(v.number()),
   }).index("by_clerk_id", ["clerkId"]),
+
+  // ----- Usage metering: every real-money cost lands here -----------------
+  // The audit trail: one row per charge (paint, run_code, chat, pipeline,
+  // scan, title). userId is the enforcement key (subscriptions are per user,
+  // pooled across businesses); accountId attributes the spend to a business.
+  usageEvents: defineTable({
+    userId: v.id("users"),
+    accountId: v.optional(v.id("accounts")),
+    kind: v.string(),
+    microUsd: v.number(),
+    ref: v.optional(v.string()),
+    periodKey: v.string(),
+    createdAt: v.number(),
+  }).index("by_user_period", ["userId", "periodKey"]),
+
+  // O(1) balance checks: one counter row per user per billing period.
+  usagePeriods: defineTable({
+    userId: v.id("users"),
+    periodKey: v.string(),
+    spentMicroUsd: v.number(),
+    updatedAt: v.number(),
+  }).index("by_user_period", ["userId", "periodKey"]),
 
   instagramConnections: defineTable({
     userId: v.id("users"),

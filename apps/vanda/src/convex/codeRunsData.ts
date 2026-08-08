@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery } from "./_generated/server";
+import { chargeUsage } from "./usage";
 import { resolveImagePath } from "./workspace/resolveImage";
 import { entityName, imageFileParts } from "./workspace/types";
 
@@ -109,5 +110,13 @@ export const finishCodeRun = internalMutation({
     const run = await ctx.db.get(codeRunId);
     if (!run || run.status !== "running") return;
     await ctx.db.patch(codeRunId, outcome);
+    if (outcome.costUsd) {
+      await chargeUsage(ctx, {
+        accountId: run.accountId,
+        kind: "run_code",
+        usd: outcome.costUsd,
+        ref: String(codeRunId),
+      });
+    }
   },
 });

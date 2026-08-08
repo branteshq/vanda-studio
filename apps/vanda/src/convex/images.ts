@@ -8,6 +8,7 @@ import type { Id } from "./_generated/dataModel";
 import { internalAction, type ActionCtx } from "./_generated/server";
 import { ImageAssetGenerator, openRouterImageGeneratorLayer } from "./pipeline/imageGeneration";
 import { MAX_DECODE_PIXELS, sniffImage } from "./pipeline/imageBytes";
+import { USAGE_LIMIT_MESSAGE } from "./usage";
 import {
   DEFAULT_IMAGE_MODEL,
   clampResolution,
@@ -149,6 +150,9 @@ async function paintImage(
   {
     const trimmedPrompt = prompt.trim();
     if (!trimmedPrompt) throw new Error("image prompt is empty");
+
+    const budget = await ctx.runQuery(internal.usage.budget, { accountId });
+    if (!budget.ok) throw new Error(USAGE_LIMIT_MESSAGE);
 
     // Identity wall: account ownership and reference authorization are checked
     // in a database query before any URL reaches the image model.
