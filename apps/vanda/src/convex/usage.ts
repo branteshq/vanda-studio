@@ -7,6 +7,7 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
+import { tierOfPlan } from "./billing/plans";
 
 /**
  * The usage meter: every real-money cost (model calls, image generation,
@@ -34,9 +35,6 @@ export const TIER_ALLOWANCE_MICRO_USD: Record<string, number> = {
 
 /** One-time pool for users without a subscription (≈ R$7). */
 export const TRIAL_ALLOWANCE_MICRO_USD = microUsdFromBrl(7);
-
-/** Plan ids in Autumn are `<tier>` or `<tier>-anual`; the tier decides usage. */
-export const tierOfPlan = (planId: string): string => planId.replace(/-anual$/, "");
 
 export const allowanceForPlan = (planId: string | undefined): number =>
   planId === undefined

@@ -31,6 +31,9 @@ export const PLAN_PRODUCT_IDS = PLAN_TIERS.flatMap((tier) => [
   tier.annual.productId,
 ]);
 
+/** Plan ids in Autumn are `<tier>` or `<tier>-anual`; the tier decides usage. */
+export const tierOfPlan = (planId: string): string => planId.replace(/-anual$/, "");
+
 export const planLabel = (planId: string | null): string => {
   if (!planId) return "Teste grátis";
   const tier = PLAN_TIERS.find(

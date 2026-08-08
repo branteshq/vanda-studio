@@ -3,7 +3,7 @@ import { useClerk, useUser } from "@clerk/tanstack-react-start";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAction } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
-import { ArrowLeft, FileCode2, LogOut, NotebookPen } from "lucide-react";
+import { ArrowLeft, Check, FileCode2, LogOut, NotebookPen } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@vanda-studio/ui/components/avatar";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Markdown } from "@vanda-studio/ui/components/markdown";
@@ -11,7 +11,7 @@ import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
-import { PLAN_TIERS, planLabel } from "../convex/billing/plans";
+import { PLAN_TIERS, planLabel, tierOfPlan } from "../convex/billing/plans";
 import { parseBrandKit } from "../convex/workspace/brandKit";
 import { useActiveAccount } from "../components/active-account";
 
@@ -25,9 +25,10 @@ export const Route = createFileRoute("/_dashboard/perfil")({
  * (the dashboard layout skips the sidebar chrome for this route).
  */
 
-type TabKey = "marca" | "memoria" | "templates";
+type TabKey = "conta" | "marca" | "memoria" | "templates";
 
 const TABS: Array<{ key: TabKey; label: string }> = [
+  { key: "conta", label: "Conta" },
   { key: "marca", label: "Marca" },
   { key: "memoria", label: "Memória" },
   { key: "templates", label: "Templates" },
@@ -50,7 +51,7 @@ function ProfilePage() {
   const ready = accounts?.filter((account) => account.onboardedAt !== null) ?? [];
   const [viewedId, setViewedId] = useState<Id<"accounts"> | null>(null);
   const viewed = ready.find((account) => account.id === viewedId) ?? activeAccount ?? ready[0];
-  const [tab, setTab] = useState<TabKey>("marca");
+  const [tab, setTab] = useState<TabKey>("conta");
 
   const name = user?.fullName ?? user?.username ?? "Minha conta";
   const email = user?.primaryEmailAddress?.emailAddress ?? null;
@@ -89,7 +90,7 @@ function ProfilePage() {
             <h1 className="mt-4 text-lg font-semibold tracking-tight">{name}</h1>
             {email ? <p className="mt-0.5 text-body-sm text-text-3">{email}</p> : null}
 
-            <PlanSection />
+            <UsageCard />
 
             <section className="mt-8 w-full">
               <h2 className="section-label px-1 text-text-3">Negócios</h2>
@@ -154,7 +155,12 @@ function ProfilePage() {
               ))}
             </div>
 
-            {viewed ? (
+            {tab === "conta" ? (
+              <div className="mt-6">
+                <AccountTab />
+              </div>
+            ) : null}
+            {viewed && tab !== "conta" ? (
               // Keyed by account so file selections reset when switching business.
               <div key={viewed.id} className="mt-6 space-y-6">
                 {tab === "marca" ? <BrandTab accountId={viewed.id} /> : null}
@@ -188,49 +194,16 @@ function ProfilePage() {
 }
 
 /**
- * The t3-style plan block: current plan, the usage bar (the owner only ever
- * sees a percentage — never the underlying money), and subscribe/manage
- * actions riding Autumn checkout + billing portal.
+ * The t3-style usage block in the left column: the plan name and the bar —
+ * the owner only ever sees a percentage, never the underlying money.
  */
-function PlanSection() {
+function UsageCard() {
   const summary = useQuery(api.usage.summary);
-  const syncBilling = useAction(api.billing.autumn.syncBilling);
-  const startCheckout = useAction(api.billing.autumn.startCheckout);
-  const getPortalUrl = useAction(api.billing.autumn.getBillingPortalUrl);
-  const [busy, setBusy] = useState<string | null>(null);
-
-  // Refresh the enforcement snapshot from Autumn whenever the page opens —
-  // this is also the post-checkout landing, so new subscriptions take effect
-  // the moment Stripe redirects back.
-  useEffect(() => {
-    void syncBilling().catch(() => {});
-  }, [syncBilling]);
-
-  const subscribe = async (planId: string) => {
-    setBusy(planId);
-    try {
-      const { checkoutUrl } = await startCheckout({ planId });
-      if (checkoutUrl) window.location.href = checkoutUrl;
-    } finally {
-      setBusy(null);
-    }
-  };
-  const manage = async () => {
-    setBusy("portal");
-    try {
-      const { url } = await getPortalUrl();
-      if (url) window.location.href = url;
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const pct = summary?.usedPct ?? 0;
-  const subscribed = summary?.plan != null;
 
   return (
     <section className="mt-8 w-full">
-      <h2 className="section-label px-1 text-text-3">Plano</h2>
+      <h2 className="section-label px-1 text-text-3">Uso do plano</h2>
       <div className="mt-2 rounded-xl border border-border bg-surface p-4 text-left">
         {summary === undefined ? (
           <div className="space-y-2" aria-hidden>
@@ -269,55 +242,207 @@ function PlanSection() {
           </>
         )}
       </div>
-
-      {subscribed ? (
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-2 w-full"
-          disabled={busy !== null}
-          onClick={() => void manage()}
-        >
-          {busy === "portal" ? "Abrindo…" : "Gerenciar assinatura"}
-        </Button>
-      ) : (
-        <div className="mt-2 space-y-2">
-          {PLAN_TIERS.map((tier) => (
-            <div key={tier.tier} className="rounded-xl border border-border bg-surface p-4">
-              <div className="flex items-baseline justify-between gap-2">
-                <p className="text-body font-semibold">{tier.label}</p>
-                <p className="text-body-sm text-text-2">
-                  R${tier.monthly.priceBrl}
-                  <span className="text-text-4">/mês</span>
-                </p>
-              </div>
-              <p className="mt-0.5 text-xs text-text-4">
-                ou R${tier.annual.perMonthBrl}/mês no plano anual
-              </p>
-              <div className="mt-3 flex gap-2">
-                <Button
-                  size="sm"
-                  className="flex-1"
-                  disabled={busy !== null}
-                  onClick={() => void subscribe(tier.monthly.productId)}
-                >
-                  {busy === tier.monthly.productId ? "Abrindo…" : "Mensal"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  disabled={busy !== null}
-                  onClick={() => void subscribe(tier.annual.productId)}
-                >
-                  {busy === tier.annual.productId ? "Abrindo…" : "Anual"}
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </section>
+  );
+}
+
+const TIER_FEATURES: Record<string, string[]> = {
+  trial: [
+    "Crédito único para experimentar tudo",
+    "Todos os recursos incluídos",
+    "Sem cartão de crédito",
+  ],
+  basico: [
+    "Limite mensal de uso completo",
+    "Radar de mercado diário",
+    "Carrosséis, imagens e edições com IA",
+  ],
+  profissional: [
+    "Tudo do Básico",
+    "50% mais limite de uso por mês",
+    "Para quem publica com frequência",
+  ],
+};
+
+/**
+ * The account tab, t3-style: choose-your-plan cards side by side with a
+ * monthly/annual switch, plus the billing portal for whoever is subscribed.
+ * Checkout and portal ride Autumn; the enforcement snapshot re-syncs on every
+ * visit — this page is also the post-checkout landing.
+ */
+function AccountTab() {
+  const summary = useQuery(api.usage.summary);
+  const syncBilling = useAction(api.billing.autumn.syncBilling);
+  const startCheckout = useAction(api.billing.autumn.startCheckout);
+  const getPortalUrl = useAction(api.billing.autumn.getBillingPortalUrl);
+  const [interval, setInterval] = useState<"monthly" | "annual">("monthly");
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    void syncBilling().catch(() => {});
+  }, [syncBilling]);
+
+  const currentTier = summary?.plan ? tierOfPlan(summary.plan) : null;
+
+  const subscribe = async (planId: string) => {
+    setBusy(planId);
+    try {
+      const { checkoutUrl } = await startCheckout({ planId });
+      if (checkoutUrl) window.location.href = checkoutUrl;
+    } finally {
+      setBusy(null);
+    }
+  };
+  const manage = async () => {
+    setBusy("portal");
+    try {
+      const { url } = await getPortalUrl();
+      if (url) window.location.href = url;
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold tracking-tight">Escolha seu plano</h2>
+        {currentTier ? (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busy !== null}
+            onClick={() => void manage()}
+          >
+            {busy === "portal" ? "Abrindo…" : "Gerenciar cobrança e faturas"}
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="mt-4 flex w-fit gap-1 rounded-lg border border-border bg-surface p-1">
+        {(
+          [
+            { key: "monthly", label: "Mensal" },
+            { key: "annual", label: "Anual · 12x" },
+          ] as const
+        ).map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={interval === key}
+            onClick={() => setInterval(key)}
+            className={cn(
+              "rounded-md px-3.5 py-1.5 text-body-sm font-medium transition-colors duration-150 ease-[var(--ease-out)]",
+              interval === key ? "bg-muted text-text" : "text-text-3 hover:text-text",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-3">
+        <PlanCard
+          title="Teste grátis"
+          priceLine={<span className="text-xl font-semibold">R$0</span>}
+          features={TIER_FEATURES.trial!}
+          action={
+            currentTier === null ? (
+              <Button variant="outline" size="sm" className="w-full" disabled>
+                Plano atual
+              </Button>
+            ) : null
+          }
+        />
+        {PLAN_TIERS.map((tier) => {
+          const price = interval === "monthly" ? tier.monthly : tier.annual;
+          const perMonth = interval === "monthly" ? tier.monthly.priceBrl : tier.annual.perMonthBrl;
+          const current = currentTier === tier.tier;
+          return (
+            <PlanCard
+              key={tier.tier}
+              title={tier.label}
+              highlight={tier.tier === "profissional"}
+              badge={tier.tier === "profissional" ? "Mais popular" : undefined}
+              priceLine={
+                <>
+                  <span className="text-xl font-semibold">R${perMonth}</span>
+                  <span className="text-body-sm text-text-4">/mês</span>
+                  {interval === "annual" ? (
+                    <span className="block text-xs text-text-4">
+                      12x no plano anual · R${price.priceBrl}/ano
+                    </span>
+                  ) : null}
+                </>
+              }
+              features={TIER_FEATURES[tier.tier]!}
+              action={
+                current ? (
+                  <Button variant="outline" size="sm" className="w-full" disabled>
+                    Plano atual
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    disabled={busy !== null}
+                    onClick={() => void subscribe(price.productId)}
+                  >
+                    {busy === price.productId
+                      ? "Abrindo…"
+                      : currentTier
+                        ? "Mudar de plano"
+                        : "Assinar"}
+                  </Button>
+                )
+              }
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PlanCard({
+  title,
+  priceLine,
+  features,
+  action,
+  highlight = false,
+  badge,
+}: {
+  title: string;
+  priceLine: ReactNode;
+  features: string[];
+  action: ReactNode;
+  highlight?: boolean;
+  badge?: string | undefined;
+}) {
+  return (
+    <div
+      className={cn(
+        "relative flex flex-col rounded-xl border bg-surface p-5",
+        highlight ? "border-brand-accent/50" : "border-border",
+      )}
+    >
+      {badge ? (
+        <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-brand-accent px-2.5 py-0.5 text-[11px] font-semibold text-white">
+          {badge}
+        </span>
+      ) : null}
+      <h3 className="text-body font-semibold">{title}</h3>
+      <p className="mt-2">{priceLine}</p>
+      <ul className="mt-4 flex-1 space-y-2">
+        {features.map((feature) => (
+          <li key={feature} className="flex items-start gap-2 text-body-sm text-text-2">
+            <Check className="mt-0.5 size-3.5 shrink-0 text-brand-accent" />
+            {feature}
+          </li>
+        ))}
+      </ul>
+      <div className="mt-5">{action}</div>
+    </div>
   );
 }
 
