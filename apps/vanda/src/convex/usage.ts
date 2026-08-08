@@ -27,10 +27,14 @@ export const BRL_PER_USD = 5.5;
 
 const microUsdFromBrl = (brl: number): number => Math.round((brl / BRL_PER_USD) * 1_000_000);
 
-/** Usage allowance per plan tier, from the BRL cost budgets (R$20 / R$30). */
+/** Usage allowance per plan tier, from the BRL cost budgets (R$20 / R$30).
+ * Conectado's inference bills to the user's ChatGPT subscription; its
+ * allowance is an internal ceiling for what stays on us (scans, sandbox,
+ * pipeline estimates) — generous enough to never trip organically. */
 export const TIER_ALLOWANCE_MICRO_USD: Record<string, number> = {
   basico: microUsdFromBrl(20),
   profissional: microUsdFromBrl(30),
+  conectado: microUsdFromBrl(25),
 };
 
 /** One-time pool for users without a subscription (≈ R$7). */

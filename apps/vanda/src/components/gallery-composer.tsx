@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "convex/react";
+import { useQuery } from "convex-helpers/react/cache";
 import { Check, Sparkles } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Spinner } from "@vanda-studio/ui/components/spinner";
@@ -7,6 +8,7 @@ import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+import { tierOfPlan } from "../convex/billing/plans";
 import {
   DEFAULT_IMAGE_MODEL,
   IMAGE_MODELS,
@@ -14,6 +16,9 @@ import {
   sharedResolutions,
   type ImageResolution,
 } from "../convex/imageModels";
+
+/** Conectado subscribers paint exclusively with GPT Image 2 (their ChatGPT). */
+const CONNECTED_ONLY_MODEL = "openai/gpt-image-2";
 
 const ASPECT_RATIOS = ["1:1", "4:5", "9:16", "16:9"] as const;
 type AspectRatio = (typeof ASPECT_RATIOS)[number];
@@ -43,11 +48,19 @@ const RESOLUTION_LABEL: Record<ImageResolution, string> = {
  */
 export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
   const generate = useMutation(api.gallery.generate);
+  const summary = useQuery(api.usage.summary);
+  const connectedOnly = summary?.plan != null && tierOfPlan(summary.plan) === "conectado";
+  const availableModels = connectedOnly
+    ? IMAGE_MODELS.filter((model) => model.id === CONNECTED_ONLY_MODEL)
+    : IMAGE_MODELS;
   const [prompt, setPrompt] = useState("");
-  const [models, setModels] = useState<Set<string>>(new Set([DEFAULT_IMAGE_MODEL]));
+  const [selected, setSelected] = useState<Set<string>>(new Set([DEFAULT_IMAGE_MODEL]));
   const [aspect, setAspect] = useState<AspectRatio>("1:1");
   const [resolution, setResolution] = useState<ImageResolution>("1K");
   const [busy, setBusy] = useState(false);
+  // The backend forces gpt-image-2 for Conectado anyway; the picker mirrors it.
+  const models = connectedOnly ? new Set([CONNECTED_ONLY_MODEL]) : selected;
+  const setModels = setSelected;
 
   const total = models.size;
   const canGenerate = prompt.trim().length > 0 && total > 0 && total <= MAX_FANOUT && !busy;
@@ -111,7 +124,7 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
         <div>
           <span className="section-label mb-1.5 block text-sidebar-foreground/75">Modelos</span>
           <div className="space-y-2">
-            {IMAGE_MODELS.map((model) => {
+            {availableModels.map((model) => {
               const active = models.has(model.id);
               return (
                 <button

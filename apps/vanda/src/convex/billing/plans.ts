@@ -5,10 +5,11 @@
  */
 
 export interface PlanTier {
-  tier: "basico" | "profissional";
+  tier: "basico" | "profissional" | "conectado";
   label: string;
   monthly: { productId: string; priceBrl: number };
-  annual: { productId: string; priceBrl: number; perMonthBrl: number };
+  /** Absent = monthly-only plan (Conectado). */
+  annual?: { productId: string; priceBrl: number; perMonthBrl: number };
 }
 
 export const PLAN_TIERS: readonly PlanTier[] = [
@@ -24,11 +25,17 @@ export const PLAN_TIERS: readonly PlanTier[] = [
     monthly: { productId: "profissional", priceBrl: 146 },
     annual: { productId: "profissional-anual", priceBrl: 1584, perMonthBrl: 132 },
   },
+  {
+    // BYO inference: the user's ChatGPT subscription powers text and images.
+    tier: "conectado",
+    label: "ChatGPT",
+    monthly: { productId: "conectado", priceBrl: 50 },
+  },
 ];
 
 export const PLAN_PRODUCT_IDS = PLAN_TIERS.flatMap((tier) => [
   tier.monthly.productId,
-  tier.annual.productId,
+  ...(tier.annual ? [tier.annual.productId] : []),
 ]);
 
 /** Plan ids in Autumn are `<tier>` or `<tier>-anual`; the tier decides usage. */
@@ -38,8 +45,9 @@ export const planLabel = (planId: string | null): string => {
   if (!planId) return "Teste grátis";
   const tier = PLAN_TIERS.find(
     (candidate) =>
-      candidate.monthly.productId === planId || candidate.annual.productId === planId,
+      candidate.monthly.productId === planId || candidate.annual?.productId === planId,
   );
   if (!tier) return planId;
+  if (tier.tier === "conectado") return tier.label;
   return planId.endsWith("-anual") ? `${tier.label} · anual` : `${tier.label} · mensal`;
 };

@@ -336,8 +336,11 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
   languageModel: openrouter.chat(VANDA_MODEL, { usage: { include: true } }),
   // Every chat turn burns the owner's usage meter. The thread's opaque userId
   // is the account id (threadKey), which charge() resolves to the owner.
-  usageHandler: async (ctx, { userId, usage, providerMetadata, model }) => {
+  usageHandler: async (ctx, { userId, usage, providerMetadata, model, provider }) => {
     if (!userId) return;
+    // Conectado plan turns run on the owner's ChatGPT subscription (the
+    // openai provider) — their money, not the Vanda meter.
+    if (!provider.includes("openrouter")) return;
     const reported = (
       providerMetadata?.openrouter as { usage?: { cost?: unknown } } | undefined
     )?.usage?.cost;

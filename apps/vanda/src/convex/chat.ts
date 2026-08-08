@@ -23,8 +23,9 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
+import { codexChatModel, codexResponsesText } from "./pipeline/codex";
 import { budgetOf, USAGE_LIMIT_MESSAGE } from "./usage";
-import { vanda } from "./vanda";
+import { vanda, VANDA_MODEL } from "./vanda";
 
 /**
  * The account's Vanda conversations. Multi-thread: the agent component owns
@@ -252,48 +253,64 @@ export const generateTitle = internalAction({
   },
   handler: async (ctx, { accountId, threadId, prompt }): Promise<void> => {
     const fallback = prompt.length > 60 ? `${prompt.slice(0, 57)}…` : prompt;
+    const system =
+      "Você nomeia conversas de um estúdio de marketing para Instagram. Responda APENAS " +
+      "com um título curto (3 a 6 palavras) em português do Brasil que resuma o pedido " +
+      "do usuário. Sem aspas, sem ponto final, sem emojis, sem explicações.";
     let title = fallback;
     try {
-      const apiKey = process.env.OPENROUTER_API_KEY;
-      if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set");
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-        body: JSON.stringify({
-          model: VANDA_TITLE_MODEL,
-          usage: { include: true },
-          messages: [
-            {
-              role: "system",
-              content:
-                "Você nomeia conversas de um estúdio de marketing para Instagram. Responda APENAS " +
-                "com um título curto (3 a 6 palavras) em português do Brasil que resuma o pedido " +
-                "do usuário. Sem aspas, sem ponto final, sem emojis, sem explicações.",
-            },
-            { role: "user", content: prompt.slice(0, 2000) },
-          ],
-          max_tokens: 100,
-        }),
-      });
-      if (!response.ok) throw new Error(`OpenRouter HTTP ${response.status}`);
-      const json = (await response.json()) as {
-        choices?: ReadonlyArray<{ message?: { content?: string } }>;
-        usage?: { cost?: number };
-      };
-      if (accountId && typeof json.usage?.cost === "number" && json.usage.cost > 0) {
-        await ctx.runMutation(internal.usage.charge, {
-          accountId,
-          kind: "title",
-          usd: json.usage.cost,
-          ref: VANDA_TITLE_MODEL,
+      const sub = accountId
+        ? await ctx.runQuery(internal.openaiSub.subscriberState, { accountId })
+        : { active: false as const, userId: null };
+      let raw: string;
+      if (sub.active && sub.userId) {
+        // Conectado plan: luna through the owner's ChatGPT subscription.
+        const auth = await ctx.runAction(internal.openaiSubNode.getAccess, {
+          userId: sub.userId,
         });
+        raw = await codexResponsesText({
+          auth,
+          model: VANDA_TITLE_MODEL,
+          system,
+          prompt: prompt.slice(0, 2000),
+        });
+      } else {
+        const apiKey = process.env.OPENROUTER_API_KEY;
+        if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set");
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+          body: JSON.stringify({
+            model: VANDA_TITLE_MODEL,
+            usage: { include: true },
+            messages: [
+              { role: "system", content: system },
+              { role: "user", content: prompt.slice(0, 2000) },
+            ],
+            max_tokens: 100,
+          }),
+        });
+        if (!response.ok) throw new Error(`OpenRouter HTTP ${response.status}`);
+        const json = (await response.json()) as {
+          choices?: ReadonlyArray<{ message?: { content?: string } }>;
+          usage?: { cost?: number };
+        };
+        if (accountId && typeof json.usage?.cost === "number" && json.usage.cost > 0) {
+          await ctx.runMutation(internal.usage.charge, {
+            accountId,
+            kind: "title",
+            usd: json.usage.cost,
+            ref: VANDA_TITLE_MODEL,
+          });
+        }
+        raw = json.choices?.[0]?.message?.content ?? "";
       }
-      const raw = (json.choices?.[0]?.message?.content ?? "")
+      const cleaned = raw
         .trim()
         .replace(/^["'“”]+|["'“”]+$/g, "")
         .replace(/\.+$/, "")
         .trim();
-      if (raw) title = raw.slice(0, 80);
+      if (cleaned) title = cleaned.slice(0, 80);
     } catch {
       // fallback title stands
     }
@@ -314,10 +331,20 @@ export const generateResponse = internalAction({
   },
   handler: async (ctx, { accountId, threadId, promptMessageId, activityId }): Promise<void> => {
     try {
+      // Conectado plan: the same orchestrator model, billed to the owner's
+      // ChatGPT subscription instead of OpenRouter.
+      const sub = await ctx.runQuery(internal.openaiSub.subscriberState, { accountId });
+      const model =
+        sub.active && sub.userId
+          ? codexChatModel(
+              await ctx.runAction(internal.openaiSubNode.getAccess, { userId: sub.userId }),
+              VANDA_MODEL,
+            )
+          : undefined;
       const result = await vanda.streamText(
         { ...ctx, accountId },
         { threadId },
-        { promptMessageId },
+        { promptMessageId, ...(model ? { model } : {}) },
         { saveStreamDeltas: true },
       );
       await result.consumeStream();

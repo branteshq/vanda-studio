@@ -6,6 +6,7 @@ import * as Effect from "effect/Effect";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction, type ActionCtx } from "./_generated/server";
+import { codexGenerateImage } from "./pipeline/codex";
 import { ImageAssetGenerator, openRouterImageGeneratorLayer } from "./pipeline/imageGeneration";
 import { MAX_DECODE_PIXELS, sniffImage } from "./pipeline/imageBytes";
 import { USAGE_LIMIT_MESSAGE } from "./usage";
@@ -195,22 +196,39 @@ async function paintImage(
         }, 2500)
       : undefined;
 
+    // Conectado plan: every paint runs gpt-image-2 on the owner's ChatGPT
+    // subscription — model choice collapses, cost to the Vanda meter is zero.
+    const sub = await ctx.runQuery(internal.openaiSub.subscriberState, { accountId });
+
     const startedAt = Date.now();
     let generated;
     try {
-      generated = await Effect.runPromise(
-        Effect.flatMap(ImageAssetGenerator, (generator) =>
-          generator.generate({
-            prompt: trimmedPrompt,
-            aspectRatio,
-            // 1K is every provider's default; sending the param only when
-            // raising keeps models without the knob (gpt-image, flux) happy.
-            ...(tier !== "1K" ? { resolution: tier } : {}),
-            ...(inputReferences.length > 0 ? { referenceUrls: inputReferences } : {}),
-            signal: abort.signal,
-          }),
-        ).pipe(Effect.provide(openRouterImageGeneratorLayer({ apiKey, model: selectedModel }))),
-      );
+      if (sub.active && sub.userId) {
+        const auth = await ctx.runAction(internal.openaiSubNode.getAccess, {
+          userId: sub.userId,
+        });
+        generated = await codexGenerateImage({
+          auth,
+          prompt: trimmedPrompt,
+          aspectRatio,
+          ...(inputReferences.length > 0 ? { referenceUrls: inputReferences } : {}),
+          signal: abort.signal,
+        });
+      } else {
+        generated = await Effect.runPromise(
+          Effect.flatMap(ImageAssetGenerator, (generator) =>
+            generator.generate({
+              prompt: trimmedPrompt,
+              aspectRatio,
+              // 1K is every provider's default; sending the param only when
+              // raising keeps models without the knob (gpt-image, flux) happy.
+              ...(tier !== "1K" ? { resolution: tier } : {}),
+              ...(inputReferences.length > 0 ? { referenceUrls: inputReferences } : {}),
+              signal: abort.signal,
+            }),
+          ).pipe(Effect.provide(openRouterImageGeneratorLayer({ apiKey, model: selectedModel }))),
+        );
+      }
     } catch (error) {
       if (cancelled) throw new Error("geração interrompida pelo dono", { cause: error });
       throw error;
@@ -264,7 +282,7 @@ async function paintImage(
       mimeType,
       width,
       height,
-      model: selectedModel,
+      model: sub.active ? "openai/gpt-image-2" : selectedModel,
       generationMs,
       ...(name && name.trim() ? { name: name.trim() } : {}),
       ...(generated.costUsd !== undefined ? { costUsd: generated.costUsd } : {}),

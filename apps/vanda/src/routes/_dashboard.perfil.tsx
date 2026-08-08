@@ -1,13 +1,14 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useClerk, useUser } from "@clerk/tanstack-react-start";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useAction } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
 import { ArrowLeft, Check, FileCode2, LogOut, NotebookPen } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@vanda-studio/ui/components/avatar";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Markdown } from "@vanda-studio/ui/components/markdown";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
+import { Spinner } from "@vanda-studio/ui/components/spinner";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
@@ -210,6 +211,14 @@ function UsageCard() {
             <Skeleton className="h-3.5 w-24" />
             <Skeleton className="h-1.5 w-full rounded-full" />
           </div>
+        ) : summary?.plan && tierOfPlan(summary.plan) === "conectado" ? (
+          // Conectado: inference rides the owner's ChatGPT — no bar to show.
+          <>
+            <p className="text-body font-medium">{planLabel(summary.plan)}</p>
+            <p className="mt-1 text-xs text-text-4">
+              Inferência pela sua assinatura do ChatGPT — uso incluído.
+            </p>
+          </>
         ) : (
           <>
             <div className="flex items-baseline justify-between gap-2">
@@ -261,6 +270,11 @@ const TIER_FEATURES: Record<string, string[]> = {
     "Tudo do Básico",
     "50% mais limite de uso por mês",
     "Para quem publica com frequência",
+  ],
+  conectado: [
+    "Conecte sua assinatura do ChatGPT",
+    "Texto e imagens pelo seu plano OpenAI",
+    "GPT Image 2 — o melhor modelo de imagem",
   ],
 };
 
@@ -360,7 +374,7 @@ function AccountTab() {
         ))}
       </div>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-3">
+      <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <PlanCard
           title="Teste grátis"
           priceLine={<span className="text-xl font-semibold">R$0</span>}
@@ -374,23 +388,33 @@ function AccountTab() {
           }
         />
         {PLAN_TIERS.map((tier) => {
-          const price = interval === "monthly" ? tier.monthly : tier.annual;
-          const perMonth = interval === "monthly" ? tier.monthly.priceBrl : tier.annual.perMonthBrl;
+          // Monthly-only tiers (Conectado) ignore the interval switch.
+          const annual = interval === "annual" ? tier.annual : undefined;
+          const price = annual ?? tier.monthly;
+          const perMonth = annual ? annual.perMonthBrl : tier.monthly.priceBrl;
           const current = currentTier === tier.tier;
           return (
             <PlanCard
               key={tier.tier}
               title={tier.label}
               highlight={tier.tier === "profissional"}
-              badge={tier.tier === "profissional" ? "Mais popular" : undefined}
+              badge={
+                tier.tier === "profissional"
+                  ? "Mais popular"
+                  : tier.tier === "conectado"
+                    ? "Traga sua assinatura"
+                    : undefined
+              }
               priceLine={
                 <>
                   <span className="text-xl font-semibold">R${perMonth}</span>
                   <span className="text-body-sm text-text-4">/mês</span>
-                  {interval === "annual" ? (
+                  {annual ? (
                     <span className="block text-xs text-text-4">
-                      12x no plano anual · R${price.priceBrl}/ano
+                      12x no plano anual · R${annual.priceBrl}/ano
                     </span>
+                  ) : interval === "annual" ? (
+                    <span className="block text-xs text-text-4">somente mensal</span>
                   ) : null}
                 </>
               }
@@ -419,6 +443,121 @@ function AccountTab() {
           );
         })}
       </div>
+
+      {currentTier === "conectado" ? <OpenAiConnectCard /> : null}
+    </div>
+  );
+}
+
+/**
+ * The Conectado plan's OpenAI connection card: shows connection state and
+ * runs the device-code flow — a short code the owner types at openai.com,
+ * polled here until approval lands.
+ */
+function OpenAiConnectCard() {
+  const status = useQuery(api.openaiSub.connectionStatus);
+  const startDeviceAuth = useAction(api.openaiSub.startDeviceAuth);
+  const pollDeviceAuth = useAction(api.openaiSub.pollDeviceAuth);
+  const disconnect = useMutation(api.openaiSub.disconnect);
+  const [device, setDevice] = useState<{
+    deviceAuthId: string;
+    userCode: string;
+    verificationUri: string;
+    intervalSeconds: number;
+  } | null>(null);
+  const [flowState, setFlowState] = useState<"idle" | "starting" | "waiting" | "failed">("idle");
+  const [flowError, setFlowError] = useState<string | null>(null);
+
+  // Poll while a device code is outstanding; stop on approval or failure.
+  useEffect(() => {
+    if (!device || flowState !== "waiting") return;
+    let cancelled = false;
+    const timer = setInterval(
+      () => {
+        void pollDeviceAuth({ deviceAuthId: device.deviceAuthId, userCode: device.userCode })
+          .then((result) => {
+            if (cancelled) return;
+            if (result.status === "complete") {
+              setDevice(null);
+              setFlowState("idle");
+            } else if (result.status === "failed") {
+              setFlowError(result.message ?? "A conexão falhou. Tente de novo.");
+              setFlowState("failed");
+            }
+          })
+          .catch(() => {});
+      },
+      Math.max(device.intervalSeconds, 3) * 1000,
+    );
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [device, flowState, pollDeviceAuth]);
+
+  const connect = async () => {
+    setFlowState("starting");
+    setFlowError(null);
+    try {
+      const info = await startDeviceAuth();
+      setDevice(info);
+      setFlowState("waiting");
+    } catch (cause) {
+      setFlowError(cause instanceof Error ? cause.message : String(cause));
+      setFlowState("failed");
+    }
+  };
+
+  return (
+    <div className="mt-4 rounded-xl border border-border bg-surface p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-body font-semibold">Conta OpenAI</h3>
+          <p className="mt-0.5 text-body-sm text-text-3">
+            {status?.connected
+              ? "Conectada — a Vanda usa a sua assinatura do ChatGPT para textos e imagens."
+              : "Conecte sua conta para a Vanda usar a sua assinatura do ChatGPT."}
+          </p>
+        </div>
+        {status?.connected ? (
+          <Button variant="outline" size="sm" onClick={() => void disconnect()}>
+            Desconectar
+          </Button>
+        ) : flowState === "waiting" ? null : (
+          <Button size="sm" disabled={flowState === "starting"} onClick={() => void connect()}>
+            {flowState === "starting" ? "Gerando código…" : "Conectar OpenAI"}
+          </Button>
+        )}
+      </div>
+
+      {!status?.connected && device && flowState === "waiting" ? (
+        <div className="mt-4 rounded-lg border border-border bg-muted/40 p-4 text-center">
+          <p className="text-body-sm text-text-3">
+            Acesse{" "}
+            <a
+              href={device.verificationUri}
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-text underline underline-offset-2"
+            >
+              {device.verificationUri.replace("https://", "")}
+            </a>{" "}
+            e digite o código:
+          </p>
+          <p className="mt-2 font-mono text-2xl font-semibold tracking-[0.3em]">
+            {device.userCode}
+          </p>
+          <p className="mt-2 flex items-center justify-center gap-2 text-xs text-text-4">
+            <Spinner className="size-3" /> aguardando aprovação…
+          </p>
+        </div>
+      ) : null}
+
+      {flowError ? (
+        <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-body-sm text-destructive">
+          {flowError}
+        </p>
+      ) : null}
     </div>
   );
 }
