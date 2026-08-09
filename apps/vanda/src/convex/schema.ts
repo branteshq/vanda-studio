@@ -118,6 +118,8 @@ export default defineSchema({
     billingPeriodStart: v.optional(v.number()),
     billingPeriodEnd: v.optional(v.number()),
     billingSyncedAt: v.optional(v.number()),
+    // A plan change Autumn deferred to the next renewal (downgrades).
+    scheduledPlanId: v.optional(v.string()),
     // BYO OpenAI subscription (plano Conectado): ChatGPT OAuth tokens,
     // AES-256-GCM encrypted like the Instagram connection tokens.
     openaiAccountId: v.optional(v.string()),

@@ -164,6 +164,7 @@ export const summary = query({
     ctx,
   ): Promise<{
     plan: string | null;
+    scheduledPlan: string | null;
     usedPct: number;
     limited: boolean;
     renewsAt: number | null;
@@ -182,6 +183,7 @@ export const summary = query({
         : 100;
     return {
       plan: user.planId ?? null,
+      scheduledPlan: user.scheduledPlanId ?? null,
       usedPct,
       limited: !state.ok,
       renewsAt: user.planId ? (user.billingPeriodEnd ?? null) : null,

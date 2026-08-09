@@ -29,6 +29,7 @@ interface BillingSnapshot {
   planId: string | null;
   periodStart: number | null;
   periodEnd: number | null;
+  scheduledPlanId: string | null;
   status: "active" | "trialing" | "none";
 }
 
@@ -36,11 +37,23 @@ const snapshotOf = (customer: { products?: CustomerProduct[] } | null): BillingS
   const active = customer?.products?.find(
     (product) => product.status === "active" || product.status === "trialing",
   );
-  if (!active?.id) return { planId: null, periodStart: null, periodEnd: null, status: "none" };
+  // Downgrades don't switch immediately — Autumn schedules them for the next
+  // renewal. The UI needs to know, or the owner clicks "change plan" twice.
+  const scheduled = customer?.products?.find((product) => product.status === "scheduled");
+  if (!active?.id) {
+    return {
+      planId: null,
+      periodStart: null,
+      periodEnd: null,
+      scheduledPlanId: scheduled?.id ?? null,
+      status: "none",
+    };
+  }
   return {
     planId: active.id,
     periodStart: active.current_period_start ?? active.started_at ?? null,
     periodEnd: active.current_period_end ?? null,
+    scheduledPlanId: scheduled?.id ?? null,
     status: active.status === "trialing" ? "trialing" : "active",
   };
 };
@@ -52,8 +65,9 @@ export const applySnapshot = internalMutation({
     planId: v.union(v.string(), v.null()),
     periodStart: v.union(v.number(), v.null()),
     periodEnd: v.union(v.number(), v.null()),
+    scheduledPlanId: v.optional(v.union(v.string(), v.null())),
   },
-  handler: async (ctx, { clerkId, planId, periodStart, periodEnd }) => {
+  handler: async (ctx, { clerkId, planId, periodStart, periodEnd, scheduledPlanId }) => {
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
@@ -64,6 +78,7 @@ export const applySnapshot = internalMutation({
       usageAllowanceMicroUsd: allowanceForPlan(planId ?? undefined),
       billingPeriodStart: periodStart ?? undefined,
       billingPeriodEnd: periodEnd ?? undefined,
+      scheduledPlanId: scheduledPlanId ?? undefined,
       billingSyncedAt: Date.now(),
       updatedAt: Date.now(),
     });
@@ -84,6 +99,7 @@ export const syncBilling = action({
       planId: snapshot.planId,
       periodStart: snapshot.periodStart,
       periodEnd: snapshot.periodEnd,
+      scheduledPlanId: snapshot.scheduledPlanId,
     });
     return snapshot;
   },
@@ -110,7 +126,14 @@ export const startCheckout = action({
     // No payment page needed (card on file, upgrades, sandbox): Autumn's
     // checkout is only a preview — attach executes the purchase.
     const attach = await autumn.attach(ctx, { productId: args.planId });
-    if (attach.error) throw new Error(attach.error.message || "Autumn attach failed");
+    if (attach.error) {
+      const message = attach.error.message || "Autumn attach failed";
+      // Downgrades are deferred to the renewal; a second click hits this.
+      if (message.includes("already scheduled")) {
+        throw new Error("Essa mudança de plano já está agendada para a próxima renovação.");
+      }
+      throw new Error(message);
+    }
     return { checkoutUrl: null, attached: true };
   },
 });
@@ -165,6 +188,7 @@ export const syncAllSubscribed = internalAction({
           planId: snapshot.planId,
           periodStart: snapshot.periodStart,
           periodEnd: snapshot.periodEnd,
+          scheduledPlanId: snapshot.scheduledPlanId,
         });
         synced++;
       } catch {

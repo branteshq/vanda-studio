@@ -393,6 +393,8 @@ function AccountTab() {
           const price = annual ?? tier.monthly;
           const perMonth = annual ? annual.perMonthBrl : tier.monthly.priceBrl;
           const current = currentTier === tier.tier;
+          const scheduled =
+            summary?.scheduledPlan != null && tierOfPlan(summary.scheduledPlan) === tier.tier;
           return (
             <PlanCard
               key={tier.tier}
@@ -424,6 +426,19 @@ function AccountTab() {
                   <Button variant="outline" size="sm" className="w-full" disabled>
                     Plano atual
                   </Button>
+                ) : scheduled ? (
+                  // A downgrade Autumn deferred: it activates at the renewal.
+                  <div className="text-center">
+                    <Button variant="outline" size="sm" className="w-full" disabled>
+                      Agendado
+                    </Button>
+                    <p className="mt-1.5 text-xs text-text-4">
+                      ativa na renovação
+                      {summary?.renewsAt
+                        ? ` (${new Date(summary.renewsAt).toLocaleDateString("pt-BR")})`
+                        : ""}
+                    </p>
+                  </div>
                 ) : (
                   <Button
                     size="sm"
