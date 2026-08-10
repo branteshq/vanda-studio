@@ -1,5 +1,5 @@
 import { createOpenAI } from "@ai-sdk/openai";
-import type { LanguageModel } from "ai";
+import { defaultSettingsMiddleware, wrapLanguageModel, type LanguageModel } from "ai";
 
 /**
  * Adapters for the ChatGPT subscription backend (the Conectado plan): the
@@ -37,9 +37,11 @@ const assertChatGptUrl = (url: string): void => {
 };
 
 /**
- * The agent's language model on the subscription route. The fetch wrapper
- * pins the body fields the codex backend requires (`store: false`) on top of
- * whatever the AI SDK provider emits.
+ * The agent's language model on the subscription route. `store: false` goes
+ * through provider options — that's what makes the provider inline replayed
+ * history (instead of item_reference ids the backend can't resolve) and
+ * round-trip reasoning as encrypted content. The fetch wrapper re-pins it in
+ * the body as a guard and maps quota errors.
  */
 export const codexChatModel = (auth: CodexAuth, modelId: string): LanguageModel => {
   const provider = createOpenAI({
@@ -64,7 +66,12 @@ export const codexChatModel = (auth: CodexAuth, modelId: string): LanguageModel 
       return response;
     }) as typeof fetch,
   });
-  return provider.responses(codexModelId(modelId));
+  return wrapLanguageModel({
+    model: provider.responses(codexModelId(modelId)),
+    middleware: defaultSettingsMiddleware({
+      settings: { providerOptions: { openai: { store: false } } },
+    }),
+  });
 };
 
 /**
