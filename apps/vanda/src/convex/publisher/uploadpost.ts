@@ -62,19 +62,30 @@ export interface InstagramState {
   username: string | null;
 }
 
-/** Instagram connection state of a profile (entry shape varies by platform). */
+/** A usable @username — non-empty and not a bare numeric platform id. */
+const usernameOrNull = (value: unknown): string | null =>
+  typeof value === "string" && value.trim() !== "" && !/^\d+$/.test(value.trim())
+    ? value.trim()
+    : null;
+
+/** Instagram connection state of a profile. The entry is a rich object on the
+ * list/get endpoints but can be a flat string (sometimes the numeric account
+ * id) right after connecting — a numeric id counts as connected, handle-less. */
 export const instagramStateOf = (profile: PublisherProfile): InstagramState => {
   const entry = profile.socialAccounts["instagram"];
   if (typeof entry === "string") {
     return entry.trim() === ""
       ? { connected: false, username: null }
-      : { connected: true, username: entry };
+      : { connected: true, username: usernameOrNull(entry) };
   }
   if (entry && typeof entry === "object") {
-    const username = (entry as { username?: unknown }).username;
+    const fields = entry as { handle?: unknown; display_name?: unknown; username?: unknown };
     return {
       connected: true,
-      username: typeof username === "string" && username.trim() !== "" ? username : null,
+      username:
+        usernameOrNull(fields.handle) ??
+        usernameOrNull(fields.username) ??
+        usernameOrNull(fields.display_name),
     };
   }
   return { connected: false, username: null };
@@ -176,6 +187,8 @@ export interface PostMetrics {
   comments: number;
 }
 
+const numberOf = (value: unknown): number => (typeof value === "number" ? value : 0);
+
 /**
  * Cached per-post analytics for a profile, keyed by external post id.
  * Returns an empty map when the endpoint has nothing (fresh connection,
@@ -191,7 +204,6 @@ export const getPostAnalytics = async (
   const body = (await response.json().catch(() => null)) as {
     posts?: Array<{ post_id?: string; metrics?: Record<string, unknown> }>;
   } | null;
-  const numberOf = (value: unknown): number => (typeof value === "number" ? value : 0);
   const map = new Map<string, PostMetrics>();
   for (const post of body?.posts ?? []) {
     if (!post.post_id) continue;
