@@ -3,27 +3,26 @@ import { useAction } from "convex/react";
 import { Instagram } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { api } from "../../convex/_generated/api";
-import { getInstagramRedirectUri } from "../../instagramRedirect";
+import type { Id } from "../../convex/_generated/dataModel";
 import { OnboardingSplit } from "./onboarding-shell";
 
 /**
- * Step 1 — the only hard requirement. Connecting Instagram is a full-page OAuth
- * round-trip (getConnectUrl -> instagram.com -> /api/.../callback -> back to
- * /onboarding), so this step just kicks it off; the wizard resumes at Observing
- * once the account exists.
+ * Step 1 — the only hard requirement. Connecting Instagram is a full-page
+ * round-trip through the publisher's white-label OAuth page (startConnect →
+ * connect page → back to /onboarding?accountId=…), so this step just kicks it
+ * off; the wizard resumes once the connection syncs.
  */
-export function ConnectStep() {
-  const getConnectUrl = useAction(api.instagramGraphActions.getConnectUrl);
+export function ConnectStep({ accountId }: { accountId?: Id<"accounts"> }) {
+  const startConnect = useAction(api.publisherConnect.startConnect);
   const [status, setStatus] = useState<"idle" | "connecting" | "error">("idle");
 
   async function connect() {
     setStatus("connecting");
     try {
-      const redirectUri = getInstagramRedirectUri();
-      if (import.meta.env.DEV) {
-        console.info("[instagram oauth] redirect_uri", redirectUri);
-      }
-      const { url } = await getConnectUrl({ redirectUri });
+      const { url } = await startConnect({
+        ...(accountId ? { accountId } : {}),
+        origin: window.location.origin,
+      });
       window.location.href = url;
     } catch {
       setStatus("error");

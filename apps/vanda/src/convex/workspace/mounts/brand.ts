@@ -16,7 +16,6 @@ import {
 
 const loadBrand = async (ctx: QueryCtx, accountId: Id<"accounts">) => {
   const account = await ctx.db.get(accountId);
-  const connection = account?.connectionId ? await ctx.db.get(account.connectionId) : null;
   const canon = (
     await ctx.db
       .query("brandCanon")
@@ -24,7 +23,7 @@ const loadBrand = async (ctx: QueryCtx, accountId: Id<"accounts">) => {
       .collect()
   ).filter((item) => item.confirmedByOwner);
   const readiness = assessBrandReadiness({ confirmedKinds: canon.map((item) => item.kind) });
-  return { account, handle: connection?.handle ?? null, canon, readiness };
+  return { account, handle: account?.handle ?? null, canon, readiness };
 };
 
 const loadReferences = async (ctx: QueryCtx, accountId: Id<"accounts">) => {

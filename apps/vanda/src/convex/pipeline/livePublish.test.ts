@@ -1,64 +1,91 @@
 import * as Effect from "effect/Effect";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { publisherLive } from "./livePublish";
-import { Publisher, type PublisherShape } from "./publisher";
+import { Publisher } from "./publisher";
 
-const config = { igUserId: "ig1", token: "tok" };
-
-const runOnLive = <A, E>(use: (p: PublisherShape) => Effect.Effect<A, E>) =>
+const runPublish = (request: { caption: string; imageUrls: ReadonlyArray<string> }) =>
   Effect.runPromise(
     Effect.gen(function* () {
       const publisher = yield* Publisher;
-      return yield* use(publisher);
-    }).pipe(Effect.provide(publisherLive(config))),
+      return yield* publisher.publish(request);
+    }).pipe(Effect.provide(publisherLive({ username: "acc1" }))),
   );
 
-describe("publisherLive (fetch-mocked Graph adapter)", () => {
-  afterEach(() => vi.unstubAllGlobals());
+const flipPublish = (request: { caption: string; imageUrls: ReadonlyArray<string> }) =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const publisher = yield* Publisher;
+      return yield* publisher.publish(request).pipe(Effect.flip);
+    }).pipe(Effect.provide(publisherLive({ username: "acc1" }))),
+  );
 
-  it("creates a carousel container with media_type and joined children", async () => {
-    const bodies: Array<string> = [];
-    vi.stubGlobal("fetch", async (url: string | URL, init?: RequestInit) => {
-      expect(String(url)).toContain("/ig1/media");
-      bodies.push(String(init?.body));
-      return new Response(JSON.stringify({ id: "container_1" }), { status: 200 });
-    });
-
-    const id = await runOnLive((p) =>
-      p.createContainer({ kind: "carousel", childIds: ["a", "b"], caption: "hi" }),
-    );
-    expect(id).toBe("container_1");
-    expect(bodies[0]).toContain("media_type=CAROUSEL");
-    expect(bodies[0]).toContain("children=a%2Cb");
+describe("publisherLive (fetch-mocked Upload-Post adapter)", () => {
+  beforeEach(() => {
+    vi.stubEnv("UPLOADPOST_API_KEY", "test-key");
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
-  it("parses the content_publishing_limit quota", async () => {
-    vi.stubGlobal(
-      "fetch",
-      async () =>
-        new Response(JSON.stringify({ data: [{ quota_usage: 7, config: { quota_total: 25 } }] }), {
-          status: 200,
-        }),
+  const stubFetch = (uploadResponse: () => Response) => {
+    const uploads: Array<FormData> = [];
+    vi.stubGlobal("fetch", async (url: string | URL | Request, init?: RequestInit) => {
+      const href = String(url instanceof Request ? url.url : url);
+      if (href.includes("/upload_photos")) {
+        uploads.push(init?.body as FormData);
+        return uploadResponse();
+      }
+      // Image fetches resolve to bytes.
+      return new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { "content-type": "image/jpeg" },
+      });
+    });
+    return uploads;
+  };
+
+  it("publishes photos as one multipart call and returns the receipt", async () => {
+    const uploads = stubFetch(
+      () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            results: { instagram: { success: true, post_id: "18001", url: "https://ig/p/x" } },
+          }),
+          { status: 200 },
+        ),
     );
-    const quota = await runOnLive((p) => p.getQuota());
-    expect(quota).toEqual({ used: 7, total: 25 });
+
+    const receipt = await runPublish({ caption: "hi", imageUrls: ["https://img/1", "https://img/2"] });
+    expect(receipt).toEqual({ externalPostId: "18001", url: "https://ig/p/x" });
+    expect(uploads).toHaveLength(1);
+    const form = uploads[0]!;
+    expect(form.get("user")).toBe("acc1");
+    expect(form.get("title")).toBe("hi");
+    expect(form.getAll("photos[]")).toHaveLength(2);
+    expect(form.getAll("platform[]")).toEqual(["instagram"]);
   });
 
   it("fails PublisherRequestFailed on a non-2xx response", async () => {
-    vi.stubGlobal(
-      "fetch",
-      async () =>
-        new Response(JSON.stringify({ error: { message: "bad request" } }), { status: 400 }),
-    );
-    const error = await runOnLive((p) => p.publishContainer("c1").pipe(Effect.flip));
+    stubFetch(() => new Response("nope", { status: 500 }));
+    const error = await flipPublish({ caption: "x", imageUrls: ["https://img/1"] });
     expect(error._tag).toBe("PublisherRequestFailed");
   });
 
-  it("fails PublisherRequestFailed when a 200 response is missing the id", async () => {
-    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({}), { status: 200 }));
-    const error = await runOnLive((p) =>
-      p.createContainer({ kind: "image", imageUrl: "u" }).pipe(Effect.flip),
+  it("fails PublisherRequestFailed when Instagram reports a per-platform error", async () => {
+    stubFetch(
+      () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            results: { instagram: { success: false, error: "account not connected" } },
+          }),
+          { status: 200 },
+        ),
     );
+    const error = await flipPublish({ caption: "x", imageUrls: ["https://img/1"] });
     expect(error._tag).toBe("PublisherRequestFailed");
+    expect(error).toMatchObject({ message: "account not connected" });
   });
 });

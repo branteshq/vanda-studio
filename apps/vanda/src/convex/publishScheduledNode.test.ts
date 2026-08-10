@@ -43,26 +43,50 @@ describe("runScheduledPost credential phase", () => {
   });
 });
 
-describe("getPublishConnection", () => {
-  it("resolves the connection id + token for a linked account", async () => {
+describe("getPublishProfile", () => {
+  it("resolves the publisher profile for a connected account", async () => {
     const t = convexTest(schema, modules);
-    const scheduledPostId = await t.run(async (ctx) => {
+    const { scheduledPostId, accountId } = await t.run(async (ctx) => {
       const now = Date.now();
-      const userId = await ctx.db.insert("users", { name: "U", email: "u@e.com", clerkId: "c1" });
-      const connectionId = await ctx.db.insert("instagramConnections", {
-        userId,
-        provider: "instagram_graph",
-        status: "connected",
-        externalAccountId: "ig_123",
-        tokenCiphertext: "ct",
-        tokenIv: "iv",
-        tokenAuthTag: "tag",
-        lastConnectedAt: now,
+      const accountId = await ctx.db.insert("accounts", {
+        handle: "cafelumiar",
+        publisherConnectedAt: now,
+        mode: "auto",
         createdAt: now,
         updatedAt: now,
       });
+      const postId = await ctx.db.insert("posts", {
+        accountId,
+        type: "feed",
+        imageIds: [],
+        caption: "x",
+        platform: "instagram",
+        status: "ready",
+        createdAt: now,
+      });
+      const scheduledPostId = await ctx.db.insert("scheduledPosts", {
+        accountId,
+        postId,
+        scheduledFor: now,
+        status: "scheduled",
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { scheduledPostId, accountId };
+    });
+
+    const profile = await t.query(internal.publishScheduled.getPublishProfile, {
+      scheduledPostId,
+    });
+    // The publisher profile username is the account id by construction.
+    expect(profile).toEqual({ username: String(accountId) });
+  });
+
+  it("returns null for an account that never connected", async () => {
+    const t = convexTest(schema, modules);
+    const scheduledPostId = await t.run(async (ctx) => {
+      const now = Date.now();
       const accountId = await ctx.db.insert("accounts", {
-        connectionId,
         mode: "auto",
         createdAt: now,
         updatedAt: now,
@@ -86,14 +110,8 @@ describe("getPublishConnection", () => {
       });
     });
 
-    const connection = await t.query(internal.publishScheduled.getPublishConnection, {
-      scheduledPostId,
-    });
-    expect(connection).toMatchObject({
-      igUserId: "ig_123",
-      tokenCiphertext: "ct",
-      tokenIv: "iv",
-      tokenAuthTag: "tag",
-    });
+    expect(
+      await t.query(internal.publishScheduled.getPublishProfile, { scheduledPostId }),
+    ).toBeNull();
   });
 });

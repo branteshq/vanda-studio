@@ -159,6 +159,7 @@ function ProfilePage() {
             {tab === "conta" ? (
               <div className="mt-6">
                 <AccountTab />
+                {viewed ? <InstagramConnectCard accountId={viewed.id} name={viewed.name} /> : null}
               </div>
             ) : null}
             {viewed && tab !== "conta" ? (
@@ -460,6 +461,74 @@ function AccountTab() {
       </div>
 
       {currentTier === "conectado" ? <OpenAiConnectCard /> : null}
+    </div>
+  );
+}
+
+/**
+ * Per-business Instagram connection through the publisher (Upload-Post):
+ * shows the synced state and mints the white-label connect page URL. On
+ * mount it re-syncs once — that's how returning from the connect page
+ * (redirected to /perfil) picks up a fresh connection.
+ */
+function InstagramConnectCard({
+  accountId,
+  name,
+}: {
+  accountId: Id<"accounts">;
+  name: string;
+}) {
+  const status = useQuery(api.publisherConnect.connectionStatus, { accountId });
+  const startConnect = useAction(api.publisherConnect.startConnect);
+  const syncConnection = useAction(api.publisherConnect.syncConnection);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void syncConnection({ accountId }).catch(() => {});
+  }, [accountId, syncConnection]);
+
+  const connect = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const { url } = await startConnect({
+        accountId,
+        origin: window.location.origin,
+        returnTo: "perfil",
+      });
+      window.location.href = url;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 rounded-xl border border-border bg-surface p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-body font-semibold">Instagram · {name}</h3>
+          <p className="mt-0.5 text-body-sm text-text-3">
+            {status?.connected
+              ? `Conectado${status.handle ? ` como @${status.handle}` : ""} — a Vanda publica somente com a sua aprovação.`
+              : "Conecte o Instagram deste negócio para a Vanda poder publicar."}
+          </p>
+        </div>
+        <Button
+          variant={status?.connected ? "outline" : "default"}
+          size="sm"
+          disabled={busy || status === undefined}
+          onClick={() => void connect()}
+        >
+          {busy ? "Abrindo…" : status?.connected ? "Reconectar" : "Conectar Instagram"}
+        </Button>
+      </div>
+      {error ? (
+        <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-body-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

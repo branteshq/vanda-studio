@@ -7,26 +7,16 @@ import schema from "./schema";
 const modules = import.meta.glob("./**/*.ts");
 
 describe("accounts.listMine — the owner's businesses", () => {
-  it("returns only my accounts, names defaulted from the IG connection", async () => {
+  it("returns only my accounts, names defaulted from the connected handle", async () => {
     const t = convexTest(schema, modules);
     const now = Date.now();
-    const { withName, override } = await t.run(async (ctx) => {
+    const { withHandle, override } = await t.run(async (ctx) => {
       const me = await ctx.db.insert("users", { name: "Me", email: "me@e.com", clerkId: "me" });
       const other = await ctx.db.insert("users", { name: "O", email: "o@e.com", clerkId: "other" });
-      const conn = await ctx.db.insert("instagramConnections", {
-        userId: me,
-        provider: "instagram_graph",
-        status: "connected",
-        externalAccountId: "ig1",
-        externalAccountName: "Café Lumiar",
-        handle: "cafelumiar",
-        lastConnectedAt: now,
-        createdAt: now,
-        updatedAt: now,
-      });
-      const withName = await ctx.db.insert("accounts", {
+      const withHandle = await ctx.db.insert("accounts", {
         ownerUserId: me,
-        connectionId: conn,
+        handle: "cafelumiar",
+        publisherConnectedAt: now,
         mode: "auto",
         createdAt: now,
         updatedAt: now,
@@ -45,14 +35,14 @@ describe("accounts.listMine — the owner's businesses", () => {
         createdAt: now,
         updatedAt: now,
       });
-      return { withName, override };
+      return { withHandle, override };
     });
 
     const rows = await t.withIdentity({ subject: "me" }).query(api.accounts.listMine, {});
     expect(rows).toHaveLength(2);
     const find = (id: string) => rows.find((r) => r.id === id)!;
-    expect(find(withName).name).toBe("Café Lumiar"); // defaults from the connection
-    expect(find(withName).connected).toBe(true);
+    expect(find(withHandle).name).toBe("cafelumiar"); // defaults from the handle
+    expect(find(withHandle).connected).toBe(true);
     expect(find(override).name).toBe("Segundo Negócio"); // explicit override wins
     expect(find(override).connected).toBe(false);
   });
@@ -133,59 +123,63 @@ describe("accounts.selectActive", () => {
   });
 });
 
-describe("instagramGraph.upsertConnectionInternal", () => {
-  it("refreshes the owner's connection but rejects cross-user takeover", async () => {
+describe("publisherConnect.applyConnection", () => {
+  it("caches the synced handle, defaults the name, and clears on disconnect", async () => {
     const t = convexTest(schema, modules);
-    const args = {
-      externalAccountId: "ig-shared",
-      tokenCiphertext: "cipher",
-      tokenIv: "iv",
-      tokenAuthTag: "tag",
-    };
-    const first = await t.mutation(internal.instagramGraph.upsertConnectionInternal, {
-      clerkId: "me",
-      ...args,
+    const now = Date.now();
+    const accountId = await t.run(async (ctx) => {
+      const me = await ctx.db.insert("users", { name: "Me", email: "me@e.com", clerkId: "me" });
+      return ctx.db.insert("accounts", {
+        ownerUserId: me,
+        mode: "needs_approval",
+        createdAt: now,
+        updatedAt: now,
+      });
     });
-    const refreshed = await t.mutation(internal.instagramGraph.upsertConnectionInternal, {
-      clerkId: "me",
-      ...args,
-      handle: "mine",
+
+    const asMe = t.withIdentity({ subject: "me" });
+    await asMe.mutation(internal.publisherConnect.applyConnection, {
+      accountId,
+      connected: true,
+      username: "cafelumiar",
     });
-    expect(refreshed._id).toBe(first._id);
+    let account = (await t.run((ctx) => ctx.db.get(accountId)))!;
+    expect(account.handle).toBe("cafelumiar");
+    expect(account.name).toBe("cafelumiar");
+    expect(account.publisherConnectedAt).toBeDefined();
+
+    // Disconnect clears the connection but keeps the handle for brand context.
+    await asMe.mutation(internal.publisherConnect.applyConnection, {
+      accountId,
+      connected: false,
+      username: null,
+    });
+    account = (await t.run((ctx) => ctx.db.get(accountId)))!;
+    expect(account.publisherConnectedAt).toBeUndefined();
+    expect(account.handle).toBe("cafelumiar");
+
+    // Ownership is enforced: another user cannot touch my account.
     await expect(
-      t.mutation(internal.instagramGraph.upsertConnectionInternal, {
-        clerkId: "other",
-        ...args,
+      t.withIdentity({ subject: "other" }).mutation(internal.publisherConnect.applyConnection, {
+        accountId,
+        connected: true,
+        username: "hijack",
       }),
-    ).rejects.toThrow("already connected");
+    ).rejects.toThrow();
   });
 });
 
 describe("accounts.remove", () => {
-  it("removes an owned business, clears account data, and expires its connection", async () => {
+  it("removes an owned business and clears its account data", async () => {
     const t = convexTest(schema, modules);
     const now = Date.now();
-    const { mine, theirs, connectionId, canonId } = await t.run(async (ctx) => {
+    const { mine, theirs, canonId } = await t.run(async (ctx) => {
       const me = await ctx.db.insert("users", { name: "Me", email: "me@e.com", clerkId: "me" });
       const other = await ctx.db.insert("users", { name: "O", email: "o@e.com", clerkId: "other" });
-      const connectionId = await ctx.db.insert("instagramConnections", {
-        userId: me,
-        provider: "instagram_graph",
-        status: "connected",
-        externalAccountId: "ig1",
-        externalAccountName: "Café Lumiar",
-        handle: "cafelumiar",
-        scopes: ["instagram_business_basic"],
-        tokenCiphertext: "cipher",
-        tokenIv: "iv",
-        tokenAuthTag: "tag",
-        lastConnectedAt: now,
-        createdAt: now,
-        updatedAt: now,
-      });
       const mine = await ctx.db.insert("accounts", {
         ownerUserId: me,
-        connectionId,
+        handle: "cafelumiar",
+        publisherConnectedAt: now,
         mode: "auto",
         createdAt: now,
         updatedAt: now,
@@ -203,7 +197,7 @@ describe("accounts.remove", () => {
         confirmedByOwner: true,
         createdAt: now,
       });
-      return { mine, theirs, connectionId, canonId };
+      return { mine, theirs, canonId };
     });
 
     const asMe = t.withIdentity({ subject: "me" });
@@ -213,12 +207,6 @@ describe("accounts.remove", () => {
 
     expect(await t.run((ctx) => ctx.db.get(mine))).toBeNull();
     expect(await t.run((ctx) => ctx.db.get(canonId))).toBeNull();
-
-    const connection = await t.run((ctx) => ctx.db.get(connectionId));
-    expect(connection?.status).toBe("expired");
-    expect(connection).not.toHaveProperty("tokenCiphertext");
-    expect(connection).not.toHaveProperty("tokenIv");
-    expect(connection).not.toHaveProperty("tokenAuthTag");
   });
 
   it("moves active selection to the oldest remaining onboarded business", async () => {

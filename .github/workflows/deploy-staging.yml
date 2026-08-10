@@ -56,11 +56,9 @@ jobs:
             --build-env PUBLIC_CONVEX_URL="${{ vars.CONVEX_DEV_URL }}" \
             --build-env VITE_CONVEX_URL="${{ vars.CONVEX_DEV_URL }}" \
             --build-env VITE_APP_ORIGIN="https://staging.vandastudio.app" \
-            --build-env VITE_INSTAGRAM_REDIRECT_URI="https://staging.vandastudio.app/api/integrations/instagram/callback" \
             --env PUBLIC_CONVEX_URL="${{ vars.CONVEX_DEV_URL }}" \
             --env VITE_CONVEX_URL="${{ vars.CONVEX_DEV_URL }}" \
             --env VITE_APP_ORIGIN="https://staging.vandastudio.app" \
-            --env VITE_INSTAGRAM_REDIRECT_URI="https://staging.vandastudio.app/api/integrations/instagram/callback" \
             --token="$VERCEL_TOKEN")
           pnpm dlx vercel@latest alias set "$deployment_url" staging.vandastudio.app --token="$VERCEL_TOKEN"
           echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"

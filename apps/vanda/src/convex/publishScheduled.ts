@@ -28,21 +28,15 @@ export const loadScheduledPostData = internalQuery({
 });
 
 /** Resolves the Instagram connection (id + encrypted token) for a scheduled post's account. */
-export const getPublishConnection = internalQuery({
+export const getPublishProfile = internalQuery({
   args: { scheduledPostId: v.id("scheduledPosts") },
-  handler: async (ctx, { scheduledPostId }) => {
+  handler: async (ctx, { scheduledPostId }): Promise<{ username: string } | null> => {
     const scheduled = await ctx.db.get(scheduledPostId);
     if (scheduled === null) return null;
     const account = await ctx.db.get(scheduled.accountId);
-    if (account === null || account.connectionId === undefined) return null;
-    const connection = await ctx.db.get(account.connectionId);
-    if (connection === null) return null;
-    return {
-      igUserId: connection.externalAccountId,
-      tokenCiphertext: connection.tokenCiphertext,
-      tokenIv: connection.tokenIv,
-      tokenAuthTag: connection.tokenAuthTag,
-    };
+    if (account === null || account.publisherConnectedAt === undefined) return null;
+    // The publisher profile username is the account id by construction.
+    return { username: String(account._id) };
   },
 });
 

@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
-import { decryptInstagramToken } from "./instagramToken";
+import { getPostAnalytics } from "./publisher/uploadpost";
 import {
   analyzeSourceMechanism,
   generateCreativeDirections,
@@ -36,7 +36,6 @@ import {
   PROMPT_VERSIONS,
   type Mutable,
 } from "./pipeline/liveModel";
-import { graphGet } from "./pipeline/igGraph";
 import { isUsableSemanticText } from "./pipeline/inputQuality";
 import { runTracked } from "./pipeline/liveTelemetry";
 import {
@@ -721,13 +720,7 @@ export const directOpportunity = internalAction({
   },
 });
 
-const metricNumber = (value: unknown, key: string): number | undefined => {
-  if (typeof value !== "object" || value === null) return undefined;
-  const metric = (value as Record<string, unknown>)[key];
-  return typeof metric === "number" ? metric : undefined;
-};
-
-/** Record lightweight official metrics for adaptations that Instagram has published. */
+/** Record lightweight publisher metrics for adaptations Instagram has published. */
 export const measurePublications = internalAction({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<number> => {
@@ -737,33 +730,27 @@ export const measurePublications = internalAction({
       externalPostId: string;
     }> = await ctx.runQuery(internal.market.listPublishedForMeasurement, { accountId });
     if (publications.length === 0) return 0;
-    const connection = await ctx.runQuery(internal.connections.getAccountConnection, {
-      accountId,
-    });
-    if (!connection) return 0;
-    const config = { igUserId: connection.igUserId, token: decryptInstagramToken(connection) };
+    // One cached-analytics read covers every published post of the profile;
+    // absent posts (fresh publish, snapshot lag) are skipped until next run.
+    let analytics: Map<string, { views: number; likes: number; comments: number }>;
+    try {
+      analytics = await getPostAnalytics(String(accountId));
+    } catch (error) {
+      console.warn(`publisher analytics read failed for ${accountId}`, error);
+      return 0;
+    }
     let recorded = 0;
     for (const publication of publications) {
-      try {
-        const metrics = await graphGet(
-          config,
-          `/${publication.externalPostId}`,
-          "like_count,comments_count,view_count",
-        );
-        const views = metricNumber(metrics, "view_count");
-        const likes = metricNumber(metrics, "like_count");
-        const comments = metricNumber(metrics, "comments_count");
-        await ctx.runMutation(internal.market.recordPublicationSnapshot, {
-          opportunityId: publication.opportunityId,
-          scheduledPostId: publication.scheduledPostId,
-          ...(views !== undefined ? { views } : {}),
-          ...(likes !== undefined ? { likes } : {}),
-          ...(comments !== undefined ? { comments } : {}),
-        });
-        recorded += 1;
-      } catch (error) {
-        console.warn(`owned metric read failed for ${publication.externalPostId}`, error);
-      }
+      const metrics = analytics.get(publication.externalPostId);
+      if (metrics === undefined) continue;
+      await ctx.runMutation(internal.market.recordPublicationSnapshot, {
+        opportunityId: publication.opportunityId,
+        scheduledPostId: publication.scheduledPostId,
+        views: metrics.views,
+        likes: metrics.likes,
+        comments: metrics.comments,
+      });
+      recorded += 1;
     }
     return recorded;
   },

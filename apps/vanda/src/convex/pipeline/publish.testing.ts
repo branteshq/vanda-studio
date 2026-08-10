@@ -7,75 +7,42 @@ import {
   type PublishStoreShape,
 } from "./publish";
 import {
-  type ContainerSpec,
-  type ContainerStatus,
   Publisher,
   PublisherRequestFailed,
-  type PublisherShape,
-  type Quota,
+  type PublishReceipt,
+  type PublishRequest,
 } from "./publisher";
-
-const transportFailure = (operation: keyof PublisherShape) =>
-  new PublisherRequestFailed({ operation, message: "fake transport failure" });
 
 export interface FakePublisher {
   readonly layer: Layer.Layer<Publisher>;
-  readonly created: ReadonlyArray<ContainerSpec>;
-  readonly published: ReadonlyArray<string>;
+  readonly published: ReadonlyArray<PublishRequest>;
 }
 
 /**
- * In-memory Instagram publisher. Containers become `FINISHED` after
- * `readyAfter` `IN_PROGRESS` polls (0 = immediately), or report a fixed
- * `terminalStatus` (`ERROR`/`EXPIRED`). Records created specs and published ids.
+ * In-memory publisher: records publish requests and returns sequential media
+ * ids, or fails every call when `fail` is set.
  */
 export const makeFakePublisher = (
-  options: {
-    readonly quota?: Quota;
-    readonly readyAfter?: number;
-    readonly terminalStatus?: ContainerStatus;
-    readonly failOn?: keyof PublisherShape;
-  } = {},
+  options: { readonly fail?: boolean } = {},
 ): FakePublisher => {
-  const created: Array<ContainerSpec> = [];
-  const published: Array<string> = [];
-  const polls = new Map<string, number>();
-  const quota = options.quota ?? { used: 0, total: 100 };
-  const readyAfter = options.readyAfter ?? 0;
+  const published: Array<PublishRequest> = [];
   let seq = 0;
 
-  const shape: PublisherShape = {
-    getQuota: () =>
-      options.failOn === "getQuota"
-        ? Effect.fail(transportFailure("getQuota"))
-        : Effect.succeed(quota),
-    createContainer: (spec) =>
-      options.failOn === "createContainer"
-        ? Effect.fail(transportFailure("createContainer"))
-        : Effect.sync(() => {
-            created.push(spec);
-            seq += 1;
-            return `c${seq}`;
-          }),
-    getContainerStatus: (containerId) =>
-      options.failOn === "getContainerStatus"
-        ? Effect.fail(transportFailure("getContainerStatus"))
-        : Effect.sync(() => {
-            if (options.terminalStatus !== undefined) return options.terminalStatus;
-            const seen = (polls.get(containerId) ?? 0) + 1;
-            polls.set(containerId, seen);
-            return seen > readyAfter ? "FINISHED" : "IN_PROGRESS";
-          }),
-    publishContainer: (containerId) =>
-      options.failOn === "publishContainer"
-        ? Effect.fail(transportFailure("publishContainer"))
-        : Effect.sync(() => {
-            published.push(containerId);
-            return `media_${containerId}`;
-          }),
+  return {
+    layer: Layer.succeed(Publisher, {
+      publish: (request) =>
+        options.fail
+          ? Effect.fail(
+              new PublisherRequestFailed({ operation: "publish", message: "fake transport failure" }),
+            )
+          : Effect.sync((): PublishReceipt => {
+              published.push(request);
+              seq += 1;
+              return { externalPostId: `media_${seq}`, url: `https://instagram.com/p/fake_${seq}` };
+            }),
+    }),
+    published,
   };
-
-  return { layer: Layer.succeed(Publisher, shape), created, published };
 };
 
 export interface InMemoryPublishStore {
@@ -99,8 +66,14 @@ export const makeInMemoryPublishStore = (
         : Effect.succeed(job);
     },
     markPublishing: (id) => Effect.sync(() => void state.set(id, { status: "publishing" })),
-    markPublished: (id, externalPostId) =>
-      Effect.sync(() => void state.set(id, { status: "published", externalPostId })),
+    markPublished: (id, receipt) =>
+      Effect.sync(
+        () =>
+          void state.set(id, {
+            status: "published",
+            ...(receipt.externalPostId !== null ? { externalPostId: receipt.externalPostId } : {}),
+          }),
+      ),
     markFailed: (id, reason) =>
       Effect.sync(() => void state.set(id, { status: "failed", lastError: reason })),
   };

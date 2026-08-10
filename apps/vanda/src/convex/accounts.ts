@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import type { Id, TableNames } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
@@ -13,8 +14,8 @@ async function deleteRows<T extends { _id: Id<TableNames> }>(
 
 /**
  * The businesses this owner manages — powers the workspace switcher. Each row's
- * display name falls back through the explicit override, the connected IG account
- * name, then the handle. Scoped to the caller; returns `[]` when signed out.
+ * display name falls back through the explicit override, then the connected
+ * handle. Scoped to the caller; returns `[]` when signed out.
  */
 export const listMine = query({
   args: {},
@@ -32,22 +33,16 @@ export const listMine = query({
       .withIndex("by_owner", (q) => q.eq("ownerUserId", user._id))
       .collect();
 
-    const rows = await Promise.all(
-      accounts.map(async (account) => {
-        const connection = account.connectionId ? await ctx.db.get(account.connectionId) : null;
-        return {
-          id: account._id,
-          name:
-            account.name ?? connection?.externalAccountName ?? connection?.handle ?? "Novo negócio",
-          mode: account.mode,
-          handle: connection?.handle ?? null,
-          connected: connection?.status === "connected",
-          onboardedAt: account.onboardedAt ?? null,
-          active: user.activeAccountId === account._id,
-          createdAt: account.createdAt,
-        };
-      }),
-    );
+    const rows = accounts.map((account) => ({
+      id: account._id,
+      name: account.name ?? account.handle ?? "Novo negócio",
+      mode: account.mode,
+      handle: account.handle ?? null,
+      connected: account.publisherConnectedAt !== undefined,
+      onboardedAt: account.onboardedAt ?? null,
+      active: user.activeAccountId === account._id,
+      createdAt: account.createdAt,
+    }));
 
     return rows.sort((a, b) => {
       // Keep switcher positions stable: selecting an account changes only its
@@ -84,7 +79,7 @@ export const setMode = mutation({
   },
 });
 
-/** Remove a business the caller owns and clear its connected Instagram token. */
+/** Remove a business the caller owns and drop its publisher profile. */
 export const remove = mutation({
   args: {
     accountId: v.id("accounts"),
@@ -176,18 +171,10 @@ export const remove = mutation({
       .collect();
     await deleteRows(scheduledPosts, (id) => ctx.db.delete(id));
 
-    if (account.connectionId !== undefined) {
-      const connection = await ctx.db.get(account.connectionId);
-      if (connection !== null && connection.userId === account.ownerUserId) {
-        await ctx.db.patch(connection._id, {
-          status: "expired",
-          tokenCiphertext: undefined,
-          tokenIv: undefined,
-          tokenAuthTag: undefined,
-          updatedAt: Date.now(),
-        });
-      }
-    }
+    // Best-effort: drop the publisher profile (and its Instagram link) too.
+    await ctx.scheduler.runAfter(0, internal.publisherConnect.cleanupProfile, {
+      username: String(accountId),
+    });
 
     await ctx.db.delete(accountId);
   },

@@ -101,7 +101,7 @@ describe("publishDue through the ctx-backed store + fake publisher", () => {
     });
 
     const fake = makeFakePublisher();
-    const media = await t.action(async (ctx) =>
+    const receipt = await t.action(async (ctx) =>
       Effect.runPromise(
         publishDue(scheduledPostId).pipe(
           Effect.provide(Layer.mergeAll(publishStoreLive(ctx), fake.layer)),
@@ -109,12 +109,13 @@ describe("publishDue through the ctx-backed store + fake publisher", () => {
       ),
     );
 
-    expect(media).toMatch(/^media_/);
-    expect(fake.created.filter((s) => s.kind === "image")).toHaveLength(2);
+    expect(receipt.externalPostId).toMatch(/^media_/);
+    // The carousel ships as one publish call carrying both image urls.
     expect(fake.published).toHaveLength(1);
+    expect(fake.published[0]!.imageUrls).toHaveLength(2);
 
     const row = await t.run((ctx) => ctx.db.get(scheduledPostId));
     expect(row!.status).toBe("published");
-    expect(row!.externalPostId).toBe(media);
+    expect(row!.externalPostId).toBe(receipt.externalPostId);
   });
 });

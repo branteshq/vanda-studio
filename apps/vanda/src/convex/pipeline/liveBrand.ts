@@ -1,90 +1,41 @@
 import * as Effect from "effect/Effect";
-import * as Schema from "effect/Schema";
 import type { BrandCorpusResult } from "./brand";
-import { fetchAndDecode, type IgConfig, type SourceFetchFailed } from "./igGraph";
-
-// --- Graph response schemas (decoded, not cast) ---------------------------
-
-const IgProfile = Schema.Struct({
-  username: Schema.optional(Schema.String),
-  name: Schema.optional(Schema.String),
-  account_type: Schema.optional(Schema.String),
-  media_count: Schema.optional(Schema.Number),
-  // Available on some account types only; absent decodes cleanly to undefined.
-  biography: Schema.optional(Schema.String),
-});
-
-const IgCorpusMedia = Schema.Struct({
-  data: Schema.optional(
-    Schema.Array(
-      Schema.Struct({
-        caption: Schema.optional(Schema.String),
-        comments: Schema.optional(
-          Schema.Struct({
-            data: Schema.optional(
-              Schema.Array(Schema.Struct({ text: Schema.optional(Schema.String) })),
-            ),
-          }),
-        ),
-      }),
-    ),
-  ),
-});
-
-const IgTags = Schema.Struct({
-  data: Schema.optional(Schema.Array(Schema.Struct({ id: Schema.String }))),
-});
+import { MarketDataProvider, MarketProviderFailed } from "./market";
 
 /**
- * Assemble the cold-start brand corpus: the profile facts plus the text of recent
- * posts and the comments under them, and the presentation counts the Confirmar
- * screen shows ("LI N POSTS · N COMENTÁRIOS · N MENÇÕES"). Profile/media are
- * required (no content → can't analyze); the mentions count is best-effort —
- * the tags endpoint is often permission-gated, so a failure there defaults to 0
- * rather than aborting onboarding.
+ * Assemble the cold-start brand corpus from the account's PUBLIC profile via
+ * the market data provider (the same scraper the market radar uses): profile
+ * facts plus the captions of recent posts. Comment text isn't available on
+ * this route, so the comments count reads 0 — the trust line stays honest.
  */
 export const fetchBrandCorpus = (
-  config: IgConfig,
-): Effect.Effect<BrandCorpusResult, SourceFetchFailed> =>
-  Effect.all({
-    profile: fetchAndDecode(
-      config,
-      "posts",
-      "/me",
-      "username,name,account_type,media_count,biography",
-      IgProfile,
-    ),
-    media: fetchAndDecode(
-      config,
-      "posts",
-      `/${config.igUserId}/media`,
-      "caption,comments{text}",
-      IgCorpusMedia,
-    ),
-    mentions: fetchAndDecode(config, "mentions", `/${config.igUserId}/tags`, "id", IgTags).pipe(
-      Effect.map((tags) => (tags.data ?? []).length),
-      Effect.orElseSucceed(() => 0),
-    ),
-  }).pipe(
-    Effect.map(({ profile, media, mentions }): BrandCorpusResult => {
-      const items = media.data ?? [];
-      const comments = items.flatMap((m) =>
-        (m.comments?.data ?? []).flatMap((c) => (c.text !== undefined ? [c.text] : [])),
-      );
-      const captions = items.flatMap((m) => (m.caption !== undefined ? [m.caption] : []));
-      return {
-        corpus: {
-          profile: {
-            name: profile.name,
-            username: profile.username,
-            biography: profile.biography,
-            accountType: profile.account_type,
-            mediaCount: profile.media_count,
-          },
-          captions,
-          comments,
+  handle: string,
+): Effect.Effect<BrandCorpusResult, MarketProviderFailed, MarketDataProvider> =>
+  Effect.gen(function* () {
+    const provider = yield* MarketDataProvider;
+    const profiles = yield* provider.getProfiles([handle]);
+    const profile = profiles[0];
+    if (profile === undefined) {
+      return yield* new MarketProviderFailed({
+        operation: "getProfiles",
+        message: `perfil @${handle} não encontrado`,
+      });
+    }
+    const captions = profile.latestPosts.flatMap((post) =>
+      post.caption !== undefined && post.caption.trim() !== "" ? [post.caption] : [],
+    );
+    return {
+      corpus: {
+        profile: {
+          name: profile.displayName,
+          username: profile.handle,
+          biography: profile.biography,
+          accountType: profile.businessCategory,
+          mediaCount: profile.postsCount,
         },
-        stats: { posts: items.length, comments: comments.length, mentions },
-      };
-    }),
-  );
+        captions,
+        comments: [],
+      },
+      stats: { posts: profile.latestPosts.length, comments: 0, mentions: 0 },
+    } satisfies BrandCorpusResult;
+  });

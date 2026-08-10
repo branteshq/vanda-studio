@@ -157,59 +157,22 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_user_period", ["userId", "periodKey"]),
 
-  instagramConnections: defineTable({
-    userId: v.id("users"),
-    provider: v.literal("instagram_graph"),
-    status: v.union(v.literal("connected"), v.literal("error"), v.literal("expired")),
-    externalAccountId: v.string(),
-    externalAccountName: v.optional(v.string()),
-    handle: v.optional(v.string()),
-    accountType: v.optional(v.string()),
-    mediaCount: v.optional(v.number()),
-    scopes: v.optional(v.array(v.string())),
-    tokenCiphertext: v.optional(v.string()),
-    tokenIv: v.optional(v.string()),
-    tokenAuthTag: v.optional(v.string()),
-    tokenExpiresAt: v.optional(v.number()),
-    lastConnectedAt: v.number(),
-    lastSyncAt: v.optional(v.number()),
-    lastError: v.optional(v.string()),
-    createdAt: v.number(),
-    updatedAt: v.number(),
-  })
-    .index("by_user_id", ["userId"])
-    .index("by_external_account", ["provider", "externalAccountId"]),
-
-  instagramPosts: defineTable({
-    userId: v.id("users"),
-    connectionId: v.id("instagramConnections"),
-    externalPostId: v.string(),
-    caption: v.optional(v.string()),
-    mediaType: v.string(),
-    mediaUrl: v.optional(v.string()),
-    thumbnailUrl: v.optional(v.string()),
-    permalink: v.string(),
-    publishedAt: v.number(),
-    likeCount: v.optional(v.number()),
-    commentsCount: v.optional(v.number()),
-    importedAt: v.number(),
-    updatedAt: v.number(),
-  })
-    .index("by_connection_external", ["connectionId", "externalPostId"])
-    .index("by_user_published", ["userId", "publishedAt"]),
-
-  // `accounts` is populated by promoteConnection (connections.ts); brandCanon
-  // by onboarding's approve.
+  // `accounts` is created by publisherConnect.startConnect; brandCanon by
+  // onboarding's approve. Instagram is reached through the publisher port
+  // (Upload-Post) — the customer's tokens never touch our database.
 
   accounts: defineTable({
-    // The human who owns this business (set on promote from a connection). `orgId`
-    // is a reserved slot for if/when Clerk Organizations bring team access — nothing
-    // reads it today; ownership is the direct user link.
+    // The human who owns this business. `orgId` is a reserved slot for if/when
+    // Clerk Organizations bring team access — nothing reads it today;
+    // ownership is the direct user link.
     ownerUserId: v.optional(v.id("users")),
     orgId: v.optional(v.string()),
-    // Display name override; defaults to the connected IG account name when unset.
+    // Display name override; defaults to the connected IG handle when unset.
     name: v.optional(v.string()),
-    connectionId: v.optional(v.id("instagramConnections")),
+    // The connected Instagram @username, synced from the publisher profile.
+    handle: v.optional(v.string()),
+    // Set when the publisher profile reports a live Instagram connection.
+    publisherConnectedAt: v.optional(v.number()),
     mode: v.union(...accountModes.map((mode) => v.literal(mode))),
     // Set by approveBrandProfile when the owner confirms the brand profile — the
     // onboarding gate. Unset means connected-but-not-yet-onboarded.
@@ -222,9 +185,7 @@ export default defineSchema({
     vandaThreadId: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
-  })
-    .index("by_owner", ["ownerUserId"])
-    .index("by_connection", ["connectionId"]),
+  }).index("by_owner", ["ownerUserId"]),
 
   // Ephemeral rows marking agent turns currently running. One thread can have
   // multiple rows if turns overlap; the row is deleted when its action settles.

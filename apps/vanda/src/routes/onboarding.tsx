@@ -1,6 +1,6 @@
 import { RedirectToSignIn, Show } from "@clerk/tanstack-react-start";
 import { Navigate, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMutation } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
 import { useEffect, useState } from "react";
 import { Spinner } from "@vanda-studio/ui/components/spinner";
@@ -57,13 +57,51 @@ function OnboardingFlow() {
   if (accounts === undefined) return <OnboardingLoading />;
   const requested = accounts.find((account) => account.id === accountId);
   if (requested?.onboardedAt != null) return <ActivateAndRedirect accountId={requested.id} />;
-  if (requested) return <AnalyzeFlow accountId={requested.id} />;
+  if (requested) {
+    return requested.connected ? (
+      <AnalyzeFlow accountId={requested.id} />
+    ) : (
+      <SyncConnection accountId={requested.id} />
+    );
+  }
   if (flow === "add") return <ConnectStep />;
   if (accounts.some((account) => account.onboardedAt != null)) {
     return <Navigate to="/conversa" />;
   }
   const pending = accounts.find((account) => account.onboardedAt == null);
-  return pending === undefined ? <ConnectStep /> : <AnalyzeFlow accountId={pending.id} />;
+  if (pending === undefined) return <ConnectStep />;
+  return pending.connected ? (
+    <AnalyzeFlow accountId={pending.id} />
+  ) : (
+    <ConnectStep accountId={pending.id} />
+  );
+}
+
+/**
+ * Landing spot after the publisher's connect page redirects back: pull the
+ * profile once and cache the connection. On success the reactive accounts
+ * query flips `connected` and the parent advances to AnalyzeFlow; on failure
+ * (customer bailed out of the OAuth page) we offer the connect button again.
+ */
+function SyncConnection({ accountId }: { accountId: Id<"accounts"> }) {
+  const sync = useAction(api.publisherConnect.syncConnection);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void sync({ accountId })
+      .then((result) => {
+        if (!cancelled && !result.connected) setFailed(true);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId, sync]);
+
+  return failed ? <ConnectStep accountId={accountId} /> : <OnboardingLoading />;
 }
 
 function ActivateAndRedirect({ accountId }: { accountId: Id<"accounts"> }) {

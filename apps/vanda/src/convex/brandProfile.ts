@@ -15,9 +15,9 @@ import { assessBrandReadiness } from "./pipeline/inputQuality";
  * function. `analyzeAccount` (brandProfileNode.ts) passes its verified `clerkId`;
  * ownership is re-checked here against the account before any secret is handed out.
  */
-export const resolveOwnedConnection = internalQuery({
+export const resolveOwnedHandle = internalQuery({
   args: { accountId: v.id("accounts"), clerkId: v.string() },
-  handler: async (ctx, { accountId, clerkId }) => {
+  handler: async (ctx, { accountId, clerkId }): Promise<{ handle: string }> => {
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
@@ -26,15 +26,8 @@ export const resolveOwnedConnection = internalQuery({
     if (!user || account === null || account.ownerUserId !== user._id) {
       throw new Error("account not found");
     }
-    if (account.connectionId === undefined) throw new Error("account has no Instagram connection");
-    const connection = await ctx.db.get(account.connectionId);
-    if (connection === null) throw new Error("connection not found");
-    return {
-      igUserId: connection.externalAccountId,
-      tokenCiphertext: connection.tokenCiphertext,
-      tokenIv: connection.tokenIv,
-      tokenAuthTag: connection.tokenAuthTag,
-    };
+    if (account.handle === undefined) throw new Error("account has no Instagram connection");
+    return { handle: account.handle };
   },
 });
 

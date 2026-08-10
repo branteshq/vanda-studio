@@ -34,7 +34,6 @@ export const loadBrandContext = internalQuery({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
     const account = await ctx.db.get(accountId);
-    const connection = account?.connectionId ? await ctx.db.get(account.connectionId) : null;
     const canon = await ctx.db
       .query("brandCanon")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
@@ -44,7 +43,7 @@ export const loadBrandContext = internalQuery({
       confirmedKinds: confirmed.map((item) => item.kind),
     });
     return {
-      ownHandle: connection?.handle,
+      ownHandle: account?.handle,
       context: confirmed.map((item) => `${item.kind}: ${item.text}`).join("\n"),
       canonIds: confirmed.map((item) => item._id),
       readiness,
