@@ -83,10 +83,11 @@ export const instagramStateOf = (profile: PublisherProfile): InstagramState => {
 /** Create the profile if it doesn't exist yet (idempotent). */
 export const ensureProfile = async (username: string): Promise<void> => {
   const response = await upFetch("/uploadposts/users", jsonInit({ username }));
-  // 4xx "already exists" is success for our purposes; anything else is not.
   if (response.ok) return;
+  // "Already exists" is success for our purposes — 409, or the message
+  // wording ("Username already in use" / "already exists").
   const body = await response.text().catch(() => "");
-  if (/exist/i.test(body)) return;
+  if (response.status === 409 || /already in use|exist/i.test(body)) return;
   throw new Error(`upload-post create profile HTTP ${response.status}${body ? `: ${body.slice(0, 300)}` : ""}`);
 };
 
