@@ -20,6 +20,10 @@ export interface CodexAuth {
   accountId: string;
 }
 
+/** Callers pass OpenRouter-style ids ("openai/gpt-5.6-terra"); the ChatGPT
+ * backend only accepts the bare model name and 400s on the prefixed form. */
+const codexModelId = (modelId: string): string => modelId.replace(/^openai\//, "");
+
 const codexHeaders = (auth: CodexAuth): Record<string, string> => ({
   "chatgpt-account-id": auth.accountId,
   originator: "vanda",
@@ -60,7 +64,7 @@ export const codexChatModel = (auth: CodexAuth, modelId: string): LanguageModel 
       return response;
     }) as typeof fetch,
   });
-  return provider.responses(modelId);
+  return provider.responses(codexModelId(modelId));
 };
 
 /**
@@ -85,7 +89,7 @@ export const codexResponsesText = async (args: {
       accept: "text/event-stream",
     },
     body: JSON.stringify({
-      model: args.model,
+      model: codexModelId(args.model),
       store: false,
       stream: true,
       instructions: args.system,
