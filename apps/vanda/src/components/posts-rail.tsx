@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useRouterState } from "@tanstack/react-router";
 import { useQuery } from "convex-helpers/react/cache";
 import { ptBR } from "date-fns/locale";
 import {
@@ -78,10 +79,14 @@ export function PostsRailHost() {
 }
 
 /** The floating opener shown while the rail is closed — the right-side twin
- * of `CollapsedSidebarControls`. Rendered inside the inset by the layout. */
+ * of `CollapsedSidebarControls`. Rendered inside the inset by the layout;
+ * the gallery renders its opener inline in its own header instead. */
 export function CollapsedRailControls() {
   const rail = useWorkRail();
-  if (rail.open) return null;
+  const gallery = useRouterState({
+    select: (s) => s.location.pathname.startsWith("/galeria"),
+  });
+  if (rail.open || gallery) return null;
   return (
     <div className="absolute top-3 right-3 z-20 hidden items-center rounded-lg border border-border bg-surface/90 p-0.5 shadow-sm backdrop-blur-sm md:flex">
       <ActionTooltip label="Abrir posts" side="bottom">

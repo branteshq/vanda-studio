@@ -7,6 +7,7 @@ import type * as React from "react";
 import {
   ArrowDownWideNarrow,
   ArrowUpNarrowWide,
+  CalendarDays,
   Copy,
   Download,
   ImagePlus,
@@ -32,6 +33,7 @@ import { useActiveAccount } from "../components/active-account";
 import { FilterMenu, type FilterOption } from "../components/filter-menu";
 import { ImageLightbox, type ImageLightboxData } from "../components/image-lightbox";
 import { PostPreviewDialog } from "../components/post-preview";
+import { useWorkRail } from "../components/work-rail";
 import {
   ActionStateIcon,
   MediaTile,
@@ -379,6 +381,7 @@ function GalleryHeader({
         />
       </div>
       <div className="ml-auto flex items-center gap-1">
+        <RailOpenButton />
         <FilterMenu
           label="Filtrar imagens"
           groups={[
@@ -411,6 +414,25 @@ function GalleryHeader({
         <UploadButton accountId={accountId} />
       </div>
     </header>
+  );
+}
+
+/** Inline rail opener — the gallery's twin of the header's PanelLeftOpen. */
+function RailOpenButton() {
+  const rail = useWorkRail();
+  if (rail.open) return null;
+  return (
+    <ActionTooltip label="Abrir posts" side="bottom">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Abrir posts"
+        onClick={() => rail.setOpen(true)}
+        className="hidden shrink-0 text-text-4 hover:text-text md:inline-flex"
+      >
+        <CalendarDays />
+      </Button>
+    </ActionTooltip>
   );
 }
 
