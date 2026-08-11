@@ -20,7 +20,6 @@ const setup = async (userPatch: Record<string, unknown>) => {
     });
     const accountId = await ctx.db.insert("accounts", {
       ownerUserId: userId,
-      mode: "manual",
       name: "Café da Ana",
       createdAt: now,
       updatedAt: now,

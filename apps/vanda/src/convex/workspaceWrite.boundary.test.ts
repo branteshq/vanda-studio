@@ -3,7 +3,6 @@ import agentTest from "@convex-dev/agent/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { internal } from "./_generated/api";
-import { writeNeedsApproval } from "./workspace";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -14,13 +13,11 @@ const setup = async () => {
   const ids = await t.run(async (ctx) => {
     const now = Date.now();
     const accountId = await ctx.db.insert("accounts", {
-      mode: "manual",
       name: "Café da Ana",
       createdAt: now,
       updatedAt: now,
     });
     const foreignAccountId = await ctx.db.insert("accounts", {
-      mode: "manual",
       createdAt: now,
       updatedAt: now,
     });
@@ -93,12 +90,6 @@ describe("workspace writes", () => {
     if (read.ok && read.file.kind === "text") {
       expect(read.file.text).toContain("assinar sempre");
     }
-
-    expect(writeNeedsApproval("/brand/notes.md")).toBe(true);
-    expect(writeNeedsApproval("brand/notes.md/")).toBe(true);
-    expect(writeNeedsApproval("/brand/kit.json")).toBe(true);
-    expect(writeNeedsApproval("/memory/preferencias.md")).toBe(false);
-    expect(writeNeedsApproval("/templates/moldura.py")).toBe(false);
   });
 
   it("validates and normalizes brand kit writes", async () => {
@@ -147,7 +138,6 @@ describe("workspace writes", () => {
   it("refuses projection writes with the verb that changes them", async () => {
     const { t, accountId } = await setup();
     const cases: Array<[string, string]> = [
-      ["/projects/qualquer/status.json", "revise_slide"],
       ["/images/promo.jpg", "paint"],
       ["/market/last-scan.json", "start_market_scan"],
       ["/runs/x.json", "/templates"],

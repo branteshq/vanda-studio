@@ -73,7 +73,6 @@ export const postsMount: WorkspaceMount = {
       scheduledFor: scheduled ? formatDate(scheduled.scheduledFor) : null,
       permalink: scheduled?.permalink ?? null,
       lastError: scheduled?.lastError ?? null,
-      contentProjectId: post.contentProjectId ?? null,
     });
   },
 };

@@ -17,21 +17,18 @@ describe("accounts.listMine — the owner's businesses", () => {
         ownerUserId: me,
         handle: "cafelumiar",
         publisherConnectedAt: now,
-        mode: "auto",
         createdAt: now,
         updatedAt: now,
       });
       const override = await ctx.db.insert("accounts", {
         ownerUserId: me,
         name: "Segundo Negócio",
-        mode: "needs_approval",
         createdAt: now,
         updatedAt: now,
       });
       // Another owner's account must never surface in my switcher.
       await ctx.db.insert("accounts", {
         ownerUserId: other,
-        mode: "auto",
         createdAt: now,
         updatedAt: now,
       });
@@ -53,38 +50,6 @@ describe("accounts.listMine — the owner's businesses", () => {
   });
 });
 
-describe("accounts.setMode", () => {
-  it("updates a mode the caller owns and rejects another owner's account", async () => {
-    const t = convexTest(schema, modules);
-    const now = Date.now();
-    const { mine, theirs } = await t.run(async (ctx) => {
-      const me = await ctx.db.insert("users", { name: "Me", email: "me@e.com", clerkId: "me" });
-      const other = await ctx.db.insert("users", { name: "O", email: "o@e.com", clerkId: "other" });
-      const mine = await ctx.db.insert("accounts", {
-        ownerUserId: me,
-        mode: "auto",
-        createdAt: now,
-        updatedAt: now,
-      });
-      const theirs = await ctx.db.insert("accounts", {
-        ownerUserId: other,
-        mode: "auto",
-        createdAt: now,
-        updatedAt: now,
-      });
-      return { mine, theirs };
-    });
-
-    const asMe = t.withIdentity({ subject: "me" });
-    await asMe.mutation(api.accounts.setMode, { accountId: mine, mode: "manual" });
-    expect((await t.run((ctx) => ctx.db.get(mine)))!.mode).toBe("manual");
-
-    await expect(
-      asMe.mutation(api.accounts.setMode, { accountId: theirs, mode: "manual" }),
-    ).rejects.toThrow();
-  });
-});
-
 describe("accounts.selectActive", () => {
   it("persists an owned onboarded business and rejects pending or unowned accounts", async () => {
     const t = convexTest(schema, modules);
@@ -94,20 +59,17 @@ describe("accounts.selectActive", () => {
       const other = await ctx.db.insert("users", { name: "O", email: "o@e.com", clerkId: "other" });
       const ready = await ctx.db.insert("accounts", {
         ownerUserId: me,
-        mode: "auto",
         onboardedAt: now,
         createdAt: now,
         updatedAt: now,
       });
       const pending = await ctx.db.insert("accounts", {
         ownerUserId: me,
-        mode: "auto",
         createdAt: now + 1,
         updatedAt: now + 1,
       });
       const theirs = await ctx.db.insert("accounts", {
         ownerUserId: other,
-        mode: "auto",
         onboardedAt: now,
         createdAt: now,
         updatedAt: now,
@@ -131,7 +93,6 @@ describe("publisherConnect.applyConnection", () => {
       const me = await ctx.db.insert("users", { name: "Me", email: "me@e.com", clerkId: "me" });
       return ctx.db.insert("accounts", {
         ownerUserId: me,
-        mode: "needs_approval",
         createdAt: now,
         updatedAt: now,
       });
@@ -180,13 +141,11 @@ describe("accounts.remove", () => {
         ownerUserId: me,
         handle: "cafelumiar",
         publisherConnectedAt: now,
-        mode: "auto",
         createdAt: now,
         updatedAt: now,
       });
       const theirs = await ctx.db.insert("accounts", {
         ownerUserId: other,
-        mode: "auto",
         createdAt: now,
         updatedAt: now,
       });
@@ -216,14 +175,12 @@ describe("accounts.remove", () => {
       const me = await ctx.db.insert("users", { name: "Me", email: "me@e.com", clerkId: "me" });
       const fallback = await ctx.db.insert("accounts", {
         ownerUserId: me,
-        mode: "auto",
         onboardedAt: now,
         createdAt: now,
         updatedAt: now,
       });
       const active = await ctx.db.insert("accounts", {
         ownerUserId: me,
-        mode: "auto",
         onboardedAt: now + 1,
         createdAt: now + 1,
         updatedAt: now + 1,

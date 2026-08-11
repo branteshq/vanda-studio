@@ -6,7 +6,6 @@ import { useEffect, useState } from "react";
 import { Spinner } from "@vanda-studio/ui/components/spinner";
 import { ConfirmStep } from "../components/onboarding/confirm-step";
 import { ConnectStep } from "../components/onboarding/connect-step";
-import { ModeStep, type Mode } from "../components/onboarding/mode-step";
 import { ObservingStep } from "../components/onboarding/observing-step";
 import {
   type CorpusStats,
@@ -115,7 +114,7 @@ function ActivateAndRedirect({ accountId }: { accountId: Id<"accounts"> }) {
   return <OnboardingLoading />;
 }
 
-type Step = "observing" | "confirm" | "mode";
+type Step = "observing" | "confirm";
 
 function AnalyzeFlow({ accountId }: { accountId: Id<"accounts"> }) {
   const navigate = useNavigate();
@@ -125,11 +124,11 @@ function AnalyzeFlow({ accountId }: { accountId: Id<"accounts"> }) {
   const [stats, setStats] = useState<CorpusStats | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function finish(mode: Mode) {
-    if (!analysis) return;
+  async function finish(edited: EditableAnalysis) {
+    if (busy) return;
     setBusy(true);
     try {
-      await approve({ accountId, mode, ...analysis });
+      await approve({ accountId, ...edited });
       await navigate({ to: "/conversa" });
     } catch {
       setBusy(false);
@@ -156,13 +155,10 @@ function AnalyzeFlow({ accountId }: { accountId: Id<"accounts"> }) {
         stats={stats}
         onContinue={(edited) => {
           setAnalysis(edited);
-          setStep("mode");
+          void finish(edited);
         }}
       />
     );
-  }
-  if (step === "mode" && analysis) {
-    return <ModeStep busy={busy} onFinish={finish} />;
   }
   return <OnboardingLoading />;
 }

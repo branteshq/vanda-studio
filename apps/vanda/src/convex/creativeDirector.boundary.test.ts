@@ -99,7 +99,6 @@ const seedQualifiedOpportunity = async (t: ReturnType<typeof convexTest>) =>
   t.run(async (ctx) => {
     const now = Date.now();
     const accountId = await ctx.db.insert("accounts", {
-      mode: "needs_approval",
       createdAt: now,
       updatedAt: now,
     });

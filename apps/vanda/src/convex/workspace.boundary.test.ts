@@ -14,13 +14,11 @@ const setup = async () => {
   const ids = await t.run(async (ctx) => {
     const now = Date.now();
     const accountId = await ctx.db.insert("accounts", {
-      mode: "manual",
       name: "Café da Ana",
       createdAt: now,
       updatedAt: now,
     });
     const foreignAccountId = await ctx.db.insert("accounts", {
-      mode: "manual",
       createdAt: now,
       updatedAt: now,
     });
@@ -51,17 +49,7 @@ const setup = async () => {
       name: "segredo alheio",
       createdAt: now,
     });
-    const projectId = await ctx.db.insert("contentProjects", {
-      accountId,
-      kind: "carousel",
-      origin: "manual",
-      title: "Promo de Inverno",
-      status: "draft",
-      latestVersion: 1,
-      createdAt: now,
-      updatedAt: now,
-    });
-    return { accountId, foreignAccountId, galleryImageId, foreignImageId, projectId };
+    return { accountId, foreignAccountId, galleryImageId, foreignImageId };
   });
   return { t, ...ids };
 };
@@ -78,7 +66,6 @@ describe("workspace navigation", () => {
         "templates",
         "images",
         "posts",
-        "projects",
         "market",
         "runs",
       ]);
@@ -89,12 +76,12 @@ describe("workspace navigation", () => {
     const { t, accountId } = await setup();
     const result = await t.query(internal.workspaceData.read, {
       accountId,
-      path: "/projects/nao-existe-xxxxxx/slides.md",
+      path: "/images/nao-existe-xxxxxx.jpg",
     });
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.nearest).toBe("/projects");
-      expect(result.entries.some((entry) => entry.name.startsWith("promo-de-inverno-"))).toBe(true);
+      expect(result.nearest).toBe("/images");
+      expect(result.entries.some((entry) => entry.name.startsWith("promo-agosto-"))).toBe(true);
     }
   });
 
@@ -166,16 +153,16 @@ describe("workspace renders", () => {
 
 describe("workspace path stability", () => {
   it("resolves entities by stale slugs and bare suffixes", async () => {
-    const { t, accountId, projectId } = await setup();
-    const suffix = entitySuffix(projectId);
-    for (const name of [`promo-de-inverno-${suffix}`, `nome-antigo-${suffix}`, suffix, projectId]) {
+    const { t, accountId, galleryImageId } = await setup();
+    const suffix = entitySuffix(galleryImageId);
+    for (const name of [`promo-agosto-${suffix}.jpg`, `nome-antigo-${suffix}.jpg`, `${suffix}.jpg`]) {
       const result = await t.query(internal.workspaceData.read, {
         accountId,
-        path: `/projects/${name}/status.json`,
+        path: `/images/${name}`,
       });
       expect(result.ok).toBe(true);
-      if (result.ok && result.file.kind === "text") {
-        expect(result.file.text).toContain("Promo de Inverno");
+      if (result.ok && result.file.kind === "image") {
+        expect(result.file.header).toContain(galleryImageId);
       }
     }
   });

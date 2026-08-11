@@ -439,35 +439,6 @@ export const listMessages = query({
 });
 
 /**
- * Resolve a tool call that paused for the owner's decision (publishing).
- * The domain-level status gate in the publish pipeline remains the final
- * safety boundary; this is the conversational mechanism.
- */
-export const respondToApproval = mutation({
-  args: {
-    accountId: v.id("accounts"),
-    threadId: v.string(),
-    approvalId: v.string(),
-    approve: v.boolean(),
-    reason: v.optional(v.string()),
-  },
-  handler: async (ctx, { accountId, threadId, approvalId, approve, reason }): Promise<void> => {
-    await requireOwnedAccount(ctx, accountId);
-    await requireAccountThread(ctx, accountId, threadId);
-    const { messageId } = approve
-      ? await vanda.approveToolCall(ctx, { threadId, approvalId, ...(reason ? { reason } : {}) })
-      : await vanda.denyToolCall(ctx, { threadId, approvalId, ...(reason ? { reason } : {}) });
-    const activityId = await startThreadActivity(ctx, accountId, threadId, messageId);
-    await ctx.scheduler.runAfter(0, internal.chat.generateResponse, {
-      accountId,
-      threadId,
-      promptMessageId: messageId,
-      activityId,
-    });
-  },
-});
-
-/**
  * A deterministic assistant note posted into a conversation — how background
  * jobs report completion without an LLM call. Targets the thread that requested
  * the work; falls back to the account's most recent active conversation when

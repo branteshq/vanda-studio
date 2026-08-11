@@ -59,9 +59,6 @@ const opportunityMarkdown = (
   lines.push("", "## Ids");
   lines.push(`- opportunityId: ${opportunity._id}`);
   if (opportunity.creativeBriefId) lines.push(`- creativeBriefId: ${opportunity.creativeBriefId}`);
-  if (opportunity.contentProjectId) {
-    lines.push(`- contentProjectId: ${opportunity.contentProjectId}`);
-  }
   return lines.join("\n");
 };
 

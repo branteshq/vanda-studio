@@ -704,10 +704,8 @@ export const directOpportunity = internalAction({
           reviewConfidence: review.confidence,
         },
       );
-      if (validation.valid)
-        await ctx.scheduler.runAfter(0, internal.contentStudioNode.createFromBriefInternal, {
-          creativeBriefId: briefId,
-        });
+      // The brief is research output: Vanda reads it via /market and produces
+      // the post herself (paint + run_code + create_post) — no auto-factory.
       return briefId;
     } catch (error) {
       await ctx.runMutation(internal.market.setOpportunityStatus, {

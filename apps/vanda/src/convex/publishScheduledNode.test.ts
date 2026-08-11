@@ -12,7 +12,6 @@ describe("runScheduledPost credential phase", () => {
     const scheduledPostId = await t.run(async (ctx) => {
       const now = Date.now();
       const accountId = await ctx.db.insert("accounts", {
-        mode: "manual",
         createdAt: now,
         updatedAt: now,
       });
@@ -51,7 +50,6 @@ describe("getPublishProfile", () => {
       const accountId = await ctx.db.insert("accounts", {
         handle: "cafelumiar",
         publisherConnectedAt: now,
-        mode: "auto",
         createdAt: now,
         updatedAt: now,
       });
@@ -87,7 +85,6 @@ describe("getPublishProfile", () => {
     const scheduledPostId = await t.run(async (ctx) => {
       const now = Date.now();
       const accountId = await ctx.db.insert("accounts", {
-        mode: "auto",
         createdAt: now,
         updatedAt: now,
       });

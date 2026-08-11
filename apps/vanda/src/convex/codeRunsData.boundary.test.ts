@@ -14,12 +14,10 @@ const setup = async () => {
   agentTest.register(t);
   const ids = await t.run(async (ctx) => {
     const accountId = await ctx.db.insert("accounts", {
-      mode: "manual",
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
     const foreignAccountId = await ctx.db.insert("accounts", {
-      mode: "manual",
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });

@@ -17,7 +17,6 @@ describe("schedulePost + calendar", () => {
     const { accountId, postId } = await t.run(async (ctx) => {
       const now = Date.now();
       const account = await ctx.db.insert("accounts", {
-        mode: "manual",
         createdAt: now,
         updatedAt: now,
       });
@@ -63,7 +62,6 @@ describe("publishDue through the ctx-backed store + fake publisher", () => {
     const scheduledPostId = await t.run(async (ctx) => {
       const now = Date.now();
       const accountId = await ctx.db.insert("accounts", {
-        mode: "manual",
         createdAt: now,
         updatedAt: now,
       });

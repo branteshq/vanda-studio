@@ -6,7 +6,7 @@ import * as Schema from "effect/Schema";
 import { requireOwnedAccount } from "./authz";
 import { BrandAnalysis, type BrandCanonKind } from "./pipeline/brand";
 import { brandAnalysisArgs } from "./pipeline/storage";
-import { accountModes, brandCanonKinds } from "./pipeline/constants";
+import { brandCanonKinds } from "./pipeline/constants";
 import { assessBrandReadiness } from "./pipeline/inputQuality";
 
 /**
@@ -66,13 +66,12 @@ const canonFromGroup = (kind: BrandCanonKind, group: CanonGroup) =>
 export const approveBrandProfile = mutation({
   args: {
     accountId: v.id("accounts"),
-    mode: v.union(...accountModes.map((m) => v.literal(m))),
     ...brandAnalysisArgs,
   },
   handler: async (ctx, args) => {
     const account = await requireOwnedAccount(ctx, args.accountId);
     if (account.onboardedAt !== undefined) throw new Error("account already onboarded");
-    const { accountId, mode, ...rest } = args;
+    const { accountId, ...rest } = args;
     // The public mutation's v.number() args don't enforce UnitInterval; decode against
     // the domain contract so an out-of-range confidence is rejected, not persisted.
     const analysis = Schema.decodeSync(BrandAnalysis)(rest);
@@ -103,7 +102,6 @@ export const approveBrandProfile = mutation({
 
     await ctx.db.patch(accountId, {
       kind: analysis.kind.value,
-      mode,
       onboardedAt: now,
       updatedAt: now,
     });

@@ -26,10 +26,7 @@ import {
   Copy,
   Download,
   ImageOff,
-  Images,
-  NotebookPen,
   Paperclip,
-  Send,
   Square,
   SquarePen,
   Trash2,
@@ -58,10 +55,8 @@ import {
   AttachmentGroup,
   AttachmentMedia,
   AttachmentTitle,
-  AttachmentTrigger,
 } from "@vanda-studio/ui/components/attachment";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
-import { Spinner } from "@vanda-studio/ui/components/spinner";
 import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { useActiveAccount } from "../components/active-account";
@@ -79,7 +74,6 @@ import {
   useMediaAction,
 } from "../components/media-tile";
 import { VandaMark } from "../components/vanda-mark";
-import { useWorkRail } from "../components/work-rail";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { imageModelLabel } from "../convex/imageModels";
@@ -95,13 +89,6 @@ const TOOL_LABEL: Record<string, string> = {
   list_opportunities: "Listando oportunidades",
   get_market_status: "Verificando a varredura de mercado",
   start_market_scan: "Iniciando varredura de mercado",
-  list_projects: "Listando projetos",
-  get_project: "Abrindo projeto",
-  create_carousel: "Iniciando criação do carrossel",
-  revise_slide: "Enviando revisão de slide",
-  request_render: "Enfileirando render",
-  publish_project: "Publicação no Instagram",
-  discard_project: "Arquivando projeto",
   create_post: "Montando post",
   schedule_post: "Agendando publicação",
   cancel_schedule: "Cancelando agendamento",
@@ -116,21 +103,17 @@ const TOOL_LABEL: Record<string, string> = {
 /**
  * Which orb animates while a tool runs — the motion mirrors the verb:
  * reading scans, writing composes, code solves, images take shape,
- * carousels weave, publishing connects.
+ * publishing connects.
  */
 const TOOL_ORB_STATE: Record<string, OrbState> = {
   list: "searching",
   read: "searching",
   write: "composing",
   start_market_scan: "searching",
-  create_carousel: "weaving",
-  revise_slide: "shaping",
-  request_render: "shaping",
   paint: "shaping",
   run_code: "solving",
   create_post: "composing",
   schedule_post: "connecting",
-  publish_project: "connecting",
 };
 
 const orbStateOf = (name: string): OrbState => TOOL_ORB_STATE[name] ?? "working";
@@ -231,16 +214,6 @@ const codeRunViewOf = (part: ToolPartView) => {
     stdout: typeof output.stdout === "string" ? output.stdout : "",
     stderr: typeof output.stderr === "string" ? output.stderr : "",
   };
-};
-
-const projectIdOf = (part: ToolPartView): Id<"contentProjects"> | null => {
-  for (const value of [part.input, part.output]) {
-    if (value && typeof value === "object" && "projectId" in value) {
-      const id = (value as { projectId?: unknown }).projectId;
-      if (typeof id === "string") return id as Id<"contentProjects">;
-    }
-  }
-  return null;
 };
 
 function ConversaPage() {
@@ -882,7 +855,6 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
     });
   });
   const [draft, setDraft] = useState("");
-  const workRail = useWorkRail();
 
   const messages = useUIMessages(
     api.chat.listMessages,
@@ -972,14 +944,7 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
                           messageId={message.key}
                           scrollAnchor={message.role === "user"}
                         >
-                          <ChatMessage
-                            message={message}
-                            accountId={accountId}
-                            threadId={threadId}
-                            onOpenProject={(projectId) =>
-                              workRail.openProject(projectId, threadId)
-                            }
-                          />
+                          <ChatMessage message={message} accountId={accountId} />
                         </MessageScrollerItem>
                       ))
                     )}
@@ -1007,17 +972,7 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
 const visibleUserText = (text: string): string =>
   text.replace(/\s*<vanda_attachment_context>[\s\S]*?<\/vanda_attachment_context>/g, "").trim();
 
-function ChatMessage({
-  message,
-  accountId,
-  threadId,
-  onOpenProject,
-}: {
-  message: UIMessage;
-  accountId: Id<"accounts">;
-  threadId: string;
-  onOpenProject: (projectId: Id<"contentProjects">) => void;
-}) {
+function ChatMessage({ message, accountId }: { message: UIMessage; accountId: Id<"accounts"> }) {
   const enter = useEntranceOnMount();
   // Which of this turn's generated images is expanded in the lightbox.
   const [lightboxId, setLightboxId] = useState<string | null>(null);
@@ -1054,12 +1009,11 @@ function ChatMessage({
   const streaming = message.status === "streaming";
 
   // Classify the turn's parts. Reasoning is never rendered (no thinking traces).
-  // Tool calls collapse into a single "Trabalhou" trace; answer text, carousel
-  // previews, and approval cards stay visible.
+  // Tool calls collapse into a single "Trabalhou" trace; answer text and
+  // generated images stay visible. (Historical approval parts from the old
+  // gated era render as plain tool rows.)
   const answers: Array<{ key: number; text: string }> = [];
   const toolRows: ToolPartView[] = [];
-  const approvals: ToolPartView[] = [];
-  const previewProjectIds: Id<"contentProjects">[] = [];
   const paintedImages: PaintedImageView[] = [];
   message.parts.forEach((part, index) => {
     if (part.type === "text") {
@@ -1069,15 +1023,7 @@ function ChatMessage({
     }
     if (part.type === "dynamic-tool" || part.type.startsWith("tool-")) {
       const p = part as unknown as ToolPartView;
-      if (p.state === "approval-requested" || p.state === "approval-responded") {
-        approvals.push(p);
-      } else {
-        toolRows.push(p);
-      }
-      const pid = projectIdOf(p);
-      if (pid && p.state === "output-available" && !previewProjectIds.includes(pid)) {
-        previewProjectIds.push(pid);
-      }
+      toolRows.push(p);
       const painted = paintedImageOf(p);
       if (painted && !paintedImages.some((image) => image.imageId === painted.imageId)) {
         paintedImages.push(painted);
@@ -1094,8 +1040,7 @@ function ChatMessage({
   const anyToolRunning = toolRows.some(
     (p) => p.state === "input-streaming" || p.state === "input-available",
   );
-  const nothingYet =
-    streaming && answers.length === 0 && toolRows.length === 0 && approvals.length === 0;
+  const nothingYet = streaming && answers.length === 0 && toolRows.length === 0;
 
   return (
     <Message align="start" className={cn(enter && "animate-message-in")}>
@@ -1125,24 +1070,6 @@ function ChatMessage({
             onClose={() => setLightboxId(null)}
           />
         ) : null}
-        {previewProjectIds.map((pid) => (
-          <ProjectPreview key={pid} projectId={pid} onOpen={() => onOpenProject(pid)} />
-        ))}
-        {approvals.map((p, index) =>
-          p.state === "approval-requested" && p.approval ? (
-            <ApprovalRequest
-              key={p.approval.id}
-              part={p}
-              accountId={accountId}
-              threadId={threadId}
-              approvalId={p.approval.id}
-              projectId={projectIdOf(p)}
-              onOpenProject={onOpenProject}
-            />
-          ) : (
-            <ApprovalResponded key={index} approved={p.approval?.approved === true} />
-          ),
-        )}
         {nothingYet ? <ThinkingMarker /> : null}
       </MessageContent>
     </Message>
@@ -1282,17 +1209,6 @@ function CodeRunRow({ part }: { part: ToolPartView }) {
         </div>
       ) : null}
     </div>
-  );
-}
-
-function ApprovalResponded({ approved }: { approved: boolean }) {
-  return (
-    <Marker>
-      <MarkerIcon>{approved ? <Check className="text-green" /> : <X />}</MarkerIcon>
-      <MarkerContent>
-        {approved ? "Publicação aprovada por você" : "Publicação negada por você"}
-      </MarkerContent>
-    </Marker>
   );
 }
 
@@ -1483,178 +1399,6 @@ function DeletedImageNotice() {
       <div className="min-w-0">
         <p className="text-body font-medium text-text-2">Imagem excluída</p>
         <p className="text-body-sm text-text-4">Esta imagem foi removida da galeria.</p>
-      </div>
-    </div>
-  );
-}
-
-/** Inline rendered-slide preview: the exact media, as image attachments. */
-function ProjectPreview({
-  projectId,
-  onOpen,
-}: {
-  projectId: Id<"contentProjects">;
-  onOpen: () => void;
-}) {
-  const enter = useEntranceOnMount();
-  const data = useQuery(api.contentStudio.project, { projectId });
-  const slides = data?.renderedSlideUrls ?? [];
-
-  if (slides.length === 0) {
-    return (
-      <Button variant="soft" size="sm" className="self-start" onClick={onOpen}>
-        <Images />
-        Abrir carrossel
-      </Button>
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      <AttachmentGroup className="max-w-md">
-        {slides.slice(0, 8).map((url, index) => (
-          <Attachment
-            key={index}
-            orientation="vertical"
-            size="sm"
-            className={cn(enter && "animate-attachment-in")}
-            style={enter ? { animationDelay: `${Math.min(index, 6) * 45}ms` } : undefined}
-          >
-            <AttachmentMedia variant="image">
-              <img src={url} alt={`Slide ${index + 1}`} />
-            </AttachmentMedia>
-            <ActionTooltip label={`Abrir slide ${index + 1}`} side="top">
-              <AttachmentTrigger aria-label={`Abrir slide ${index + 1}`} onClick={onOpen} />
-            </ActionTooltip>
-          </Attachment>
-        ))}
-      </AttachmentGroup>
-      <Button variant="soft" size="sm" className="self-start" onClick={onOpen}>
-        <Images />
-        Revisar carrossel
-      </Button>
-    </div>
-  );
-}
-
-function ApprovalRequest({
-  part,
-  accountId,
-  threadId,
-  approvalId,
-  projectId,
-  onOpenProject,
-}: {
-  part: ToolPartView;
-  accountId: Id<"accounts">;
-  threadId: string;
-  approvalId: string;
-  projectId: Id<"contentProjects"> | null;
-  onOpenProject: (projectId: Id<"contentProjects">) => void;
-}) {
-  const enter = useEntranceOnMount();
-  const respond = useMutation(api.chat.respondToApproval);
-  const [busy, setBusy] = useState<"approve" | "deny" | null>(null);
-  const scheduledFor =
-    part.input && typeof part.input === "object" && "scheduledFor" in part.input
-      ? (part.input as { scheduledFor?: string }).scheduledFor
-      : undefined;
-
-  const answer = async (approve: boolean) => {
-    setBusy(approve ? "approve" : "deny");
-    try {
-      await respond({ accountId, threadId, approvalId, approve });
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  if (toolNameOf(part) === "write") {
-    const input = (part.input ?? {}) as { path?: string; content?: string };
-    return (
-      <div
-        className={cn(
-          "rounded-xl border border-brand-accent/30 bg-brand-accent/5 p-4",
-          enter && "animate-card-in",
-        )}
-      >
-        <div className="flex items-center gap-2">
-          <NotebookPen className="size-4 text-brand-accent" />
-          <h3 className="text-sm font-semibold text-text">
-            Vanda quer gravar em <span className="font-mono">{input.path ?? "?"}</span>
-          </h3>
-        </div>
-        {input.content ? (
-          <pre className="mt-2 max-h-48 overflow-auto rounded-lg border border-border bg-muted/40 p-3 text-body-sm leading-relaxed whitespace-pre-wrap text-text-2">
-            {input.content}
-          </pre>
-        ) : null}
-        <p className="mt-1.5 text-xs leading-relaxed text-text-3">
-          O conteúdo acima substitui o arquivo inteiro. Nada é gravado sem a sua decisão.
-        </p>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Button size="sm" disabled={busy !== null} onClick={() => void answer(true)}>
-            {busy === "approve" ? <Spinner className="size-3.5" /> : <Check />}
-            Aprovar e gravar
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={busy !== null}
-            onClick={() => void answer(false)}
-          >
-            <X />
-            Negar
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  const isLightPost = toolNameOf(part) === "schedule_post";
-  return (
-    <div
-      className={cn(
-        "rounded-xl border border-brand-accent/30 bg-brand-accent/5 p-4",
-        enter && "animate-card-in",
-      )}
-    >
-      <div className="flex items-center gap-2">
-        <Send className="size-4 text-brand-accent" />
-        <h3 className="text-sm font-semibold text-text">
-          {isLightPost
-            ? "Vanda quer agendar este post no Instagram"
-            : "Vanda quer publicar este carrossel no Instagram"}
-        </h3>
-      </div>
-      <p className="mt-1.5 text-xs leading-relaxed text-text-3">
-        {scheduledFor
-          ? `Publicação agendada para ${new Date(scheduledFor).toLocaleString("pt-BR")}.`
-          : "Publicação imediata após a aprovação."}{" "}
-        {isLightPost
-          ? "Confira o post no painel à direita antes de aprovar — nada é publicado sem a sua decisão."
-          : "Revise o carrossel exato antes de aprovar — nada é publicado sem a sua decisão."}
-      </p>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        {projectId ? (
-          <Button variant="outline" size="sm" onClick={() => onOpenProject(projectId)}>
-            <Images />
-            Revisar carrossel
-          </Button>
-        ) : null}
-        <Button size="sm" disabled={busy !== null} onClick={() => void answer(true)}>
-          {busy === "approve" ? <Spinner className="size-3.5" /> : <Check />}
-          Aprovar e publicar
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={busy !== null}
-          onClick={() => void answer(false)}
-        >
-          <X />
-          Negar
-        </Button>
       </div>
     </div>
   );

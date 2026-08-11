@@ -30,7 +30,6 @@ import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { useActiveAccount } from "./active-account";
-import { ProjectReview } from "./project-review";
 import { useWorkRail } from "./work-rail";
 
 /**
@@ -138,14 +137,7 @@ function PostsRail() {
         </Button>
       </SidebarHeader>
       <SidebarContent className="min-h-0">
-        {activeAccount === undefined ? null : rail.view.kind === "project" ? (
-          <ProjectReview
-            projectId={rail.view.projectId}
-            accountId={activeAccount.id}
-            threadId={rail.view.kind === "project" ? rail.view.threadId : undefined}
-            onClose={rail.openList}
-          />
-        ) : rail.view.kind === "post" ? (
+        {activeAccount === undefined ? null : rail.view.kind === "post" ? (
           <PostDetail accountId={activeAccount.id} postId={rail.view.postId} />
         ) : (
           <PostList accountId={activeAccount.id} />
@@ -205,8 +197,8 @@ function PostList({ accountId }: { accountId: Id<"accounts"> }) {
           <CalendarDays className="mx-auto size-5 text-text-5" />
           <p className="mt-2 text-body-sm text-text-3">Nenhum post ainda</p>
           <p className="mt-1 text-[12px] leading-relaxed text-text-5">
-            Peça na conversa: "posta essa foto pra mim" — o rascunho aparece aqui e nada é
-            publicado sem a sua aprovação.
+            Peça na conversa: "posta essa foto pra mim" — rascunhos, agendamentos e
+            publicações aparecem aqui.
           </p>
         </div>
       ) : (
@@ -224,12 +216,7 @@ function PostList({ accountId }: { accountId: Id<"accounts"> }) {
               <SidebarMenuButton
                 size="lg"
                 className="h-auto items-center gap-2.5 py-2"
-                onClick={() =>
-                  // Project-backed posts get the full review surface.
-                  post.contentProjectId !== null
-                    ? rail.openProject(post.contentProjectId)
-                    : rail.openPost(post.postId)
-                }
+                onClick={() => rail.openPost(post.postId)}
               >
                 {post.thumbnailUrl !== null ? (
                   <img

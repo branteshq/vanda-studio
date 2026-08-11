@@ -18,13 +18,11 @@ const setup = async () => {
     });
     const accountId = await ctx.db.insert("accounts", {
       ownerUserId: userId,
-      mode: "manual",
       name: "Café da Ana",
       createdAt: now,
       updatedAt: now,
     });
     const orphanAccountId = await ctx.db.insert("accounts", {
-      mode: "manual",
       createdAt: now,
       updatedAt: now,
     });

@@ -5,8 +5,6 @@ import { z } from "zod";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
-import { USAGE_LIMIT_MESSAGE } from "./usage";
-import { writeNeedsApproval } from "./workspace";
 
 /**
  * Vanda, the conversational operator. Threads are keyed per Instagram account
@@ -26,24 +24,23 @@ type VandaToolCtx = ToolCtx & VandaCtx;
 
 const INSTRUCTIONS = `Você é a Vanda, uma operadora de crescimento de Instagram para pequenos negócios brasileiros. Você conversa em português do Brasil, com tom direto, caloroso e profissional.
 
-Seu trabalho: observar o mercado, encontrar oportunidades com evidência real, criar carrosséis originais fiéis à marca do usuário e publicar somente com aprovação explícita.
+Seu trabalho: observar o mercado, encontrar oportunidades com evidência real, criar conteúdo original fiel à marca do usuário e publicar de forma autônoma e transparente.
 
-Workspace: cada conta tem um sistema de arquivos que você explora com list e read. /brand (memória de marca em memory.md, anotações em notes.md, identidade visual em kit.json e fotos de referência em references/), /memory (suas notas duráveis), /templates (trechos Python reutilizáveis), /images (galeria da conta), /posts (o calendário de posts: rascunhos, agendados e publicados), /projects (carrosséis: status.json, slides.md, caption.md, renders/), /market (oportunidades e última varredura), /runs (execuções de código). As listagens trazem um resumo por linha e o id de cada entidade — paint recebe esses ids; run_code recebe os próprios caminhos do workspace (e também aceita ids de anexos). Ler um arquivo de imagem envia os pixels para você: você enxerga a imagem de verdade.
+Workspace: cada conta tem um sistema de arquivos que você explora com list e read. /brand (memória de marca em memory.md, anotações em notes.md, identidade visual em kit.json e fotos de referência em references/), /memory (suas notas duráveis), /templates (trechos Python reutilizáveis), /images (galeria da conta), /posts (o calendário de posts: rascunhos, agendados e publicados), /market (oportunidades e última varredura), /runs (execuções de código). As listagens trazem um resumo por linha e o id de cada entidade — paint recebe esses ids; run_code recebe os próprios caminhos do workspace (e também aceita ids de anexos). Ler um arquivo de imagem envia os pixels para você: você enxerga a imagem de verdade.
 
-Memória durável: quando o dono expressar uma preferência ou fato permanente no meio da conversa ("nunca use essa cor", "sempre assine com o nome da loja"), grave em /memory com write antes de seguir — e diga que anotou. Ao começar um trabalho de criação, liste /memory e leia as notas relevantes; o que não está gravado será esquecido entre conversas. Código Python que deu certo e tende a se repetir vale gravar em /templates. Os demais arquivos são projeções somente-leitura: eles mudam pelos verbos (revise_slide, paint, publish_project…), e uma tentativa de write neles explica qual verbo usar.
+Memória durável: quando o dono expressar uma preferência ou fato permanente no meio da conversa ("nunca use essa cor", "sempre assine com o nome da loja"), grave em /memory com write antes de seguir — e diga que anotou. Ao começar um trabalho de criação, liste /memory e leia as notas relevantes; o que não está gravado será esquecido entre conversas. Código Python que deu certo e tende a se repetir vale gravar em /templates. Os demais arquivos são projeções somente-leitura: eles mudam pelos verbos (paint, create_post, schedule_post…), e uma tentativa de write neles explica qual verbo usar.
 
-Identidade visual: /brand/kit.json guarda as cores exatas (hex), fontes e tagline da marca. Leia antes de criar imagens: use os hex exatos no run_code e cite as fontes do kit nos prompts do paint. Quando o dono definir ou corrigir cores/fontes/tagline, grave o kit atualizado em /brand/kit.json (JSON validado; pede aprovação do dono automaticamente).
+Identidade visual: /brand/kit.json guarda as cores exatas (hex), fontes e tagline da marca. Leia antes de criar imagens: use os hex exatos no run_code e cite as fontes do kit nos prompts do paint. Quando o dono definir ou corrigir cores/fontes/tagline, grave o kit atualizado em /brand/kit.json (JSON validado).
 
 Regras de comportamento:
 - Você é uma operadora, não um chatbot passivo: sempre termine propondo a próxima ação concreta.
-- Nunca afirme que algo foi criado, renderizado ou publicado sem confirmar pelo estado real — leia o arquivo correspondente no workspace (ex.: /projects/<projeto>/status.json). Se algo falhou, diga exatamente o que falhou.
+- Você age por conta própria — não peça permissão para trabalhar. Em vez de gates de aprovação, a sua obrigação é transparência: diga o que fez, onde está o resultado (/posts, calendário, galeria) e como desfazer (schedule_post reagenda, cancel_schedule desarma, delete_post apaga). Quando o pedido for ambíguo sobre PUBLICAR de imediato, prefira agendar para um horário próximo e avisar — o dono vê no calendário e pode mudar.
+- Nunca afirme que algo foi criado ou publicado sem confirmar pelo estado real — o estado de todos os posts (rascunho, agendado, publicado, falhou) vive em /posts; leia antes de afirmar qualquer coisa sobre publicações. Se algo falhou, diga exatamente o que falhou.
 - Explique decisões com a evidência que as sustenta (números, motivo do gatilho, por que serve para esta marca).
-- Trabalhos longos (varredura de mercado, criação de carrossel, revisão de slide) rodam em segundo plano: avise que você começou e que retorna quando terminar.
-- Publicação é irreversível: ela sempre passa pelo fluxo de aprovação — nunca trate um "sim" em texto como aprovação. Antes de propor publicar, leia os renders do projeto e avalie visualmente.
-- Dois caminhos para publicar — escolha o proporcional ao pedido:
-  - Post SIMPLES (o dono pede para postar uma foto/imagem existente ou algo rápido): create_post (imagens da galeria + legenda sua) e depois schedule_post (pede aprovação). Rápido, sem pipeline editorial.
-  - Carrossel PRODUZIDO (arte por slide, revisão editorial, renderização): create_carousel → revise_slide/request_render → publish_project. Use quando o trabalho pede produção de verdade.
-  - O estado de todos os posts (rascunho, agendado, publicado, falhou) vive em /posts — leia antes de afirmar qualquer coisa sobre publicações.
+- Trabalhos longos (varredura de mercado) rodam em segundo plano: avise que você começou e que retorna quando terminar.
+- Produção de post — um único caminho, escale o capricho conforme o pedido:
+  - Direto: imagens prontas da galeria + legenda sua → create_post → schedule_post.
+  - Produzido (carrossel com arte): planeje os slides primeiro (gancho → desenvolvimento → chamada final), gere a arte de cada slide com paint e componha texto/logo/cores exatas com run_code (um script por carrossel garante consistência entre slides — salve em /templates se ficar bom), avalie visualmente lendo as imagens, e só então create_post com os slides na ordem + schedule_post.
 - Agendamentos: o contexto traz a data/hora atual e o fuso é sempre America/Sao_Paulo — calcule "amanhã", "sexta" etc. a partir dela e NÃO pergunte fuso horário. Para mudar o horário de um post já agendado, chame schedule_post de novo com a nova data (reagenda, não duplica). cancel_schedule desarma; delete_post apaga rascunhos e agendados (nunca publicados).
 - Não invente fatos sobre a marca: o que você sabe vem de /brand/memory.md. Se faltar contexto, pergunte ou peça para completar o perfil.
 - Imagens (paint) — regra de roteamento, siga à risca:
@@ -97,9 +94,9 @@ const renderMiss = (result: { error: string; nearest: string; entries: Workspace
 
 const listFiles = createTool({
   description:
-    "Lista um diretório do workspace da conta. A raiz / contém: /brand (memória de marca e referências), /memory (suas notas duráveis), /templates (Python reutilizável), /images (galeria), /projects (carrosséis), /market (oportunidades e varredura), /runs (execuções de código). Cada linha traz um resumo e o id da entidade (o mesmo id que paint e run_code recebem).",
+    "Lista um diretório do workspace da conta. A raiz / contém: /brand (memória de marca e referências), /memory (suas notas duráveis), /templates (Python reutilizável), /images (galeria), /posts (calendário de posts), /market (oportunidades e varredura), /runs (execuções de código). Cada linha traz um resumo e o id da entidade (o mesmo id que paint e run_code recebem).",
   inputSchema: z.object({
-    path: z.string().describe('caminho do diretório, ex.: "/", "/images", "/projects/<nome>"'),
+    path: z.string().describe('caminho do diretório, ex.: "/", "/images", "/posts"'),
   }),
   execute: (ctx: VandaToolCtx, { path }: { path: string }): Promise<unknown> =>
     ctx.runQuery(internal.workspaceData.list, { accountId: ctx.accountId, path }),
@@ -147,12 +144,11 @@ const readFile = createTool({
 
 const writeFile = createTool({
   description:
-    'Grava um arquivo de texto no workspace (cria ou substitui o conteúdo INTEIRO — leia antes se quiser preservar o que já existe). Graváveis: /memory/<nome>.md — suas notas duráveis desta conta (preferências que o dono expressar, planos, aprendizados; ex.: "nunca usar vermelho"); /templates/<nome>.py — trechos Python reutilizáveis para run_code; /brand/notes.md — anotações de marca; /brand/kit.json — identidade visual (JSON com colors/fonts/tagline, validado na gravação). Os arquivos de /brand pedem aprovação do dono automaticamente. Os demais arquivos são projeções somente-leitura que mudam pelos verbos — uma tentativa de write neles responde qual verbo usar.',
+    'Grava um arquivo de texto no workspace (cria ou substitui o conteúdo INTEIRO — leia antes se quiser preservar o que já existe). Graváveis: /memory/<nome>.md — suas notas duráveis desta conta (preferências que o dono expressar, planos, aprendizados; ex.: "nunca usar vermelho"); /templates/<nome>.py — trechos Python reutilizáveis para run_code; /brand/notes.md — anotações de marca; /brand/kit.json — identidade visual (JSON com colors/fonts/tagline, validado na gravação). Os demais arquivos são projeções somente-leitura que mudam pelos verbos — uma tentativa de write neles responde qual verbo usar.',
   inputSchema: z.object({
     path: z.string().describe('caminho do arquivo, ex.: "/memory/preferencias.md"'),
     content: z.string().describe("conteúdo completo do arquivo (substitui o anterior)"),
   }),
-  needsApproval: (_ctx, { path }: { path: string }) => writeNeedsApproval(path),
   execute: (
     ctx: VandaToolCtx,
     { path, content }: { path: string; content: string },
@@ -177,96 +173,9 @@ const startMarketScan = createTool({
   },
 });
 
-const createCarousel = createTool({
-  description:
-    "Cria em segundo plano um carrossel a partir do brief criativo de uma oportunidade qualificada (campo creativeBriefId). Avise o usuário que você retorna quando terminar.",
-  inputSchema: z.object({
-    creativeBriefId: z.string().describe("id do brief criativo da oportunidade"),
-  }),
-  execute: async (
-    ctx: VandaToolCtx,
-    { creativeBriefId }: { creativeBriefId: string },
-  ): Promise<string> => {
-    await ctx.scheduler.runAfter(0, internal.vanda.runCarouselCreation, {
-      accountId: ctx.accountId,
-      creativeBriefId: creativeBriefId as Id<"creativeBriefs">,
-      ...(ctx.threadId ? { threadId: ctx.threadId } : {}),
-    });
-    return "Criação do carrossel iniciada em segundo plano.";
-  },
-});
-
-const reviseSlide = createTool({
-  description:
-    "Refaz um slide específico de um carrossel em segundo plano, seguindo a instrução do usuário. Depois o documento passa por nova revisão editorial e re-render.",
-  inputSchema: z.object({
-    projectId: z.string().describe("id do projeto de conteúdo"),
-    slideId: z.string().describe("id do slide a refazer (veja get_project)"),
-    instruction: z.string().describe("o que deve mudar, na voz do usuário"),
-  }),
-  execute: async (
-    ctx: VandaToolCtx,
-    {
-      projectId,
-      slideId,
-      instruction,
-    }: { projectId: string; slideId: string; instruction: string },
-  ): Promise<string> => {
-    await ctx.scheduler.runAfter(0, internal.vanda.runSlideRevision, {
-      accountId: ctx.accountId,
-      projectId: projectId as Id<"contentProjects">,
-      slideId,
-      instruction,
-      ...(ctx.threadId ? { threadId: ctx.threadId } : {}),
-    });
-    return "Revisão do slide iniciada em segundo plano.";
-  },
-});
-
-const requestRender = createTool({
-  description:
-    "Coloca o documento aprovado de um projeto na fila de renderização (gera as imagens finais 1080x1350).",
-  inputSchema: z.object({ projectId: z.string().describe("id do projeto de conteúdo") }),
-  execute: async (ctx: VandaToolCtx, { projectId }: { projectId: string }): Promise<string> => {
-    await ctx.runMutation(internal.contentStudio.requestRenderInternal, {
-      projectId: projectId as Id<"contentProjects">,
-    });
-    return "Render na fila.";
-  },
-});
-
-const publishProject = createTool({
-  description:
-    "Agenda a publicação de um projeto renderizado no Instagram conectado. Requer aprovação explícita do dono. Opcionalmente com data/hora futura (ISO 8601).",
-  inputSchema: z.object({
-    projectId: z.string().describe("id do projeto de conteúdo"),
-    scheduledFor: z
-      .string()
-      .optional()
-      .describe("data/hora ISO 8601 para publicar; omita para publicar agora"),
-  }),
-  needsApproval: true,
-  execute: async (
-    ctx: VandaToolCtx,
-    { projectId, scheduledFor }: { projectId: string; scheduledFor?: string | undefined },
-  ): Promise<unknown> => {
-    const at = scheduledFor ? Date.parse(scheduledFor) : undefined;
-    if (scheduledFor && Number.isNaN(at)) throw new Error("data de agendamento inválida");
-    const scheduledPostId: string = await ctx.runMutation(
-      internal.contentStudio.approveProjectInternal,
-      {
-        projectId: projectId as Id<"contentProjects">,
-        accountId: ctx.accountId,
-        ...(at !== undefined ? { scheduledFor: at } : {}),
-      },
-    );
-    return { scheduledPostId, scheduledFor: at ?? "imediata" };
-  },
-});
-
 const createPost = createTool({
   description:
-    "Monta um RASCUNHO de post simples para o Instagram a partir de imagens da galeria (1 imagem ou carrossel de até 10) + legenda que VOCÊ escreve. Use este caminho leve para pedidos diretos ('posta essa foto', 'publica isso com tal legenda'); carrosséis produzidos com arte e revisão editorial continuam no create_carousel. O rascunho é inofensivo — nada é publicado até schedule_post ser aprovado.",
+    "Monta um RASCUNHO de post para o Instagram a partir de imagens da galeria (1 imagem ou carrossel de até 10, na ordem dos slides) + legenda que VOCÊ escreve. O rascunho é inofensivo — nada é publicado até schedule_post.",
   inputSchema: z.object({
     imageIds: z
       .array(z.string())
@@ -292,7 +201,7 @@ const createPost = createTool({
 
 const schedulePost = createTool({
   description:
-    "Agenda a publicação de um post criado com create_post no Instagram conectado. Requer aprovação explícita do dono. Opcionalmente com data/hora futura (ISO 8601 com offset, ex.: 2026-08-12T08:00:00-03:00); sem data, publica imediatamente após a aprovação. Se o post JÁ estiver agendado, esta ferramenta REAGENDA: substitui o horário anterior, sem duplicar.",
+    "Agenda a publicação de um post criado com create_post no Instagram conectado. Opcionalmente com data/hora futura (ISO 8601 com offset, ex.: 2026-08-12T08:00:00-03:00); sem data, publica imediatamente. Se o post JÁ estiver agendado, esta ferramenta REAGENDA: substitui o horário anterior, sem duplicar.",
   inputSchema: z.object({
     postId: z.string().describe("id do post (retornado por create_post ou listado em /posts)"),
     scheduledFor: z
@@ -300,7 +209,6 @@ const schedulePost = createTool({
       .optional()
       .describe("data/hora ISO 8601 com offset para publicar; omita para publicar agora"),
   }),
-  needsApproval: true,
   execute: async (
     ctx: VandaToolCtx,
     { postId, scheduledFor }: { postId: string; scheduledFor?: string | undefined },
@@ -401,9 +309,7 @@ const runCode = createTool({
       .array(z.string())
       .max(10)
       .optional()
-      .describe(
-        "caminhos do workspace (/images/…, /brand/references/…, /projects/<p>/renders/NN) ou imageIds diretos (anexos)",
-      ),
+      .describe("caminhos do workspace (/images/…, /brand/references/…) ou imageIds diretos (anexos)"),
   }),
   execute: async (
     ctx: VandaToolCtx,
@@ -417,18 +323,6 @@ const runCode = createTool({
       ...(ctx.threadId ? { threadId: ctx.threadId } : {}),
       ...(args.inputPaths ? { inputPaths: args.inputPaths } : {}),
     }),
-});
-
-const discardProject = createTool({
-  description: "Arquiva um projeto de conteúdo que o dono decidiu descartar.",
-  inputSchema: z.object({ projectId: z.string().describe("id do projeto de conteúdo") }),
-  execute: async (ctx: VandaToolCtx, { projectId }: { projectId: string }): Promise<string> => {
-    await ctx.runMutation(internal.contentStudio.archiveProjectInternal, {
-      projectId: projectId as Id<"contentProjects">,
-      accountId: ctx.accountId,
-    });
-    return "Projeto arquivado.";
-  },
 });
 
 /** Fallback pricing when OpenRouter's in-band cost is missing (per token). */
@@ -468,17 +362,12 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
     read: readFile,
     write: writeFile,
     start_market_scan: startMarketScan,
-    create_carousel: createCarousel,
-    revise_slide: reviseSlide,
-    request_render: requestRender,
     paint,
     run_code: runCode,
     create_post: createPost,
     schedule_post: schedulePost,
     cancel_schedule: cancelSchedule,
     delete_post: deletePost,
-    publish_project: publishProject,
-    discard_project: discardProject,
   },
   stopWhen: stepCountIs(12),
 });
@@ -514,68 +403,3 @@ export const runMarketScan = internalAction({
   },
 });
 
-export const runCarouselCreation = internalAction({
-  args: {
-    accountId: v.id("accounts"),
-    creativeBriefId: v.id("creativeBriefs"),
-    threadId: v.optional(v.string()),
-  },
-  handler: async (ctx, { accountId, creativeBriefId, threadId }): Promise<void> => {
-    try {
-      const budget = await ctx.runQuery(internal.usage.budget, { accountId });
-      if (!budget.ok) throw new Error(USAGE_LIMIT_MESSAGE);
-      const projectId = (await ctx.runAction(internal.contentStudioNode.createFromBriefInternal, {
-        creativeBriefId,
-      })) as Id<"contentProjects">;
-      const project = await ctx.runQuery(internal.contentStudio.projectForAgent, {
-        projectId,
-        accountId,
-      });
-      await ctx.runMutation(internal.chat.postAssistantNote, {
-        accountId,
-        ...(threadId ? { threadId } : {}),
-        text: project
-          ? `O carrossel "${project.title}" ficou pronto (status: ${project.status}). Me peça para mostrar o projeto quando quiser revisar.`
-          : "O carrossel ficou pronto. Me peça para listar os projetos quando quiser revisar.",
-      });
-    } catch (error) {
-      await ctx.runMutation(internal.chat.postAssistantNote, {
-        accountId,
-        ...(threadId ? { threadId } : {}),
-        text: `A criação do carrossel falhou: ${error instanceof Error ? error.message : String(error)}.`,
-      });
-    }
-  },
-});
-
-export const runSlideRevision = internalAction({
-  args: {
-    accountId: v.id("accounts"),
-    projectId: v.id("contentProjects"),
-    slideId: v.string(),
-    instruction: v.string(),
-    threadId: v.optional(v.string()),
-  },
-  handler: async (ctx, { accountId, projectId, slideId, instruction, threadId }): Promise<void> => {
-    try {
-      const budget = await ctx.runQuery(internal.usage.budget, { accountId });
-      if (!budget.ok) throw new Error(USAGE_LIMIT_MESSAGE);
-      await ctx.runAction(internal.contentStudioNode.regenerateSlideInternal, {
-        projectId,
-        slideId,
-        instruction,
-      });
-      await ctx.runMutation(internal.chat.postAssistantNote, {
-        accountId,
-        ...(threadId ? { threadId } : {}),
-        text: "Refiz o slide pedido e mandei o documento para nova revisão e render. Me peça para mostrar o projeto para conferir o resultado.",
-      });
-    } catch (error) {
-      await ctx.runMutation(internal.chat.postAssistantNote, {
-        accountId,
-        ...(threadId ? { threadId } : {}),
-        text: `A revisão do slide falhou: ${error instanceof Error ? error.message : String(error)}.`,
-      });
-    }
-  },
-});

@@ -2,7 +2,6 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { brandCanonColumns } from "./pipeline/storage";
 import {
-  accountModes,
   brandKinds,
   carouselDocumentStatuses,
   carouselRenderStatuses,
@@ -173,7 +172,11 @@ export default defineSchema({
     handle: v.optional(v.string()),
     // Set when the publisher profile reports a live Instagram connection.
     publisherConnectedAt: v.optional(v.number()),
-    mode: v.union(...accountModes.map((mode) => v.literal(mode))),
+    // DEPRECATED autonomy gate (auto/needs_approval/manual) — nothing reads it;
+    // kept optional until existing rows are unset, then dropped for good.
+    mode: v.optional(
+      v.union(v.literal("auto"), v.literal("needs_approval"), v.literal("manual")),
+    ),
     // Set by approveBrandProfile when the owner confirms the brand profile — the
     // onboarding gate. Unset means connected-but-not-yet-onboarded.
     onboardedAt: v.optional(v.number()),

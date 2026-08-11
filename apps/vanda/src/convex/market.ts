@@ -1,5 +1,4 @@
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
@@ -970,37 +969,6 @@ export const setOpportunityStatus = internalMutation({
     }),
 });
 
-export const approveOpportunity = mutation({
-  args: { opportunityId: v.id("opportunities") },
-  handler: async (ctx, { opportunityId }) => {
-    const opportunity = await ctx.db.get(opportunityId);
-    if (!opportunity) throw new Error("opportunity not found");
-    await requireOwnedAccount(ctx, opportunity.accountId);
-    if (opportunity.scheduledPostId) return opportunity.scheduledPostId;
-    if (opportunity.status !== "awaiting_approval" || !opportunity.postId)
-      throw new Error("opportunity is not ready for publication");
-    const scheduledFor = Date.now() + 5_000;
-    const scheduledPostId = await ctx.db.insert("scheduledPosts", {
-      accountId: opportunity.accountId,
-      postId: opportunity.postId,
-      scheduledFor,
-      status: "scheduled",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-    await ctx.db.patch(opportunity.postId, { status: "scheduled" });
-    await ctx.db.patch(opportunityId, {
-      status: "publishing",
-      scheduledPostId,
-      updatedAt: Date.now(),
-    });
-    await ctx.scheduler.runAt(scheduledFor, internal.publishScheduledNode.runScheduledPost, {
-      scheduledPostId,
-    });
-    return scheduledPostId;
-  },
-});
-
 export const listPublishedForMeasurement = internalQuery({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
@@ -1167,7 +1135,6 @@ export const dashboard = query({
         creators: creators.length,
         posts: posts.length,
         opportunities: opportunityCards.length,
-        ready: opportunityCards.filter((item) => item.status === "awaiting_approval").length,
       },
       inputQuality: {
         qualified: finalAssessments.filter((item) => item.decision === "qualified").length,
@@ -1242,7 +1209,6 @@ export const listOpportunitiesForAgent = internalQuery({
           caption: marketPost?.caption?.slice(0, 200),
           whyItWorks: opportunity.whyItWorks,
           creativeBriefId: opportunity.creativeBriefId,
-          contentProjectId: opportunity.contentProjectId,
           rejectionReason: opportunity.creativeRejectionReason,
         };
       }),

@@ -3,7 +3,6 @@ import { internal } from "./_generated/api";
 import type { Id, TableNames } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
-import { accountModes } from "./pipeline/constants";
 
 async function deleteRows<T extends { _id: Id<TableNames> }>(
   rows: T[],
@@ -36,7 +35,6 @@ export const listMine = query({
     const rows = accounts.map((account) => ({
       id: account._id,
       name: account.name ?? account.handle ?? "Novo negócio",
-      mode: account.mode,
       handle: account.handle ?? null,
       connected: account.publisherConnectedAt !== undefined,
       onboardedAt: account.onboardedAt ?? null,
@@ -64,18 +62,6 @@ export const selectActive = mutation({
     if (account.onboardedAt === undefined) throw new Error("account not onboarded");
     if (account.ownerUserId === undefined) throw new Error("account has no owner");
     await ctx.db.patch(account.ownerUserId, { activeAccountId: accountId, updatedAt: Date.now() });
-  },
-});
-
-/** Set the autonomy mode (auto / needs_approval / manual) for a business the caller owns. */
-export const setMode = mutation({
-  args: {
-    accountId: v.id("accounts"),
-    mode: v.union(...accountModes.map((mode) => v.literal(mode))),
-  },
-  handler: async (ctx, { accountId, mode }) => {
-    await requireOwnedAccount(ctx, accountId);
-    await ctx.db.patch(accountId, { mode, updatedAt: Date.now() });
   },
 });
 

@@ -69,7 +69,7 @@ const memoryMarkdown = (brand: Awaited<ReturnType<typeof loadBrand>>): string =>
   return lines.join("\n");
 };
 
-/** The writable files in /brand — both gated by owner approval. */
+/** The writable files in /brand. */
 const NOTES_PATH = "/brand/notes.md";
 const KIT_PATH = "/brand/kit.json";
 
@@ -77,7 +77,7 @@ const KIT_PATH = "/brand/kit.json";
 const EMPTY_KIT = {
   colors: [],
   fonts: [],
-  dica: 'sem identidade visual ainda — grave com write: {"colors":[{"hex":"#d81b60","name":"rosa","role":"primária"}],"fonts":[{"family":"Poppins","role":"títulos"}],"tagline":"..."} (pede aprovação do dono)',
+  dica: 'sem identidade visual ainda — grave com write: {"colors":[{"hex":"#d81b60","name":"rosa","role":"primária"}],"fonts":[{"family":"Poppins","role":"títulos"}],"tagline":"..."}',
 };
 
 export const brandMount: WorkspaceMount = {
@@ -89,17 +89,17 @@ export const brandMount: WorkspaceMount = {
     if (segments.length === 0) {
       return [
         { name: "memory.md", kind: "file", summary: "fatos de marca confirmados pelo dono" },
-        { name: "profile.json", kind: "file", summary: "handle, modo e prontidão do perfil" },
+        { name: "profile.json", kind: "file", summary: "handle e prontidão do perfil" },
         {
           name: "notes.md",
           kind: "file",
-          summary: "anotações livres de marca (gravável com aprovação do dono)",
+          summary: "anotações livres de marca (gravável)",
         },
         {
           name: "kit.json",
           kind: "file",
           summary:
-            "identidade visual: cores exatas, fontes e tagline (gravável com aprovação do dono)",
+            "identidade visual: cores exatas, fontes e tagline (gravável)",
         },
         { name: "references", kind: "dir", summary: "fotos de referência (rosto, produto, lugar)" },
       ];
@@ -137,7 +137,6 @@ export const brandMount: WorkspaceMount = {
         name: brand.account?.name ?? null,
         handle: brand.handle,
         kind: brand.account?.kind ?? null,
-        mode: brand.account?.mode ?? null,
         readiness: brand.readiness,
       });
     }

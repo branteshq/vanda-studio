@@ -5,7 +5,6 @@ import { imagesMount } from "./mounts/images";
 import { marketMount } from "./mounts/market";
 import { memoryMount } from "./mounts/memory";
 import { postsMount } from "./mounts/posts";
-import { projectsMount } from "./mounts/projects";
 import { runsMount } from "./mounts/runs";
 import { templatesMount } from "./mounts/templates";
 import type {
@@ -21,7 +20,6 @@ const MOUNTS: readonly WorkspaceMount[] = [
   templatesMount,
   imagesMount,
   postsMount,
-  projectsMount,
   marketMount,
   runsMount,
 ];
@@ -106,7 +104,7 @@ export const readPath = async (
 export type WriteResult = WorkspaceWriteResult;
 
 const WRITABLE_HELP =
-  "graváveis: /memory/<nome>.md (livre), /templates/<nome>.py (livre), /brand/notes.md e /brand/kit.json (com aprovação do dono)";
+  "graváveis: /memory/<nome>.md, /templates/<nome>.py, /brand/notes.md e /brand/kit.json";
 
 /**
  * One write surface, per-mount handlers underneath (the VFS shape — like
@@ -129,9 +127,3 @@ export const writePath = async (
   }
   return mount.write(ctx, accountId, segments.slice(1), content);
 };
-
-/** Per-path approval policy for the write tool: brand files need the owner. */
-const APPROVAL_PATHS = new Set(["brand/notes.md", "brand/kit.json"]);
-
-export const writeNeedsApproval = (path: string): boolean =>
-  APPROVAL_PATHS.has(parsePath(path).join("/"));

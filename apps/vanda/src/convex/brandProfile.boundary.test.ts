@@ -54,7 +54,6 @@ const setup = async (clerkId = "c1") => {
     const userId = await ctx.db.insert("users", { name: "Marina", email: "m@e.com", clerkId });
     return ctx.db.insert("accounts", {
       ownerUserId: userId,
-      mode: "needs_approval",
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
@@ -67,7 +66,7 @@ describe("approveBrandProfile", () => {
     const { t, accountId } = await setup();
     await t
       .withIdentity({ subject: "c1" })
-      .mutation(api.brandProfile.approveBrandProfile, { accountId, mode: "auto", ...analysis });
+      .mutation(api.brandProfile.approveBrandProfile, { accountId, ...analysis });
 
     const canon = await t.run((ctx) => ctx.db.query("brandCanon").collect());
     const ofKind = (kind: string) => canon.filter((c) => c.kind === kind);
@@ -85,7 +84,6 @@ describe("approveBrandProfile", () => {
     const account = await t.run((ctx) => ctx.db.get(accountId));
     expect(account?.onboardedAt).toBeTypeOf("number");
     expect(account?.kind).toBe("negocio"); // brand type carried from the analysis
-    expect(account?.mode).toBe("auto"); // mode set in the same atomic commit
   });
 
   it("rejects approval from a non-owner", async () => {
@@ -96,7 +94,6 @@ describe("approveBrandProfile", () => {
     await expect(
       t.withIdentity({ subject: "c2" }).mutation(api.brandProfile.approveBrandProfile, {
         accountId,
-        mode: "needs_approval",
         ...analysis,
       }),
     ).rejects.toThrow();
@@ -107,13 +104,11 @@ describe("approveBrandProfile", () => {
     const owner = t.withIdentity({ subject: "c1" });
     await owner.mutation(api.brandProfile.approveBrandProfile, {
       accountId,
-      mode: "needs_approval",
       ...analysis,
     });
     await expect(
       owner.mutation(api.brandProfile.approveBrandProfile, {
         accountId,
-        mode: "needs_approval",
         ...analysis,
       }),
     ).rejects.toThrow();
@@ -124,7 +119,6 @@ describe("approveBrandProfile", () => {
     const owner = t.withIdentity({ subject: "c1" });
     await owner.mutation(api.brandProfile.approveBrandProfile, {
       accountId,
-      mode: "needs_approval",
       ...analysis,
     });
     const canon = await owner.query(api.brandProfile.getBrandCanon, { accountId });
@@ -137,7 +131,6 @@ describe("approveBrandProfile", () => {
     await expect(
       t.withIdentity({ subject: "c1" }).mutation(api.brandProfile.approveBrandProfile, {
         accountId,
-        mode: "needs_approval",
         ...bad,
       }),
     ).rejects.toThrow();

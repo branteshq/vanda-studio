@@ -206,7 +206,6 @@ export interface RailPost {
   scheduledFor: number | null;
   permalink: string | null;
   lastError: string | null;
-  contentProjectId: Id<"contentProjects"> | null;
   createdAt: number;
 }
 
@@ -246,7 +245,6 @@ export const listForRail = query({
           scheduledFor: scheduled?.scheduledFor ?? null,
           permalink: scheduled?.permalink ?? null,
           lastError: scheduled?.lastError ?? null,
-          contentProjectId: post.contentProjectId ?? null,
           createdAt: post.createdAt,
         };
       }),
@@ -285,7 +283,6 @@ export const detail = query({
       scheduledFor: scheduled?.scheduledFor ?? null,
       permalink: scheduled?.permalink ?? null,
       lastError: scheduled?.lastError ?? null,
-      contentProjectId: post.contentProjectId ?? null,
       createdAt: post.createdAt,
     };
   },

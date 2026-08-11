@@ -15,7 +15,6 @@ const setup = async () => {
       ownerUserId: userId,
       handle: "cafelumiar",
       publisherConnectedAt: now,
-      mode: "needs_approval",
       onboardedAt: now,
       createdAt: now,
       updatedAt: now,
@@ -59,7 +58,6 @@ describe("posts.createPostInternal — the light post path", () => {
     // An image belonging to another account is rejected.
     const foreign = await t.run(async (ctx) => {
       const otherAccount = await ctx.db.insert("accounts", {
-        mode: "auto",
         createdAt: 1,
         updatedAt: 1,
       });

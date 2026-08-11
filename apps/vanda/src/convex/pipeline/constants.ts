@@ -2,7 +2,6 @@
 // domain schemas (via `Schema.Literals`) and the Convex persistence validators
 // (schema.ts, via `v.union(v.literal(...))`).
 
-export const accountModes = ["auto", "needs_approval", "manual"] as const;
 
 // Brand canon — the owner-confirmed stable identity (output of onboarding's
 // approve). `identity`/`summary` are single rows; `voice`/`character`/`restriction`

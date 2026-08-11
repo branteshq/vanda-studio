@@ -18,7 +18,6 @@ const setup = async () => {
     });
     const accountId = await ctx.db.insert("accounts", {
       ownerUserId: ownerId,
-      mode: "manual",
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });

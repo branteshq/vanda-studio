@@ -62,17 +62,6 @@ export const setScheduledStatus = internalMutation({
     const post = await ctx.db.get(scheduled.postId);
     if (!post) return;
     if (status === "published") await ctx.db.patch(post._id, { status: "published" });
-    const project = post.contentProjectId ? await ctx.db.get(post.contentProjectId) : null;
-    if (project) {
-      if (status === "published")
-        await ctx.db.patch(project._id, { status: "published", lastError: undefined, updatedAt: now });
-      else if (status === "failed")
-        await ctx.db.patch(project._id, {
-          status: "ready",
-          lastError: lastError ?? "publication failed",
-          updatedAt: now,
-        });
-    }
     const opportunity = post.opportunityId ? await ctx.db.get(post.opportunityId) : null;
     if (opportunity) {
       if (status === "published")
@@ -83,7 +72,7 @@ export const setScheduledStatus = internalMutation({
         });
       else if (status === "failed")
         await ctx.db.patch(opportunity._id, {
-          status: "awaiting_approval",
+          status: "failed",
           lastError: lastError ?? "publication failed",
           updatedAt: now,
         });

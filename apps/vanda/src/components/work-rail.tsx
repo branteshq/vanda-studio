@@ -7,10 +7,7 @@ import type { Id } from "../convex/_generated/dataModel";
  * view — the rail is global, not owned by any one thread.
  */
 
-export type WorkRailView =
-  | { kind: "list" }
-  | { kind: "post"; postId: Id<"posts"> }
-  | { kind: "project"; projectId: Id<"contentProjects">; threadId?: string };
+export type WorkRailView = { kind: "list" } | { kind: "post"; postId: Id<"posts"> };
 
 interface WorkRailState {
   open: boolean;
@@ -18,7 +15,6 @@ interface WorkRailState {
   view: WorkRailView;
   openList: () => void;
   openPost: (postId: Id<"posts">) => void;
-  openProject: (projectId: Id<"contentProjects">, threadId?: string) => void;
 }
 
 const WorkRailContext = createContext<WorkRailState | null>(null);
@@ -35,14 +31,10 @@ export function WorkRailProvider({ children }: { children: ReactNode }) {
     setView({ kind: "post", postId });
     setOpen(true);
   }, []);
-  const openProject = useCallback((projectId: Id<"contentProjects">, threadId?: string) => {
-    setView({ kind: "project", projectId, ...(threadId !== undefined ? { threadId } : {}) });
-    setOpen(true);
-  }, []);
 
   const value = useMemo(
-    () => ({ open, setOpen, view, openList, openPost, openProject }),
-    [open, view, openList, openPost, openProject],
+    () => ({ open, setOpen, view, openList, openPost }),
+    [open, view, openList, openPost],
   );
   return <WorkRailContext.Provider value={value}>{children}</WorkRailContext.Provider>;
 }

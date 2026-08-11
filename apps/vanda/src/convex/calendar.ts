@@ -35,7 +35,6 @@ export const range = query({
           externalPostId: item.externalPostId,
           caption: post?.caption ?? "",
           slideCount: post?.imageIds.length ?? 0,
-          contentProjectId: post?.contentProjectId,
           coverUrl,
         };
       }),

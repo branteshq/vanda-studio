@@ -51,7 +51,6 @@ export const createPendingAccount = internalMutation({
     }
     return ctx.db.insert("accounts", {
       ownerUserId: user._id,
-      mode: "needs_approval",
       createdAt: now,
       updatedAt: now,
     });
