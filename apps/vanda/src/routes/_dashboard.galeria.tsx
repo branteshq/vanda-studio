@@ -13,6 +13,7 @@ import {
   Images,
   PanelLeftOpen,
   Search,
+  Send,
   Sparkles,
   SquarePen,
   Trash2,
@@ -30,6 +31,7 @@ import { IMAGE_MODELS, imageModelLabel } from "../convex/imageModels";
 import { useActiveAccount } from "../components/active-account";
 import { FilterMenu, type FilterOption } from "../components/filter-menu";
 import { ImageLightbox, type ImageLightboxData } from "../components/image-lightbox";
+import { PostPreviewDialog } from "../components/post-preview";
 import {
   ActionStateIcon,
   MediaTile,
@@ -49,6 +51,12 @@ export const Route = createFileRoute("/_dashboard/galeria")({
 });
 
 type GalleryItem = FunctionReturnType<typeof api.gallery.list>["page"][number];
+type RailPost = FunctionReturnType<typeof api.posts.listForRail>[number];
+
+/** The gallery grid mixes two first-class citizens: images and posts. */
+type GridEntry =
+  | { kind: "image"; id: string; createdAt: number; item: GalleryItem }
+  | { kind: "post"; id: string; createdAt: number; post: RailPost };
 
 function GalleryPage() {
   const { activeAccount } = useActiveAccount();
@@ -56,7 +64,7 @@ function GalleryPage() {
   return <GalleryStudio key={activeAccount.id} accountId={activeAccount.id} />;
 }
 
-type OriginFilter = "all" | "generated" | "edited" | "uploaded";
+type OriginFilter = "all" | "generated" | "edited" | "uploaded" | "posts";
 type OrderFilter = "recent" | "oldest";
 
 function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
@@ -65,6 +73,7 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
   const [order, setOrder] = useState<OrderFilter>("recent");
   const [model, setModel] = useState<string>("all");
   const [selectedId, setSelectedId] = useState<Id<"images"> | null>(null);
+  const [selectedPostId, setSelectedPostId] = useState<Id<"posts"> | null>(null);
   const [checked, setChecked] = useState<ReadonlySet<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const removeMany = useMutation(api.gallery.removeMany);
@@ -74,6 +83,7 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
     { accountId },
     { initialNumItems: 40 },
   );
+  const posts = useQuery(api.posts.listForRail, { accountId });
 
   const normalized = query.trim().toLocaleLowerCase("pt-BR");
   const matchesOrigin = (item: GalleryItem): boolean => {
@@ -84,6 +94,8 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
         return item.edited;
       case "generated":
         return item.origin !== "uploaded";
+      case "posts":
+        return false;
       default:
         return true;
     }
@@ -94,13 +106,34 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
       (model === "all" || item.model === model) &&
       (!normalized || (item.name ?? "").toLocaleLowerCase("pt-BR").includes(normalized)),
   );
-  // The query is newest-first; "oldest" is simply its mirror (copy, then flip —
-  // toReversed needs an es2023 lib target we don't have).
+  // Posts are first-class gallery citizens: searched by caption, shown under
+  // "Todas" and their own filter, interleaved with images by creation time.
+  const filteredPosts =
+    (origin === "all" || origin === "posts") && model === "all"
+      ? (posts ?? []).filter(
+          (post) =>
+            !normalized || post.caption.toLocaleLowerCase("pt-BR").includes(normalized),
+        )
+      : [];
+  const merged: GridEntry[] = [
+    ...filtered.map(
+      (item): GridEntry => ({ kind: "image", id: item.id, createdAt: item.createdAt, item }),
+    ),
+    ...filteredPosts.map(
+      (post): GridEntry => ({
+        kind: "post",
+        id: post.postId,
+        createdAt: post.createdAt,
+        post,
+      }),
+    ),
+    // eslint-disable-next-line unicorn/no-array-sort -- fresh literal, safe to sort in place
+  ].sort((a, b) => b.createdAt - a.createdAt);
   // eslint-disable-next-line unicorn/no-array-reverse -- the spread already copies
-  const items = order === "oldest" ? [...filtered].reverse() : filtered;
+  const entries = order === "oldest" ? [...merged].reverse() : merged;
 
   // Placeholders and failures aren't selectable or viewable — only real images.
-  const readyItems = items.filter((item) => item.status === null);
+  const readyItems = filtered.filter((item) => item.status === null);
 
   const selecting = checked.size > 0;
 
@@ -163,25 +196,33 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
           {status === "LoadingFirstPage" ? (
             <MasonrySkeleton />
-          ) : items.length === 0 ? (
+          ) : entries.length === 0 ? (
             <EmptyGallery
               hasQuery={normalized.length > 0 || origin !== "all" || model !== "all"}
             />
           ) : (
             <>
               <MasonryGrid
-                items={items}
-                renderItem={(item) => (
-                  <GalleryCard
-                    key={item.id}
-                    item={item}
-                    accountId={accountId}
-                    selected={checked.has(item.id)}
-                    selecting={selecting}
-                    onOpen={() => setSelectedId(item.id as Id<"images">)}
-                    onToggleSelect={() => toggleChecked(item.id)}
-                  />
-                )}
+                items={entries}
+                renderItem={(entry) =>
+                  entry.kind === "image" ? (
+                    <GalleryCard
+                      key={entry.id}
+                      item={entry.item}
+                      accountId={accountId}
+                      selected={checked.has(entry.id)}
+                      selecting={selecting}
+                      onOpen={() => setSelectedId(entry.id as Id<"images">)}
+                      onToggleSelect={() => toggleChecked(entry.id)}
+                    />
+                  ) : (
+                    <PostCard
+                      key={entry.id}
+                      post={entry.post}
+                      onOpen={() => setSelectedPostId(entry.post.postId)}
+                    />
+                  )
+                }
               />
               {status === "CanLoadMore" && (
                 <div className="mt-6 flex justify-center">
@@ -216,6 +257,11 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
         selectedId={selectedId}
         onSelect={setSelectedId}
         onClose={() => setSelectedId(null)}
+      />
+      <PostPreviewDialog
+        accountId={accountId}
+        postId={selectedPostId}
+        onClose={() => setSelectedPostId(null)}
       />
     </main>
   );
@@ -369,6 +415,7 @@ const ORIGIN_FILTERS: ReadonlyArray<FilterOption<OriginFilter>> = [
   { value: "generated", label: "Geradas", icon: <Sparkles /> },
   { value: "edited", label: "Editadas", icon: <SquarePen /> },
   { value: "uploaded", label: "Enviadas", icon: <Upload /> },
+  { value: "posts", label: "Posts", icon: <Send /> },
 ];
 
 const ORDER_FILTERS: ReadonlyArray<FilterOption<OrderFilter>> = [
@@ -588,6 +635,57 @@ function GalleryCard({
         ) : item.origin === "uploaded" ? (
           <p className="truncate text-note text-white/70">Enviada por você</p>
         ) : null}
+      </MediaTileCaption>
+    </MediaTile>
+  );
+}
+
+const POST_STATUS_CAPTION: Record<RailPost["status"], string> = {
+  draft: "Rascunho",
+  ready: "Pronto",
+  scheduled: "Agendado",
+  publishing: "Publicando",
+  published: "Publicado",
+  failed: "Falhou",
+};
+
+/** A post in the grid: its cover at Instagram's 4:5, opened into the preview. */
+function PostCard({ post, onOpen }: { post: RailPost; onOpen: () => void }) {
+  const when = new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(post.scheduledFor ?? post.createdAt);
+  return (
+    <MediaTile label={post.caption || "Post"} onOpen={onOpen}>
+      <MediaTileMedia aspectRatio={4 / 5}>
+        {post.thumbnailUrl ? (
+          <img
+            src={post.thumbnailUrl}
+            alt={post.caption || "Post"}
+            loading="lazy"
+            className="size-full object-cover"
+          />
+        ) : (
+          <div className="grid size-full place-items-center bg-inset text-text-5">
+            <Send className="size-5" />
+          </div>
+        )}
+      </MediaTileMedia>
+
+      <MediaTileBadge label={`Post · ${POST_STATUS_CAPTION[post.status]}`}>
+        <Send />
+      </MediaTileBadge>
+
+      <MediaTileCaption>
+        <p className="truncate text-body-sm font-medium text-white">
+          {post.caption.replaceAll("\n", " ") || "Post"}
+        </p>
+        <p className="truncate text-note text-white/70">
+          {POST_STATUS_CAPTION[post.status]} · {when}
+          {post.slideCount > 1 ? ` · ${post.slideCount} slides` : ""}
+        </p>
       </MediaTileCaption>
     </MediaTile>
   );
