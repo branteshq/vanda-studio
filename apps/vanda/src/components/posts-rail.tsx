@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "convex-helpers/react/cache";
+import { ptBR } from "date-fns/locale";
 import {
   ArrowLeft,
   CalendarDays,
@@ -9,6 +10,7 @@ import {
   PanelRightClose,
 } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
+import { Calendar } from "@vanda-studio/ui/components/calendar";
 import { Markdown } from "@vanda-studio/ui/components/markdown";
 import {
   Sidebar,
@@ -148,35 +150,68 @@ function PostsRail() {
   );
 }
 
+/** The day a post lives on in the calendar: its slot when scheduled, else creation. */
+const dayOf = (post: { scheduledFor: number | null; createdAt: number }): Date => {
+  const date = new Date(post.scheduledFor ?? post.createdAt);
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
 function PostList({ accountId }: { accountId: Id<"accounts"> }) {
   const rail = useWorkRail();
   const posts = useQuery(api.posts.listForRail, { accountId });
+  const [selectedDay, setSelectedDay] = useState<Date | undefined>(undefined);
+
+  const postDays = useMemo(
+    () => [...new Set((posts ?? []).map((post) => dayOf(post).getTime()))].map((t) => new Date(t)),
+    [posts],
+  );
+  const visible =
+    selectedDay === undefined
+      ? (posts ?? [])
+      : (posts ?? []).filter((post) => dayOf(post).getTime() === selectedDay.getTime());
 
   if (posts === undefined) {
     return (
       <div className="space-y-2 p-3">
+        <Skeleton className="h-56 w-full rounded-lg" />
         <Skeleton className="h-14 w-full rounded-lg" />
         <Skeleton className="h-14 w-full rounded-lg" />
-        <Skeleton className="h-14 w-full rounded-lg" />
-      </div>
-    );
-  }
-  if (posts.length === 0) {
-    return (
-      <div className="px-4 py-8 text-center">
-        <CalendarDays className="mx-auto size-5 text-text-5" />
-        <p className="mt-2 text-body-sm text-text-3">Nenhum post ainda</p>
-        <p className="mt-1 text-[12px] leading-relaxed text-text-5">
-          Peça na conversa: "posta essa foto pra mim" — o rascunho aparece aqui e nada é
-          publicado sem a sua aprovação.
-        </p>
       </div>
     );
   }
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-2">
-      <SidebarMenu>
-        {posts.map((post) => {
+    <div className="flex min-h-0 flex-1 flex-col">
+      <Calendar
+        mode="single"
+        locale={ptBR}
+        selected={selectedDay}
+        onSelect={setSelectedDay}
+        modifiers={{ hasPosts: postDays }}
+        modifiersClassNames={{
+          hasPosts:
+            "relative after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-brand-accent after:content-[''] data-[selected-single=true]:after:bg-primary-foreground",
+        }}
+        className="mx-auto shrink-0"
+      />
+      {posts.length === 0 ? (
+        <div className="border-t border-sidebar-border px-4 py-8 text-center">
+          <CalendarDays className="mx-auto size-5 text-text-5" />
+          <p className="mt-2 text-body-sm text-text-3">Nenhum post ainda</p>
+          <p className="mt-1 text-[12px] leading-relaxed text-text-5">
+            Peça na conversa: "posta essa foto pra mim" — o rascunho aparece aqui e nada é
+            publicado sem a sua aprovação.
+          </p>
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto border-t border-sidebar-border p-2">
+          {visible.length === 0 ? (
+            <p className="px-2 py-6 text-center text-body-sm text-text-4">
+              Nenhum post neste dia.
+            </p>
+          ) : null}
+          <SidebarMenu>
+            {visible.map((post) => {
           const meta = STATUS_META[post.status];
           return (
             <SidebarMenuItem key={post.postId}>
@@ -218,8 +253,10 @@ function PostList({ accountId }: { accountId: Id<"accounts"> }) {
               </SidebarMenuButton>
             </SidebarMenuItem>
           );
-        })}
-      </SidebarMenu>
+            })}
+          </SidebarMenu>
+        </div>
+      )}
     </div>
   );
 }

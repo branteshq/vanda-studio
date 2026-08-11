@@ -138,6 +138,9 @@ importers:
       convex-helpers:
         specifier: ^0.1.120
         version: 0.1.120(patch_hash=7856f47539fd454fc01e53ebb81c0f9f87f7f5fc09864b63652268908f929c1b)(@standard-schema/spec@1.1.0)(convex@1.41.0(@clerk/react@6.10.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@5.9.3)(zod@4.4.3)
+      date-fns:
+        specifier: ^4.4.0
+        version: 4.4.0
       diff:
         specifier: ^8.0.2
         version: 8.0.4
@@ -228,7 +231,7 @@ importers:
     dependencies:
       '@base-ui/react':
         specifier: ^1.6.0
-        version: 1.6.0(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 1.6.0(@date-fns/tz@1.5.0)(@types/react@19.2.17)(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@shadcn/react':
         specifier: ^0.2.1
         version: 0.2.1(@types/react@19.2.17)(react@19.2.7)
@@ -238,6 +241,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      date-fns:
+        specifier: ^4.4.0
+        version: 4.4.0
       input-otp:
         specifier: ^1.4.2
         version: 1.4.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -247,6 +253,9 @@ importers:
       radix-ui:
         specifier: ^1.6.7
         version: 1.6.7(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      react-day-picker:
+        specifier: ^10.0.1
+        version: 10.0.1(@types/react@19.2.17)(react@19.2.7)
       react-markdown:
         specifier: ^9.1.0
         version: 9.1.0(@types/react@19.2.17)(react@19.2.7)
@@ -540,6 +549,9 @@ packages:
     peerDependencies:
       convex: ^1.31.7
       convex-helpers: ^0.1.94
+
+  '@date-fns/tz@1.5.0':
+    resolution: {integrity: sha512-lwYN/vDPeNRULcepoE/LO2Pgx+7/RV+S9ARfbc9lr2DtGkOD7pAiruHvbR1RX3Qyf6ja47EWJDMsNK5vK08DJg==}
 
   '@e2b/code-interpreter@2.7.0':
     resolution: {integrity: sha512-XsYMn1FNzci0niW0Zf8PdYYFzGgyfi79sRJIZBtA4NejnDwgDYUPXdM0zBtrJsPwLS+fv8RPN3RPd5THCHmPow==}
@@ -3704,6 +3716,9 @@ packages:
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
 
+  date-fns@4.4.0:
+    resolution: {integrity: sha512-+1UMbeh68lH1SegH83CGWwpb6OHHbpSgr3+s5Eww5M4CAgswBpoWS0AjTOfEJ33HiYKz1hdj/KTFprzXHmq/6w==}
+
   db0@0.3.4:
     resolution: {integrity: sha512-RiXXi4WaNzPTHEOu8UPQKMooIbqOEyqA1t7Z6MsdxSCeb8iUC9ko3LcmsLmeUt2SM5bctfArZKkRQggKZz7JNw==}
     peerDependencies:
@@ -4852,6 +4867,16 @@ packages:
 
   radix3@1.1.2:
     resolution: {integrity: sha512-b484I/7b8rDEdSDKckSSBA8knMpcdsXudlE/LNL639wFoHKwLbEkQFZHWEYwDC0wa0FKUcCY+GAF73Z7wxNVFA==}
+
+  react-day-picker@10.0.1:
+    resolution: {integrity: sha512-eNh6BlwcYInWaJtRv18mXQ06Ys/H6rdTZAnTaSdOYJuTpwP1JMCHNd1FDRadA+gbeinq+psdULN5Xnowy9mV8w==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/react': '>=16.8.0'
+      react: '>=16.8.0'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   react-dom@19.2.7:
     resolution: {integrity: sha512-t0BRVXvbiE/o20Hfw669rLbMCDWtYZLvmJigy2f0MxsXF+71pxhR3xOkspmsO8h3ZlNzyibAmtCa3l4lYKk6gQ==}
@@ -6092,7 +6117,7 @@ snapshots:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
 
-  '@base-ui/react@1.6.0(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@base-ui/react@1.6.0(@date-fns/tz@1.5.0)(@types/react@19.2.17)(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@babel/runtime': 7.29.7
       '@base-ui/utils': 0.3.1(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -6102,7 +6127,9 @@ snapshots:
       react-dom: 19.2.7(react@19.2.7)
       use-sync-external-store: 1.6.0(react@19.2.7)
     optionalDependencies:
+      '@date-fns/tz': 1.5.0
       '@types/react': 19.2.17
+      date-fns: 4.4.0
 
   '@base-ui/utils@0.3.1(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
@@ -6195,6 +6222,8 @@ snapshots:
     dependencies:
       convex: 1.41.0(@clerk/react@6.10.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)
       convex-helpers: 0.1.120(patch_hash=7856f47539fd454fc01e53ebb81c0f9f87f7f5fc09864b63652268908f929c1b)(@standard-schema/spec@1.1.0)(convex@1.41.0(@clerk/react@6.10.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@5.9.3)(zod@4.4.3)
+
+  '@date-fns/tz@1.5.0': {}
 
   '@e2b/code-interpreter@2.7.0':
     dependencies:
@@ -9004,6 +9033,8 @@ snapshots:
 
   csstype@3.2.3: {}
 
+  date-fns@4.4.0: {}
+
   db0@0.3.4: {}
 
   debug@4.4.3:
@@ -10512,6 +10543,14 @@ snapshots:
       '@types/react-dom': 19.2.3(@types/react@19.2.17)
 
   radix3@1.1.2: {}
+
+  react-day-picker@10.0.1(@types/react@19.2.17)(react@19.2.7):
+    dependencies:
+      '@date-fns/tz': 1.5.0
+      date-fns: 4.4.0
+      react: 19.2.7
+    optionalDependencies:
+      '@types/react': 19.2.17
 
   react-dom@19.2.7(react@19.2.7):
     dependencies:
