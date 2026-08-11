@@ -102,6 +102,10 @@ const TOOL_LABEL: Record<string, string> = {
   request_render: "Enfileirando render",
   publish_project: "Publicação no Instagram",
   discard_project: "Arquivando projeto",
+  create_post: "Montando post",
+  schedule_post: "Agendando publicação",
+  cancel_schedule: "Cancelando agendamento",
+  delete_post: "Apagando post",
   paint: "Criando imagem",
   run_code: "Editando imagem com código",
   list: "Explorando",
@@ -124,6 +128,8 @@ const TOOL_ORB_STATE: Record<string, OrbState> = {
   request_render: "shaping",
   paint: "shaping",
   run_code: "solving",
+  create_post: "composing",
+  schedule_post: "connecting",
   publish_project: "connecting",
 };
 
@@ -1605,6 +1611,7 @@ function ApprovalRequest({
     );
   }
 
+  const isLightPost = toolNameOf(part) === "schedule_post";
   return (
     <div
       className={cn(
@@ -1615,14 +1622,18 @@ function ApprovalRequest({
       <div className="flex items-center gap-2">
         <Send className="size-4 text-brand-accent" />
         <h3 className="text-sm font-semibold text-text">
-          Vanda quer publicar este carrossel no Instagram
+          {isLightPost
+            ? "Vanda quer agendar este post no Instagram"
+            : "Vanda quer publicar este carrossel no Instagram"}
         </h3>
       </div>
       <p className="mt-1.5 text-xs leading-relaxed text-text-3">
         {scheduledFor
           ? `Publicação agendada para ${new Date(scheduledFor).toLocaleString("pt-BR")}.`
           : "Publicação imediata após a aprovação."}{" "}
-        Revise o carrossel exato antes de aprovar — nada é publicado sem a sua decisão.
+        {isLightPost
+          ? "Confira o post no painel à direita antes de aprovar — nada é publicado sem a sua decisão."
+          : "Revise o carrossel exato antes de aprovar — nada é publicado sem a sua decisão."}
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {projectId ? (

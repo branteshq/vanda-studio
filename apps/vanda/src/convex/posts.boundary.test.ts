@@ -83,7 +83,7 @@ describe("posts.createPostInternal — the light post path", () => {
 });
 
 describe("posts.schedulePostInternal — the approved commit", () => {
-  it("arms the scheduler, flips the post, and refuses a double schedule", async () => {
+  it("arms the scheduler, flips the post, and re-aims instead of duplicating", async () => {
     const { t, accountId, imageId } = await setup();
     const postId = await t.mutation(internal.posts.createPostInternal, {
       accountId,
@@ -97,13 +97,90 @@ describe("posts.schedulePostInternal — the approved commit", () => {
       postId,
       scheduledFor,
     });
-    expect(result.scheduledFor).toBe(scheduledFor);
+    expect(result).toMatchObject({ scheduledFor, rescheduled: false });
 
     const post = (await t.run((ctx) => ctx.db.get(postId)))!;
     expect(post.status).toBe("scheduled");
     const scheduled = (await t.run((ctx) => ctx.db.get(result.scheduledPostId)))!;
     expect(scheduled).toMatchObject({ postId, accountId, status: "scheduled", scheduledFor });
+    expect(scheduled.scheduledJobId).toBeDefined();
 
+    // Scheduling again RE-AIMS the same row at the new time.
+    const later = scheduledFor + 3_600_000;
+    const again = await t.mutation(internal.posts.schedulePostInternal, {
+      accountId,
+      postId,
+      scheduledFor: later,
+    });
+    expect(again).toMatchObject({
+      scheduledPostId: result.scheduledPostId,
+      scheduledFor: later,
+      rescheduled: true,
+    });
+    const rearmed = (await t.run((ctx) => ctx.db.get(result.scheduledPostId)))!;
+    expect(rearmed.scheduledFor).toBe(later);
+  });
+});
+
+describe("posts.cancelScheduleInternal / deletePostInternal — the inverses", () => {
+  it("cancel disarms back to draft; delete removes drafts and scheduled posts", async () => {
+    const { t, accountId, imageId } = await setup();
+    const postId = await t.mutation(internal.posts.createPostInternal, {
+      accountId,
+      imageIds: [imageId],
+      caption: "bom dia",
+    });
+    await t.mutation(internal.posts.schedulePostInternal, {
+      accountId,
+      postId,
+      scheduledFor: Date.now() + 60_000,
+    });
+
+    await t.mutation(internal.posts.cancelScheduleInternal, { accountId, postId });
+    const post = (await t.run((ctx) => ctx.db.get(postId)))!;
+    expect(post.status).toBe("draft");
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query("scheduledPosts")
+          .withIndex("by_post", (q) => q.eq("postId", postId))
+          .first(),
+      ),
+    ).toBeNull();
+    // Nothing to cancel now.
+    await expect(
+      t.mutation(internal.posts.cancelScheduleInternal, { accountId, postId }),
+    ).rejects.toThrow();
+
+    // Delete cascades a pending schedule and removes the post.
+    await t.mutation(internal.posts.schedulePostInternal, {
+      accountId,
+      postId,
+      scheduledFor: Date.now() + 60_000,
+    });
+    await t.mutation(internal.posts.deletePostInternal, { accountId, postId });
+    expect(await t.run((ctx) => ctx.db.get(postId))).toBeNull();
+  });
+
+  it("refuses to delete a published post", async () => {
+    const { t, accountId, imageId } = await setup();
+    const postId = await t.mutation(internal.posts.createPostInternal, {
+      accountId,
+      imageIds: [imageId],
+      caption: "bom dia",
+    });
+    const { scheduledPostId } = await t.mutation(internal.posts.schedulePostInternal, {
+      accountId,
+      postId,
+      scheduledFor: Date.now() + 60_000,
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.patch(scheduledPostId, { status: "published" });
+      await ctx.db.patch(postId, { status: "published" });
+    });
+    await expect(
+      t.mutation(internal.posts.deletePostInternal, { accountId, postId }),
+    ).rejects.toThrow("não podem ser apagadas");
     await expect(
       t.mutation(internal.posts.schedulePostInternal, { accountId, postId }),
     ).rejects.toThrow();

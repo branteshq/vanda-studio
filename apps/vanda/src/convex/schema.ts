@@ -857,6 +857,8 @@ export default defineSchema({
     postId: v.id("posts"),
     scheduledFor: v.number(),
     status: v.union(...scheduledStatuses.map((status) => v.literal(status))),
+    // The armed scheduler job — kept so a reschedule/cancel can disarm it.
+    scheduledJobId: v.optional(v.id("_scheduled_functions")),
     externalPostId: v.optional(v.string()),
     // Public Instagram URL, when the publisher reports one.
     permalink: v.optional(v.string()),

@@ -44,6 +44,7 @@ Regras de comportamento:
   - Post SIMPLES (o dono pede para postar uma foto/imagem existente ou algo rápido): create_post (imagens da galeria + legenda sua) e depois schedule_post (pede aprovação). Rápido, sem pipeline editorial.
   - Carrossel PRODUZIDO (arte por slide, revisão editorial, renderização): create_carousel → revise_slide/request_render → publish_project. Use quando o trabalho pede produção de verdade.
   - O estado de todos os posts (rascunho, agendado, publicado, falhou) vive em /posts — leia antes de afirmar qualquer coisa sobre publicações.
+- Agendamentos: o contexto traz a data/hora atual e o fuso é sempre America/Sao_Paulo — calcule "amanhã", "sexta" etc. a partir dela e NÃO pergunte fuso horário. Para mudar o horário de um post já agendado, chame schedule_post de novo com a nova data (reagenda, não duplica). cancel_schedule desarma; delete_post apaga rascunhos e agendados (nunca publicados).
 - Não invente fatos sobre a marca: o que você sabe vem de /brand/memory.md. Se faltar contexto, pergunte ou peça para completar o perfil.
 - Imagens (paint) — regra de roteamento, siga à risca:
   - A imagem que o usuário ANEXA na conversa já pertence à conta e já está autorizada. Use-a direto. Nunca peça "autorização" nem invente uma etapa de autorizar — esse passo não existe.
@@ -53,6 +54,25 @@ Regras de comportamento:
 - Edição de imagem — regra de roteamento entre paint e run_code: mudança GENERATIVA (trocar fundo, cenário, roupa, criar do zero) → paint. Composição DETERMINÍSTICA (texto sobre a imagem, logo, corte, redimensionar, colagem, moldura, cor exata da marca) → run_code. Texto renderizado por modelo generativo erra; texto composto por código não erra. run_code é quase gratuito — prefira-o sempre que o resultado precisar ser exato.`;
 
 const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });
+
+/**
+ * The per-turn system prompt: the static instructions plus a live clock.
+ * Without it the model guesses what "amanhã" means — with it, relative
+ * dates resolve deterministically in the account's timezone.
+ */
+export const systemPrompt = (): string => {
+  const now = new Date();
+  const stamp = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(now);
+  return `${INSTRUCTIONS}\n\nAgora: ${stamp} (fuso America/Sao_Paulo, UTC-03:00). Em agendamentos, escreva datas ISO 8601 com o offset -03:00.`;
+};
 
 // --- Tools ------------------------------------------------------------------
 
@@ -272,13 +292,13 @@ const createPost = createTool({
 
 const schedulePost = createTool({
   description:
-    "Agenda a publicação de um post criado com create_post no Instagram conectado. Requer aprovação explícita do dono. Opcionalmente com data/hora futura (ISO 8601); sem data, publica imediatamente após a aprovação.",
+    "Agenda a publicação de um post criado com create_post no Instagram conectado. Requer aprovação explícita do dono. Opcionalmente com data/hora futura (ISO 8601 com offset, ex.: 2026-08-12T08:00:00-03:00); sem data, publica imediatamente após a aprovação. Se o post JÁ estiver agendado, esta ferramenta REAGENDA: substitui o horário anterior, sem duplicar.",
   inputSchema: z.object({
     postId: z.string().describe("id do post (retornado por create_post ou listado em /posts)"),
     scheduledFor: z
       .string()
       .optional()
-      .describe("data/hora ISO 8601 para publicar; omita para publicar agora"),
+      .describe("data/hora ISO 8601 com offset para publicar; omita para publicar agora"),
   }),
   needsApproval: true,
   execute: async (
@@ -292,6 +312,36 @@ const schedulePost = createTool({
       postId: postId as Id<"posts">,
       ...(at !== undefined ? { scheduledFor: at } : {}),
     });
+  },
+});
+
+const cancelSchedule = createTool({
+  description:
+    "Cancela o agendamento pendente de um post — desarma a publicação e o post volta a rascunho. Só funciona antes da publicação começar.",
+  inputSchema: z.object({
+    postId: z.string().describe("id do post agendado"),
+  }),
+  execute: async (ctx: VandaToolCtx, { postId }: { postId: string }): Promise<string> => {
+    await ctx.runMutation(internal.posts.cancelScheduleInternal, {
+      accountId: ctx.accountId,
+      postId: postId as Id<"posts">,
+    });
+    return "Agendamento cancelado — o post voltou a rascunho.";
+  },
+});
+
+const deletePost = createTool({
+  description:
+    "Apaga um post que ainda não foi publicado (rascunho ou agendado — o agendamento é cancelado junto). As imagens continuam na galeria. Posts publicados não podem ser apagados.",
+  inputSchema: z.object({
+    postId: z.string().describe("id do post a apagar"),
+  }),
+  execute: async (ctx: VandaToolCtx, { postId }: { postId: string }): Promise<string> => {
+    await ctx.runMutation(internal.posts.deletePostInternal, {
+      accountId: ctx.accountId,
+      postId: postId as Id<"posts">,
+    });
+    return "Post apagado. As imagens continuam na galeria.";
   },
 });
 
@@ -425,6 +475,8 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
     run_code: runCode,
     create_post: createPost,
     schedule_post: schedulePost,
+    cancel_schedule: cancelSchedule,
+    delete_post: deletePost,
     publish_project: publishProject,
     discard_project: discardProject,
   },

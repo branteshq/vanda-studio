@@ -25,7 +25,7 @@ import {
 import { requireOwnedAccount } from "./authz";
 import { codexChatModel, codexResponsesText } from "./pipeline/codex";
 import { budgetOf, USAGE_LIMIT_MESSAGE } from "./usage";
-import { vanda, VANDA_MODEL } from "./vanda";
+import { systemPrompt, vanda, VANDA_MODEL } from "./vanda";
 
 /**
  * The account's Vanda conversations. Multi-thread: the agent component owns
@@ -344,7 +344,9 @@ export const generateResponse = internalAction({
       const result = await vanda.streamText(
         { ...ctx, accountId },
         { threadId },
-        { promptMessageId, ...(model ? { model } : {}) },
+        // The live-clock system prompt replaces the agent's static
+        // instructions so relative dates ("amanhã às 8") resolve correctly.
+        { promptMessageId, system: systemPrompt(), ...(model ? { model } : {}) },
         { saveStreamDeltas: true },
       );
       await result.consumeStream();

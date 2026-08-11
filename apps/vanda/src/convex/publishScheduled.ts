@@ -106,9 +106,12 @@ export const schedulePost = internalMutation({
       createdAt: now,
       updatedAt: now,
     });
-    await ctx.scheduler.runAt(scheduledFor, internal.publishScheduledNode.runScheduledPost, {
-      scheduledPostId,
-    });
+    const scheduledJobId = await ctx.scheduler.runAt(
+      scheduledFor,
+      internal.publishScheduledNode.runScheduledPost,
+      { scheduledPostId },
+    );
+    await ctx.db.patch(scheduledPostId, { scheduledJobId });
     return scheduledPostId;
   },
 });
