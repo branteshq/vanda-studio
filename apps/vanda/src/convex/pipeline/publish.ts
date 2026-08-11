@@ -70,17 +70,28 @@ export class PublishStore extends Context.Service<PublishStore, PublishStoreShap
   "@vanda/pipeline/PublishStore",
 ) {}
 
+/** Human-debuggable failure reason: the tag plus the variant's detail. */
+const failureReason = (error: {
+  readonly _tag: string;
+  readonly message?: string;
+  readonly reason?: string;
+  readonly type?: string;
+}): string => {
+  const detail = error.message ?? error.reason ?? error.type;
+  return detail !== undefined ? `${error._tag}: ${detail}`.slice(0, 300) : error._tag;
+};
+
 /**
  * Publish one due scheduled post end-to-end: load it, mark it publishing,
- * publish, then record the receipt (or the failure tag). The status row is
- * the calendar's source of truth.
+ * publish, then record the receipt (or the failure reason). The status row
+ * is the calendar's source of truth.
  */
 export const publishDue = Effect.fn("pipeline.publishDue")(function* (scheduledPostId: string) {
   const store = yield* PublishStore;
   const job = yield* store.loadJob(scheduledPostId);
   yield* store.markPublishing(scheduledPostId);
   const receipt = yield* publishPost(job).pipe(
-    Effect.tapError((error) => store.markFailed(scheduledPostId, error._tag)),
+    Effect.tapError((error) => store.markFailed(scheduledPostId, failureReason(error))),
   );
   yield* store.markPublished(scheduledPostId, receipt);
   return receipt;

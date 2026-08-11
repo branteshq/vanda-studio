@@ -100,7 +100,7 @@ describe("publishDue", () => {
       expect(error._tag).toBe("PublisherRequestFailed");
       expect(store.state.get("sp1")).toMatchObject({
         status: "failed",
-        lastError: "PublisherRequestFailed",
+        lastError: "PublisherRequestFailed: fake transport failure",
       });
     }),
   );

@@ -1,0 +1,9 @@
+(node:88847) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▌ Showing logs of deployment:
+▌ [Development] daviarantes13:vanda-studio:dev/davi-arantes (dev) (dashboard: https://dashboard.convex.dev/t/daviarantes13/vanda-studio/small-ox-943)
+▌ └─ https://small-ox-943.convex.cloud
+Watching logs for dev deployment small-ox-943...
+8/11/2026, 10:33:18 AM [CONVEX A(publishScheduledNode:runScheduledPost)] Uncaught PublisherRequestFailed: upload-post: publicação no Instagram falhou
+    at catch (../src/convex/pipeline/livePublish.ts:26:23)
+

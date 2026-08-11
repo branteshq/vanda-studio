@@ -150,10 +150,63 @@ export interface PublishPhotosResult {
   url: string | null;
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Recover the receipt of a just-completed async upload from the history feed. */
+const receiptFromHistory = async (username: string): Promise<PublishPhotosResult> => {
+  const response = await upFetch("/uploadposts/history");
+  if (!response.ok) return { externalPostId: null, url: null };
+  const body = (await response.json().catch(() => null)) as {
+    history?: Array<{
+      profile_username?: string;
+      platform?: string;
+      success?: boolean;
+      platform_post_id?: string | null;
+      post_url?: string | null;
+    }>;
+  } | null;
+  const item = (body?.history ?? []).find(
+    (entry) =>
+      entry.profile_username === username && entry.platform === "instagram" && entry.success,
+  );
+  return { externalPostId: item?.platform_post_id ?? null, url: item?.post_url ?? null };
+};
+
+/** Poll an async upload until it settles; returns the receipt or throws. */
+const awaitAsyncUpload = async (
+  username: string,
+  requestId: string,
+): Promise<PublishPhotosResult> => {
+  const deadline = Date.now() + 4 * 60_000;
+  for (;;) {
+    await sleep(5_000);
+    const response = await upFetch(
+      `/uploadposts/status?request_id=${encodeURIComponent(requestId)}`,
+    );
+    const body = (await response.json().catch(() => null)) as {
+      status?: string;
+      results?: Array<{ platform?: string; success?: boolean; message?: string }>;
+    } | null;
+    // Result rows exist as placeholders while the job runs — only judge
+    // success/failure once the aggregated status settles.
+    if (body?.status === "completed") {
+      const result = body.results?.find((entry) => entry.platform === "instagram");
+      if (result !== undefined && result.success !== true) {
+        throw new Error(result.message ?? "upload-post: publicação assíncrona falhou");
+      }
+      return receiptFromHistory(username);
+    }
+    if (Date.now() > deadline) {
+      throw new Error("upload-post: publicação assíncrona não concluiu a tempo");
+    }
+  }
+};
+
 /**
  * Publish a photo post (single image or carousel) to Instagram. Media is
  * fetched from our storage URLs and re-sent as multipart binary — the
- * endpoint takes files, not URLs. Synchronous: resolves when published.
+ * endpoint takes files, not URLs. Large payloads (multi-slide carousels)
+ * flip the API into async mode; we poll status until the post settles.
  */
 export const publishPhotos = async (args: {
   username: string;
@@ -172,13 +225,20 @@ export const publishPhotos = async (args: {
   }
   const body = await upJson<{
     success?: boolean;
+    request_id?: string;
     results?: Record<string, { success?: boolean; post_id?: string; url?: string; error?: string }>;
   }>("/upload_photos", { method: "POST", body: form });
   const result = body.results?.["instagram"];
-  if (!result?.success) {
-    throw new Error(result?.error ?? "upload-post: publicação no Instagram falhou");
+  if (result !== undefined) {
+    if (!result.success) {
+      throw new Error(result.error ?? "upload-post: publicação no Instagram falhou");
+    }
+    return { externalPostId: result.post_id ?? null, url: result.url ?? null };
   }
-  return { externalPostId: result.post_id ?? null, url: result.url ?? null };
+  if (body.request_id !== undefined) {
+    return awaitAsyncUpload(args.username, body.request_id);
+  }
+  throw new Error("upload-post: resposta sem resultado nem request_id");
 };
 
 export interface PostMetrics {
