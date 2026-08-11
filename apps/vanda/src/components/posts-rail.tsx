@@ -22,6 +22,7 @@ import {
 } from "@vanda-studio/ui/components/sidebar";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { StatusPill } from "@vanda-studio/ui/components/status-pill";
+import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
@@ -74,70 +75,75 @@ export function PostsRailHost() {
   );
 }
 
+/** The floating opener shown while the rail is closed — the right-side twin
+ * of `CollapsedSidebarControls`. Rendered inside the inset by the layout. */
+export function CollapsedRailControls() {
+  const rail = useWorkRail();
+  if (rail.open) return null;
+  return (
+    <div className="absolute top-3 right-3 z-20 hidden items-center rounded-lg border border-border bg-surface/90 p-0.5 shadow-sm backdrop-blur-sm md:flex">
+      <ActionTooltip label="Abrir posts" side="bottom">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Abrir posts"
+          onClick={() => rail.setOpen(true)}
+        >
+          <CalendarDays />
+        </Button>
+      </ActionTooltip>
+    </div>
+  );
+}
+
 function PostsRail() {
   const { activeAccount } = useActiveAccount();
-  const { state, toggleSidebar } = useSidebar();
+  const { toggleSidebar } = useSidebar();
   const rail = useWorkRail();
 
   return (
     <Sidebar
       side="right"
-      collapsible="icon"
-      className="border-sidebar-border"
+      collapsible="offcanvas"
+      resizable
+      resizeLabel="Redimensionar painel de posts"
+      className="border-sidebar-border transition-[left,right] duration-200 ease-[var(--ease-out)]"
     >
-      {state === "collapsed" ? (
-        <SidebarContent className="items-center pt-2">
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                tooltip="Posts"
-                onClick={toggleSidebar}
-                aria-label="Abrir posts"
-              >
-                <CalendarDays />
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarContent>
-      ) : (
-        <>
-          <SidebarHeader className="flex-row items-center gap-2 border-b border-sidebar-border px-3 py-2.5">
-            {rail.view.kind !== "list" ? (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Voltar para a lista"
-                onClick={rail.openList}
-              >
-                <ArrowLeft />
-              </Button>
-            ) : null}
-            <h2 className="min-w-0 flex-1 truncate text-body font-semibold">Posts</h2>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Recolher posts"
-              onClick={toggleSidebar}
-            >
-              <PanelRightClose />
-            </Button>
-          </SidebarHeader>
-          <SidebarContent className="min-h-0">
-            {activeAccount === undefined ? null : rail.view.kind === "project" ? (
-              <ProjectReview
-                projectId={rail.view.projectId}
-                accountId={activeAccount.id}
-                threadId={rail.view.kind === "project" ? rail.view.threadId : undefined}
-                onClose={rail.openList}
-              />
-            ) : rail.view.kind === "post" ? (
-              <PostDetail accountId={activeAccount.id} postId={rail.view.postId} />
-            ) : (
-              <PostList accountId={activeAccount.id} />
-            )}
-          </SidebarContent>
-        </>
-      )}
+      <SidebarHeader className="flex-row items-center gap-2 border-b border-sidebar-border px-3 py-2.5">
+        {rail.view.kind !== "list" ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Voltar para a lista"
+            onClick={rail.openList}
+          >
+            <ArrowLeft />
+          </Button>
+        ) : null}
+        <h2 className="min-w-0 flex-1 truncate text-body font-semibold">Posts</h2>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Recolher posts"
+          onClick={toggleSidebar}
+        >
+          <PanelRightClose />
+        </Button>
+      </SidebarHeader>
+      <SidebarContent className="min-h-0">
+        {activeAccount === undefined ? null : rail.view.kind === "project" ? (
+          <ProjectReview
+            projectId={rail.view.projectId}
+            accountId={activeAccount.id}
+            threadId={rail.view.kind === "project" ? rail.view.threadId : undefined}
+            onClose={rail.openList}
+          />
+        ) : rail.view.kind === "post" ? (
+          <PostDetail accountId={activeAccount.id} postId={rail.view.postId} />
+        ) : (
+          <PostList accountId={activeAccount.id} />
+        )}
+      </SidebarContent>
     </Sidebar>
   );
 }
