@@ -17,6 +17,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarProvider,
   useSidebar,
 } from "@vanda-studio/ui/components/sidebar";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
@@ -25,6 +26,8 @@ import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { useActiveAccount } from "./active-account";
+import { ProjectReview } from "./project-review";
+import { useWorkRail } from "./work-rail";
 
 /**
  * The global right rail — the posts surface of the workspace, present on
@@ -54,10 +57,27 @@ const formatWhen = (timestamp: number): string =>
     minute: "2-digit",
   }).format(timestamp);
 
-export function PostsRail() {
+/** Hosts the rail inside its own provider, driven by the WorkRail state. */
+export function PostsRailHost() {
+  const rail = useWorkRail();
+  return (
+    <SidebarProvider
+      className="contents"
+      open={rail.open}
+      onOpenChange={rail.setOpen}
+      defaultWidth={352}
+      cookieName="posts_rail_state"
+      keyboardShortcut="."
+    >
+      <PostsRail />
+    </SidebarProvider>
+  );
+}
+
+function PostsRail() {
   const { activeAccount } = useActiveAccount();
   const { state, toggleSidebar } = useSidebar();
-  const [selectedId, setSelectedId] = useState<Id<"posts"> | null>(null);
+  const rail = useWorkRail();
 
   return (
     <Sidebar
@@ -82,12 +102,12 @@ export function PostsRail() {
       ) : (
         <>
           <SidebarHeader className="flex-row items-center gap-2 border-b border-sidebar-border px-3 py-2.5">
-            {selectedId !== null ? (
+            {rail.view.kind !== "list" ? (
               <Button
                 variant="ghost"
                 size="icon-sm"
                 aria-label="Voltar para a lista"
-                onClick={() => setSelectedId(null)}
+                onClick={rail.openList}
               >
                 <ArrowLeft />
               </Button>
@@ -103,13 +123,17 @@ export function PostsRail() {
             </Button>
           </SidebarHeader>
           <SidebarContent className="min-h-0">
-            {activeAccount === undefined ? null : selectedId !== null ? (
-              <PostDetail
+            {activeAccount === undefined ? null : rail.view.kind === "project" ? (
+              <ProjectReview
+                projectId={rail.view.projectId}
                 accountId={activeAccount.id}
-                postId={selectedId}
+                threadId={rail.view.kind === "project" ? rail.view.threadId : undefined}
+                onClose={rail.openList}
               />
+            ) : rail.view.kind === "post" ? (
+              <PostDetail accountId={activeAccount.id} postId={rail.view.postId} />
             ) : (
-              <PostList accountId={activeAccount.id} onOpen={setSelectedId} />
+              <PostList accountId={activeAccount.id} />
             )}
           </SidebarContent>
         </>
@@ -118,13 +142,8 @@ export function PostsRail() {
   );
 }
 
-function PostList({
-  accountId,
-  onOpen,
-}: {
-  accountId: Id<"accounts">;
-  onOpen: (postId: Id<"posts">) => void;
-}) {
+function PostList({ accountId }: { accountId: Id<"accounts"> }) {
+  const rail = useWorkRail();
   const posts = useQuery(api.posts.listForRail, { accountId });
 
   if (posts === undefined) {
@@ -158,7 +177,12 @@ function PostList({
               <SidebarMenuButton
                 size="lg"
                 className="h-auto items-center gap-2.5 py-2"
-                onClick={() => onOpen(post.postId)}
+                onClick={() =>
+                  // Project-backed posts get the full review surface.
+                  post.contentProjectId !== null
+                    ? rail.openProject(post.contentProjectId)
+                    : rail.openPost(post.postId)
+                }
               >
                 {post.thumbnailUrl !== null ? (
                   <img

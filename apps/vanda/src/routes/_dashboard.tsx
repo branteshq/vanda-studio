@@ -4,7 +4,8 @@ import { SidebarInset, SidebarProvider } from "@vanda-studio/ui/components/sideb
 import { AppSidebar, CollapsedSidebarControls } from "../components/app-sidebar";
 import { ActiveAccountProvider, useActiveAccount } from "../components/active-account";
 import { ModeNavProvider } from "../components/mode-nav";
-import { PostsRail } from "../components/posts-rail";
+import { PostsRailHost } from "../components/posts-rail";
+import { WorkRailProvider } from "../components/work-rail";
 
 export const Route = createFileRoute("/_dashboard")({
   component: DashboardLayout,
@@ -45,23 +46,17 @@ function DashboardGate() {
   return (
     <SidebarProvider defaultWidth={272}>
       <ModeNavProvider>
-        <AppSidebar />
-        <SidebarInset className="relative flex h-svh flex-col overflow-hidden bg-app">
-          <CollapsedSidebarControls />
-          <Outlet />
-        </SidebarInset>
-        {/* The right rail gets its own provider (independent open state,
-            cookie and shortcut) rendered display:contents so the Sidebar
-            stays a flex sibling of the inset. */}
-        <SidebarProvider
-          className="contents"
-          defaultOpen={false}
-          defaultWidth={320}
-          cookieName="posts_rail_state"
-          keyboardShortcut="."
-        >
-          <PostsRail />
-        </SidebarProvider>
+        <WorkRailProvider>
+          <AppSidebar />
+          <SidebarInset className="relative flex h-svh flex-col overflow-hidden bg-app">
+            <CollapsedSidebarControls />
+            <Outlet />
+          </SidebarInset>
+          {/* The right rail: its own provider (independent open state, cookie
+              and shortcut) rendered display:contents so the Sidebar stays a
+              flex sibling of the inset. */}
+          <PostsRailHost />
+        </WorkRailProvider>
       </ModeNavProvider>
     </SidebarProvider>
   );
