@@ -260,7 +260,11 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
       />
       <PostPreviewDialog
         accountId={accountId}
+        postIds={entries.flatMap((entry) =>
+          entry.kind === "post" ? [entry.post.postId] : [],
+        )}
         postId={selectedPostId}
+        onSelect={setSelectedPostId}
         onClose={() => setSelectedPostId(null)}
       />
     </main>

@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
 
 /**
@@ -126,31 +126,73 @@ export const cancelScheduleInternal = internalMutation({
   },
 });
 
+/** Shared delete: drafts directly, scheduled ones by disarming first. */
+const deletePostForAccount = async (
+  ctx: MutationCtx,
+  accountId: Id<"accounts">,
+  postId: Id<"posts">,
+): Promise<void> => {
+  const post = await ctx.db.get(postId);
+  if (post === null || post.accountId !== accountId) throw new Error("post não encontrado");
+  const scheduled = await ctx.db
+    .query("scheduledPosts")
+    .withIndex("by_post", (q) => q.eq("postId", postId))
+    .first();
+  if (scheduled !== null) {
+    if (scheduled.status !== "scheduled") {
+      throw new Error(`post já está ${scheduled.status} — publicações não podem ser apagadas`);
+    }
+    if (scheduled.scheduledJobId !== undefined)
+      await ctx.scheduler.cancel(scheduled.scheduledJobId);
+    await ctx.db.delete(scheduled._id);
+  } else if (post.status === "published") {
+    throw new Error("post publicado não pode ser apagado");
+  }
+  // The images stay in the gallery — only the post assembly goes away.
+  await ctx.db.delete(postId);
+};
+
 /**
  * Delete a post that never went out: drafts directly, scheduled ones by
  * disarming first. Published (or in-flight) posts are history — refused.
  */
 export const deletePostInternal = internalMutation({
   args: { accountId: v.id("accounts"), postId: v.id("posts") },
+  handler: (ctx, { accountId, postId }) => deletePostForAccount(ctx, accountId, postId),
+});
+
+/** Owner-facing delete (the gallery's expanded view). Same rules as the verb. */
+export const removePost = mutation({
+  args: { accountId: v.id("accounts"), postId: v.id("posts") },
   handler: async (ctx, { accountId, postId }): Promise<void> => {
+    await requireOwnedAccount(ctx, accountId);
+    await deletePostForAccount(ctx, accountId, postId);
+  },
+});
+
+/**
+ * Owner edits the caption in place — allowed until the post is actually on
+ * its way out (publishing) or out (published). A scheduled post can still be
+ * reworded: the owner's authority is what the approval gate protects.
+ */
+export const updateCaption = mutation({
+  args: { accountId: v.id("accounts"), postId: v.id("posts"), caption: v.string() },
+  handler: async (ctx, { accountId, postId, caption }): Promise<void> => {
+    await requireOwnedAccount(ctx, accountId);
     const post = await ctx.db.get(postId);
     if (post === null || post.accountId !== accountId) throw new Error("post não encontrado");
+    if (caption.length > MAX_CAPTION_CHARS) {
+      throw new Error(`legenda acima do limite do Instagram (${MAX_CAPTION_CHARS} caracteres)`);
+    }
     const scheduled = await ctx.db
       .query("scheduledPosts")
       .withIndex("by_post", (q) => q.eq("postId", postId))
       .first();
-    if (scheduled !== null) {
-      if (scheduled.status !== "scheduled") {
-        throw new Error(`post já está ${scheduled.status} — publicações não podem ser apagadas`);
-      }
-      if (scheduled.scheduledJobId !== undefined)
-        await ctx.scheduler.cancel(scheduled.scheduledJobId);
-      await ctx.db.delete(scheduled._id);
-    } else if (post.status === "published") {
-      throw new Error("post publicado não pode ser apagado");
+    const lifecycle = scheduled?.status ?? post.status;
+    if (lifecycle === "publishing" || lifecycle === "published") {
+      throw new Error("post publicado não pode ser editado");
     }
-    // The images stay in the gallery — only the post assembly goes away.
-    await ctx.db.delete(postId);
+    await ctx.db.patch(postId, { caption });
   },
 });
 
