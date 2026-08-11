@@ -185,6 +185,7 @@ function PostList({ accountId }: { accountId: Id<"accounts"> }) {
       <Calendar
         mode="single"
         locale={ptBR}
+        fullWidth
         selected={selectedDay}
         onSelect={setSelectedDay}
         modifiers={{ hasPosts: postDays }}
@@ -192,7 +193,7 @@ function PostList({ accountId }: { accountId: Id<"accounts"> }) {
           hasPosts:
             "relative after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-brand-accent after:content-[''] data-[selected-single=true]:after:bg-primary-foreground",
         }}
-        className="mx-auto shrink-0"
+        className="shrink-0"
       />
       {posts.length === 0 ? (
         <div className="border-t border-sidebar-border px-4 py-8 text-center">
