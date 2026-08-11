@@ -5,10 +5,9 @@ import { internalMutation, mutation, query, type MutationCtx } from "./_generate
 import { requireOwnedAccount } from "./authz";
 
 /**
- * The lightweight post path: gallery image(s) + caption → draft → approved
- * schedule → the same publish rails carousels use. The heavyweight sibling
- * (create_carousel → publish_project) stays for produced multi-slide work;
- * these verbs exist so "posta essa foto com essa legenda" is proportionate.
+ * THE post path: gallery image(s) + caption → draft → schedule → publish.
+ * A carousel is just a post with more images; produced work differs only in
+ * how its images get made (paint + run_code), never in how it publishes.
  */
 
 const MAX_POST_IMAGES = 10;

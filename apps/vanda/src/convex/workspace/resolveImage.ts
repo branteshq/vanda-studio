@@ -35,18 +35,5 @@ export const resolveImagePath = async (
     const references = (await allImages()).filter((image) => image.purpose === "reference");
     return resolveByName(segments[2]!, references);
   }
-  if (segments[0] === "projects" && segments.length === 4 && segments[2] === "renders") {
-    const projects = await ctx.db
-      .query("contentProjects")
-      .withIndex("by_account_updated", (q) => q.eq("accountId", accountId))
-      .order("desc")
-      .take(25);
-    const project = resolveByName(segments[1]!, projects);
-    const post = project?.postId ? await ctx.db.get(project.postId) : null;
-    if (!post) return null;
-    const index = Number.parseInt(segments[3]!, 10) - 1;
-    const imageId = Number.isNaN(index) ? undefined : post.imageIds[index];
-    return imageId ? ctx.db.get(imageId) : null;
-  }
   return null;
 };

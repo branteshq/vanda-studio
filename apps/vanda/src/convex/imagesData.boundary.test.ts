@@ -106,8 +106,5 @@ describe("paint image identity boundary", () => {
       prompt: "warm breakfast",
       description: "warm breakfast",
     });
-    expect(image?.contentProjectId).toBeUndefined();
-    expect(image?.carouselDocumentId).toBeUndefined();
-    expect(image?.slideId).toBeUndefined();
   });
 });

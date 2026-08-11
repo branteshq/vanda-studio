@@ -3,11 +3,6 @@ import { v } from "convex/values";
 import { brandCanonColumns } from "./pipeline/storage";
 import {
   brandKinds,
-  carouselDocumentStatuses,
-  carouselRenderStatuses,
-  contentAssetRequestStatuses,
-  contentProjectStatuses,
-  documentReviewStatuses,
   imageOrigins,
   imagePurposes,
   inputAssessmentDecisions,
@@ -27,80 +22,6 @@ import {
   sourceContentTypes,
   sourceDossierStatuses,
 } from "./pipeline/constants";
-
-const carouselVisual = v.object({
-  kind: v.union(
-    v.literal("none"),
-    v.literal("reference"),
-    v.literal("photo"),
-    v.literal("illustration"),
-    v.literal("icon"),
-    v.literal("diagram"),
-    v.literal("texture"),
-  ),
-  strategy: v.union(
-    v.literal("available"),
-    v.literal("generate"),
-    v.literal("needs_owner"),
-    v.literal("not_needed"),
-  ),
-  assetIds: v.array(v.string()),
-  prompt: v.string(),
-  altText: v.string(),
-  treatment: v.union(
-    v.literal("none"),
-    v.literal("background"),
-    v.literal("full_bleed"),
-    v.literal("split"),
-    v.literal("inset"),
-    v.literal("cutout"),
-  ),
-});
-
-const carouselSlide = v.object({
-  slideId: v.string(),
-  position: v.number(),
-  role: v.union(
-    v.literal("cover"),
-    v.literal("context"),
-    v.literal("content"),
-    v.literal("proof"),
-    v.literal("summary"),
-    v.literal("cta"),
-  ),
-  layout: v.union(
-    v.literal("statement"),
-    v.literal("editorial"),
-    v.literal("list"),
-    v.literal("steps"),
-    v.literal("comparison"),
-    v.literal("split"),
-    v.literal("quote"),
-    v.literal("cta"),
-  ),
-  kicker: v.string(),
-  headline: v.string(),
-  body: v.string(),
-  bullets: v.array(v.string()),
-  factIds: v.array(v.string()),
-  visual: carouselVisual,
-  productionNotes: v.array(v.string()),
-});
-
-const carouselStyle = v.object({
-  theme: v.union(v.literal("light"), v.literal("dark"), v.literal("brand")),
-  density: v.union(v.literal("sparse"), v.literal("balanced"), v.literal("rich")),
-  headlineCase: v.union(v.literal("sentence"), v.literal("uppercase")),
-  cornerStyle: v.union(v.literal("square"), v.literal("soft"), v.literal("rounded")),
-  imageTreatment: v.union(
-    v.literal("natural"),
-    v.literal("duotone"),
-    v.literal("cutout"),
-    v.literal("none"),
-  ),
-  motifs: v.array(v.string()),
-  referenceAssetIds: v.array(v.string()),
-});
 
 export default defineSchema({
   users: defineTable({
@@ -172,11 +93,6 @@ export default defineSchema({
     handle: v.optional(v.string()),
     // Set when the publisher profile reports a live Instagram connection.
     publisherConnectedAt: v.optional(v.number()),
-    // DEPRECATED autonomy gate (auto/needs_approval/manual) — nothing reads it;
-    // kept optional until existing rows are unset, then dropped for good.
-    mode: v.optional(
-      v.union(v.literal("auto"), v.literal("needs_approval"), v.literal("manual")),
-    ),
     // Set by approveBrandProfile when the owner confirms the brand profile — the
     // onboarding gate. Unset means connected-but-not-yet-onboarded.
     onboardedAt: v.optional(v.number()),
@@ -528,114 +444,6 @@ export default defineSchema({
     .index("by_opportunity", ["opportunityId"])
     .index("by_account_status", ["accountId", "status"]),
 
-  contentProjects: defineTable({
-    accountId: v.id("accounts"),
-    creativeBriefId: v.optional(v.id("creativeBriefs")),
-    opportunityId: v.optional(v.id("opportunities")),
-    visualProfileId: v.optional(v.id("brandVisualProfiles")),
-    briefSnapshotJson: v.optional(v.string()),
-    sourceSnapshotJson: v.optional(v.string()),
-    kind: v.literal("carousel"),
-    origin: v.union(v.literal("creative_director"), v.literal("manual"), v.literal("legacy_run")),
-    title: v.string(),
-    status: v.union(...contentProjectStatuses.map((status) => v.literal(status))),
-    activeDocumentId: v.optional(v.id("carouselDocuments")),
-    latestVersion: v.number(),
-    coverImageId: v.optional(v.id("images")),
-    postId: v.optional(v.id("posts")),
-    lastError: v.optional(v.string()),
-    createdAt: v.number(),
-    updatedAt: v.number(),
-  })
-    .index("by_account_updated", ["accountId", "updatedAt"])
-    .index("by_account_status", ["accountId", "status"])
-    .index("by_brief", ["creativeBriefId"]),
-
-  carouselDocuments: defineTable({
-    accountId: v.id("accounts"),
-    projectId: v.id("contentProjects"),
-    creativeBriefId: v.optional(v.id("creativeBriefs")),
-    version: v.number(),
-    parentDocumentId: v.optional(v.id("carouselDocuments")),
-    changeKind: v.union(
-      v.literal("generated"),
-      v.literal("manual_edit"),
-      v.literal("slide_regeneration"),
-      v.literal("review_retry"),
-    ),
-    status: v.union(...carouselDocumentStatuses.map((status) => v.literal(status))),
-    reviewStatus: v.union(...documentReviewStatuses.map((status) => v.literal(status))),
-    title: v.string(),
-    caption: v.string(),
-    accessibilityDescription: v.string(),
-    canvas: v.object({
-      preset: v.literal("instagram_portrait_4_5"),
-      width: v.literal(1080),
-      height: v.literal(1350),
-    }),
-    style: carouselStyle,
-    brandFactIds: v.array(v.string()),
-    slides: v.array(carouselSlide),
-    reviewSummary: v.string(),
-    unsupportedClaims: v.array(v.string()),
-    brandIssues: v.array(v.string()),
-    similarityRisks: v.array(v.string()),
-    productionIssues: v.array(v.string()),
-    corrections: v.array(v.string()),
-    reviewConfidence: v.number(),
-    deterministicIssues: v.array(v.string()),
-    deterministicWarnings: v.array(v.string()),
-    sourceSimilarity: v.number(),
-    model: v.string(),
-    promptVersion: v.string(),
-    reviewModel: v.string(),
-    reviewPromptVersion: v.string(),
-    createdBy: v.union(v.literal("model"), v.literal("owner"), v.literal("system")),
-    createdAt: v.number(),
-  })
-    .index("by_project_version", ["projectId", "version"])
-    .index("by_account_created", ["accountId", "createdAt"]),
-
-  contentAssetRequests: defineTable({
-    accountId: v.id("accounts"),
-    projectId: v.id("contentProjects"),
-    documentId: v.id("carouselDocuments"),
-    slideId: v.string(),
-    kind: v.string(),
-    strategy: v.union(
-      v.literal("available"),
-      v.literal("generate"),
-      v.literal("needs_owner"),
-      v.literal("not_needed"),
-    ),
-    sourceImageIds: v.array(v.id("images")),
-    prompt: v.string(),
-    status: v.union(...contentAssetRequestStatuses.map((status) => v.literal(status))),
-    outputImageId: v.optional(v.id("images")),
-    lastError: v.optional(v.string()),
-    createdAt: v.number(),
-    updatedAt: v.number(),
-  })
-    .index("by_document", ["documentId"])
-    .index("by_project_status", ["projectId", "status"]),
-
-  carouselRenderJobs: defineTable({
-    accountId: v.id("accounts"),
-    projectId: v.id("contentProjects"),
-    documentId: v.id("carouselDocuments"),
-    status: v.union(...carouselRenderStatuses.map((status) => v.literal(status))),
-    rendererVersion: v.string(),
-    attempt: v.number(),
-    outputImageIds: v.array(v.id("images")),
-    postId: v.optional(v.id("posts")),
-    lastError: v.optional(v.string()),
-    createdAt: v.number(),
-    startedAt: v.optional(v.number()),
-    completedAt: v.optional(v.number()),
-  })
-    .index("by_project_created", ["projectId", "createdAt"])
-    .index("by_status_created", ["status", "createdAt"]),
-
   inputAssessments: defineTable({
     accountId: v.id("accounts"),
     marketPostId: v.id("marketPosts"),
@@ -690,7 +498,6 @@ export default defineSchema({
     creativeAnalysisId: v.optional(v.id("creativeAnalyses")),
     creativeDirectionIds: v.optional(v.array(v.id("creativeDirections"))),
     creativeBriefId: v.optional(v.id("creativeBriefs")),
-    contentProjectId: v.optional(v.id("contentProjects")),
     creativeRejectionReason: v.optional(v.string()),
     rejectionCodes: v.optional(
       v.array(v.union(...inputRejectionCodes.map((code) => v.literal(code)))),
@@ -758,9 +565,6 @@ export default defineSchema({
     referenceKind: v.optional(
       v.union(v.literal("face"), v.literal("product"), v.literal("place"), v.literal("style")),
     ),
-    contentProjectId: v.optional(v.id("contentProjects")),
-    carouselDocumentId: v.optional(v.id("carouselDocuments")),
-    slideId: v.optional(v.string()),
     mimeType: v.optional(v.string()),
     description: v.optional(v.string()),
     altText: v.optional(v.string()),
@@ -850,8 +654,6 @@ export default defineSchema({
     platform: v.string(),
     status: v.union(...postStatuses.map((status) => v.literal(status))),
     opportunityId: v.optional(v.id("opportunities")),
-    contentProjectId: v.optional(v.id("contentProjects")),
-    carouselDocumentId: v.optional(v.id("carouselDocuments")),
     createdAt: v.number(),
   }).index("by_account", ["accountId"]),
 

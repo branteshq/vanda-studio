@@ -47,7 +47,6 @@ describe("composer image uploads", () => {
       width: 800,
       height: 600,
     });
-    expect(image?.contentProjectId).toBeUndefined();
   });
 
   it("rejects non-image uploads and non-owners", async () => {
