@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@vanda-studio/ui/lib/utils";
 
 const statusPill = cva(
-  "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-mono text-[11px] font-medium tracking-[0.06em] whitespace-nowrap",
+  "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-caption font-medium tracking-normal whitespace-nowrap",
   {
     // Every tone carries a state — status color is never decoration.
     variants: {
