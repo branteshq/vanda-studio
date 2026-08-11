@@ -381,7 +381,6 @@ function GalleryHeader({
         />
       </div>
       <div className="ml-auto flex items-center gap-1">
-        <RailOpenButton />
         <FilterMenu
           label="Filtrar imagens"
           groups={[
@@ -412,6 +411,7 @@ function GalleryHeader({
           ]}
         />
         <UploadButton accountId={accountId} />
+        <RailOpenButton />
       </div>
     </header>
   );
