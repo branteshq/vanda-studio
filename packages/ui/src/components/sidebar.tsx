@@ -66,6 +66,8 @@ function SidebarProvider({
   defaultWidth = SIDEBAR_WIDTH,
   open: openProp,
   onOpenChange: setOpenProp,
+  cookieName = SIDEBAR_COOKIE_NAME,
+  keyboardShortcut = SIDEBAR_KEYBOARD_SHORTCUT,
   className,
   style,
   children,
@@ -75,24 +77,37 @@ function SidebarProvider({
   defaultWidth?: number;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** Persistence key for this sidebar's state (width uses `<name>_width`).
+   * A second sidebar (e.g. a right rail) must pass its own name so the two
+   * don't clobber each other's cookies. */
+  cookieName?: string;
+  /** ⌘/Ctrl+key toggle; pass null to opt a sidebar out of the shortcut. */
+  keyboardShortcut?: string | null;
 }) {
   const isMobile = useIsMobile();
   const [openMobile, setOpenMobile] = React.useState(false);
   const [width, _setWidth] = React.useState(defaultWidth);
   const [resizing, setResizing] = React.useState(false);
+  const widthCookieName =
+    cookieName === SIDEBAR_COOKIE_NAME ? SIDEBAR_WIDTH_COOKIE_NAME : `${cookieName}_width`;
 
   // The persisted width is applied after mount, not read during render: the
   // server has no cookie access, so reading it inline would desync hydration.
   React.useEffect(() => {
-    const stored = document.cookie.match(/(?:^|;\s*)sidebar_width=(\d+)/)?.[1];
+    const stored = document.cookie.match(
+      new RegExp(`(?:^|;\\s*)${widthCookieName}=(\\d+)`),
+    )?.[1];
     if (stored) _setWidth(clampSidebarWidth(Number(stored)));
-  }, []);
+  }, [widthCookieName]);
 
-  const setWidth = React.useCallback((value: number) => {
-    const next = clampSidebarWidth(value);
-    _setWidth(next);
-    document.cookie = `${SIDEBAR_WIDTH_COOKIE_NAME}=${next}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
-  }, []);
+  const setWidth = React.useCallback(
+    (value: number) => {
+      const next = clampSidebarWidth(value);
+      _setWidth(next);
+      document.cookie = `${widthCookieName}=${next}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+    },
+    [widthCookieName],
+  );
 
   const resetWidth = React.useCallback(() => setWidth(defaultWidth), [setWidth, defaultWidth]);
 
@@ -110,9 +125,9 @@ function SidebarProvider({
       }
 
       // This sets the cookie to keep the sidebar state.
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+      document.cookie = `${cookieName}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
     },
-    [setOpenProp, open],
+    [setOpenProp, open, cookieName],
   );
 
   // Helper to toggle the sidebar.
@@ -122,8 +137,9 @@ function SidebarProvider({
 
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
+    if (keyboardShortcut === null) return;
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === SIDEBAR_KEYBOARD_SHORTCUT && (event.metaKey || event.ctrlKey)) {
+      if (event.key === keyboardShortcut && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
         toggleSidebar();
       }
@@ -131,7 +147,7 @@ function SidebarProvider({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleSidebar]);
+  }, [toggleSidebar, keyboardShortcut]);
 
   // We add a state so that we can do data-state="expanded" or "collapsed".
   // This makes it easier to style the sidebar with Tailwind classes.

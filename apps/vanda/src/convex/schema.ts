@@ -858,8 +858,12 @@ export default defineSchema({
     scheduledFor: v.number(),
     status: v.union(...scheduledStatuses.map((status) => v.literal(status))),
     externalPostId: v.optional(v.string()),
+    // Public Instagram URL, when the publisher reports one.
+    permalink: v.optional(v.string()),
     lastError: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index("by_account_scheduledFor", ["accountId", "scheduledFor"]),
+  })
+    .index("by_account_scheduledFor", ["accountId", "scheduledFor"])
+    .index("by_post", ["postId"]),
 });

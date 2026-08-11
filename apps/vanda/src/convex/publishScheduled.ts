@@ -45,15 +45,17 @@ export const setScheduledStatus = internalMutation({
     scheduledPostId: v.id("scheduledPosts"),
     status: v.union(...scheduledStatuses.map((status) => v.literal(status))),
     externalPostId: v.optional(v.string()),
+    permalink: v.optional(v.string()),
     lastError: v.optional(v.string()),
   },
-  handler: async (ctx, { scheduledPostId, status, externalPostId, lastError }) => {
+  handler: async (ctx, { scheduledPostId, status, externalPostId, permalink, lastError }) => {
     const scheduled = await ctx.db.get(scheduledPostId);
     if (!scheduled) return;
     const now = Date.now();
     await ctx.db.patch(scheduledPostId, {
       status,
       ...(externalPostId !== undefined ? { externalPostId } : {}),
+      ...(permalink !== undefined ? { permalink } : {}),
       ...(lastError !== undefined ? { lastError } : {}),
       updatedAt: now,
     });

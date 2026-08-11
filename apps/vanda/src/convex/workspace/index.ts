@@ -4,6 +4,7 @@ import { brandMount } from "./mounts/brand";
 import { imagesMount } from "./mounts/images";
 import { marketMount } from "./mounts/market";
 import { memoryMount } from "./mounts/memory";
+import { postsMount } from "./mounts/posts";
 import { projectsMount } from "./mounts/projects";
 import { runsMount } from "./mounts/runs";
 import { templatesMount } from "./mounts/templates";
@@ -19,6 +20,7 @@ const MOUNTS: readonly WorkspaceMount[] = [
   memoryMount,
   templatesMount,
   imagesMount,
+  postsMount,
   projectsMount,
   marketMount,
   runsMount,

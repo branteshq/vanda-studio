@@ -28,7 +28,7 @@ const INSTRUCTIONS = `Você é a Vanda, uma operadora de crescimento de Instagra
 
 Seu trabalho: observar o mercado, encontrar oportunidades com evidência real, criar carrosséis originais fiéis à marca do usuário e publicar somente com aprovação explícita.
 
-Workspace: cada conta tem um sistema de arquivos que você explora com list e read. /brand (memória de marca em memory.md, anotações em notes.md, identidade visual em kit.json e fotos de referência em references/), /memory (suas notas duráveis), /templates (trechos Python reutilizáveis), /images (galeria da conta), /projects (carrosséis: status.json, slides.md, caption.md, renders/), /market (oportunidades e última varredura), /runs (execuções de código). As listagens trazem um resumo por linha e o id de cada entidade — paint recebe esses ids; run_code recebe os próprios caminhos do workspace (e também aceita ids de anexos). Ler um arquivo de imagem envia os pixels para você: você enxerga a imagem de verdade.
+Workspace: cada conta tem um sistema de arquivos que você explora com list e read. /brand (memória de marca em memory.md, anotações em notes.md, identidade visual em kit.json e fotos de referência em references/), /memory (suas notas duráveis), /templates (trechos Python reutilizáveis), /images (galeria da conta), /posts (o calendário de posts: rascunhos, agendados e publicados), /projects (carrosséis: status.json, slides.md, caption.md, renders/), /market (oportunidades e última varredura), /runs (execuções de código). As listagens trazem um resumo por linha e o id de cada entidade — paint recebe esses ids; run_code recebe os próprios caminhos do workspace (e também aceita ids de anexos). Ler um arquivo de imagem envia os pixels para você: você enxerga a imagem de verdade.
 
 Memória durável: quando o dono expressar uma preferência ou fato permanente no meio da conversa ("nunca use essa cor", "sempre assine com o nome da loja"), grave em /memory com write antes de seguir — e diga que anotou. Ao começar um trabalho de criação, liste /memory e leia as notas relevantes; o que não está gravado será esquecido entre conversas. Código Python que deu certo e tende a se repetir vale gravar em /templates. Os demais arquivos são projeções somente-leitura: eles mudam pelos verbos (revise_slide, paint, publish_project…), e uma tentativa de write neles explica qual verbo usar.
 
@@ -40,6 +40,10 @@ Regras de comportamento:
 - Explique decisões com a evidência que as sustenta (números, motivo do gatilho, por que serve para esta marca).
 - Trabalhos longos (varredura de mercado, criação de carrossel, revisão de slide) rodam em segundo plano: avise que você começou e que retorna quando terminar.
 - Publicação é irreversível: ela sempre passa pelo fluxo de aprovação — nunca trate um "sim" em texto como aprovação. Antes de propor publicar, leia os renders do projeto e avalie visualmente.
+- Dois caminhos para publicar — escolha o proporcional ao pedido:
+  - Post SIMPLES (o dono pede para postar uma foto/imagem existente ou algo rápido): create_post (imagens da galeria + legenda sua) e depois schedule_post (pede aprovação). Rápido, sem pipeline editorial.
+  - Carrossel PRODUZIDO (arte por slide, revisão editorial, renderização): create_carousel → revise_slide/request_render → publish_project. Use quando o trabalho pede produção de verdade.
+  - O estado de todos os posts (rascunho, agendado, publicado, falhou) vive em /posts — leia antes de afirmar qualquer coisa sobre publicações.
 - Não invente fatos sobre a marca: o que você sabe vem de /brand/memory.md. Se faltar contexto, pergunte ou peça para completar o perfil.
 - Imagens (paint) — regra de roteamento, siga à risca:
   - A imagem que o usuário ANEXA na conversa já pertence à conta e já está autorizada. Use-a direto. Nunca peça "autorização" nem invente uma etapa de autorizar — esse passo não existe.
@@ -240,6 +244,57 @@ const publishProject = createTool({
   },
 });
 
+const createPost = createTool({
+  description:
+    "Monta um RASCUNHO de post simples para o Instagram a partir de imagens da galeria (1 imagem ou carrossel de até 10) + legenda que VOCÊ escreve. Use este caminho leve para pedidos diretos ('posta essa foto', 'publica isso com tal legenda'); carrosséis produzidos com arte e revisão editorial continuam no create_carousel. O rascunho é inofensivo — nada é publicado até schedule_post ser aprovado.",
+  inputSchema: z.object({
+    imageIds: z
+      .array(z.string())
+      .describe("ids de imagens da galeria (/images) ou anexadas, na ordem dos slides"),
+    caption: z.string().describe("legenda completa do post, na voz da marca"),
+  }),
+  execute: async (
+    ctx: VandaToolCtx,
+    { imageIds, caption }: { imageIds: string[]; caption: string },
+  ): Promise<unknown> => {
+    const postId: string = await ctx.runMutation(internal.posts.createPostInternal, {
+      accountId: ctx.accountId,
+      imageIds: imageIds as Id<"images">[],
+      caption,
+    });
+    return {
+      postId,
+      status: "draft",
+      proximo_passo: "use schedule_post para pedir a aprovação de publicação",
+    };
+  },
+});
+
+const schedulePost = createTool({
+  description:
+    "Agenda a publicação de um post criado com create_post no Instagram conectado. Requer aprovação explícita do dono. Opcionalmente com data/hora futura (ISO 8601); sem data, publica imediatamente após a aprovação.",
+  inputSchema: z.object({
+    postId: z.string().describe("id do post (retornado por create_post ou listado em /posts)"),
+    scheduledFor: z
+      .string()
+      .optional()
+      .describe("data/hora ISO 8601 para publicar; omita para publicar agora"),
+  }),
+  needsApproval: true,
+  execute: async (
+    ctx: VandaToolCtx,
+    { postId, scheduledFor }: { postId: string; scheduledFor?: string | undefined },
+  ): Promise<unknown> => {
+    const at = scheduledFor ? Date.parse(scheduledFor) : undefined;
+    if (scheduledFor && Number.isNaN(at)) throw new Error("data de agendamento inválida");
+    return ctx.runMutation(internal.posts.schedulePostInternal, {
+      accountId: ctx.accountId,
+      postId: postId as Id<"posts">,
+      ...(at !== undefined ? { scheduledFor: at } : {}),
+    });
+  },
+});
+
 const paint = createTool({
   description:
     "Gera OU edita uma imagem a partir de um prompt visual detalhado que VOCÊ escreve. Sempre dê um `name` curto e descritivo à imagem (2–4 palavras, na voz da marca) — é como ela aparece na galeria. Para modificar uma imagem já existente da conta (inclusive uma que o usuário acabou de anexar) — trocar fundo, cenário, etc. — passe o id dela em editOfImageId e descreva no prompt só o que muda. Para condicionar uma imagem nova a um rosto, produto ou lugar, passe os ids em referenceImageIds. Imagens anexadas e as de /brand/references servem direto, sem autorização extra.",
@@ -368,6 +423,8 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
     request_render: requestRender,
     paint,
     run_code: runCode,
+    create_post: createPost,
+    schedule_post: schedulePost,
     publish_project: publishProject,
     discard_project: discardProject,
   },

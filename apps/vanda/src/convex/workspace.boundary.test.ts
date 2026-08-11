@@ -77,6 +77,7 @@ describe("workspace navigation", () => {
         "memory",
         "templates",
         "images",
+        "posts",
         "projects",
         "market",
         "runs",

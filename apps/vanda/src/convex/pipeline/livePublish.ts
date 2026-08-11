@@ -51,7 +51,11 @@ const setStatus = (
   ctx: ActionCtx,
   scheduledPostId: string,
   status: "publishing" | "published" | "failed",
-  extra: { readonly externalPostId?: string; readonly lastError?: string } = {},
+  extra: {
+    readonly externalPostId?: string;
+    readonly permalink?: string;
+    readonly lastError?: string;
+  } = {},
 ): Effect.Effect<void, Cause.UnknownError> =>
   Effect.tryPromise(() =>
     ctx.runMutation(internal.publishScheduled.setScheduledStatus, {
@@ -81,6 +85,7 @@ export const publishStoreLive = (ctx: ActionCtx): Layer.Layer<PublishStore> =>
     markPublished: (id, receipt) =>
       setStatus(ctx, id, "published", {
         ...(receipt.externalPostId !== null ? { externalPostId: receipt.externalPostId } : {}),
+        ...(receipt.url !== null ? { permalink: receipt.url } : {}),
       }),
     markFailed: (id, reason) => setStatus(ctx, id, "failed", { lastError: reason }),
   });

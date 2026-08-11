@@ -60,6 +60,7 @@ import type * as pipeline_sourceUnderstanding from "../pipeline/sourceUnderstand
 import type * as pipeline_storage from "../pipeline/storage.js";
 import type * as pipeline_testLanguageModel from "../pipeline/testLanguageModel.js";
 import type * as pipeline_visualBrand from "../pipeline/visualBrand.js";
+import type * as posts from "../posts.js";
 import type * as publishScheduled from "../publishScheduled.js";
 import type * as publishScheduledNode from "../publishScheduledNode.js";
 import type * as publisher_uploadpost from "../publisher/uploadpost.js";
@@ -76,6 +77,7 @@ import type * as workspace_mounts_brand from "../workspace/mounts/brand.js";
 import type * as workspace_mounts_images from "../workspace/mounts/images.js";
 import type * as workspace_mounts_market from "../workspace/mounts/market.js";
 import type * as workspace_mounts_memory from "../workspace/mounts/memory.js";
+import type * as workspace_mounts_posts from "../workspace/mounts/posts.js";
 import type * as workspace_mounts_projects from "../workspace/mounts/projects.js";
 import type * as workspace_mounts_runs from "../workspace/mounts/runs.js";
 import type * as workspace_mounts_templates from "../workspace/mounts/templates.js";
@@ -143,6 +145,7 @@ declare const fullApi: ApiFromModules<{
   "pipeline/storage": typeof pipeline_storage;
   "pipeline/testLanguageModel": typeof pipeline_testLanguageModel;
   "pipeline/visualBrand": typeof pipeline_visualBrand;
+  posts: typeof posts;
   publishScheduled: typeof publishScheduled;
   publishScheduledNode: typeof publishScheduledNode;
   "publisher/uploadpost": typeof publisher_uploadpost;
@@ -159,6 +162,7 @@ declare const fullApi: ApiFromModules<{
   "workspace/mounts/images": typeof workspace_mounts_images;
   "workspace/mounts/market": typeof workspace_mounts_market;
   "workspace/mounts/memory": typeof workspace_mounts_memory;
+  "workspace/mounts/posts": typeof workspace_mounts_posts;
   "workspace/mounts/projects": typeof workspace_mounts_projects;
   "workspace/mounts/runs": typeof workspace_mounts_runs;
   "workspace/mounts/templates": typeof workspace_mounts_templates;
