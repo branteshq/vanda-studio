@@ -426,6 +426,37 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    scrollbar-color: var(--text-6) transparent;
+    scrollbar-width: thin;
+  }
+
+  /* Quiet, token-driven scrollbars across every scroll surface. The transparent
+   * border keeps the hit area usable while the visible thumb stays slender. */
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    min-width: 32px;
+    min-height: 32px;
+    border: 3px solid transparent;
+    border-radius: var(--radius);
+    background-color: var(--text-6);
+    background-clip: content-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-5);
+  }
+
+  *::-webkit-scrollbar-thumb:active {
+    background-color: var(--text-4);
   }
 
   html {
