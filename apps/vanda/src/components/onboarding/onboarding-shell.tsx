@@ -4,13 +4,12 @@ import { cn } from "@vanda-studio/ui/lib/utils";
 import { OrchidAperture } from "../orchid-aperture";
 import { VandaMark } from "../vanda-mark";
 
-export type OnboardingStep = "conectar" | "conhecer" | "confirmar" | "modo";
+export type OnboardingStep = "conectar" | "conhecer" | "confirmar";
 
 const STEPS: { key: OnboardingStep; label: string }[] = [
   { key: "conectar", label: "Conectar" },
   { key: "conhecer", label: "Conhecer" },
   { key: "confirmar", label: "Confirmar" },
-  { key: "modo", label: "Modo" },
 ];
 
 /** The Vanda lockup: orchid mark + wordmark, shared across every onboarding frame. */
@@ -26,7 +25,7 @@ export function OnboardingHeader() {
   );
 }
 
-/** Conectar · Conhecer · Confirmar · Modo, with rings: done / active / pending. */
+/** Conectar · Conhecer · Confirmar, with rings: done / active / pending. */
 export function StepIndicator({ current }: { current: OnboardingStep }) {
   const currentIndex = STEPS.findIndex((step) => step.key === current);
   return (
