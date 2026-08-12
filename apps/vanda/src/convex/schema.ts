@@ -23,7 +23,11 @@ import {
   sourceDossierStatuses,
 } from "./pipeline/constants";
 
-export default defineSchema({
+// TEMPORARY: validation off for the prod bootstrap deploy — legacy-era rows
+// (pre-Upload-Post accounts etc.) are wiped by migrations:wipeLegacyDomain,
+// then validation turns back on. Do not ship a release with this false.
+export default defineSchema(
+  {
   users: defineTable({
     name: v.string(),
     email: v.string(),
@@ -673,4 +677,6 @@ export default defineSchema({
   })
     .index("by_account_scheduledFor", ["accountId", "scheduledFor"])
     .index("by_post", ["postId"]),
-});
+  },
+  { schemaValidation: false },
+);
