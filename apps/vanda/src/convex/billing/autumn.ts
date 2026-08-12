@@ -12,8 +12,13 @@ import { PLAN_PRODUCT_IDS } from "./plans";
  * checkout, and via a daily cron backstop.
  */
 
-const BASE_URL =
-  process.env.PUBLIC_APP_URL || process.env.PUBLIC_AP_URL || "http://localhost:3000";
+// Trailing slashes are stripped so `${BASE_URL}/perfil` never doubles up —
+// a stray "https://host/" in the env once 404'd every checkout return.
+const BASE_URL = (
+  process.env.PUBLIC_APP_URL ||
+  process.env.PUBLIC_AP_URL ||
+  "http://localhost:3000"
+).replace(/\/+$/, "");
 
 const PlanIdSchema = v.union(...PLAN_PRODUCT_IDS.map((id) => v.literal(id)));
 

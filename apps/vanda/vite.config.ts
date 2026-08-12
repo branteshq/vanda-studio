@@ -20,19 +20,39 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       allowedHosts: [".trycloudflare.com"],
     },
-    // React must live INSIDE the server bundle: when the bundler externalizes
-    // it, the deployed Vercel function has no node_modules to resolve it from
-    // and every SSR request 500s (externalization proved platform-dependent —
-    // linux CI builds externalized what macOS builds inlined).
-    ssr: { noExternal: ["react", "react-dom", "scheduler"] },
-    // ...and it must live there exactly ONCE: linux builds resolved a second
-    // react copy into the SSR chunk, so Clerk's hooks ran against a different
-    // instance than the renderer's (null dispatcher → "reading 'useRef'").
-    resolve: { dedupe: ["react", "react-dom", "scheduler"] },
+    // React singleton discipline. Two failure modes bracket this config:
+    // fully external (the fresh-build default) leaves a bare require('react')
+    // in a Vercel function with no node_modules → MODULE_NOT_FOUND on every
+    // request; inlining react in BOTH the ssr service pre-bundle and nitro's
+    // function bundle (ssr.noExternal + nitro noExternals) ships two react
+    // instances → Clerk's hooks hit a null dispatcher. The working shape:
+    // the ssr service keeps react EXTERNAL (no ssr.noExternal here) and
+    // nitro bundles the single shared copy at the function level.
+    // The use-sync-external-store shim is CJS-only; inlined into a service
+    // asset its require('react') survives as a runtime call nitro cannot
+    // rewire — aliased to local ESM re-implementations (react 19 has the
+    // hook natively) so the package never enters the graph.
+    resolve: {
+      dedupe: ["react", "react-dom", "scheduler"],
+      alias: [
+        {
+          find: /^use-sync-external-store\/shim\/with-selector(\.js)?$/,
+          replacement: fileURLToPath(
+            new URL("./src/shims/use-sync-external-store-with-selector.ts", import.meta.url),
+          ),
+        },
+        {
+          find: /^use-sync-external-store\/shim(\/index\.js)?$/,
+          replacement: fileURLToPath(
+            new URL("./src/shims/use-sync-external-store.ts", import.meta.url),
+          ),
+        },
+      ],
+    },
     plugins: [
       tailwindcss(),
       tanstackStart(),
-      nitro({ noExternals: ["react", "react-dom", "scheduler"] }),
+      nitro({ noExternals: true }),
       viteReact(),
     ],
   };
