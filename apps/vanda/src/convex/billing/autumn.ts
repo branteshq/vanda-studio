@@ -118,9 +118,18 @@ export const startCheckout = action({
   ): Promise<{ checkoutUrl: string | null; attached: boolean }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
+    // A NEW subscriber must always land on the Stripe page — without
+    // forceCheckout, a customer with a card on file (e.g. from an earlier
+    // subscription) gets silently charged by attach, which reads as "the
+    // button did nothing". Plan CHANGES stay direct: Autumn handles
+    // upgrade/downgrade proration through attach, not checkout.
+    const customer = await autumn.customers.get(ctx);
+    if (customer.error) throw new Error(customer.error.message || "Failed to load customer");
+    const current = snapshotOf(customer.data as { products?: CustomerProduct[] } | null);
     const result = await autumn.checkout(ctx, {
       productId: args.planId,
       successUrl: `${BASE_URL}/perfil`,
+      forceCheckout: current.planId === null,
       checkoutSessionParams: {
         cancel_url: `${BASE_URL}/perfil`,
       },
