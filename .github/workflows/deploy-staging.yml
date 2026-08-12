@@ -56,6 +56,9 @@ jobs:
           PUBLIC_CONVEX_URL: ${{ vars.CONVEX_DEV_URL }}
           VITE_CONVEX_URL: ${{ vars.CONVEX_DEV_URL }}
           VITE_APP_ORIGIN: https://staging.vandastudio.app
+          # On GitHub runners std-env detects GITHUB_ACTIONS before VERCEL, so
+          # nitro falls back to the node preset; force the vercel preset.
+          NITRO_PRESET: vercel
         run: |
           pnpm dlx vercel@latest pull --yes --environment=preview --token="$VERCEL_TOKEN"
           pnpm dlx vercel@latest build --token="$VERCEL_TOKEN"
