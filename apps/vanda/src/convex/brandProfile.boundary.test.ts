@@ -62,7 +62,7 @@ const setup = async (clerkId = "c1") => {
 };
 
 describe("approveBrandProfile", () => {
-  it("writes canon, sets kind + mode, and stamps onboardedAt", async () => {
+  it("writes canon, sets kind, and stamps onboardedAt", async () => {
     const { t, accountId } = await setup();
     await t
       .withIdentity({ subject: "c1" })
@@ -136,6 +136,38 @@ describe("approveBrandProfile", () => {
     ).rejects.toThrow();
   });
 
+});
+
+describe("completeWithoutAnalysis", () => {
+  it("onboards with empty canon and opens the welcome thread", async () => {
+    const { t, accountId } = await setup();
+    await t
+      .withIdentity({ subject: "c1" })
+      .mutation(api.brandProfile.completeWithoutAnalysis, { accountId });
+    const account = await t.run((ctx) => ctx.db.get(accountId));
+    expect(account?.onboardedAt).toBeTypeOf("number");
+    const canon = await t
+      .withIdentity({ subject: "c1" })
+      .query(api.brandProfile.getBrandCanon, { accountId });
+    expect(canon).toHaveLength(0);
+  });
+
+  it("rejects non-owners and already-onboarded accounts", async () => {
+    const { t, accountId } = await setup();
+    await expect(
+      t
+        .withIdentity({ subject: "intruder" })
+        .mutation(api.brandProfile.completeWithoutAnalysis, { accountId }),
+    ).rejects.toThrow();
+    await t
+      .withIdentity({ subject: "c1" })
+      .mutation(api.brandProfile.completeWithoutAnalysis, { accountId });
+    await expect(
+      t
+        .withIdentity({ subject: "c1" })
+        .mutation(api.brandProfile.completeWithoutAnalysis, { accountId }),
+    ).rejects.toThrow(/already onboarded/);
+  });
 });
 
 describe("reference photos", () => {

@@ -119,6 +119,7 @@ type Step = "observing" | "confirm";
 function AnalyzeFlow({ accountId }: { accountId: Id<"accounts"> }) {
   const navigate = useNavigate();
   const approve = useMutation(api.brandProfile.approveBrandProfile);
+  const skipAnalysis = useMutation(api.brandProfile.completeWithoutAnalysis);
   const [step, setStep] = useState<Step>("observing");
   const [analysis, setAnalysis] = useState<EditableAnalysis | null>(null);
   const [stats, setStats] = useState<CorpusStats | null>(null);
@@ -143,6 +144,10 @@ function AnalyzeFlow({ accountId }: { accountId: Id<"accounts"> }) {
           setAnalysis(toEditable(result.analysis));
           setStats(result.stats);
           setStep("confirm");
+        }}
+        onSkip={async () => {
+          await skipAnalysis({ accountId });
+          await navigate({ to: "/conversa" });
         }}
       />
     );

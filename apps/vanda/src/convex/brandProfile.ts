@@ -133,7 +133,46 @@ export const approveBrandProfile = mutation({
             `Prontinho — sua marca agora faz parte da minha memória. Entendi que ${analysis.identity.text} ` +
             `A voz da marca é ${voice || "a que você confirmou"}, e os temas que mais aparecem no seu conteúdo são: ${themes || "os que confirmamos juntos"}.\n\n` +
             `Você pode corrigir qualquer um desses fatos no Perfil quando quiser — eu só trabalho com o que você confirmou.\n\n` +
-            `Quer que eu já procure uma oportunidade no seu mercado? Eu observo criadores parecidos com você, encontro conteúdos com desempenho fora da curva e trago no máximo uma ideia forte para sua revisão. Nada é publicado sem a sua aprovação.`,
+            `Quer que eu já procure uma oportunidade no seu mercado? Eu observo criadores parecidos com você, encontro conteúdos com desempenho fora da curva e trago no máximo uma ideia forte. Tudo o que eu criar ou agendar fica visível no painel de posts — e dá para mudar ou desfazer quando quiser.`,
+        },
+      });
+    }
+  },
+});
+
+/**
+ * The onboarding escape hatch: the corpus read failed (vendor outage, quota)
+ * and the owner chose to continue anyway. Stamps `onboardedAt` with an empty
+ * brand canon — Vanda starts knowing nothing and learns from the conversation,
+ * which the instructions already handle (readiness 0 → ask the owner).
+ */
+export const completeWithoutAnalysis = mutation({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }) => {
+    const account = await requireOwnedAccount(ctx, accountId);
+    if (account.onboardedAt !== undefined) throw new Error("account already onboarded");
+    const now = Date.now();
+    await ctx.db.patch(accountId, { onboardedAt: now, updatedAt: now });
+    if (account.ownerUserId !== undefined) {
+      await ctx.db.patch(account.ownerUserId, { activeAccountId: accountId, updatedAt: now });
+    }
+    const existingThreads = await ctx.runQuery(components.agent.threads.listThreadsByUserId, {
+      userId: String(accountId),
+      paginationOpts: { cursor: null, numItems: 1 },
+    });
+    if (existingThreads.page.length === 0) {
+      const threadId = await createThread(ctx, components.agent, {
+        userId: String(accountId),
+        title: "Boas-vindas",
+      });
+      await saveMessage(ctx, components.agent, {
+        threadId,
+        agentName: "vanda",
+        message: {
+          role: "assistant",
+          content:
+            `Não consegui ler sua conta do Instagram agora, então vamos começar do jeito direto: me conta sobre o seu negócio — o que você vende, para quem, e o tom que você gosta de usar nas redes.\n\n` +
+            `Vou anotando o que você me contar na memória da marca, e você revisa tudo no Perfil quando quiser. Fotos do seu produto ou do seu espaço também ajudam muito — pode mandar aqui na conversa.`,
         },
       });
     }

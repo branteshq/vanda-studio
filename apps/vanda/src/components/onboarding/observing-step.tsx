@@ -30,14 +30,18 @@ const SETTLE_MS = 900;
 export function ObservingStep({
   accountId,
   onComplete,
+  onSkip,
 }: {
   accountId: Id<"accounts">;
   onComplete: (result: { analysis: ReadonlyAnalysis; stats: CorpusStats }) => void;
+  /** Escape hatch when the corpus read fails: finish onboarding with empty brand memory. */
+  onSkip: () => Promise<void>;
 }) {
   const analyzeAccount = useAction(api.brandProfileNode.analyzeAccount);
   const [progress, setProgress] = useState(0);
   const [done, setDone] = useState(false);
   const [error, setError] = useState(false);
+  const [skipping, setSkipping] = useState(false);
   const started = useRef(false);
 
   function run() {
@@ -83,10 +87,26 @@ export function ObservingStep({
 
       {error ? (
         <>
-          <p className="mt-3 text-[14px] text-text-3">Não consegui ler sua conta agora.</p>
-          <Button variant="outline" size="lg" className="mt-5" onClick={run}>
-            Tentar de novo
-          </Button>
+          <p className="mt-3 text-[14px] text-text-3">
+            Não consegui ler sua conta agora. Você pode tentar de novo — ou seguir sem a
+            análise: a Vanda aprende sobre a sua marca conforme vocês conversam.
+          </p>
+          <div className="mt-5 flex flex-wrap items-center gap-2.5">
+            <Button variant="outline" size="lg" disabled={skipping} onClick={run}>
+              Tentar de novo
+            </Button>
+            <Button
+              variant="ghost"
+              size="lg"
+              disabled={skipping}
+              onClick={() => {
+                setSkipping(true);
+                onSkip().catch(() => setSkipping(false));
+              }}
+            >
+              {skipping ? "Entrando…" : "Continuar sem análise"}
+            </Button>
+          </div>
         </>
       ) : (
         <ul className="mt-7 flex flex-col gap-3">
