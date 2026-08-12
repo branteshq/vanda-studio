@@ -125,7 +125,39 @@ export const startCheckout = action({
     // upgrade/downgrade proration through attach, not checkout.
     const customer = await autumn.customers.get(ctx);
     if (customer.error) throw new Error(customer.error.message || "Failed to load customer");
-    const current = snapshotOf(customer.data as { products?: CustomerProduct[] } | null);
+    const products = (customer.data as { products?: CustomerProduct[] } | null)?.products ?? [];
+    const current = snapshotOf({ products });
+    // Self-heal wedged attachments: an abandoned/failed checkout can leave a
+    // plan product in past_due/incomplete — invisible to the UI (which shows
+    // trial) yet blocking every new attach with "already attached". Anything
+    // neither live nor scheduled is dead weight; clear it before proceeding.
+    // (The component client has no cancel method — raw REST, like the sync
+    // backstop below.)
+    const secretKey = process.env.AUTUMN_SECRET_KEY;
+    for (const product of products) {
+      if (
+        secretKey !== undefined &&
+        product.id !== undefined &&
+        (PLAN_PRODUCT_IDS as readonly string[]).includes(product.id) &&
+        product.status !== "active" &&
+        product.status !== "trialing" &&
+        product.status !== "scheduled"
+      ) {
+        console.log(`[Autumn] clearing wedged product ${product.id} (${product.status})`);
+        const response = await fetch("https://api.useautumn.com/v1/cancel", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${secretKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customer_id: identity.subject,
+            product_id: product.id,
+            cancel_immediately: true,
+          }),
+        });
+        if (!response.ok) {
+          console.log(`[Autumn] failed to clear ${product.id}: ${await response.text()}`);
+        }
+      }
+    }
     const result = await autumn.checkout(ctx, {
       productId: args.planId,
       successUrl: `${BASE_URL}/perfil`,
