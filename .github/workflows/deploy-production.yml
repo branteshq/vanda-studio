@@ -38,6 +38,10 @@ jobs:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_PROD_DEPLOY_KEY }}
         run: pnpm exec convex deploy --yes --typecheck try --message "production $GITHUB_SHA"
 
+      # Build on the runner and ship the output prebuilt: Vercel's remote build
+      # container produces a broken SSR bundle for this app (bare require of
+      # react in the _ssr chunk with no node_modules in the function), while
+      # the same commit builds correctly on the pinned Node/pnpm toolchain.
       - name: Create staged production deployment
         id: vercel
         env:
@@ -45,7 +49,9 @@ jobs:
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          deployment_url=$(pnpm dlx vercel@latest deploy --yes --prod --skip-domain --token="$VERCEL_TOKEN")
+          pnpm dlx vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
+          pnpm dlx vercel@latest build --prod --token="$VERCEL_TOKEN"
+          deployment_url=$(pnpm dlx vercel@latest deploy --prebuilt --yes --prod --skip-domain --token="$VERCEL_TOKEN")
           echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
 
       - name: Promote staged deployment

@@ -45,21 +45,21 @@ jobs:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEV_DEPLOY_KEY }}
         run: pnpm exec convex deploy --yes --typecheck try --message "staging $GITHUB_SHA"
 
+      # Runner-built + prebuilt deploy for the same reason as production:
+      # Vercel's remote build container mis-bundles the SSR function.
       - name: Deploy and assign staging domain
         id: vercel
         env:
           VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PUBLIC_CONVEX_URL: ${{ vars.CONVEX_DEV_URL }}
+          VITE_CONVEX_URL: ${{ vars.CONVEX_DEV_URL }}
+          VITE_APP_ORIGIN: https://staging.vandastudio.app
         run: |
-          deployment_url=$(pnpm dlx vercel@latest deploy --yes \
-            --build-env PUBLIC_CONVEX_URL="${{ vars.CONVEX_DEV_URL }}" \
-            --build-env VITE_CONVEX_URL="${{ vars.CONVEX_DEV_URL }}" \
-            --build-env VITE_APP_ORIGIN="https://staging.vandastudio.app" \
-            --env PUBLIC_CONVEX_URL="${{ vars.CONVEX_DEV_URL }}" \
-            --env VITE_CONVEX_URL="${{ vars.CONVEX_DEV_URL }}" \
-            --env VITE_APP_ORIGIN="https://staging.vandastudio.app" \
-            --token="$VERCEL_TOKEN")
+          pnpm dlx vercel@latest pull --yes --environment=preview --token="$VERCEL_TOKEN"
+          pnpm dlx vercel@latest build --token="$VERCEL_TOKEN"
+          deployment_url=$(pnpm dlx vercel@latest deploy --prebuilt --yes --token="$VERCEL_TOKEN")
           pnpm dlx vercel@latest alias set "$deployment_url" staging.vandastudio.app --token="$VERCEL_TOKEN"
           echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
 
