@@ -19,7 +19,9 @@ concurrency:
 jobs:
   deploy:
     name: Deploy ${{ inputs.ref }} to staging
-    runs-on: ubuntu-latest
+    # macOS for the same reason as deploy-production: linux builds of the
+    # nitro beta duplicate react in the server bundle.
+    runs-on: macos-latest
     environment:
       name: staging
       url: https://staging.vandastudio.app

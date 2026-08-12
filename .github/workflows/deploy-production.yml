@@ -14,7 +14,11 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    # macOS, deliberately: the pinned nitro beta assigns react to server
+    # chunks nondeterministically on linux, yielding two react copies and a
+    # broken SSR bundle (null hook dispatcher). macOS builds have been
+    # consistently correct. Revisit when nitro stabilizes.
+    runs-on: macos-latest
     environment:
       name: production
       url: https://app.vandastudio.app
@@ -59,9 +63,19 @@ jobs:
 
       # The staged deployment must prove it serves before it may touch the
       # domain — a broken SSR bundle then fails HERE and production keeps
-      # running the previous deployment.
+      # running the previous deployment. Exact 200 required: a 302 means
+      # Vercel deployment protection intercepted the request and nothing was
+      # actually tested (protection must stay disabled for this project).
       - name: Smoke test staged deployment
-        run: curl --fail --show-error --silent --retry 5 --retry-delay 3 "${{ steps.vercel.outputs.deployment_url }}/" >/dev/null
+        run: |
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -sS -o /dev/null -w "%{http_code}" "${{ steps.vercel.outputs.deployment_url }}/" || echo 000)
+            echo "attempt $attempt: HTTP $code"
+            if [ "$code" = "200" ]; then exit 0; fi
+            sleep 3
+          done
+          echo "staged deployment never returned 200 — refusing to promote"
+          exit 1
 
       - name: Promote staged deployment
         env:

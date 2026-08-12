@@ -25,6 +25,10 @@ export default defineConfig(({ mode }) => {
     // and every SSR request 500s (externalization proved platform-dependent —
     // linux CI builds externalized what macOS builds inlined).
     ssr: { noExternal: ["react", "react-dom", "scheduler"] },
+    // ...and it must live there exactly ONCE: linux builds resolved a second
+    // react copy into the SSR chunk, so Clerk's hooks ran against a different
+    // instance than the renderer's (null dispatcher → "reading 'useRef'").
+    resolve: { dedupe: ["react", "react-dom", "scheduler"] },
     plugins: [
       tailwindcss(),
       tanstackStart(),
