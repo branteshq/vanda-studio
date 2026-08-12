@@ -4,7 +4,7 @@ import { LoginForm } from "../components/login-form";
 import { OrchidAperture } from "../components/orchid-aperture";
 import { VandaMark } from "../components/vanda-mark";
 
-export const Route = createFileRoute("/login")({
+export const Route = createFileRoute("/login/$")({
   component: LoginPage,
 });
 

@@ -11,9 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/_dashboard'
 import { Route as DashboardIndexRouteImport } from './routes/_dashboard.index'
+import { Route as LoginSplatRouteImport } from './routes/login.$'
 import { Route as DashboardPerfilRouteImport } from './routes/_dashboard.perfil'
 import { Route as DashboardGaleriaRouteImport } from './routes/_dashboard.galeria'
 import { Route as DashboardConversaRouteImport } from './routes/_dashboard.conversa'
@@ -29,11 +29,6 @@ const OnboardingRoute = OnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/_dashboard',
   getParentRoute: () => rootRouteImport,
@@ -42,6 +37,11 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => DashboardRoute,
+} as any)
+const LoginSplatRoute = LoginSplatRouteImport.update({
+  id: '/login/$',
+  path: '/login/$',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardPerfilRoute = DashboardPerfilRouteImport.update({
   id: '/perfil',
@@ -66,75 +66,75 @@ const DashboardCalendarioRoute = DashboardCalendarioRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof DashboardIndexRoute
-  '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/sso-callback': typeof SsoCallbackRoute
   '/calendario': typeof DashboardCalendarioRoute
   '/conversa': typeof DashboardConversaRoute
   '/galeria': typeof DashboardGaleriaRoute
   '/perfil': typeof DashboardPerfilRoute
+  '/login/$': typeof LoginSplatRoute
 }
 export interface FileRoutesByTo {
-  '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/sso-callback': typeof SsoCallbackRoute
   '/calendario': typeof DashboardCalendarioRoute
   '/conversa': typeof DashboardConversaRoute
   '/galeria': typeof DashboardGaleriaRoute
   '/perfil': typeof DashboardPerfilRoute
+  '/login/$': typeof LoginSplatRoute
   '/': typeof DashboardIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_dashboard': typeof DashboardRouteWithChildren
-  '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/sso-callback': typeof SsoCallbackRoute
   '/_dashboard/calendario': typeof DashboardCalendarioRoute
   '/_dashboard/conversa': typeof DashboardConversaRoute
   '/_dashboard/galeria': typeof DashboardGaleriaRoute
   '/_dashboard/perfil': typeof DashboardPerfilRoute
+  '/login/$': typeof LoginSplatRoute
   '/_dashboard/': typeof DashboardIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/login'
     | '/onboarding'
     | '/sso-callback'
     | '/calendario'
     | '/conversa'
     | '/galeria'
     | '/perfil'
+    | '/login/$'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/login'
     | '/onboarding'
     | '/sso-callback'
     | '/calendario'
     | '/conversa'
     | '/galeria'
     | '/perfil'
+    | '/login/$'
     | '/'
   id:
     | '__root__'
     | '/_dashboard'
-    | '/login'
     | '/onboarding'
     | '/sso-callback'
     | '/_dashboard/calendario'
     | '/_dashboard/conversa'
     | '/_dashboard/galeria'
     | '/_dashboard/perfil'
+    | '/login/$'
     | '/_dashboard/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRouteWithChildren
-  LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
   SsoCallbackRoute: typeof SsoCallbackRoute
+  LoginSplatRoute: typeof LoginSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -153,13 +153,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_dashboard': {
       id: '/_dashboard'
       path: ''
@@ -173,6 +166,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof DashboardRoute
+    }
+    '/login/$': {
+      id: '/login/$'
+      path: '/login/$'
+      fullPath: '/login/$'
+      preLoaderRoute: typeof LoginSplatRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_dashboard/perfil': {
       id: '/_dashboard/perfil'
@@ -227,9 +227,9 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRouteWithChildren,
-  LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
   SsoCallbackRoute: SsoCallbackRoute,
+  LoginSplatRoute: LoginSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

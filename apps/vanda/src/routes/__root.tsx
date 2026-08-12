@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { ClerkProvider, useAuth } from "@clerk/tanstack-react-start";
-import { Outlet, Scripts, createRootRoute, HeadContent } from "@tanstack/react-router";
+import { Link, Outlet, Scripts, createRootRoute, HeadContent } from "@tanstack/react-router";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexQueryCacheProvider } from "convex-helpers/react/cache";
 import { TooltipProvider } from "@vanda-studio/ui/components/tooltip";
@@ -28,8 +28,23 @@ export const Route = createRootRoute({
     ],
   }),
   component: RootComponent,
+  notFoundComponent: NotFound,
   shellComponent: RootDocument,
 });
+
+function NotFound() {
+  return (
+    <main className="grid min-h-svh place-items-center bg-app text-text">
+      <div className="flex flex-col items-center gap-3 text-center">
+        <p className="text-[32px] font-semibold leading-none tracking-[-0.03em]">404</p>
+        <p className="text-body text-text-3">Essa página não existe.</p>
+        <Link to="/" className="text-body-sm text-brand-accent hover:underline">
+          Voltar para a Vanda
+        </Link>
+      </div>
+    </main>
+  );
+}
 
 function RootDocument({ children }: { children: ReactNode }) {
   const convex = getConvexClient();

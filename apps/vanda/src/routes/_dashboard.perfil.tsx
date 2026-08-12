@@ -59,7 +59,9 @@ function ProfilePage() {
 
   const handleSignOut = async () => {
     await clerk.signOut();
-    await navigate({ to: "/login" });
+    // /login is a splat route (login.$.tsx — Clerk owns its sub-paths), so the
+    // typed target is the splat with an empty remainder.
+    await navigate({ to: "/login/$", params: { _splat: "" } });
   };
 
   return (
