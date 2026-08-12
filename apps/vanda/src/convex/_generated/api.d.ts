@@ -29,7 +29,6 @@ import type * as imagesData from "../imagesData.js";
 import type * as market from "../market.js";
 import type * as marketActions from "../marketActions.js";
 import type * as marketNode from "../marketNode.js";
-import type * as migrations from "../migrations.js";
 import type * as modelTelemetry from "../modelTelemetry.js";
 import type * as openaiSub from "../openaiSub.js";
 import type * as openaiSubNode from "../openaiSubNode.js";
@@ -106,7 +105,6 @@ declare const fullApi: ApiFromModules<{
   market: typeof market;
   marketActions: typeof marketActions;
   marketNode: typeof marketNode;
-  migrations: typeof migrations;
   modelTelemetry: typeof modelTelemetry;
   openaiSub: typeof openaiSub;
   openaiSubNode: typeof openaiSubNode;
