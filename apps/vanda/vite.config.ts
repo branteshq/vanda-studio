@@ -20,6 +20,16 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       allowedHosts: [".trycloudflare.com"],
     },
-    plugins: [tailwindcss(), tanstackStart(), nitro(), viteReact()],
+    // React must live INSIDE the server bundle: when the bundler externalizes
+    // it, the deployed Vercel function has no node_modules to resolve it from
+    // and every SSR request 500s (externalization proved platform-dependent —
+    // linux CI builds externalized what macOS builds inlined).
+    ssr: { noExternal: ["react", "react-dom", "scheduler"] },
+    plugins: [
+      tailwindcss(),
+      tanstackStart(),
+      nitro({ noExternals: ["react", "react-dom", "scheduler"] }),
+      viteReact(),
+    ],
   };
 });

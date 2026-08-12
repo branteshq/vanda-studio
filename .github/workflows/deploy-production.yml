@@ -57,6 +57,12 @@ jobs:
           deployment_url=$(pnpm dlx vercel@latest deploy --prebuilt --yes --prod --skip-domain --token="$VERCEL_TOKEN")
           echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
 
+      # The staged deployment must prove it serves before it may touch the
+      # domain — a broken SSR bundle then fails HERE and production keeps
+      # running the previous deployment.
+      - name: Smoke test staged deployment
+        run: curl --fail --show-error --silent --retry 5 --retry-delay 3 "${{ steps.vercel.outputs.deployment_url }}/" >/dev/null
+
       - name: Promote staged deployment
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
