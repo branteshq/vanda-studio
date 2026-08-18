@@ -22,10 +22,11 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
+import { resolveOrchestratorModel } from "./agentModels";
 import { requireOwnedAccount } from "./authz";
 import { codexChatModel, codexResponsesText } from "./pipeline/codex";
 import { budgetOf, USAGE_LIMIT_MESSAGE } from "./usage";
-import { systemPrompt, vanda, VANDA_MODEL } from "./vanda";
+import { openrouterChatModel, systemPrompt, vanda, VANDA_MODEL } from "./vanda";
 
 /**
  * The account's Vanda conversations. Multi-thread: the agent component owns
@@ -331,16 +332,24 @@ export const generateResponse = internalAction({
   },
   handler: async (ctx, { accountId, threadId, promptMessageId, activityId }): Promise<void> => {
     try {
-      // Conectado plan: the same orchestrator model, billed to the owner's
-      // ChatGPT subscription instead of OpenRouter.
+      // Which model thinks as Vanda this turn: the owner's pick, resolved
+      // against the transport (Conectado can only carry OpenAI models).
       const sub = await ctx.runQuery(internal.openaiSub.subscriberState, { accountId });
+      const preferred = await ctx.runQuery(internal.users.orchestratorModelForAccount, {
+        accountId,
+      });
+      const modelId = resolveOrchestratorModel(preferred, { conectado: sub.active });
       const model =
         sub.active && sub.userId
-          ? codexChatModel(
+          ? // Conectado plan: the chosen model, billed to the owner's ChatGPT
+            // subscription instead of OpenRouter.
+            codexChatModel(
               await ctx.runAction(internal.openaiSubNode.getAccess, { userId: sub.userId }),
-              VANDA_MODEL,
+              modelId,
             )
-          : undefined;
+          : modelId === VANDA_MODEL
+            ? undefined // the agent's configured default — no override needed
+            : openrouterChatModel(modelId);
       const result = await vanda.streamText(
         { ...ctx, accountId },
         { threadId },

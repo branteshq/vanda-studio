@@ -7,11 +7,24 @@ import { ArrowLeft, Check, FileCode2, LogOut, NotebookPen } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@vanda-studio/ui/components/avatar";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Markdown } from "@vanda-studio/ui/components/markdown";
+import { AnthropicIcon, OpenAiIcon } from "@vanda-studio/ui/components/model-marks";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@vanda-studio/ui/components/select";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { Spinner } from "@vanda-studio/ui/components/spinner";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+import {
+  DEFAULT_ORCHESTRATOR_MODEL,
+  ORCHESTRATOR_MODELS,
+  type ModelMaker,
+} from "../convex/agentModels";
 import { PLAN_TIERS, planLabel, tierOfPlan } from "../convex/billing/plans";
 import { parseBrandKit } from "../convex/workspace/brandKit";
 import { useActiveAccount } from "../components/active-account";
@@ -463,8 +476,106 @@ function AccountTab() {
       </div>
 
       {currentTier === "conectado" ? <OpenAiConnectCard /> : null}
+      <OrchestratorModelCard />
     </div>
   );
+}
+
+/**
+ * Which model thinks as Vanda. The choice is the owner's, but the transport
+ * constrains it: on Conectado, inference rides their ChatGPT subscription,
+ * which can only serve OpenAI models — so the Anthropic options are visibly
+ * disabled with the reason, never silently swapped.
+ */
+function OrchestratorModelCard() {
+  const state = useQuery(api.users.agentModel);
+  const setAgentModel = useMutation(api.users.setAgentModel);
+  const [error, setError] = useState<string | null>(null);
+
+  const selected = ORCHESTRATOR_MODELS.find((model) => model.id === state?.modelId);
+  const conectado = state?.conectado ?? false;
+
+  const choose = async (modelId: string) => {
+    setError(null);
+    try {
+      await setAgentModel({ modelId });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  };
+
+  return (
+    <div className="mt-4 rounded-xl border border-border bg-surface p-5">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h3 className="text-body font-semibold">Modelo da Vanda</h3>
+          <p className="mt-0.5 text-body-sm text-text-3">
+            {selected
+              ? selected.tagline
+              : "Escolha o modelo que pensa e escreve como a Vanda."}
+          </p>
+        </div>
+
+        {state === undefined ? (
+          <Skeleton className="h-9 w-56 rounded-md" />
+        ) : (
+          <Select
+            value={state?.modelId ?? DEFAULT_ORCHESTRATOR_MODEL}
+            onValueChange={(value) => void choose(String(value))}
+          >
+            <SelectTrigger className="w-56" aria-label="Modelo da Vanda">
+              <SelectValue>
+                {(value) => {
+                  const model = ORCHESTRATOR_MODELS.find((item) => item.id === value);
+                  return model ? (
+                    <>
+                      <MakerMark maker={model.maker} />
+                      <span className="truncate">{model.label}</span>
+                    </>
+                  ) : null;
+                }}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent align="end" className="w-72">
+              {ORCHESTRATOR_MODELS.map((model) => {
+                const blocked = conectado && !model.codexCapable;
+                return (
+                  <SelectItem key={model.id} value={model.id} disabled={blocked}>
+                    <span className="flex items-center gap-2">
+                      <MakerMark maker={model.maker} />
+                      <span className="truncate font-medium">{model.label}</span>
+                    </span>
+                    <span className="mt-0.5 block text-xs text-text-4">
+                      {blocked ? "Indisponível pela assinatura do ChatGPT" : model.tagline}
+                    </span>
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+
+      {conectado ? (
+        <p className="mt-3 text-xs text-text-4">
+          No plano ChatGPT a inferência roda pela sua assinatura da OpenAI — por isso só os
+          modelos da OpenAI ficam disponíveis.
+        </p>
+      ) : null}
+
+      {error ? (
+        <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-body-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** The maker's brand mark — monochrome, inheriting the row's text color. */
+function MakerMark({ maker }: { maker: ModelMaker }) {
+  const Icon = maker === "OpenAI" ? OpenAiIcon : AnthropicIcon;
+  return <Icon className="size-4 shrink-0 text-text-2" />;
 }
 
 /**

@@ -40,6 +40,10 @@ export default defineSchema({
     billingSyncedAt: v.optional(v.number()),
     // A plan change Autumn deferred to the next renewal (downgrades).
     scheduledPlanId: v.optional(v.string()),
+    // Which model thinks as Vanda (an id from agentModels.ORCHESTRATOR_MODELS).
+    // Absent = the catalog default; unknown ids resolve to it too, so retiring
+    // a model never wedges a conversation.
+    orchestratorModel: v.optional(v.string()),
     // BYO OpenAI subscription (plano Conectado): ChatGPT OAuth tokens,
     // AES-256-GCM encrypted like the Instagram connection tokens.
     openaiAccountId: v.optional(v.string()),

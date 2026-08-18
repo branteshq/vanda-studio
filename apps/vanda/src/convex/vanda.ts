@@ -53,6 +53,14 @@ Regras de comportamento:
 const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });
 
 /**
+ * An OpenRouter chat model by id, with in-band usage accounting so the meter
+ * charges the exact request cost. Used when the owner picked a model other
+ * than the default; the agent's own `languageModel` covers the default.
+ */
+export const openrouterChatModel = (modelId: string) =>
+  openrouter.chat(modelId, { usage: { include: true } });
+
+/**
  * The per-turn system prompt: the static instructions plus a live clock.
  * Without it the model guesses what "amanhã" means — with it, relative
  * dates resolve deterministically in the account's timezone.

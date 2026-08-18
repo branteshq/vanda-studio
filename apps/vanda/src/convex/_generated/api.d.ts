@@ -9,6 +9,7 @@
  */
 
 import type * as accounts from "../accounts.js";
+import type * as agentModels from "../agentModels.js";
 import type * as authz from "../authz.js";
 import type * as autumn from "../autumn.js";
 import type * as billing_autumn from "../billing/autumn.js";
@@ -85,6 +86,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   accounts: typeof accounts;
+  agentModels: typeof agentModels;
   authz: typeof authz;
   autumn: typeof autumn;
   "billing/autumn": typeof billing_autumn;
