@@ -7,14 +7,13 @@ import { internal } from "./_generated/api";
 import { action } from "./_generated/server";
 import type { BrandAnalysis, CorpusStats } from "./pipeline/brand";
 import { proposeBrandProfile } from "./pipeline/brandProfile";
-import { fetchBrandCorpus } from "./pipeline/liveBrand";
-import { apifyMarketDataLayer } from "./pipeline/market";
+import { fetchBrandCorpus, uploadPostInstagramReaderLayer } from "./pipeline/liveBrand";
 import { languageModelLayer, PIPELINE_MODELS, PROMPT_VERSIONS } from "./pipeline/liveModel";
 import { runTracked } from "./pipeline/liveTelemetry";
 
 /**
  * Onboarding's "Vanda is reading your account" step: resolve the caller's
- * connected handle, fetch the public brand corpus + counts, and run one
+ * connected handle, fetch its first-party Upload-Post corpus + counts, and run one
  * structured LLM pass into a `BrandAnalysis`. Returns the analysis (for the
  * Confirmar screen to edit) plus the corpus stats (the "LI N POSTS · …" trust
  * line) — not persisted, so re-running on a refresh is safe (idempotent, no
@@ -32,8 +31,7 @@ export const analyzeAccount = action({
     });
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
-    const apifyToken = process.env.APIFY_TOKEN;
-    if (!apifyToken) throw new Error("APIFY_TOKEN is not set on the Convex deployment");
+    const publisherUsername = String(accountId);
     return runTracked(
       ctx,
       {
@@ -46,14 +44,14 @@ export const analyzeAccount = action({
       () =>
         Effect.runPromise(
           Effect.gen(function* () {
-            const { corpus, stats } = yield* fetchBrandCorpus(handle);
+            const { corpus, stats } = yield* fetchBrandCorpus(publisherUsername, handle);
             const analysis = yield* proposeBrandProfile(corpus);
             return { analysis, stats };
           }).pipe(
             Effect.provide(
               Layer.mergeAll(
                 languageModelLayer(apiKey, PIPELINE_MODELS.brandProfile),
-                apifyMarketDataLayer(apifyToken),
+                uploadPostInstagramReaderLayer,
               ),
             ),
           ),

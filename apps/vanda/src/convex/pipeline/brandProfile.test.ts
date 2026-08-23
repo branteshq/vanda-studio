@@ -11,6 +11,9 @@ const corpus: BrandCorpus = {
     biography: "Cafeteria pet-friendly em Pinheiros",
     accountType: "BUSINESS",
     mediaCount: 1248,
+    followers: 420,
+    reach: 2400,
+    views: 3200,
   },
   captions: ["Combo de inverno chegando ☕️", "Nosso golden favorito de novo"],
   comments: ["amo esse lugar", "o cachorro é lindo demais"],
@@ -39,6 +42,8 @@ describe("proposeBrandProfile", () => {
     expect(seen).toContain("Café Lumiar");
     expect(seen).toContain("@cafelumiar");
     expect(seen).toContain("Total de publicações: 1248");
+    expect(seen).toContain("Seguidores: 420");
+    expect(seen).toContain("Alcance recente: 2400");
     expect(seen).toContain("Combo de inverno chegando");
     expect(seen).toContain("amo esse lugar");
   });

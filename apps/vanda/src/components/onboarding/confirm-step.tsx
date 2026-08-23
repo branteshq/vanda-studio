@@ -265,8 +265,8 @@ export function ConfirmStep({
           Confirme o que a Vanda entendeu.
         </h1>
         <p className="mt-2 text-[14px] leading-[1.55] text-text-3">
-          A Vanda leu {stats.posts} posts, {stats.comments} comentários e {stats.mentions} menções.
-          Ajuste o que precisar — o resto você refine depois no Perfil.
+          A Vanda leu {stats.posts} posts e {stats.comments} comentários. Ajuste o que precisar — o
+          resto você refine depois no Perfil.
         </p>
 
         {/* Resumo — the hero, as an obvious input */}

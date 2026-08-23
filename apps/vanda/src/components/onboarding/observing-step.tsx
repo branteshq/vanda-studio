@@ -11,7 +11,7 @@ import type { CorpusStats, ReadonlyAnalysis } from "./types";
 const LINES = [
   "Lendo seu perfil",
   "Analisando posts recentes",
-  "Lendo comentários e menções",
+  "Lendo comentários e métricas",
   "Identificando temas recorrentes",
   "Extraindo seu tom de voz",
   "Separando sinais úteis de ruído",
@@ -88,8 +88,8 @@ export function ObservingStep({
       {error ? (
         <>
           <p className="mt-3 text-[14px] text-text-3">
-            Não consegui ler sua conta agora. Você pode tentar de novo — ou seguir sem a
-            análise: a Vanda aprende sobre a sua marca conforme vocês conversam.
+            Não consegui ler sua conta agora. Você pode tentar de novo — ou seguir sem a análise: a
+            Vanda aprende sobre a sua marca conforme vocês conversam.
           </p>
           <div className="mt-5 flex flex-wrap items-center gap-2.5">
             <Button variant="outline" size="lg" disabled={skipping} onClick={run}>

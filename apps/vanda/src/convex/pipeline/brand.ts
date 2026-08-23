@@ -81,6 +81,9 @@ export interface BrandProfileInfo {
   readonly biography?: string | undefined;
   readonly accountType?: string | undefined;
   readonly mediaCount?: number | undefined;
+  readonly followers?: number | undefined;
+  readonly reach?: number | undefined;
+  readonly views?: number | undefined;
 }
 
 /**
@@ -94,7 +97,7 @@ export interface BrandCorpus {
   readonly comments: ReadonlyArray<string>;
 }
 
-/** Presentation counts for the "LI N POSTS · N COMENTÁRIOS · N MENÇÕES" trust line. */
+/** Presentation counts for the onboarding corpus trust line. */
 export interface CorpusStats {
   readonly posts: number;
   readonly comments: number;

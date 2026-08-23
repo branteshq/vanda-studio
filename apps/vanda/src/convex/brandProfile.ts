@@ -10,10 +10,9 @@ import { brandCanonKinds } from "./pipeline/constants";
 import { assessBrandReadiness } from "./pipeline/inputQuality";
 
 /**
- * The Instagram connection (id + encrypted token) for an account the caller owns.
- * Internal-only — it returns token ciphertext, so it must never be a public
- * function. `analyzeAccount` (brandProfileNode.ts) passes its verified `clerkId`;
- * ownership is re-checked here against the account before any secret is handed out.
+ * Resolve the connected Instagram handle for an account the caller owns.
+ * `analyzeAccount` passes its verified Clerk id; ownership is checked again here
+ * before first-party account data is read through the publisher profile.
  */
 export const resolveOwnedHandle = internalQuery({
   args: { accountId: v.id("accounts"), clerkId: v.string() },

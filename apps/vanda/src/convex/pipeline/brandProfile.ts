@@ -12,6 +12,9 @@ const profileLines = (profile: BrandCorpus["profile"]): string => {
     profile.username !== undefined ? `@${profile.username}` : null,
     profile.accountType !== undefined ? `Tipo de conta: ${profile.accountType}` : null,
     profile.mediaCount !== undefined ? `Total de publicações: ${profile.mediaCount}` : null,
+    profile.followers !== undefined ? `Seguidores: ${profile.followers}` : null,
+    profile.reach !== undefined ? `Alcance recente: ${profile.reach}` : null,
+    profile.views !== undefined ? `Visualizações recentes: ${profile.views}` : null,
     profile.biography !== undefined ? `Bio: ${profile.biography}` : null,
   ].filter((line): line is string => line !== null);
   return lines.length > 0 ? lines.join("\n") : "(sem dados de perfil)";
