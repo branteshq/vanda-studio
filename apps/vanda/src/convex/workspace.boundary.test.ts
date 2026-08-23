@@ -2,7 +2,7 @@
 import agentTest from "@convex-dev/agent/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { entitySuffix } from "./workspace/types";
 import schema from "./schema";
 
@@ -13,12 +13,24 @@ const setup = async () => {
   agentTest.register(t);
   const ids = await t.run(async (ctx) => {
     const now = Date.now();
+    const ownerUserId = await ctx.db.insert("users", {
+      name: "Ana",
+      email: "ana@example.com",
+      clerkId: "owner",
+    });
+    const foreignUserId = await ctx.db.insert("users", {
+      name: "Outra pessoa",
+      email: "outra@example.com",
+      clerkId: "foreign",
+    });
     const accountId = await ctx.db.insert("accounts", {
+      ownerUserId,
       name: "Café da Ana",
       createdAt: now,
       updatedAt: now,
     });
     const foreignAccountId = await ctx.db.insert("accounts", {
+      ownerUserId: foreignUserId,
       createdAt: now,
       updatedAt: now,
     });
@@ -64,11 +76,43 @@ describe("workspace navigation", () => {
         "brand",
         "memory",
         "templates",
+        "skills",
         "images",
         "posts",
         "market",
         "runs",
       ]);
+    }
+  });
+
+  it("lists installed skills and reads their standard SKILL.md package", async () => {
+    const { t, accountId } = await setup();
+    const listing = await t.query(internal.workspaceData.list, {
+      accountId,
+      path: "/skills",
+    });
+    expect(listing.ok).toBe(true);
+    if (listing.ok) {
+      expect(listing.entries).toEqual([expect.objectContaining({ name: "unslop", kind: "dir" })]);
+    }
+
+    const instructions = await t.query(internal.workspaceData.read, {
+      accountId,
+      path: "/skills/unslop/SKILL.md",
+    });
+    expect(instructions.ok).toBe(true);
+    if (instructions.ok && instructions.file.kind === "text") {
+      expect(instructions.file.text).toContain("name: unslop");
+      expect(instructions.file.text).toContain("# Unslop");
+    }
+
+    const license = await t.query(internal.workspaceData.read, {
+      accountId,
+      path: "/skills/unslop/LICENSE",
+    });
+    expect(license.ok).toBe(true);
+    if (license.ok && license.file.kind === "text") {
+      expect(license.file.text).toContain("MIT License");
     }
   });
 
@@ -92,6 +136,19 @@ describe("workspace navigation", () => {
     if (!result.ok) {
       expect(result.entries.map((entry) => entry.name)).toContain("memory.md");
     }
+  });
+});
+
+describe("installed skills public query", () => {
+  it("lists skills for the owner and rejects another account", async () => {
+    const { t, accountId, foreignAccountId } = await setup();
+    const asOwner = t.withIdentity({ subject: "owner" });
+    await expect(
+      asOwner.query(api.workspacePublic.installedSkills, { accountId }),
+    ).resolves.toEqual([expect.objectContaining({ name: "unslop", alwaysApply: true })]);
+    await expect(
+      asOwner.query(api.workspacePublic.installedSkills, { accountId: foreignAccountId }),
+    ).rejects.toThrow("account not found");
   });
 });
 
@@ -155,7 +212,11 @@ describe("workspace path stability", () => {
   it("resolves entities by stale slugs and bare suffixes", async () => {
     const { t, accountId, galleryImageId } = await setup();
     const suffix = entitySuffix(galleryImageId);
-    for (const name of [`promo-agosto-${suffix}.jpg`, `nome-antigo-${suffix}.jpg`, `${suffix}.jpg`]) {
+    for (const name of [
+      `promo-agosto-${suffix}.jpg`,
+      `nome-antigo-${suffix}.jpg`,
+      `${suffix}.jpg`,
+    ]) {
       const result = await t.query(internal.workspaceData.read, {
         accountId,
         path: `/images/${name}`,

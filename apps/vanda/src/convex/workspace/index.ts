@@ -6,18 +6,15 @@ import { marketMount } from "./mounts/market";
 import { memoryMount } from "./mounts/memory";
 import { postsMount } from "./mounts/posts";
 import { runsMount } from "./mounts/runs";
+import { skillsMount } from "./mounts/skills";
 import { templatesMount } from "./mounts/templates";
-import type {
-  WorkspaceEntry,
-  WorkspaceFile,
-  WorkspaceMount,
-  WorkspaceWriteResult,
-} from "./types";
+import type { WorkspaceEntry, WorkspaceFile, WorkspaceMount, WorkspaceWriteResult } from "./types";
 
 const MOUNTS: readonly WorkspaceMount[] = [
   brandMount,
   memoryMount,
   templatesMount,
+  skillsMount,
   imagesMount,
   postsMount,
   marketMount,

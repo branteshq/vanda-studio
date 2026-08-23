@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
+import { installedSkillSummaries } from "./skills/catalog";
 import { listPath, readPath, type ListResult, type ReadResult } from "./workspace";
 
 /**
@@ -22,5 +23,14 @@ export const file = query({
   handler: async (ctx, { accountId, path }): Promise<ReadResult> => {
     await requireOwnedAccount(ctx, accountId);
     return readPath(ctx, accountId, path);
+  },
+});
+
+/** Installed skills for the selected business, shown in Perfil. */
+export const installedSkills = query({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }) => {
+    await requireOwnedAccount(ctx, accountId);
+    return installedSkillSummaries();
   },
 });

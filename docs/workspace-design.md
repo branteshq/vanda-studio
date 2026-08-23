@@ -8,7 +8,9 @@ Give the agent two generic tools — `list(path)` and `read(path)` — over a pe
 virtual filesystem, replacing the six bespoke reader tools (`get_brand_memory`,
 `list_reference_photos`, `list_opportunities`, `get_market_status`, `list_projects`,
 `get_project`). The extensibility contract inverts: **new feature = new file in a mount;
-a new tool is the exception that needs justification.**
+a new tool is the exception that needs justification.** Agent Skills use the same contract:
+the system prompt discloses their catalog, and `read` loads `/skills/<name>/SKILL.md` or
+one of its resources only when needed.
 
 First principles:
 
@@ -51,6 +53,10 @@ First principles:
 │   └── preferencias.md          preferences, plans, learnings across conversations
 ├── templates/                 ← WRITABLE (free): reusable Python for run_code
 │   └── moldura-branca.py
+├── skills/                    ← installed Agent Skills packages, read-only
+│   └── unslop/
+│       ├── SKILL.md
+│       └── LICENSE
 ├── images/                    ← gallery (non-reference images), newest first, cap 100
 │   └── promo-agosto-bvn9.jpg  ← read = header (prompt, model, custo, dims, imageId) + pixels
 ├── projects/
@@ -92,7 +98,7 @@ step (same philosophy as run_code returning tracebacks).
 convex/workspace/
 ├── types.ts        WorkspaceEntry / WorkspaceFile / WorkspaceMount (list/read/write?)
 ├── documents.ts    workspaceFiles store: save/read/list + documentMount factory
-├── mounts/         brand · memory · templates · images · projects · market · runs
+├── mounts/         brand · memory · templates · skills · images · posts · market · runs
 └── index.ts        registry, path parsing, writePath, writeNeedsApproval
 
 convex/workspaceData.ts   internalQuery list / read + internalMutation write

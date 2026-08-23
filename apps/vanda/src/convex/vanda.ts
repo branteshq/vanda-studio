@@ -5,6 +5,7 @@ import { z } from "zod";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
+import { formatSkillsForSystemPrompt } from "./skills/catalog";
 
 /**
  * Vanda, the conversational operator. Threads are keyed per Instagram account
@@ -26,7 +27,7 @@ const INSTRUCTIONS = `Você é a Vanda, uma operadora de crescimento de Instagra
 
 Seu trabalho: observar o mercado, encontrar oportunidades com evidência real, criar conteúdo original fiel à marca do usuário e publicar de forma autônoma e transparente.
 
-Workspace: cada conta tem um sistema de arquivos que você explora com list e read. /brand (memória de marca em memory.md, anotações em notes.md, identidade visual em kit.json e fotos de referência em references/), /memory (suas notas duráveis), /templates (trechos Python reutilizáveis), /images (galeria da conta), /posts (o calendário de posts: rascunhos, agendados e publicados), /market (oportunidades e última varredura), /runs (execuções de código). As listagens trazem um resumo por linha e o id de cada entidade — paint recebe esses ids; run_code recebe os próprios caminhos do workspace (e também aceita ids de anexos). Ler um arquivo de imagem envia os pixels para você: você enxerga a imagem de verdade.
+Workspace: cada conta tem um sistema de arquivos que você explora com list e read. /brand (memória de marca em memory.md, anotações em notes.md, identidade visual em kit.json e fotos de referência em references/), /memory (suas notas duráveis), /templates (trechos Python reutilizáveis), /skills (habilidades instaladas e seus recursos), /images (galeria da conta), /posts (o calendário de posts: rascunhos, agendados e publicados), /market (oportunidades e última varredura), /runs (execuções de código). As listagens trazem um resumo por linha e o id de cada entidade — paint recebe esses ids; run_code recebe os próprios caminhos do workspace (e também aceita ids de anexos). Ler um arquivo de imagem envia os pixels para você: você enxerga a imagem de verdade.
 
 Memória durável: quando o dono expressar uma preferência ou fato permanente no meio da conversa ("nunca use essa cor", "sempre assine com o nome da loja"), grave em /memory com write antes de seguir — e diga que anotou. Ao começar um trabalho de criação, liste /memory e leia as notas relevantes; o que não está gravado será esquecido entre conversas. Código Python que deu certo e tende a se repetir vale gravar em /templates. Os demais arquivos são projeções somente-leitura: eles mudam pelos verbos (paint, create_post, schedule_post…), e uma tentativa de write neles explica qual verbo usar.
 
@@ -51,6 +52,7 @@ Regras de comportamento:
 - Edição de imagem — regra de roteamento entre paint e run_code: mudança GENERATIVA (trocar fundo, cenário, roupa, criar do zero) → paint. Composição DETERMINÍSTICA (texto sobre a imagem, logo, corte, redimensionar, colagem, moldura, cor exata da marca) → run_code. Texto renderizado por modelo generativo erra; texto composto por código não erra. run_code é quase gratuito — prefira-o sempre que o resultado precisar ser exato.`;
 
 const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });
+const SKILLS_PROMPT = formatSkillsForSystemPrompt();
 
 /**
  * An OpenRouter chat model by id, with in-band usage accounting so the meter
@@ -76,7 +78,7 @@ export const systemPrompt = (): string => {
     hour: "2-digit",
     minute: "2-digit",
   }).format(now);
-  return `${INSTRUCTIONS}\n\nAgora: ${stamp} (fuso America/Sao_Paulo, UTC-03:00). Em agendamentos, escreva datas ISO 8601 com o offset -03:00.`;
+  return `${INSTRUCTIONS}\n\n${SKILLS_PROMPT}\n\nAgora: ${stamp} (fuso America/Sao_Paulo, UTC-03:00). Em agendamentos, escreva datas ISO 8601 com o offset -03:00.`;
 };
 
 // --- Tools ------------------------------------------------------------------
@@ -102,7 +104,7 @@ const renderMiss = (result: { error: string; nearest: string; entries: Workspace
 
 const listFiles = createTool({
   description:
-    "Lista um diretório do workspace da conta. A raiz / contém: /brand (memória de marca e referências), /memory (suas notas duráveis), /templates (Python reutilizável), /images (galeria), /posts (calendário de posts), /market (oportunidades e varredura), /runs (execuções de código). Cada linha traz um resumo e o id da entidade (o mesmo id que paint e run_code recebem).",
+    "Lista um diretório do workspace da conta. A raiz / contém: /brand (memória de marca e referências), /memory (suas notas duráveis), /templates (Python reutilizável), /skills (habilidades instaladas), /images (galeria), /posts (calendário de posts), /market (oportunidades e varredura), /runs (execuções de código). Cada linha traz um resumo e o id da entidade (o mesmo id que paint e run_code recebem).",
   inputSchema: z.object({
     path: z.string().describe('caminho do diretório, ex.: "/", "/images", "/posts"'),
   }),
@@ -125,7 +127,11 @@ const readFile = createTool({
   }),
   execute: (
     ctx: VandaToolCtx,
-    { path, offset, limit }: { path: string; offset?: number | undefined; limit?: number | undefined },
+    {
+      path,
+      offset,
+      limit,
+    }: { path: string; offset?: number | undefined; limit?: number | undefined },
   ): Promise<unknown> =>
     ctx.runQuery(internal.workspaceData.read, {
       accountId: ctx.accountId,
@@ -163,7 +169,9 @@ const writeFile = createTool({
   ): Promise<unknown> =>
     ctx.runMutation(internal.workspaceData.write, { accountId: ctx.accountId, path, content }),
   toModelOutput: (_ctx, { output }) => {
-    const result = output as { ok: true; path: string; note: string } | { ok: false; error: string };
+    const result = output as
+      | { ok: true; path: string; note: string }
+      | { ok: false; error: string };
     return { type: "text", value: result.ok ? `${result.path} ${result.note}` : result.error };
   },
 });
@@ -307,7 +315,7 @@ const paint = createTool({
 
 const runCode = createTool({
   description:
-    "Executa código Python (Pillow/numpy) num sandbox isolado para editar imagens de forma DETERMINÍSTICA: sobrepor texto, aplicar logo, cortar, redimensionar, montar colagens, aplicar cores exatas da marca. As imagens de `inputPaths` aparecem no sandbox no MESMO caminho do workspace, sob /home/user (ex.: /images/promo-x1y2z3.jpg → /home/user/images/promo-x1y2z3.jpg); /home/user/meta.json lista todas com dimensões e imageId. Salve os resultados como PNG ou JPEG em /home/user/out/ — o nome do arquivo vira o nome na galeria (promo-agosto.png → \"promo agosto\"). Fontes instaladas (Poppins, Inter, Montserrat, Lora, Playfair Display, Roboto) estão listadas em /home/user/fonts/manifest.json com o caminho de cada uma. Sem acesso à internet. Se o código falhar, o traceback volta em stderr: corrija o código e rode de novo.",
+    'Executa código Python (Pillow/numpy) num sandbox isolado para editar imagens de forma DETERMINÍSTICA: sobrepor texto, aplicar logo, cortar, redimensionar, montar colagens, aplicar cores exatas da marca. As imagens de `inputPaths` aparecem no sandbox no MESMO caminho do workspace, sob /home/user (ex.: /images/promo-x1y2z3.jpg → /home/user/images/promo-x1y2z3.jpg); /home/user/meta.json lista todas com dimensões e imageId. Salve os resultados como PNG ou JPEG em /home/user/out/ — o nome do arquivo vira o nome na galeria (promo-agosto.png → "promo agosto"). Fontes instaladas (Poppins, Inter, Montserrat, Lora, Playfair Display, Roboto) estão listadas em /home/user/fonts/manifest.json com o caminho de cada uma. Sem acesso à internet. Se o código falhar, o traceback volta em stderr: corrija o código e rode de novo.',
   inputSchema: z.object({
     code: z.string().describe("código Python 3 completo; Pillow e numpy disponíveis"),
     description: z
@@ -317,7 +325,9 @@ const runCode = createTool({
       .array(z.string())
       .max(10)
       .optional()
-      .describe("caminhos do workspace (/images/…, /brand/references/…) ou imageIds diretos (anexos)"),
+      .describe(
+        "caminhos do workspace (/images/…, /brand/references/…) ou imageIds diretos (anexos)",
+      ),
   }),
   execute: async (
     ctx: VandaToolCtx,
@@ -348,9 +358,8 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
     // Conectado plan turns run on the owner's ChatGPT subscription (the
     // openai provider) — their money, not the Vanda meter.
     if (!provider.includes("openrouter")) return;
-    const reported = (
-      providerMetadata?.openrouter as { usage?: { cost?: unknown } } | undefined
-    )?.usage?.cost;
+    const reported = (providerMetadata?.openrouter as { usage?: { cost?: unknown } } | undefined)
+      ?.usage?.cost;
     const usd =
       typeof reported === "number"
         ? reported
@@ -364,7 +373,7 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
       ref: model,
     });
   },
-  instructions: INSTRUCTIONS,
+  instructions: `${INSTRUCTIONS}\n\n${SKILLS_PROMPT}`,
   tools: {
     list: listFiles,
     read: readFile,
@@ -410,4 +419,3 @@ export const runMarketScan = internalAction({
     }
   },
 });
-

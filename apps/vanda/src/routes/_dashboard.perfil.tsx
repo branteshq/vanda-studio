@@ -3,7 +3,15 @@ import { useClerk, useUser } from "@clerk/tanstack-react-start";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAction, useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
-import { ArrowLeft, Check, FileCode2, LogOut, NotebookPen } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  ExternalLink,
+  FileCode2,
+  LogOut,
+  NotebookPen,
+  Sparkles,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@vanda-studio/ui/components/avatar";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Markdown } from "@vanda-studio/ui/components/markdown";
@@ -39,13 +47,14 @@ export const Route = createFileRoute("/_dashboard/perfil")({
  * (the dashboard layout skips the sidebar chrome for this route).
  */
 
-type TabKey = "conta" | "marca" | "memoria" | "templates";
+type TabKey = "conta" | "marca" | "memoria" | "templates" | "skills";
 
 const TABS: Array<{ key: TabKey; label: string }> = [
   { key: "conta", label: "Conta" },
   { key: "marca", label: "Marca" },
   { key: "memoria", label: "Memória" },
   { key: "templates", label: "Templates" },
+  { key: "skills", label: "Skills" },
 ];
 
 function getInitials(name: string) {
@@ -201,6 +210,7 @@ function ProfilePage() {
                     emptyBody={`Códigos de edição de imagem que deram certo podem virar templates reutilizáveis. Peça na conversa: "salve esse código como template" — ele aparece aqui.`}
                   />
                 ) : null}
+                {tab === "skills" ? <SkillsTab accountId={viewed.id} /> : null}
               </div>
             ) : null}
           </main>
@@ -510,9 +520,7 @@ function OrchestratorModelCard() {
         <div className="min-w-0">
           <h3 className="text-body font-semibold">Modelo da Vanda</h3>
           <p className="mt-0.5 text-body-sm text-text-3">
-            {selected
-              ? selected.tagline
-              : "Escolha o modelo que pensa e escreve como a Vanda."}
+            {selected ? selected.tagline : "Escolha o modelo que pensa e escreve como a Vanda."}
           </p>
         </div>
 
@@ -558,8 +566,8 @@ function OrchestratorModelCard() {
 
       {conectado ? (
         <p className="mt-3 text-xs text-text-4">
-          No plano ChatGPT a inferência roda pela sua assinatura da OpenAI — por isso só os
-          modelos da OpenAI ficam disponíveis.
+          No plano ChatGPT a inferência roda pela sua assinatura da OpenAI — por isso só os modelos
+          da OpenAI ficam disponíveis.
         </p>
       ) : null}
 
@@ -584,13 +592,7 @@ function MakerMark({ maker }: { maker: ModelMaker }) {
  * mount it re-syncs once — that's how returning from the connect page
  * (redirected to /perfil) picks up a fresh connection.
  */
-function InstagramConnectCard({
-  accountId,
-  name,
-}: {
-  accountId: Id<"accounts">;
-  name: string;
-}) {
+function InstagramConnectCard({ accountId, name }: { accountId: Id<"accounts">; name: string }) {
   const status = useQuery(api.publisherConnect.connectionStatus, { accountId });
   const startConnect = useAction(api.publisherConnect.startConnect);
   const syncConnection = useAction(api.publisherConnect.syncConnection);
@@ -801,6 +803,73 @@ function PlanCard({
   );
 }
 
+function SkillsTab({ accountId }: { accountId: Id<"accounts"> }) {
+  const skills = useQuery(api.workspacePublic.installedSkills, { accountId });
+
+  return (
+    <section className="rounded-xl border border-border bg-surface p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-body font-semibold">Skills instaladas</h2>
+          <p className="mt-0.5 text-body-sm text-text-3">
+            Instruções especializadas que a Vanda aplica ao trabalhar neste negócio.
+          </p>
+        </div>
+        {skills !== undefined ? (
+          <span className="rounded-full border border-border px-2.5 py-1 text-xs text-text-3">
+            {skills.length} {skills.length === 1 ? "instalada" : "instaladas"}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {skills === undefined ? (
+          <div className="space-y-2" aria-hidden>
+            <Skeleton className="h-20 w-full rounded-lg" />
+            <Skeleton className="h-20 w-full rounded-lg" />
+          </div>
+        ) : skills.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border p-6 text-center">
+            <Sparkles className="mx-auto size-5 text-text-4" />
+            <p className="mt-2 text-body-sm text-text-3">Nenhuma skill instalada.</p>
+          </div>
+        ) : (
+          skills.map((skill) => (
+            <article
+              key={skill.name}
+              className="flex items-start gap-3 rounded-lg border border-border bg-muted/20 p-4"
+            >
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-text-2">
+                <Sparkles className="size-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-mono text-body font-semibold">{skill.name}</h3>
+                  <span className="rounded-full bg-brand-accent/10 px-2 py-0.5 text-[11px] font-medium text-brand-accent">
+                    {skill.alwaysApply ? "Sempre ativa" : "Ativa"}
+                  </span>
+                </div>
+                <p className="mt-1 text-body-sm leading-relaxed text-text-3">{skill.description}</p>
+                {skill.sourceUrl ? (
+                  <a
+                    href={skill.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-xs text-text-4 underline-offset-2 hover:text-text-2 hover:underline"
+                  >
+                    Ver origem
+                    <ExternalLink className="size-3" />
+                  </a>
+                ) : null}
+              </div>
+            </article>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
 type FileResult = ReturnType<typeof useFileText>;
 
 /** Reads a workspace text file; null while loading, "" only if truly empty. */
@@ -903,8 +972,8 @@ function BrandKitCard({ accountId }: { accountId: Id<"accounts"> }) {
       ) : empty ? (
         <p className="text-body-sm leading-relaxed text-text-3">
           Nenhuma identidade registrada ainda. Diga na conversa algo como{" "}
-          <em>"nossas cores são #d81b60 e #fdfcfb, e a fonte é Poppins"</em> — a Vanda monta o
-          kit e pede a sua aprovação antes de gravar.
+          <em>"nossas cores são #d81b60 e #fdfcfb, e a fonte é Poppins"</em> — a Vanda monta o kit e
+          pede a sua aprovação antes de gravar.
         </p>
       ) : (
         <div className="space-y-5">
@@ -949,9 +1018,7 @@ function BrandKitCard({ accountId }: { accountId: Id<"accounts"> }) {
             </div>
           ) : null}
 
-          {kit.tagline ? (
-            <p className="text-body-sm text-text-2 italic">“{kit.tagline}”</p>
-          ) : null}
+          {kit.tagline ? <p className="text-body-sm text-text-2 italic">“{kit.tagline}”</p> : null}
         </div>
       )}
     </SectionCard>
@@ -1034,9 +1101,7 @@ function FolderTab({
               onClick={() => setSelectedName(entry.name)}
               className={cn(
                 "flex w-full items-baseline gap-3 rounded-lg border px-3 py-2 text-left transition-colors duration-150 ease-[var(--ease-out)]",
-                active
-                  ? "border-border-strong bg-surface"
-                  : "border-transparent hover:bg-surface",
+                active ? "border-border-strong bg-surface" : "border-transparent hover:bg-surface",
               )}
             >
               <span className="shrink-0 font-mono text-body-sm font-medium">{entry.name}</span>
