@@ -33,6 +33,7 @@ import type * as instagram_providers_apify from "../instagram/providers/apify.js
 import type * as instagram_providers_uploadpost from "../instagram/providers/uploadpost.js";
 import type * as instagram_service from "../instagram/service.js";
 import type * as instagram_types from "../instagram/types.js";
+import type * as instagramActions from "../instagramActions.js";
 import type * as instagramData from "../instagramData.js";
 import type * as market from "../market.js";
 import type * as marketActions from "../marketActions.js";
@@ -69,6 +70,7 @@ import type * as publisherConnect from "../publisherConnect.js";
 import type * as skills_catalog from "../skills/catalog.js";
 import type * as skills_generated from "../skills/generated.js";
 import type * as skills_types from "../skills/types.js";
+import type * as tools_instagram from "../tools/instagram.js";
 import type * as usage from "../usage.js";
 import type * as users from "../users.js";
 import type * as vanda from "../vanda.js";
@@ -122,6 +124,7 @@ declare const fullApi: ApiFromModules<{
   "instagram/providers/uploadpost": typeof instagram_providers_uploadpost;
   "instagram/service": typeof instagram_service;
   "instagram/types": typeof instagram_types;
+  instagramActions: typeof instagramActions;
   instagramData: typeof instagramData;
   market: typeof market;
   marketActions: typeof marketActions;
@@ -158,6 +161,7 @@ declare const fullApi: ApiFromModules<{
   "skills/catalog": typeof skills_catalog;
   "skills/generated": typeof skills_generated;
   "skills/types": typeof skills_types;
+  "tools/instagram": typeof tools_instagram;
   usage: typeof usage;
   users: typeof users;
   vanda: typeof vanda;

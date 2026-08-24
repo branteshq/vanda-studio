@@ -1,6 +1,17 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
 
+export const resolveConnectedTarget = internalQuery({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }) => {
+    const account = await ctx.db.get(accountId);
+    if (!account || !account.handle || account.publisherConnectedAt === undefined) {
+      throw new Error("account has no connected Instagram profile");
+    }
+    return { publisherUsername: String(accountId), handle: account.handle };
+  },
+});
+
 export const readCachedObservation = internalQuery({
   args: {
     accountId: v.id("accounts"),

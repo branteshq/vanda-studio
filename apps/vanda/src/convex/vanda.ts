@@ -6,6 +6,7 @@ import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
 import { formatSkillsForSystemPrompt } from "./skills/catalog";
+import { makeInstagramTools } from "./tools/instagram";
 
 /**
  * Vanda, the conversational operator. Threads are keyed per Instagram account
@@ -27,7 +28,7 @@ const INSTRUCTIONS = `Você é a Vanda, uma operadora de crescimento de Instagra
 
 Seu trabalho: observar o mercado, encontrar oportunidades com evidência real, criar conteúdo original fiel à marca do usuário e publicar de forma autônoma e transparente.
 
-Workspace: cada conta tem um sistema de arquivos que você explora com list e read. /brand (memória de marca em memory.md, anotações em notes.md, identidade visual em kit.json e fotos de referência em references/), /memory (suas notas duráveis), /templates (trechos Python reutilizáveis), /skills (habilidades instaladas e seus recursos), /images (galeria da conta), /posts (o calendário de posts: rascunhos, agendados e publicados), /market (oportunidades e última varredura), /runs (execuções de código). As listagens trazem um resumo por linha e o id de cada entidade — paint recebe esses ids; run_code recebe os próprios caminhos do workspace (e também aceita ids de anexos). Ler um arquivo de imagem envia os pixels para você: você enxerga a imagem de verdade.
+Workspace: cada conta tem um sistema de arquivos que você explora com list e read. /brand (memória de marca em memory.md, anotações em notes.md, identidade visual em kit.json e fotos de referência em references/), /memory (suas notas duráveis), /templates (trechos Python reutilizáveis), /skills (habilidades instaladas e seus recursos), /images (galeria da conta), /instagram (leituras conectadas e públicas com fonte e frescor), /posts (o calendário de posts: rascunhos, agendados e publicados), /market (oportunidades e última varredura), /runs (execuções de código). As listagens trazem um resumo por linha e o id de cada entidade — paint recebe esses ids; run_code recebe os próprios caminhos do workspace (e também aceita ids de anexos). Ler um arquivo de imagem envia os pixels para você: você enxerga a imagem de verdade.
 
 Memória durável: quando o dono expressar uma preferência ou fato permanente no meio da conversa ("nunca use essa cor", "sempre assine com o nome da loja"), grave em /memory com write antes de seguir — e diga que anotou. Ao começar um trabalho de criação, liste /memory e leia as notas relevantes; o que não está gravado será esquecido entre conversas. Código Python que deu certo e tende a se repetir vale gravar em /templates. Os demais arquivos são projeções somente-leitura: eles mudam pelos verbos (paint, create_post, schedule_post…), e uma tentativa de write neles explica qual verbo usar.
 
@@ -38,6 +39,7 @@ Regras de comportamento:
 - Você age por conta própria — não peça permissão para trabalhar. Em vez de gates de aprovação, a sua obrigação é transparência: diga o que fez, onde está o resultado (/posts, calendário, galeria) e como desfazer (schedule_post reagenda, cancel_schedule desarma, delete_post apaga). Quando o pedido for ambíguo sobre PUBLICAR de imediato, prefira agendar para um horário próximo e avisar — o dono vê no calendário e pode mudar.
 - Nunca afirme que algo foi criado ou publicado sem confirmar pelo estado real — o estado de todos os posts (rascunho, agendado, publicado, falhou) vive em /posts; leia antes de afirmar qualquer coisa sobre publicações. Se algo falhou, diga exatamente o que falhou.
 - Explique decisões com a evidência que as sustenta (números, motivo do gatilho, por que serve para esta marca).
+- Instagram: use scope=connected para posts, comentários e insights privados do dono; use scope=public e Apify para perfis externos. Nunca trate contador público (likes/views) como insight privado (reach/saves). As leituras ficam em /instagram e podem ser combinadas com run_code.
 - Trabalhos longos (varredura de mercado) rodam em segundo plano: avise que você começou e que retorna quando terminar.
 - Produção de post — um único caminho, escale o capricho conforme o pedido:
   - Direto: imagens prontas da galeria + legenda sua → create_post → schedule_post.
@@ -104,7 +106,7 @@ const renderMiss = (result: { error: string; nearest: string; entries: Workspace
 
 const listFiles = createTool({
   description:
-    "Lista um diretório do workspace da conta. A raiz / contém: /brand (memória de marca e referências), /memory (suas notas duráveis), /templates (Python reutilizável), /skills (habilidades instaladas), /images (galeria), /posts (calendário de posts), /market (oportunidades e varredura), /runs (execuções de código). Cada linha traz um resumo e o id da entidade (o mesmo id que paint e run_code recebem).",
+    "Lista um diretório do workspace da conta. A raiz / contém: /brand (memória de marca e referências), /memory (suas notas duráveis), /templates (Python reutilizável), /skills (habilidades instaladas), /images (galeria), /instagram (leituras conectadas e públicas), /posts (calendário de posts), /market (oportunidades e varredura), /runs (execuções de código). Cada linha traz um resumo e o id da entidade (o mesmo id que paint e run_code recebem).",
   inputSchema: z.object({
     path: z.string().describe('caminho do diretório, ex.: "/", "/images", "/posts"'),
   }),
@@ -343,6 +345,51 @@ const runCode = createTool({
     }),
 });
 
+const instagramTools = makeInstagramTools({
+  searchProfiles: (ctx, args): Promise<unknown> =>
+    ctx.runAction(internal.instagramActions.searchProfiles, {
+      accountId: ctx.accountId,
+      query: args.query,
+      ...(args.limit !== undefined ? { limit: args.limit } : {}),
+    }),
+  readProfile: (ctx, args): Promise<unknown> =>
+    ctx.runAction(internal.instagramActions.readProfile, {
+      accountId: ctx.accountId,
+      scope: args.scope,
+      ...(args.handle ? { handle: args.handle } : {}),
+    }),
+  listPosts: (ctx, args): Promise<unknown> =>
+    ctx.runAction(internal.instagramActions.listPosts, {
+      accountId: ctx.accountId,
+      scope: args.scope,
+      ...(args.handle ? { handle: args.handle } : {}),
+      ...(args.limit !== undefined ? { limit: args.limit } : {}),
+      ...(args.cursor ? { cursor: args.cursor } : {}),
+    }),
+  readPost: (ctx, args): Promise<unknown> =>
+    ctx.runAction(internal.instagramActions.readPost, {
+      accountId: ctx.accountId,
+      postUrl: args.postUrl,
+      ...(args.includeTranscript !== undefined
+        ? { includeTranscript: args.includeTranscript }
+        : {}),
+    }),
+  listComments: (ctx, args): Promise<unknown> =>
+    ctx.runAction(internal.instagramActions.listComments, {
+      accountId: ctx.accountId,
+      scope: args.scope,
+      ...(args.postId ? { postId: args.postId } : {}),
+      ...(args.postUrl ? { postUrl: args.postUrl } : {}),
+      ...(args.limit !== undefined ? { limit: args.limit } : {}),
+      ...(args.cursor ? { cursor: args.cursor } : {}),
+    }),
+  readMetrics: (ctx, args): Promise<unknown> =>
+    ctx.runAction(internal.instagramActions.readMetrics, {
+      accountId: ctx.accountId,
+      ...(args.postId ? { postId: args.postId } : {}),
+    }),
+});
+
 /** Fallback pricing when OpenRouter's in-band cost is missing (per token). */
 const CHAT_FALLBACK_USD_PER_INPUT_TOKEN = 2e-6;
 const CHAT_FALLBACK_USD_PER_OUTPUT_TOKEN = 8e-6;
@@ -378,6 +425,7 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
     list: listFiles,
     read: readFile,
     write: writeFile,
+    ...instagramTools,
     start_market_scan: startMarketScan,
     paint,
     run_code: runCode,
