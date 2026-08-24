@@ -33,6 +33,11 @@ import {
   ORCHESTRATOR_MODELS,
   type ModelMaker,
 } from "../convex/agentModels";
+import {
+  CONECTADO_IMAGE_MODEL,
+  DEFAULT_IMAGE_MODEL,
+  IMAGE_MODELS,
+} from "../convex/imageModels";
 import { PLAN_TIERS, planLabel, tierOfPlan } from "../convex/billing/plans";
 import { parseBrandKit } from "../convex/workspace/brandKit";
 import { useActiveAccount } from "../components/active-account";
@@ -486,29 +491,36 @@ function AccountTab() {
       </div>
 
       {currentTier === "conectado" ? <OpenAiConnectCard /> : null}
-      <OrchestratorModelCard />
+      <ModelsCard />
     </div>
   );
 }
 
 /**
- * Which model thinks as Vanda. The choice is the owner's, but the transport
- * constrains it: on Conectado, inference rides their ChatGPT subscription,
- * which can only serve OpenAI models — so the Anthropic options are visibly
- * disabled with the reason, never silently swapped.
+ * The two model choices, side by side: who thinks (orchestrator) and who
+ * paints (image). Both are the owner's call, and both are constrained by the
+ * same thing — on Conectado, inference rides their ChatGPT subscription, so
+ * the orchestrator is limited to OpenAI models and every paint collapses to
+ * GPT Image 2. The constraint is shown, never silently applied.
  */
-function OrchestratorModelCard() {
-  const state = useQuery(api.users.agentModel);
+function ModelsCard() {
+  const prefs = useQuery(api.users.modelPreferences);
   const setAgentModel = useMutation(api.users.setAgentModel);
+  const setImageModel = useMutation(api.users.setImageModel);
   const [error, setError] = useState<string | null>(null);
 
-  const selected = ORCHESTRATOR_MODELS.find((model) => model.id === state?.modelId);
-  const conectado = state?.conectado ?? false;
+  const conectado = prefs?.conectado ?? false;
+  const orchestratorId = prefs?.orchestrator ?? DEFAULT_ORCHESTRATOR_MODEL;
+  // On Conectado the plan decides the painter — show what will actually run.
+  const imageId = conectado ? CONECTADO_IMAGE_MODEL : (prefs?.image ?? DEFAULT_IMAGE_MODEL);
 
-  const choose = async (modelId: string) => {
+  const orchestrator = ORCHESTRATOR_MODELS.find((model) => model.id === orchestratorId);
+  const image = IMAGE_MODELS.find((model) => model.id === imageId);
+
+  const choose = async (action: Promise<unknown>) => {
     setError(null);
     try {
-      await setAgentModel({ modelId });
+      await action;
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     }
@@ -516,22 +528,22 @@ function OrchestratorModelCard() {
 
   return (
     <div className="mt-4 rounded-xl border border-border bg-surface p-5">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="min-w-0">
-          <h3 className="text-body font-semibold">Modelo da Vanda</h3>
-          <p className="mt-0.5 text-body-sm text-text-3">
-            {selected ? selected.tagline : "Escolha o modelo que pensa e escreve como a Vanda."}
-          </p>
-        </div>
+      <h3 className="text-body font-semibold">Modelos</h3>
+      <p className="mt-0.5 text-body-sm text-text-3">
+        Quem pensa e escreve, e quem desenha as imagens.
+      </p>
 
-        {state === undefined ? (
-          <Skeleton className="h-9 w-56 rounded-md" />
-        ) : (
+      <div className="mt-4 space-y-4 border-t border-border pt-4">
+        <ModelRow
+          label="Conversa"
+          description={orchestrator?.tagline ?? "O modelo que pensa e escreve como a Vanda."}
+          loading={prefs === undefined}
+        >
           <Select
-            value={state?.modelId ?? DEFAULT_ORCHESTRATOR_MODEL}
-            onValueChange={(value) => void choose(String(value))}
+            value={orchestratorId}
+            onValueChange={(value) => void choose(setAgentModel({ modelId: String(value) }))}
           >
-            <SelectTrigger className="w-56" aria-label="Modelo da Vanda">
+            <SelectTrigger className="w-56" aria-label="Modelo de conversa">
               <SelectValue>
                 {(value) => {
                   const model = ORCHESTRATOR_MODELS.find((item) => item.id === value);
@@ -561,13 +573,44 @@ function OrchestratorModelCard() {
               })}
             </SelectContent>
           </Select>
-        )}
+        </ModelRow>
+
+        <ModelRow
+          label="Imagens"
+          description={image?.blurb ?? "O modelo que a Vanda usa para criar e editar imagens."}
+          loading={prefs === undefined}
+        >
+          <Select
+            value={imageId}
+            onValueChange={(value) => void choose(setImageModel({ modelId: String(value) }))}
+          >
+            <SelectTrigger className="w-56" aria-label="Modelo de imagens" disabled={conectado}>
+              <SelectValue>
+                {(value) => {
+                  const model = IMAGE_MODELS.find((item) => item.id === value);
+                  return model ? <span className="truncate">{model.label}</span> : null;
+                }}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent align="end" className="w-72">
+              {IMAGE_MODELS.map((model) => (
+                <SelectItem key={model.id} value={model.id}>
+                  <span className="flex items-center gap-2">
+                    <span className="truncate font-medium">{model.label}</span>
+                    <span className="text-note font-semibold text-green">{model.priceTier}</span>
+                  </span>
+                  <span className="mt-0.5 block text-xs text-text-4">{model.blurb}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </ModelRow>
       </div>
 
       {conectado ? (
-        <p className="mt-3 text-xs text-text-4">
-          No plano ChatGPT a inferência roda pela sua assinatura da OpenAI — por isso só os modelos
-          da OpenAI ficam disponíveis.
+        <p className="mt-4 text-xs text-text-4">
+          No plano ChatGPT tudo roda pela sua assinatura da OpenAI: a conversa fica nos modelos da
+          OpenAI e as imagens saem sempre no GPT Image 2.
         </p>
       ) : null}
 
@@ -576,6 +619,29 @@ function OrchestratorModelCard() {
           {error}
         </p>
       ) : null}
+    </div>
+  );
+}
+
+/** One labelled choice: name + why it matters on the left, control on the right. */
+function ModelRow({
+  label,
+  description,
+  loading,
+  children,
+}: {
+  label: string;
+  description: string;
+  loading: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <div className="min-w-0">
+        <p className="text-body-sm font-medium">{label}</p>
+        <p className="mt-0.5 text-xs text-text-4">{description}</p>
+      </div>
+      {loading ? <Skeleton className="h-9 w-56 rounded-md" /> : children}
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { tierOfPlan } from "../convex/billing/plans";
 import {
+  CONECTADO_IMAGE_MODEL,
   DEFAULT_IMAGE_MODEL,
   IMAGE_MODELS,
   IMAGE_RESOLUTIONS,
@@ -17,8 +18,6 @@ import {
   type ImageResolution,
 } from "../convex/imageModels";
 
-/** Conectado subscribers paint exclusively with GPT Image 2 (their ChatGPT). */
-const CONNECTED_ONLY_MODEL = "openai/gpt-image-2";
 
 const ASPECT_RATIOS = ["1:1", "4:5", "9:16", "16:9"] as const;
 type AspectRatio = (typeof ASPECT_RATIOS)[number];
@@ -51,16 +50,21 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
   const summary = useQuery(api.usage.summary);
   const connectedOnly = summary?.plan != null && tierOfPlan(summary.plan) === "conectado";
   const availableModels = connectedOnly
-    ? IMAGE_MODELS.filter((model) => model.id === CONNECTED_ONLY_MODEL)
+    ? IMAGE_MODELS.filter((model) => model.id === CONECTADO_IMAGE_MODEL)
     : IMAGE_MODELS;
+  const prefs = useQuery(api.users.modelPreferences);
   const [prompt, setPrompt] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set([DEFAULT_IMAGE_MODEL]));
+  // `null` = untouched, so the composer follows the owner's default from
+  // /perfil (and updates if they change it). The first toggle materialises a
+  // real selection and the composer stops tracking the default.
+  const [selected, setSelected] = useState<Set<string> | null>(null);
   const [aspect, setAspect] = useState<AspectRatio>("1:1");
   const [resolution, setResolution] = useState<ImageResolution>("1K");
   const [busy, setBusy] = useState(false);
   // The backend forces gpt-image-2 for Conectado anyway; the picker mirrors it.
-  const models = connectedOnly ? new Set([CONNECTED_ONLY_MODEL]) : selected;
-  const setModels = setSelected;
+  const models = connectedOnly
+    ? new Set([CONECTADO_IMAGE_MODEL])
+    : (selected ?? new Set([prefs?.image ?? DEFAULT_IMAGE_MODEL]));
 
   const total = models.size;
   const canGenerate = prompt.trim().length > 0 && total > 0 && total <= MAX_FANOUT && !busy;
@@ -79,8 +83,8 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
   }
 
   const toggleModel = (id: string) =>
-    setModels((prev) => {
-      const next = new Set(prev);
+    setSelected(() => {
+      const next = new Set(models);
       if (next.has(id)) {
         if (next.size > 1) next.delete(id);
       } else {

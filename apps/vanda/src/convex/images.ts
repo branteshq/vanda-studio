@@ -11,7 +11,7 @@ import { ImageAssetGenerator, openRouterImageGeneratorLayer } from "./pipeline/i
 import { MAX_DECODE_PIXELS, sniffImage } from "./pipeline/imageBytes";
 import { USAGE_LIMIT_MESSAGE } from "./usage";
 import {
-  DEFAULT_IMAGE_MODEL,
+  CONECTADO_IMAGE_MODEL,
   clampResolution,
   isKnownImageModel,
   type ImageResolution,
@@ -173,7 +173,10 @@ async function paintImage(
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
     if (model && !isKnownImageModel(model)) throw new Error(`unknown image model: ${model}`);
-    const selectedModel = model ?? DEFAULT_IMAGE_MODEL;
+    // No model named (every agent paint): the owner's default, then the
+    // catalog default. Conectado overrides both further down.
+    const selectedModel =
+      model ?? (await ctx.runQuery(internal.users.imageModelForAccount, { accountId }));
     // Never ask a model for a tier it can't produce — clamp to its best.
     const tier = clampResolution(selectedModel, resolution ?? "1K");
 
@@ -282,7 +285,7 @@ async function paintImage(
       mimeType,
       width,
       height,
-      model: sub.active ? "openai/gpt-image-2" : selectedModel,
+      model: sub.active ? CONECTADO_IMAGE_MODEL : selectedModel,
       generationMs,
       ...(name && name.trim() ? { name: name.trim() } : {}),
       ...(generated.costUsd !== undefined ? { costUsd: generated.costUsd } : {}),

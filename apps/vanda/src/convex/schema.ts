@@ -44,6 +44,10 @@ export default defineSchema({
     // Absent = the catalog default; unknown ids resolve to it too, so retiring
     // a model never wedges a conversation.
     orchestratorModel: v.optional(v.string()),
+    // Which model paints by default (an id from imageModels.IMAGE_MODELS).
+    // Same resolution rules; overridden entirely by the Conectado plan, which
+    // runs every paint on the owner's ChatGPT subscription.
+    imageModel: v.optional(v.string()),
     // BYO OpenAI subscription (plano Conectado): ChatGPT OAuth tokens,
     // AES-256-GCM encrypted like the Instagram connection tokens.
     openaiAccountId: v.optional(v.string()),

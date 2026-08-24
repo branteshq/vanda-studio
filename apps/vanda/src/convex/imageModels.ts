@@ -68,6 +68,14 @@ export const IMAGE_MODELS: ReadonlyArray<ImageModel> = [
 /** The painter's default when no model is chosen (Nano Banana 2). */
 export const DEFAULT_IMAGE_MODEL = IMAGE_MODELS[0]!.id;
 
+/**
+ * The painter the Conectado plan forces: every paint runs on the owner's
+ * ChatGPT subscription, so model choice collapses and our meter stays at zero.
+ * Canonical here — the backend override, the gallery composer and the profile
+ * picker all read this one constant.
+ */
+export const CONECTADO_IMAGE_MODEL = "openai/gpt-image-2";
+
 const BY_ID = new Map(IMAGE_MODELS.map((model) => [model.id, model]));
 
 /** True when `id` is one of the models we allow callers to request. */

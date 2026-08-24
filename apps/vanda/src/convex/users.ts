@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { DEFAULT_ORCHESTRATOR_MODEL, orchestratorModel } from "./agentModels";
+import { DEFAULT_IMAGE_MODEL, isKnownImageModel } from "./imageModels";
 import type { Id } from "./_generated/dataModel";
 import { internalQuery, mutation, query } from "./_generated/server";
 import { requireUser } from "./authz";
@@ -65,15 +66,16 @@ export const current = query({
 });
 
 /**
- * The orchestrator picker's state: the chosen model plus whether this owner is
- * on Conectado — which is what makes the Anthropic options unavailable (their
- * ChatGPT subscription can only serve OpenAI models).
+ * The model pickers' state: who thinks (orchestrator) and who paints (image),
+ * plus whether this owner is on Conectado — the flag that constrains both.
+ * Conectado inference rides their ChatGPT subscription, so the orchestrator is
+ * limited to OpenAI models and every paint collapses to gpt-image-2.
  */
-export const agentModel = query({
+export const modelPreferences = query({
   args: {},
   handler: async (
     ctx,
-  ): Promise<{ modelId: string; conectado: boolean } | null> => {
+  ): Promise<{ orchestrator: string; image: string; conectado: boolean } | null> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
     const user = await ctx.db
@@ -82,7 +84,11 @@ export const agentModel = query({
       .unique();
     if (!user) return null;
     return {
-      modelId: orchestratorModel(user.orchestratorModel)?.id ?? DEFAULT_ORCHESTRATOR_MODEL,
+      orchestrator: orchestratorModel(user.orchestratorModel)?.id ?? DEFAULT_ORCHESTRATOR_MODEL,
+      image:
+        user.imageModel && isKnownImageModel(user.imageModel)
+          ? user.imageModel
+          : DEFAULT_IMAGE_MODEL,
       conectado: isConnectedSubscriber(user),
     };
   },
@@ -104,6 +110,25 @@ export const setAgentModel = mutation({
   },
 });
 
+/**
+ * Choose the model Vanda paints with by default. Refused on Conectado, where
+ * the plan itself decides (gpt-image-2 on the owner's subscription) — storing
+ * a preference we'd never honour would be a lie told by the UI.
+ */
+export const setImageModel = mutation({
+  args: { modelId: v.string() },
+  handler: async (ctx, { modelId }): Promise<void> => {
+    const user = await requireUser(ctx);
+    if (!isKnownImageModel(modelId)) throw new Error("modelo de imagem desconhecido");
+    if (isConnectedSubscriber(user)) {
+      throw new Error(
+        "no plano ChatGPT toda imagem usa o GPT Image 2 pela sua assinatura — não dá para trocar",
+      );
+    }
+    await ctx.db.patch(user._id, { imageModel: modelId, updatedAt: Date.now() });
+  },
+});
+
 /** The account owner's chosen model — the agent turn reads this. */
 export const orchestratorModelForAccount = internalQuery({
   args: { accountId: v.id("accounts") },
@@ -113,6 +138,23 @@ export const orchestratorModelForAccount = internalQuery({
     if (!ownerId) return undefined;
     const user = await ctx.db.get(ownerId);
     return user?.orchestratorModel;
+  },
+});
+
+/**
+ * The account owner's default painter — what `paint` falls back to when the
+ * caller names no model. Unknown/absent collapses to the catalog default.
+ */
+export const imageModelForAccount = internalQuery({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }): Promise<string> => {
+    const account = await ctx.db.get(accountId);
+    const ownerId: Id<"users"> | undefined = account?.ownerUserId;
+    if (!ownerId) return DEFAULT_IMAGE_MODEL;
+    const user = await ctx.db.get(ownerId);
+    return user?.imageModel && isKnownImageModel(user.imageModel)
+      ? user.imageModel
+      : DEFAULT_IMAGE_MODEL;
   },
 });
 
