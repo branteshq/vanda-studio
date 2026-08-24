@@ -638,6 +638,17 @@ export default defineSchema({
   // Audit log of run_code executions: the agent-authored Python, its output, and
   // the images it produced. Doubles as the rate-limit counter and the seed for
   // promoting successful runs into reusable templates later.
+  codeRunArtifacts: defineTable({
+    accountId: v.id("accounts"),
+    codeRunId: v.id("codeRuns"),
+    filename: v.string(),
+    mimeType: v.string(),
+    content: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_run", ["codeRunId"])
+    .index("by_account_created", ["accountId", "createdAt"]),
+
   codeRuns: defineTable({
     accountId: v.id("accounts"),
     threadId: v.optional(v.string()),

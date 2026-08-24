@@ -14,9 +14,11 @@ import {
 import { CODE_IMAGE_MODEL } from "./imageModels";
 import { USAGE_LIMIT_MESSAGE } from "./usage";
 import { sniffImage } from "./pipeline/imageBytes";
+import { entityName } from "./workspace/types";
 
 /** Sandbox output above this is rejected: nothing legitimate composes >32MP. */
 const MAX_OUTPUT_PIXELS = 32_000_000;
+const MAX_TEXT_ARTIFACT_BYTES = 1024 * 1024;
 /** Agent-visible text budget for stdout/stderr; the tail carries the traceback. */
 const MAX_LOG_CHARS = 8 * 1024;
 /** 2 vCPU + 2 GiB at E2B per-second rates — recorded, not billed to the user. */
@@ -52,6 +54,15 @@ const bytesBlob = (bytes: Uint8Array, mimeType: string): Blob => {
   return new Blob([copy.buffer], { type: mimeType });
 };
 
+const artifactMimeType = (filename: string): string | null => {
+  const lower = filename.toLowerCase();
+  if (lower.endsWith(".json")) return "application/json";
+  if (lower.endsWith(".csv")) return "text/csv";
+  if (lower.endsWith(".md")) return "text/markdown";
+  if (lower.endsWith(".txt")) return "text/plain";
+  return null;
+};
+
 /**
  * Execute agent-authored Python against account-owned images in an isolated
  * sandbox. Python failures are results (ok: false + traceback), not errors —
@@ -78,6 +89,12 @@ export const run = internalAction({
     stdout: string;
     stderr: string;
     images: Array<{ imageId: Id<"images">; name: string; width: number; height: number }>;
+    artifacts: Array<{
+      artifactId: Id<"codeRunArtifacts">;
+      filename: string;
+      mimeType: string;
+      path: string;
+    }>;
   }> => {
     const budget = await ctx.runQuery(internal.usage.budget, { accountId });
     if (!budget.ok) throw new Error(USAGE_LIMIT_MESSAGE);
@@ -112,6 +129,11 @@ export const run = internalAction({
     const files: SandboxInputFile[] = [];
     const meta: Array<Record<string, unknown>> = [];
     for (const input of inputs) {
+      if (input.kind === "text") {
+        files.push({ path: input.sandboxPath, data: input.content });
+        meta.push({ path: input.sandboxPath, kind: "text", mimeType: input.mimeType });
+        continue;
+      }
       const url = await resolveSourceUrl(ctx, input);
       const response = await fetch(url);
       if (!response.ok) return fail(`falha ao carregar imagem de entrada (${response.status})`);
@@ -120,6 +142,7 @@ export const run = internalAction({
       files.push({ path: input.sandboxPath, data: bytes });
       meta.push({
         path: input.sandboxPath,
+        kind: "image",
         imageId: input.imageId,
         name: input.name,
         width: sniffed?.width ?? input.width,
@@ -184,40 +207,76 @@ export const run = internalAction({
     const durationMs = Date.now() - startedAt;
     const costUsd = durationMs * SANDBOX_USD_PER_MS;
 
-    // Sandbox output is untrusted: only real PNG/JPEG under the pixel cap is stored.
+    // Sandbox output is untrusted: images are sniffed; structured text is
+    // UTF-8 decoded and capped before it enters the workspace.
     const skipped = [...result.skipped];
     const images: Array<{ imageId: Id<"images">; name: string; width: number; height: number }> =
       [];
+    const artifacts: Array<{
+      artifactId: Id<"codeRunArtifacts">;
+      filename: string;
+      mimeType: string;
+      path: string;
+    }> = [];
+    const runName = entityName(description, codeRunId);
     for (const output of result.outputs) {
       const sniffed = sniffImage(output.bytes);
-      if (!sniffed) {
-        skipped.push(`${output.filename}: não é PNG/JPEG válido`);
+      if (sniffed) {
+        if (sniffed.width * sniffed.height > MAX_OUTPUT_PIXELS) {
+          skipped.push(`${output.filename}: maior que ${MAX_OUTPUT_PIXELS / 1_000_000}MP`);
+          continue;
+        }
+        const storageId = await ctx.storage.store(bytesBlob(output.bytes, sniffed.mimeType));
+        const imageId = await ctx.runMutation(internal.imagesData.savePaintedImage, {
+          accountId,
+          storageId,
+          prompt: description,
+          mimeType: sniffed.mimeType,
+          width: sniffed.width,
+          height: sniffed.height,
+          model: CODE_IMAGE_MODEL,
+          generationMs: durationMs,
+          costUsd: costUsd / result.outputs.length,
+          name: filenameToName(output.filename),
+          promptAuthor: "vanda",
+          codeRunId,
+        });
+        images.push({
+          imageId,
+          name: filenameToName(output.filename),
+          width: sniffed.width,
+          height: sniffed.height,
+        });
         continue;
       }
-      if (sniffed.width * sniffed.height > MAX_OUTPUT_PIXELS) {
-        skipped.push(`${output.filename}: maior que ${MAX_OUTPUT_PIXELS / 1_000_000}MP`);
+
+      const mimeType = artifactMimeType(output.filename);
+      if (!mimeType) {
+        skipped.push(`${output.filename}: extensão de saída não permitida`);
         continue;
       }
-      const storageId = await ctx.storage.store(bytesBlob(output.bytes, sniffed.mimeType));
-      const imageId = await ctx.runMutation(internal.imagesData.savePaintedImage, {
-        accountId,
-        storageId,
-        prompt: description,
-        mimeType: sniffed.mimeType,
-        width: sniffed.width,
-        height: sniffed.height,
-        model: CODE_IMAGE_MODEL,
-        generationMs: durationMs,
-        costUsd: costUsd / result.outputs.length,
-        name: filenameToName(output.filename),
-        promptAuthor: "vanda",
+      if (output.bytes.byteLength > MAX_TEXT_ARTIFACT_BYTES) {
+        skipped.push(`${output.filename}: maior que 1MB`);
+        continue;
+      }
+      let content: string;
+      try {
+        content = new TextDecoder("utf-8", { fatal: true }).decode(output.bytes);
+      } catch {
+        skipped.push(`${output.filename}: texto não é UTF-8 válido`);
+        continue;
+      }
+      const artifactId = await ctx.runMutation(internal.codeRunsData.saveCodeRunArtifact, {
         codeRunId,
+        filename: output.filename,
+        mimeType,
+        content,
       });
-      images.push({
-        imageId,
-        name: filenameToName(output.filename),
-        width: sniffed.width,
-        height: sniffed.height,
+      artifacts.push({
+        artifactId,
+        filename: output.filename,
+        mimeType,
+        path: `/runs/${runName}/outputs/${output.filename}`,
       });
     }
 
@@ -236,6 +295,6 @@ export const run = internalAction({
       costUsd,
       imageIds: images.map((image) => image.imageId),
     });
-    return { ok: result.ok, stdout, stderr, images };
+    return { ok: result.ok, stdout, stderr, images, artifacts };
   },
 });

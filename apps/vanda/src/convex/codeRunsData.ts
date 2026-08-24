@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery } from "./_generated/server";
 import { chargeUsage } from "./usage";
+import { readPath } from "./workspace";
 import { resolveImagePath } from "./workspace/resolveImage";
 import { entityName, imageFileParts } from "./workspace/types";
 
@@ -20,11 +21,10 @@ const canonicalPath = (image: Doc<"images">): string => {
 };
 
 /**
- * Identity wall for run_code inputs, sibling of resolvePaintInput: only images
- * the account owns may be materialized into the sandbox. Each input is a
- * workspace path (/images/…, /brand/references/…, /projects/…/renders/NN) or a
- * bare imageId (attachments). Returns the sandbox mirror path plus the
- * metadata meta.json is built from.
+ * Identity wall for run_code inputs. Account-owned images and any text file
+ * visible through the account's workspace may be materialized; credentials and
+ * provider internals never appear in the workspace, so they cannot cross into
+ * Python. Bare ids remain image attachment ids for backwards compatibility.
  */
 export const resolveCodeRunInput = internalQuery({
   args: {
@@ -35,21 +35,51 @@ export const resolveCodeRunInput = internalQuery({
     if (!(await ctx.db.get(accountId))) throw new Error("account not found");
     return Promise.all(
       inputs.map(async (input) => {
-        let image: Doc<"images"> | null = null;
-        let sandboxPath: string;
         if (input.startsWith("/")) {
-          image = await resolveImagePath(ctx, accountId, input);
-          if (!image) throw new Error(`imagem não encontrada no workspace: ${input}`);
-          sandboxPath = `${SANDBOX_HOME}/${input.split("/").filter(Boolean).join("/")}`;
-        } else {
-          const imageId = ctx.db.normalizeId("images", input);
-          image = imageId ? await ctx.db.get(imageId) : null;
-          if (!image) throw new Error(`imagem não encontrada: ${input}`);
-          sandboxPath = `${SANDBOX_HOME}${canonicalPath(image)}`;
+          const sandboxPath = `${SANDBOX_HOME}/${input.split("/").filter(Boolean).join("/")}`;
+          const image = await resolveImagePath(ctx, accountId, input);
+          if (image) {
+            if (image.accountId !== accountId) throw new Error("image not found");
+            return {
+              kind: "image" as const,
+              sandboxPath,
+              imageId: image._id,
+              name: image.name ?? null,
+              width: image.width ?? null,
+              height: image.height ?? null,
+              mimeType: image.mimeType ?? null,
+              externalUrl: image.externalUrl ?? null,
+              storageId: image.storageId ?? null,
+            };
+          }
+          const resolved = await readPath(ctx, accountId, input);
+          if (!resolved.ok || resolved.file.kind !== "text") {
+            throw new Error(`arquivo de entrada não encontrado no workspace: ${input}`);
+          }
+          if (resolved.file.text.length > 2 * 1024 * 1024) {
+            throw new Error(`arquivo de entrada maior que 2MB: ${input}`);
+          }
+          return {
+            kind: "text" as const,
+            sandboxPath,
+            content: resolved.file.text,
+            mimeType: input.endsWith(".json")
+              ? "application/json"
+              : input.endsWith(".csv")
+                ? "text/csv"
+                : input.endsWith(".md")
+                  ? "text/markdown"
+                  : "text/plain",
+          };
         }
-        if (image.accountId !== accountId) throw new Error("image not found");
+
+        const imageId = ctx.db.normalizeId("images", input);
+        const image: Doc<"images"> | null = imageId ? await ctx.db.get(imageId) : null;
+        if (!image || image.accountId !== accountId)
+          throw new Error(`imagem não encontrada: ${input}`);
         return {
-          sandboxPath,
+          kind: "image" as const,
+          sandboxPath: `${SANDBOX_HOME}${canonicalPath(image)}`,
           imageId: image._id,
           name: image.name ?? null,
           width: image.width ?? null,
@@ -89,6 +119,31 @@ export const beginCodeRun = internalMutation({
       description: args.description,
       status: "running",
       ...(args.threadId ? { threadId: args.threadId } : {}),
+      createdAt: Date.now(),
+    });
+  },
+});
+
+export const saveCodeRunArtifact = internalMutation({
+  args: {
+    codeRunId: v.id("codeRuns"),
+    filename: v.string(),
+    mimeType: v.string(),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const run = await ctx.db.get(args.codeRunId);
+    if (!run) throw new Error("code run not found");
+    if (args.content.length > 1024 * 1024) throw new Error("artifact larger than 1MB");
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(args.filename)) {
+      throw new Error("invalid artifact filename");
+    }
+    return ctx.db.insert("codeRunArtifacts", {
+      accountId: run.accountId,
+      codeRunId: run._id,
+      filename: args.filename,
+      mimeType: args.mimeType,
+      content: args.content,
       createdAt: Date.now(),
     });
   },

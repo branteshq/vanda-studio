@@ -4,7 +4,7 @@
 //   E2B_API_KEY=... node build.mjs
 //
 // The template is what the run_code tool boots: code-interpreter base (Jupyter
-// kernel for runCode) + Pillow/numpy + a font pack for deterministic text.
+// kernel for runCode) + image/data-analysis libraries + a font pack.
 // /home/user/fonts/manifest.json is the lookup table scripts read for paths.
 import { Template, defaultBuildLogger, waitForPort } from "e2b";
 
@@ -26,12 +26,10 @@ const FONTS = [
 
 const template = Template()
   .fromImage("e2bdev/code-interpreter:latest")
-  .runCmd("pip install --no-cache-dir pillow numpy")
+  .runCmd("pip install --no-cache-dir pillow numpy pandas matplotlib scikit-learn")
   .runCmd("mkdir -p /home/user/fonts")
   .runCmd(
-    FONTS.map(
-      ([file, path]) => `curl -fsSLo /home/user/fonts/${file} "${FONTS_BASE}/${path}"`,
-    ),
+    FONTS.map(([file, path]) => `curl -fsSLo /home/user/fonts/${file} "${FONTS_BASE}/${path}"`),
   )
   .copy("manifest.json", "/home/user/fonts/manifest.json")
   .runCmd("chmod -R a+r /home/user/fonts")

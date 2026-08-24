@@ -51,7 +51,8 @@ Regras de comportamento:
   - Para MODIFICAR uma imagem que já existe (trocar fundo, cenário, roupa, etc.), passe o id dela em editOfImageId e descreva no prompt só o que muda. É o caso quando o usuário anexa uma foto e pede para editá-la.
   - Para gerar uma imagem NOVA condicionada a um rosto, produto ou lugar específico, passe o(s) id(s) em referenceImageIds. Servem tanto imagens anexadas quanto as de /brand/references, sem autorização extra.
   - Os IDs das imagens anexadas chegam no contexto interno da mensagem (vanda_attachment_context). Só peça para o usuário enviar/subir uma foto quando não houver NENHUMA imagem disponível (nem anexada, nem em /brand/references) e o pedido exigir uma pessoa/produto específico.
-- Edição de imagem — regra de roteamento entre paint e run_code: mudança GENERATIVA (trocar fundo, cenário, roupa, criar do zero) → paint. Composição DETERMINÍSTICA (texto sobre a imagem, logo, corte, redimensionar, colagem, moldura, cor exata da marca) → run_code. Texto renderizado por modelo generativo erra; texto composto por código não erra. run_code é quase gratuito — prefira-o sempre que o resultado precisar ser exato.`;
+- Edição de imagem — regra de roteamento entre paint e run_code: mudança GENERATIVA (trocar fundo, cenário, roupa, criar do zero) → paint. Composição DETERMINÍSTICA (texto sobre a imagem, logo, corte, redimensionar, colagem, moldura, cor exata da marca) → run_code. Texto renderizado por modelo generativo erra; texto composto por código não erra.
+- Análise com Python: run_code também recebe JSON/CSV/Markdown do workspace, inclusive /instagram, para calcular taxas, comparar perfis, detectar outliers, agrupar temas e produzir tabelas/gráficos. Ele não tem internet: primeiro adquira os dados com as ferramentas Instagram, depois passe os caminhos em inputPaths.`;
 
 const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });
 const SKILLS_PROMPT = formatSkillsForSystemPrompt();
@@ -317,9 +318,9 @@ const paint = createTool({
 
 const runCode = createTool({
   description:
-    'Executa código Python (Pillow/numpy) num sandbox isolado para editar imagens de forma DETERMINÍSTICA: sobrepor texto, aplicar logo, cortar, redimensionar, montar colagens, aplicar cores exatas da marca. As imagens de `inputPaths` aparecem no sandbox no MESMO caminho do workspace, sob /home/user (ex.: /images/promo-x1y2z3.jpg → /home/user/images/promo-x1y2z3.jpg); /home/user/meta.json lista todas com dimensões e imageId. Salve os resultados como PNG ou JPEG em /home/user/out/ — o nome do arquivo vira o nome na galeria (promo-agosto.png → "promo agosto"). Fontes instaladas (Poppins, Inter, Montserrat, Lora, Playfair Display, Roboto) estão listadas em /home/user/fonts/manifest.json com o caminho de cada uma. Sem acesso à internet. Se o código falhar, o traceback volta em stderr: corrija o código e rode de novo.',
+    "Executa Python offline num sandbox isolado para análise de dados e composição visual determinística. `inputPaths` aceita JSON/CSV/Markdown/texto de qualquer área legível do workspace e imagens da conta; cada arquivo aparece sob /home/user no MESMO caminho, e /home/user/meta.json lista tipo e metadados. Bibliotecas: pandas, numpy, scikit-learn, matplotlib e Pillow. Salve resultados em /home/user/out/ como JSON, CSV, Markdown, TXT, PNG ou JPEG; textos ficam em /runs/<execução>/outputs e imagens entram na galeria. Fontes instaladas estão em /home/user/fonts/manifest.json. Sem internet nem credenciais. Se falhar, leia o traceback, corrija e tente de novo.",
   inputSchema: z.object({
-    code: z.string().describe("código Python 3 completo; Pillow e numpy disponíveis"),
+    code: z.string().describe("código Python 3 completo para analisar dados ou compor imagens"),
     description: z
       .string()
       .describe("descrição curta do que o código faz, na voz da marca (vira o prompt na galeria)"),
@@ -327,9 +328,7 @@ const runCode = createTool({
       .array(z.string())
       .max(10)
       .optional()
-      .describe(
-        "caminhos do workspace (/images/…, /brand/references/…) ou imageIds diretos (anexos)",
-      ),
+      .describe("caminhos de texto/dados/imagens do workspace ou imageIds diretos de anexos"),
   }),
   execute: async (
     ctx: VandaToolCtx,

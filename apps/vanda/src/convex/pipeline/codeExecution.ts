@@ -20,7 +20,7 @@ const SANDBOX_TTL_MS = 60_000;
 export const MAX_OUTPUT_FILES = 10;
 export const MAX_OUTPUT_FILE_BYTES = 25 * 1024 * 1024;
 
-const OUTPUT_EXTENSIONS = [".png", ".jpg", ".jpeg"];
+const OUTPUT_EXTENSIONS = [".png", ".jpg", ".jpeg", ".json", ".csv", ".md", ".txt"];
 
 export interface SandboxInputFile {
   /** Absolute path inside the sandbox. */
@@ -168,6 +168,12 @@ export const e2bCodeSandboxLayer = (input: {
                 message: error instanceof Error ? error.message : String(error),
               }),
           }),
-        (sandbox) => Effect.promise(() => sandbox.kill().then(() => {}, () => {})),
+        (sandbox) =>
+          Effect.promise(() =>
+            sandbox.kill().then(
+              () => {},
+              () => {},
+            ),
+          ),
       ),
   });

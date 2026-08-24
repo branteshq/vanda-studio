@@ -4,7 +4,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { internal } from "./_generated/api";
 import { CODE_RUN_RATE_LIMIT } from "./codeRunsData";
-import { entitySuffix } from "./workspace/types";
+import { entityName, entitySuffix } from "./workspace/types";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -72,6 +72,36 @@ describe("run_code identity boundary", () => {
     ]);
   });
 
+  it("materializes normalized Instagram JSON at the same workspace path", async () => {
+    const { t, accountId } = await setup();
+    await t.run((ctx) =>
+      ctx.db.insert("instagramObservations", {
+        accountId,
+        requestKey: "profile:self",
+        operation: "profile",
+        target: "self",
+        workspacePath: "/instagram/self/profile.json",
+        source: "upload_post",
+        completeness: "partial",
+        payload: { handle: "cafelumiar", followers: 420 },
+        observedAt: 100,
+        expiresAt: 200,
+      }),
+    );
+    const resolved = await t.query(internal.codeRunsData.resolveCodeRunInput, {
+      accountId,
+      inputs: ["/instagram/self/profile.json"],
+    });
+    expect(resolved).toMatchObject([
+      {
+        kind: "text",
+        sandboxPath: "/home/user/instagram/self/profile.json",
+        mimeType: "application/json",
+      },
+    ]);
+    expect(resolved[0]?.kind === "text" && resolved[0].content).toContain("cafelumiar");
+  });
+
   it("rejects foreign ids and unknown workspace paths", async () => {
     const { t, accountId, foreignImageId } = await setup();
     await expect(
@@ -79,13 +109,13 @@ describe("run_code identity boundary", () => {
         accountId,
         inputs: [foreignImageId],
       }),
-    ).rejects.toThrow("image not found");
+    ).rejects.toThrow("imagem não encontrada");
     await expect(
       t.query(internal.codeRunsData.resolveCodeRunInput, {
         accountId,
         inputs: [`/images/segredo-alheio-${entitySuffix(foreignImageId)}.jpg`],
       }),
-    ).rejects.toThrow("imagem não encontrada no workspace");
+    ).rejects.toThrow("arquivo de entrada não encontrado no workspace");
   });
 });
 
@@ -136,6 +166,34 @@ describe("run_code rate limit and run log", () => {
         description: "estouro",
       }),
     ).rejects.toThrow("muitas execuções");
+  });
+
+  it("stores structured artifacts under the run workspace", async () => {
+    const { t, accountId } = await setup();
+    const codeRunId = await t.mutation(internal.codeRunsData.beginCodeRun, {
+      accountId,
+      code: "x",
+      description: "comparar perfis",
+    });
+    await t.mutation(internal.codeRunsData.saveCodeRunArtifact, {
+      codeRunId,
+      filename: "ranking.json",
+      mimeType: "application/json",
+      content: '{"winner":"cafelumiar"}',
+    });
+    const runName = entityName("comparar perfis", codeRunId);
+    const listing = await t.query(internal.workspaceData.list, {
+      accountId,
+      path: `/runs/${runName}/outputs`,
+    });
+    expect(listing.ok && listing.entries.map((entry) => entry.name)).toEqual(["ranking.json"]);
+    const artifact = await t.query(internal.workspaceData.read, {
+      accountId,
+      path: `/runs/${runName}/outputs/ranking.json`,
+    });
+    expect(artifact.ok && artifact.file.kind === "text" && artifact.file.text).toContain(
+      "cafelumiar",
+    );
   });
 
   it("records a code-produced image linked to its run", async () => {
