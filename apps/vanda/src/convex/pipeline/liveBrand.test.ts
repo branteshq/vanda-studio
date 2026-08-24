@@ -67,6 +67,8 @@ const readerLayer = (overrides: Partial<InstagramReaderShape> = {}) =>
         comments: 14,
         shares: 8,
         saves: 22,
+        followerDemographics: null,
+        engagedAudienceDemographics: null,
       }),
     ...overrides,
   });

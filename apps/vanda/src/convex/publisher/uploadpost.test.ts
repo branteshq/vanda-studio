@@ -3,6 +3,7 @@ import {
   getInstagramAnalytics,
   getInstagramComments,
   getInstagramMedia,
+  getInstagramPostAnalytics,
   instagramProfileInfoOf,
 } from "./uploadpost";
 
@@ -126,9 +127,49 @@ describe("Upload-Post Instagram reads", () => {
       comments: 14,
       shares: 8,
       saves: 22,
+      followerDemographics: null,
+      engagedAudienceDemographics: null,
     });
     expect(String(fetchMock.mock.calls[0]![0])).toContain(
       "/api/analytics/account%2F1?platforms=instagram",
+    );
+  });
+
+  it("reads live insights for an organic connected post", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      response({
+        platforms: {
+          instagram: {
+            platform_post_id: "media-1",
+            post_metrics: {
+              likes: 30,
+              comments: 4,
+              views: 900,
+              reach: 700,
+              impressions: 950,
+              saves: 12,
+              shares: 5,
+            },
+          },
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const analytics = await getInstagramPostAnalytics("account-1", "media-1");
+
+    expect(analytics).toEqual({
+      postId: "media-1",
+      likes: 30,
+      comments: 4,
+      views: 900,
+      reach: 700,
+      impressions: 950,
+      saves: 12,
+      shares: 5,
+    });
+    expect(String(fetchMock.mock.calls[0]![0])).toContain(
+      "platform_post_id=media-1&platform=instagram&user=account-1",
     );
   });
 

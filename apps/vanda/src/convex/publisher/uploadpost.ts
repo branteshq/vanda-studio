@@ -188,6 +188,19 @@ export interface InstagramAnalytics {
   readonly comments: number | null;
   readonly shares: number | null;
   readonly saves: number | null;
+  readonly followerDemographics: unknown | null;
+  readonly engagedAudienceDemographics: unknown | null;
+}
+
+export interface InstagramPostAnalytics {
+  readonly postId: string;
+  readonly likes: number | null;
+  readonly comments: number | null;
+  readonly views: number | null;
+  readonly reach: number | null;
+  readonly impressions: number | null;
+  readonly saves: number | null;
+  readonly shares: number | null;
 }
 
 const stringOf = (value: unknown): string | null =>
@@ -309,6 +322,44 @@ export const getInstagramAnalytics = async (username: string): Promise<Instagram
     comments: finiteNumberOf(instagram["comments"]),
     shares: finiteNumberOf(instagram["shares"]),
     saves: finiteNumberOf(instagram["saves"]),
+    followerDemographics: instagram["follower_demographics"] ?? null,
+    engagedAudienceDemographics: instagram["engaged_audience_demographics"] ?? null,
+  };
+};
+
+/** Read live private insights for an owned post, including organic posts. */
+export const getInstagramPostAnalytics = async (
+  username: string,
+  postId: string,
+): Promise<InstagramPostAnalytics> => {
+  const raw = await upJson<Record<string, unknown>>(
+    queryPath("/uploadposts/post-analytics", {
+      platform_post_id: postId,
+      platform: "instagram",
+      user: username,
+    }),
+  );
+  const platforms =
+    raw["platforms"] && typeof raw["platforms"] === "object"
+      ? (raw["platforms"] as Record<string, unknown>)
+      : {};
+  const instagram =
+    platforms["instagram"] && typeof platforms["instagram"] === "object"
+      ? (platforms["instagram"] as Record<string, unknown>)
+      : {};
+  const metrics =
+    instagram["post_metrics"] && typeof instagram["post_metrics"] === "object"
+      ? (instagram["post_metrics"] as Record<string, unknown>)
+      : {};
+  return {
+    postId: stringOf(instagram["platform_post_id"]) ?? postId,
+    likes: finiteNumberOf(metrics["likes"]),
+    comments: finiteNumberOf(metrics["comments"]),
+    views: finiteNumberOf(metrics["views"]),
+    reach: finiteNumberOf(metrics["reach"]),
+    impressions: finiteNumberOf(metrics["impressions"]),
+    saves: finiteNumberOf(metrics["saves"]),
+    shares: finiteNumberOf(metrics["shares"]),
   };
 };
 
