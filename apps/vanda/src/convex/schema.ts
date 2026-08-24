@@ -616,6 +616,25 @@ export default defineSchema({
     .index("by_account_created", ["accountId", "createdAt"])
     .index("by_storage", ["storageId"]),
 
+  // Bounded, normalized reads produced by the Instagram provider router.
+  // The table is both a TTL cache and the source for the read-only /instagram
+  // workspace mount; provider credentials and raw responses never enter it.
+  instagramObservations: defineTable({
+    accountId: v.id("accounts"),
+    requestKey: v.string(),
+    operation: v.string(),
+    target: v.string(),
+    workspacePath: v.string(),
+    source: v.union(v.literal("upload_post"), v.literal("apify")),
+    completeness: v.union(v.literal("complete"), v.literal("partial")),
+    payload: v.any(),
+    nextCursor: v.optional(v.string()),
+    observedAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("by_account_request", ["accountId", "requestKey"])
+    .index("by_account_observed", ["accountId", "observedAt"]),
+
   // Audit log of run_code executions: the agent-authored Python, its output, and
   // the images it produced. Doubles as the rate-limit counter and the seed for
   // promoting successful runs into reusable templates later.

@@ -2,6 +2,7 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { brandMount } from "./mounts/brand";
 import { imagesMount } from "./mounts/images";
+import { instagramMount } from "./mounts/instagram";
 import { marketMount } from "./mounts/market";
 import { memoryMount } from "./mounts/memory";
 import { postsMount } from "./mounts/posts";
@@ -16,6 +17,7 @@ const MOUNTS: readonly WorkspaceMount[] = [
   templatesMount,
   skillsMount,
   imagesMount,
+  instagramMount,
   postsMount,
   marketMount,
   runsMount,

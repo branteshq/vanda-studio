@@ -78,6 +78,7 @@ describe("workspace navigation", () => {
         "templates",
         "skills",
         "images",
+        "instagram",
         "posts",
         "market",
         "runs",
