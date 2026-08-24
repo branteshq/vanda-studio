@@ -139,7 +139,7 @@ describe("workspace writes", () => {
     const { t, accountId } = await setup();
     const cases: Array<[string, string]> = [
       ["/images/promo.jpg", "paint"],
-      ["/market/last-scan.json", "start_market_scan"],
+      ["/market/last-scan.json", "ferramentas Instagram"],
       ["/runs/x.json", "/templates"],
       ["/brand/memory.md", "notes.md"],
       ["/nao-existe/x.md", "/memory"],

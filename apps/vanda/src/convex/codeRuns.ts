@@ -266,6 +266,14 @@ export const run = internalAction({
         skipped.push(`${output.filename}: texto não é UTF-8 válido`);
         continue;
       }
+      if (mimeType === "application/json") {
+        try {
+          JSON.parse(content);
+        } catch {
+          skipped.push(`${output.filename}: JSON inválido`);
+          continue;
+        }
+      }
       const artifactId = await ctx.runMutation(internal.codeRunsData.saveCodeRunArtifact, {
         codeRunId,
         filename: output.filename,

@@ -41,6 +41,12 @@ describe("Instagram observation cache and workspace", () => {
       expiresAt: observedAt + 60_000,
     });
 
+    const publicItems = await t.query(internal.instagramData.publicReadItemsSince, {
+      accountId,
+      since: observedAt - 1,
+    });
+    expect(publicItems).toBe(1);
+
     const root = await t.query(internal.workspaceData.list, {
       accountId,
       path: "/instagram",

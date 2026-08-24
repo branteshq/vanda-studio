@@ -14,8 +14,8 @@ one of its resources only when needed.
 
 First principles:
 
-- **Editorial projection, not a database mirror.** 27 tables exist; five mounts are
-  exposed. Each file is a curated view rendered on read (like `/proc`), each mount is an
+- **Editorial projection, not a database mirror.** Domain tables are exposed through
+  curated mounts. Each file is a view rendered on read (like `/proc`), each mount is an
   API contract. Internal pipeline artifacts never leak into the namespace.
 - **One write surface, per-mount handlers (the VFS shape).** `write(path, content)` is
   the only write tool, forever — dispatch lives in the resolver, not in the model's tool
@@ -59,6 +59,11 @@ First principles:
 │       └── LICENSE
 ├── images/                    ← gallery (non-reference images), newest first, cap 100
 │   └── promo-agosto-bvn9.jpg  ← read = header (prompt, model, custo, dims, imageId) + pixels
+├── instagram/                 ← normalized provider observations + provenance
+│   ├── self/profile.json · posts.json · insights.json
+│   ├── public/cafe-vizinho/profile.json · posts.json
+│   ├── posts/ABC123/post.json · comments.json · insights.json
+│   └── searches/cafeterias-pinheiros.json
 ├── projects/
 │   └── cafe-gelado-3kb2/
 │       ├── status.json        ← stage, review, publication state
@@ -72,7 +77,11 @@ First principles:
 │   ├── creators.json
 │   └── last-scan.json
 └── runs/
-    └── cartao-promo-vgpe.json ← codeRuns log: code, stdout/stderr, produced imageIds
+    └── comparar-perfis-vgpe/
+        ├── run.json           ← code, stdout/stderr, images and artifacts
+        └── outputs/
+            ├── ranking.json
+            └── benchmark.csv
 ```
 
 - Markdown for prose-shaped views (model reads them as language), JSON for structured
@@ -98,7 +107,7 @@ step (same philosophy as run_code returning tracebacks).
 convex/workspace/
 ├── types.ts        WorkspaceEntry / WorkspaceFile / WorkspaceMount (list/read/write?)
 ├── documents.ts    workspaceFiles store: save/read/list + documentMount factory
-├── mounts/         brand · memory · templates · skills · images · posts · market · runs
+├── mounts/         brand · memory · templates · skills · images · instagram · posts · market · runs
 └── index.ts        registry, path parsing, writePath, writeNeedsApproval
 
 convex/workspaceData.ts   internalQuery list / read + internalMutation write
@@ -129,12 +138,13 @@ workspace and reference paths (`/brand/references`) instead of tool names.
 
 ## 6. Interaction with run_code (phase 3 — implemented)
 
-run_code takes `inputPaths`: workspace paths resolved by `workspace/resolveImage.ts`
-(scanning the whole account, not just the listing window) or bare imageIds for
-attachments. Each input materializes at its workspace mirror path under `/home/user` —
-the path Vanda reads in conversation is the path her Python opens; `/home/user/meta.json`
-lists them. `paint` still speaks imageIds (listings and read headers always carry them).
-Future: `/brand/kit/` mounted into the sandbox.
+run_code takes `inputPaths`: any text file visible through the account workspace or an
+account-owned image path/bare attachment imageId. Each input materializes at its
+workspace mirror path under `/home/user` — the path Vanda reads in conversation is the
+path her Python opens. `/home/user/meta.json` records each input's kind and metadata.
+This lets offline Python analyze `/instagram` JSON without receiving provider credentials
+or internet access. PNG/JPEG outputs enter the gallery; JSON, CSV, Markdown and text
+outputs are stored under `/runs/<run>/outputs/`. `paint` still speaks imageIds.
 
 ## 7. Testing
 

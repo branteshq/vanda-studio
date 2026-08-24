@@ -58,7 +58,7 @@ inputSchema: z.object({
   // Gallery images materialized as input files, in order. Attached uploads, painted
   // images, and reference photos all qualify (account ownership is the only gate).
   inputImageIds: z.array(z.string()).max(10).optional(),
-})
+});
 ```
 
 Return value to the agent:
@@ -85,11 +85,10 @@ timeout, output validation) throw normally.
   workspace mirror path under `/home/user` — the path the agent read in conversation is
   the path its Python opens. Bare ids land at their canonical `/images` or
   `/brand/references` path.
-- `/home/user/meta.json` — `[{ path, imageId, name, width, height, mimeType }]`.
-- `/home/user/out/` — anything `*.png` / `*.jpg` / `*.jpeg` here is ingested (WebP is out
-  of v1: the byte-sniffing validator only speaks PNG/JPEG).
-  **The filename becomes the gallery name** (`promo-agosto.png` → "promo agosto") — naming
-  stays filesystem-native, no extra schema field.
+- `/home/user/meta.json` — one entry per input with `path`, `kind` and image/text metadata.
+- `/home/user/out/` — PNG/JPEG files are validated and ingested into the gallery; JSON,
+  CSV, Markdown and text are UTF-8 validated, capped at 1 MB and projected under
+  `/runs/<run>/outputs/`. The image filename becomes its gallery name.
 
 ## 4. Execution environment
 
@@ -98,8 +97,8 @@ Custom E2B template **`vanda-imaging`**, defined and built by
 `E2B_API_KEY=... node build.mjs` to rebuild). The base image's runCode server must be
 booted explicitly via `setStartCmd("sudo /root/.jupyter/start-up.sh", waitForPort(49999))`:
 
-- `python:3.12-slim` base + `pillow`, `numpy`.
-- Font pack installed system-wide (deterministic text needs fonts *in the image*):
+- Code-interpreter base + `pillow`, `numpy`, `pandas`, `matplotlib`, `scikit-learn`.
+- Font pack installed system-wide (deterministic text needs fonts _in the image_):
   Inter, Poppins, Montserrat, Lora, Playfair Display, Roboto + DejaVu fallback, with an
   `/home/user/fonts/manifest.json` listing family → path so code never guesses paths.
 - No network. No preinstalled credentials. Nothing account-specific baked in — account
@@ -107,28 +106,25 @@ booted explicitly via `setStartCmd("sudo /root/.jupyter/start-up.sh", waitForPor
 
 Runtime budget per run:
 
-| knob | value | rationale |
-|---|---|---|
-| sandbox spec | 2 vCPU / 2 GB | Pillow on 4K inputs fits comfortably; matches E2B default billing tier |
-| `runCode` timeout | 30 s | any legit Pillow job finishes in single-digit seconds |
-| sandbox TTL | 60 s | backstop if the action dies mid-run; E2B reaps it |
-| cost/run | ~$0.0004 | (2 vCPU + 2 GiB) × ~10 s at E2B per-second rates |
+| knob              | value         | rationale                                                              |
+| ----------------- | ------------- | ---------------------------------------------------------------------- |
+| sandbox spec      | 2 vCPU / 2 GB | Pillow on 4K inputs fits comfortably; matches E2B default billing tier |
+| `runCode` timeout | 30 s          | any legit Pillow job finishes in single-digit seconds                  |
+| sandbox TTL       | 60 s          | backstop if the action dies mid-run; E2B reaps it                      |
+| cost/run          | ~$0.0004      | (2 vCPU + 2 GiB) × ~10 s at E2B per-second rates                       |
 
 ## 5. Convex orchestration
 
 New file `convex/codeRuns.ts` (`"use node"`), one internalAction `run`:
 
-1. `resolveCodeRunInput` (internalQuery in `imagesData.ts`, sibling of
-   `resolvePaintInput`): enforce account ownership on `inputImageIds`, return
-   storage/external URLs + metadata. Insert the `codeRuns` row (`status: "running"`).
-2. Fetch input bytes in the action; `Sandbox.create({ template: "vanda-imaging", ... })`;
-   `files.write` inputs + `meta.json`.
+1. `resolveCodeRunInput` enforces account ownership for images and resolves text through
+   the account-chrooted workspace. Insert the `codeRuns` row (`status: "running"`).
+2. Fetch image bytes and materialize workspace text in the action; create the sandbox and
+   write inputs + `meta.json` at their mirror paths.
 3. `runCode(code, { timeoutMs: 30_000 })`; capture stdout/stderr.
-4. List `/home/user/out`; per file: read bytes, `sniffDimensions`, enforce caps
-   (≤ 10 outputs, ≤ 32 MP each, ≤ 25 MB each — reject the file, not the run).
-5. Store blobs; save rows via `savePaintedImage` with `model: "python/pillow"`,
-   `promptAuthor: "vanda"`, `prompt: description`, `generationMs` = wall time,
-   `costUsd` = duration × rate constant, plus `codeRunId`.
+4. List `/home/user/out`; read at most 10 allowed files and enforce byte/pixel/text caps.
+5. Store image blobs through `savePaintedImage`; store structured text in
+   `codeRunArtifacts`, projected under the run's `outputs/` directory.
 6. Patch the `codeRuns` row (`status`, truncated stdout/stderr, `durationMs`,
    `imageIds`). `finally: sandbox.kill()`.
 
@@ -141,14 +137,14 @@ codeRuns: defineTable({
   code: v.string(),
   description: v.string(),
   status: v.union(v.literal("running"), v.literal("ok"), v.literal("failed")),
-  stdout: v.optional(v.string()),   // truncated to 8 KB
-  stderr: v.optional(v.string()),   // truncated to 8 KB
-  error: v.optional(v.string()),    // infra errors only
+  stdout: v.optional(v.string()), // truncated to 8 KB
+  stderr: v.optional(v.string()), // truncated to 8 KB
+  error: v.optional(v.string()), // infra errors only
   durationMs: v.optional(v.number()),
   costUsd: v.optional(v.number()),
   imageIds: v.optional(v.array(v.id("images"))),
   createdAt: v.number(),
-}).index("by_account", ["accountId", "createdAt"])
+}).index("by_account", ["accountId", "createdAt"]);
 ```
 
 `images` gains one optional field: `codeRunId: v.optional(v.id("codeRuns"))`. Origin stays
@@ -170,14 +166,14 @@ Identical to paint's cooperative stop (`images.ts`):
 
 ## 7. Limits & failure modes
 
-| failure | surfaced as |
-|---|---|
-| Python exception | `ok: false`, traceback in `stderr` — agent self-corrects |
-| timeout (30 s) | `ok: false`, `stderr: "tempo de execução excedido (30s)"` |
-| no outputs, no stdout | `ok: true`, agent told nothing was produced |
-| output too big / not an image | file skipped, noted in returned `stderr` |
-| sandbox provisioning error | tool error (thrown) — infra, not the agent's fault |
-| per-account rate limit | tool error: "muitas execuções, aguarde" |
+| failure                       | surfaced as                                               |
+| ----------------------------- | --------------------------------------------------------- |
+| Python exception              | `ok: false`, traceback in `stderr` — agent self-corrects  |
+| timeout (30 s)                | `ok: false`, `stderr: "tempo de execução excedido (30s)"` |
+| no outputs, no stdout         | `ok: true`, agent told nothing was produced               |
+| output too big / not an image | file skipped, noted in returned `stderr`                  |
+| sandbox provisioning error    | tool error (thrown) — infra, not the agent's fault        |
+| per-account rate limit        | tool error: "muitas execuções, aguarde"                   |
 
 Rate limiting: max **20 runs / 5 min / account** (mutation-side counter on `codeRuns`)
 plus a global concurrency guard sized to the E2B plan (free tier: 20 concurrent

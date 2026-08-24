@@ -2,10 +2,10 @@ import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
-import { decodeUnknownEffect } from "effect/Schema";
 import * as LanguageModel from "effect/unstable/ai/LanguageModel";
+import { makeApifyPublicInstagramProvider } from "../instagram/providers/apify";
+import type { InstagramPost, InstagramProfile } from "../instagram/types";
 import { BREAKOUT_DETECTOR_VERSION, MAX_SOURCE_AGE_MS } from "./inputQuality";
 
 export interface MarketProfile {
@@ -65,263 +65,110 @@ export class MarketDataProvider extends Context.Service<
   MarketDataProviderShape
 >()("@vanda/market/MarketDataProvider") {}
 
-const optionalString = Schema.optional(Schema.NullOr(Schema.String));
-const optionalNumber = Schema.optional(Schema.NullOr(Schema.Number));
-
-const ApifyPost = Schema.Struct({
-  id: optionalString,
-  shortCode: optionalString,
-  url: optionalString,
-  caption: optionalString,
-  type: optionalString,
-  productType: optionalString,
-  displayUrl: optionalString,
-  videoUrl: optionalString,
-  timestamp: optionalString,
-  videoViewCount: optionalNumber,
-  videoPlayCount: optionalNumber,
-  likesCount: optionalNumber,
-  commentsCount: optionalNumber,
-  ownerUsername: optionalString,
-});
-
-const ApifyProfile = Schema.Struct({
-  id: optionalString,
-  username: optionalString,
-  url: optionalString,
-  fullName: optionalString,
-  biography: optionalString,
-  profilePicUrl: optionalString,
-  profilePicUrlHD: optionalString,
-  followersCount: optionalNumber,
-  followsCount: optionalNumber,
-  postsCount: optionalNumber,
-  businessCategoryName: optionalString,
-  private: Schema.optional(Schema.Boolean),
-  verified: Schema.optional(Schema.Boolean),
-  latestPosts: Schema.optional(Schema.Array(ApifyPost)),
-});
-
-const ApifyProfiles = Schema.Array(ApifyProfile);
-
-const ApifyReel = Schema.Struct({
-  id: optionalString,
-  shortCode: optionalString,
-  url: optionalString,
-  caption: optionalString,
-  type: optionalString,
-  productType: optionalString,
-  displayUrl: optionalString,
-  videoUrl: optionalString,
-  timestamp: optionalString,
-  videoViewCount: optionalNumber,
-  videoPlayCount: optionalNumber,
-  likesCount: optionalNumber,
-  commentsCount: optionalNumber,
-  ownerUsername: optionalString,
-  transcript: optionalString,
-});
-
-const ApifyReels = Schema.Array(ApifyReel);
-
-type ApifyPostValue = typeof ApifyPost.Type;
-type ApifyProfileValue = typeof ApifyProfile.Type;
-type ApifyReelValue = typeof ApifyReel.Type;
-
-const nonEmpty = (value: string | null | undefined): string | undefined => {
-  const normalized = value?.trim();
-  return normalized ? normalized : undefined;
-};
-
 export const parseProviderTimestamp = (value: string | null | undefined): number | undefined => {
   const parsed = value ? Date.parse(value) : Number.NaN;
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
-const normalizePost = (post: ApifyPostValue): MarketPost | undefined => {
-  const externalId = nonEmpty(post.id) ?? nonEmpty(post.shortCode);
-  const permalink = nonEmpty(post.url);
-  const publishedAt = parseProviderTimestamp(post.timestamp);
-  if (!externalId || !permalink || publishedAt === undefined) return undefined;
+const marketPostOf = (post: InstagramPost): MarketPost | undefined => {
+  if (post.publishedAt === undefined) return undefined;
   return {
-    externalId,
-    permalink,
-    mediaType: nonEmpty(post.type) ?? "Unknown",
-    publishedAt,
-    ...(nonEmpty(post.shortCode) ? { shortCode: nonEmpty(post.shortCode) } : {}),
-    ...(nonEmpty(post.caption) ? { caption: nonEmpty(post.caption) } : {}),
-    ...(nonEmpty(post.productType) ? { productType: nonEmpty(post.productType) } : {}),
-    ...(nonEmpty(post.displayUrl) ? { thumbnailUrl: nonEmpty(post.displayUrl) } : {}),
-    ...(nonEmpty(post.videoUrl) ? { videoUrl: nonEmpty(post.videoUrl) } : {}),
-    ...(post.videoViewCount != null ? { views: post.videoViewCount } : {}),
-    ...(post.videoPlayCount != null ? { plays: post.videoPlayCount } : {}),
-    ...(post.likesCount != null ? { likes: post.likesCount } : {}),
-    ...(post.commentsCount != null ? { comments: post.commentsCount } : {}),
-    ...(nonEmpty(post.ownerUsername) ? { ownerHandle: nonEmpty(post.ownerUsername) } : {}),
+    externalId: post.id,
+    permalink: post.url,
+    mediaType: post.mediaType,
+    publishedAt: post.publishedAt,
+    ...(post.shortcode !== undefined ? { shortCode: post.shortcode } : {}),
+    ...(post.caption !== undefined ? { caption: post.caption } : {}),
+    ...(post.thumbnailUrl !== undefined ? { thumbnailUrl: post.thumbnailUrl } : {}),
+    ...(post.mediaUrl !== undefined && post.mediaType === "video"
+      ? { videoUrl: post.mediaUrl }
+      : {}),
+    ...(post.publicEngagement.views !== undefined ? { views: post.publicEngagement.views } : {}),
+    ...(post.publicEngagement.plays !== undefined ? { plays: post.publicEngagement.plays } : {}),
+    ...(post.publicEngagement.likes !== undefined ? { likes: post.publicEngagement.likes } : {}),
+    ...(post.publicEngagement.comments !== undefined
+      ? { comments: post.publicEngagement.comments }
+      : {}),
+    ...(post.ownerHandle !== undefined ? { ownerHandle: post.ownerHandle } : {}),
   };
 };
 
-const normalizeProfile = (profile: ApifyProfileValue): MarketProfile | undefined => {
-  const handle = nonEmpty(profile.username);
-  if (!handle) return undefined;
-  return {
-    handle,
-    profileUrl: nonEmpty(profile.url) ?? `https://www.instagram.com/${handle}/`,
-    private: profile.private ?? false,
-    verified: profile.verified ?? false,
-    latestPosts: (profile.latestPosts ?? []).flatMap((post) => {
-      const normalized = normalizePost(post);
-      return normalized ? [normalized] : [];
-    }),
-    ...(nonEmpty(profile.id) ? { externalId: nonEmpty(profile.id) } : {}),
-    ...(nonEmpty(profile.fullName) ? { displayName: nonEmpty(profile.fullName) } : {}),
-    ...(nonEmpty(profile.biography) ? { biography: nonEmpty(profile.biography) } : {}),
-    ...((nonEmpty(profile.profilePicUrlHD) ?? nonEmpty(profile.profilePicUrl))
-      ? { profileImageUrl: nonEmpty(profile.profilePicUrlHD) ?? nonEmpty(profile.profilePicUrl) }
-      : {}),
-    ...(profile.followersCount != null ? { followers: profile.followersCount } : {}),
-    ...(profile.followsCount != null ? { following: profile.followsCount } : {}),
-    ...(profile.postsCount != null ? { postsCount: profile.postsCount } : {}),
-    ...(nonEmpty(profile.businessCategoryName)
-      ? { businessCategory: nonEmpty(profile.businessCategoryName) }
-      : {}),
-  };
-};
+const marketProfileOf = (profile: InstagramProfile): MarketProfile => ({
+  handle: profile.handle,
+  profileUrl: `https://www.instagram.com/${profile.handle}/`,
+  private: profile.private ?? false,
+  verified: profile.verified ?? false,
+  latestPosts: (profile.latestPosts ?? []).flatMap((post) => {
+    const normalized = marketPostOf(post);
+    return normalized ? [normalized] : [];
+  }),
+  ...(profile.id !== undefined ? { externalId: profile.id } : {}),
+  ...(profile.name !== undefined ? { displayName: profile.name } : {}),
+  ...(profile.biography !== undefined ? { biography: profile.biography } : {}),
+  ...(profile.profileImageUrl !== undefined ? { profileImageUrl: profile.profileImageUrl } : {}),
+  ...(profile.followers !== undefined ? { followers: profile.followers } : {}),
+  ...(profile.following !== undefined ? { following: profile.following } : {}),
+  ...(profile.postsCount !== undefined ? { postsCount: profile.postsCount } : {}),
+  ...(profile.category !== undefined ? { businessCategory: profile.category } : {}),
+});
 
-const APIFY_BASE = "https://api.apify.com/v2/acts";
-const PROFILE_ACTOR = "apify~instagram-scraper";
-const REEL_ACTOR = "apify~instagram-reel-scraper";
-
-const apifyRun = <A>(
-  token: string,
-  actor: string,
-  operation: string,
-  input: unknown,
-  schema: Schema.Codec<A, unknown>,
-): Effect.Effect<A, MarketProviderFailed> =>
-  Effect.tryPromise({
-    try: async () => {
-      const response = await fetch(
-        `${APIFY_BASE}/${actor}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(input),
-        },
-      );
-      if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-      return response.json() as Promise<unknown>;
-    },
-    catch: (error) =>
-      new MarketProviderFailed({
-        operation,
-        message: error instanceof Error ? error.message : String(error),
-      }),
-  }).pipe(
-    Effect.flatMap((value) =>
-      decodeUnknownEffect(schema)(value).pipe(
-        Effect.mapError(
-          (error) =>
-            new MarketProviderFailed({ operation, message: `decode failed: ${String(error)}` }),
-        ),
-      ),
-    ),
-    Effect.timeout("4 minutes"),
-    Effect.retry({ times: 1, schedule: Schedule.exponential("500 millis") }),
-    Effect.mapError((error) =>
-      error instanceof MarketProviderFailed
-        ? error
-        : new MarketProviderFailed({ operation, message: "Apify timed out" }),
-    ),
+const marketProviderError = (operation: string) =>
+  Effect.mapError(
+    (error: { readonly message: string }) =>
+      new MarketProviderFailed({ operation, message: error.message }),
   );
 
-export const apifyMarketDataLayer = (token: string): Layer.Layer<MarketDataProvider> =>
-  Layer.succeed(MarketDataProvider, {
+/** Legacy scheduled radar adapted over the same primitive public reader Vanda uses. */
+export const apifyMarketDataLayer = (token: string): Layer.Layer<MarketDataProvider> => {
+  const instagram = makeApifyPublicInstagramProvider(token);
+  return Layer.succeed(MarketDataProvider, {
     searchProfiles: (queries) =>
       Effect.forEach(
         queries.slice(0, 5),
         (query) =>
-          apifyRun(
-            token,
-            PROFILE_ACTOR,
-            `profile_search:${query}`,
-            {
-              directUrls: [],
-              search: query,
-              searchType: "user",
-              searchLimit: 20,
-              resultsType: "details",
-              resultsLimit: 20,
-              addParentData: false,
-              addProfileStatistics: true,
-              proxyConfiguration: { useApifyProxy: true },
-            },
-            ApifyProfiles,
+          instagram.searchProfiles(query, 20).pipe(
+            Effect.map((result) => result.data.map(marketProfileOf)),
+            marketProviderError(`profile_search:${query}`),
           ),
         { concurrency: 5 },
       ).pipe(
         Effect.map((groups) => {
           const byHandle = new Map<string, MarketProfile>();
-          for (const raw of groups.flat()) {
-            const profile = normalizeProfile(raw);
-            if (profile) byHandle.set(profile.handle.toLocaleLowerCase(), profile);
+          for (const profile of groups.flat()) {
+            byHandle.set(profile.handle.toLocaleLowerCase(), profile);
           }
           return [...byHandle.values()];
         }),
       ),
     getProfiles: (handles) =>
-      handles.length === 0
-        ? Effect.succeed([])
-        : apifyRun(
-            token,
-            PROFILE_ACTOR,
-            "profiles",
-            {
-              directUrls: handles.map((handle) => `https://www.instagram.com/${handle}/`),
-              resultsType: "details",
-              resultsLimit: handles.length,
-              addProfileStatistics: true,
-              proxyConfiguration: { useApifyProxy: true },
-            },
-            ApifyProfiles,
-          ).pipe(
-            Effect.map((items) =>
-              items.flatMap((raw) => {
-                const profile = normalizeProfile(raw);
-                return profile ? [profile] : [];
-              }),
-            ),
+      Effect.forEach(
+        handles,
+        (handle) =>
+          instagram.readProfile(handle).pipe(
+            Effect.map((result) => marketProfileOf(result.data)),
+            marketProviderError(`profile:${handle}`),
           ),
+        { concurrency: 5 },
+      ),
     getReel: (permalink) =>
-      apifyRun(
-        token,
-        REEL_ACTOR,
-        "reel",
-        {
-          username: [permalink],
-          resultsLimit: 1,
-          includeTranscript: true,
-          downloadVideos: false,
-        },
-        ApifyReels,
-      ).pipe(
-        Effect.flatMap((items) => {
-          const raw: ApifyReelValue | undefined = items[0];
-          if (!raw)
-            return new MarketProviderFailed({ operation: "reel", message: "empty dataset" });
-          const normalized = normalizePost(raw);
-          if (!normalized)
+      instagram.readPost(permalink, true).pipe(
+        marketProviderError("reel"),
+        Effect.flatMap((result) => {
+          const post = marketPostOf(result.data);
+          if (!post) {
             return new MarketProviderFailed({
               operation: "reel",
-              message: "missing reel identity",
+              message: "missing reel timestamp",
             });
+          }
           return Effect.succeed({
-            ...normalized,
-            ...(nonEmpty(raw.transcript) ? { transcript: nonEmpty(raw.transcript) } : {}),
+            ...post,
+            ...(result.data.transcript !== undefined ? { transcript: result.data.transcript } : {}),
           });
         }),
       ),
   });
+};
 
 export const MarketSearchPlan = Schema.Struct({
   category: Schema.String,

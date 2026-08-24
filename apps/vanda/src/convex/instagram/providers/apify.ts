@@ -1,6 +1,10 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { InstagramProviderFailed, PublicInstagramProvider } from "../service";
+import {
+  InstagramProviderFailed,
+  PublicInstagramProvider,
+  type PublicInstagramProviderShape,
+} from "../service";
 import type { InstagramComment, InstagramPost, InstagramProfile } from "../types";
 
 const APIFY_BASE = "https://api.apify.com/v2/acts";
@@ -101,6 +105,12 @@ export const normalizeApifyProfile = (raw: unknown): InstagramProfile | undefine
         return url ? [url] : [];
       })
     : [];
+  const latestPosts = Array.isArray(item["latestPosts"])
+    ? item["latestPosts"].flatMap((post) => {
+        const normalized = normalizeApifyPost(post);
+        return normalized ? [normalized] : [];
+      })
+    : [];
   return {
     handle,
     ...optional("id", stringOf(item["id"])),
@@ -117,6 +127,7 @@ export const normalizeApifyProfile = (raw: unknown): InstagramProfile | undefine
     ...optional("postsCount", numberOf(item["postsCount"] ?? item["media_count"])),
     ...optional("private", booleanOf(item["private"] ?? item["is_private"])),
     ...optional("verified", booleanOf(item["verified"] ?? item["is_verified"])),
+    ...(latestPosts.length > 0 ? { latestPosts } : {}),
   };
 };
 
@@ -178,109 +189,111 @@ const actorRun = (
 const profileUrl = (handle: string): string =>
   `https://www.instagram.com/${handle.trim().replace(/^@/, "")}/`;
 
+export const makeApifyPublicInstagramProvider = (token: string): PublicInstagramProviderShape => ({
+  searchProfiles: (query, limit) =>
+    actorRun(token, INSTAGRAM_ACTOR, "search_profiles", {
+      directUrls: [],
+      search: query,
+      searchType: "user",
+      searchLimit: limit,
+      resultsType: "details",
+      resultsLimit: limit,
+      addParentData: false,
+      addProfileStatistics: true,
+    }).pipe(
+      Effect.map((items) => {
+        const profiles = items.flatMap((item) => {
+          const normalized = normalizeApifyProfile(item);
+          return normalized ? [normalized] : [];
+        });
+        return {
+          data: profiles,
+          completeness: profiles.length >= limit ? ("partial" as const) : ("complete" as const),
+        };
+      }),
+    ),
+  readProfile: (handle) =>
+    actorRun(token, INSTAGRAM_ACTOR, "profile", {
+      directUrls: [profileUrl(handle)],
+      resultsType: "details",
+      resultsLimit: 1,
+      addParentData: false,
+      addProfileStatistics: true,
+    }).pipe(
+      Effect.flatMap((items) => {
+        const profile = normalizeApifyProfile(items[0]);
+        return profile
+          ? Effect.succeed({ data: profile, completeness: "complete" as const })
+          : new InstagramProviderFailed({
+              provider: "apify",
+              operation: "profile",
+              message: `profile @${handle} not found`,
+            });
+      }),
+    ),
+  listPosts: (handle, limit) =>
+    actorRun(token, INSTAGRAM_ACTOR, "posts", {
+      directUrls: [profileUrl(handle)],
+      resultsType: "posts",
+      resultsLimit: limit,
+      addParentData: false,
+    }).pipe(
+      Effect.map((items) => {
+        const posts = items.flatMap((item) => {
+          const normalized = normalizeApifyPost(item);
+          return normalized ? [normalized] : [];
+        });
+        return {
+          data: posts,
+          completeness: posts.length >= limit ? ("partial" as const) : ("complete" as const),
+        };
+      }),
+    ),
+  readPost: (postUrl, includeTranscript) =>
+    actorRun(
+      token,
+      includeTranscript ? REEL_ACTOR : INSTAGRAM_ACTOR,
+      "post",
+      includeTranscript
+        ? {
+            username: [postUrl],
+            resultsLimit: 1,
+            includeTranscript: true,
+            downloadVideos: false,
+          }
+        : { directUrls: [postUrl], resultsType: "posts", resultsLimit: 1 },
+    ).pipe(
+      Effect.flatMap((items) => {
+        const post = normalizeApifyPost(items[0]);
+        return post
+          ? Effect.succeed({ data: post, completeness: "complete" as const })
+          : new InstagramProviderFailed({
+              provider: "apify",
+              operation: "post",
+              message: "post not found",
+            });
+      }),
+    ),
+  listComments: (postUrl, limit) =>
+    actorRun(token, INSTAGRAM_ACTOR, "comments", {
+      directUrls: [postUrl],
+      resultsType: "comments",
+      resultsLimit: limit,
+    }).pipe(
+      Effect.map((items) => {
+        const comments = items.flatMap((item) => {
+          const normalized = normalizeComment(item);
+          return normalized ? [normalized] : [];
+        });
+        return {
+          data: comments,
+          completeness: comments.length >= limit ? ("partial" as const) : ("complete" as const),
+        };
+      }),
+    ),
+});
+
 export const apifyPublicInstagramProviderLayer = (
   token: string,
 ): Layer.Layer<PublicInstagramProvider> =>
-  Layer.succeed(PublicInstagramProvider, {
-    searchProfiles: (query, limit) =>
-      actorRun(token, INSTAGRAM_ACTOR, "search_profiles", {
-        directUrls: [],
-        search: query,
-        searchType: "user",
-        searchLimit: limit,
-        resultsType: "details",
-        resultsLimit: limit,
-        addParentData: false,
-        addProfileStatistics: true,
-      }).pipe(
-        Effect.map((items) => {
-          const profiles = items.flatMap((item) => {
-            const normalized = normalizeApifyProfile(item);
-            return normalized ? [normalized] : [];
-          });
-          return {
-            data: profiles,
-            completeness: profiles.length >= limit ? ("partial" as const) : ("complete" as const),
-          };
-        }),
-      ),
-    readProfile: (handle) =>
-      actorRun(token, INSTAGRAM_ACTOR, "profile", {
-        directUrls: [profileUrl(handle)],
-        resultsType: "details",
-        resultsLimit: 1,
-        addParentData: false,
-        addProfileStatistics: true,
-      }).pipe(
-        Effect.flatMap((items) => {
-          const profile = normalizeApifyProfile(items[0]);
-          return profile
-            ? Effect.succeed({ data: profile, completeness: "complete" as const })
-            : new InstagramProviderFailed({
-                provider: "apify",
-                operation: "profile",
-                message: `profile @${handle} not found`,
-              });
-        }),
-      ),
-    listPosts: (handle, limit) =>
-      actorRun(token, INSTAGRAM_ACTOR, "posts", {
-        directUrls: [profileUrl(handle)],
-        resultsType: "posts",
-        resultsLimit: limit,
-        addParentData: false,
-      }).pipe(
-        Effect.map((items) => {
-          const posts = items.flatMap((item) => {
-            const normalized = normalizeApifyPost(item);
-            return normalized ? [normalized] : [];
-          });
-          return {
-            data: posts,
-            completeness: posts.length >= limit ? ("partial" as const) : ("complete" as const),
-          };
-        }),
-      ),
-    readPost: (postUrl, includeTranscript) =>
-      actorRun(
-        token,
-        includeTranscript ? REEL_ACTOR : INSTAGRAM_ACTOR,
-        "post",
-        includeTranscript
-          ? {
-              username: [postUrl],
-              resultsLimit: 1,
-              includeTranscript: true,
-              downloadVideos: false,
-            }
-          : { directUrls: [postUrl], resultsType: "posts", resultsLimit: 1 },
-      ).pipe(
-        Effect.flatMap((items) => {
-          const post = normalizeApifyPost(items[0]);
-          return post
-            ? Effect.succeed({ data: post, completeness: "complete" as const })
-            : new InstagramProviderFailed({
-                provider: "apify",
-                operation: "post",
-                message: "post not found",
-              });
-        }),
-      ),
-    listComments: (postUrl, limit) =>
-      actorRun(token, INSTAGRAM_ACTOR, "comments", {
-        directUrls: [postUrl],
-        resultsType: "comments",
-        resultsLimit: limit,
-      }).pipe(
-        Effect.map((items) => {
-          const comments = items.flatMap((item) => {
-            const normalized = normalizeComment(item);
-            return normalized ? [normalized] : [];
-          });
-          return {
-            data: comments,
-            completeness: comments.length >= limit ? ("partial" as const) : ("complete" as const),
-          };
-        }),
-      ),
-  });
+  Layer.succeed(PublicInstagramProvider, makeApifyPublicInstagramProvider(token));

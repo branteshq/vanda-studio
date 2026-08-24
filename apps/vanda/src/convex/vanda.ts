@@ -1,10 +1,8 @@
 import { Agent, createTool, stepCountIs, type ToolCtx } from "@convex-dev/agent";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { v } from "convex/values";
 import { z } from "zod";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { internalAction } from "./_generated/server";
 import { formatSkillsForSystemPrompt } from "./skills/catalog";
 import { makeInstagramTools } from "./tools/instagram";
 
@@ -40,7 +38,7 @@ Regras de comportamento:
 - Nunca afirme que algo foi criado ou publicado sem confirmar pelo estado real — o estado de todos os posts (rascunho, agendado, publicado, falhou) vive em /posts; leia antes de afirmar qualquer coisa sobre publicações. Se algo falhou, diga exatamente o que falhou.
 - Explique decisões com a evidência que as sustenta (números, motivo do gatilho, por que serve para esta marca).
 - Instagram: use scope=connected para posts, comentários e insights privados do dono; use scope=public e Apify para perfis externos. Nunca trate contador público (likes/views) como insight privado (reach/saves). As leituras ficam em /instagram e podem ser combinadas com run_code.
-- Trabalhos longos (varredura de mercado) rodam em segundo plano: avise que você começou e que retorna quando terminar.
+- Pesquisa de mercado: componha as ferramentas Instagram e run_code, carregando a habilidade especializada quando o pedido combinar. Seja econômica: busque amplo, aprofunde somente os melhores candidatos.
 - Produção de post — um único caminho, escale o capricho conforme o pedido:
   - Direto: imagens prontas da galeria + legenda sua → create_post → schedule_post.
   - Produzido (carrossel com arte): planeje os slides primeiro (gancho → desenvolvimento → chamada final), gere a arte de cada slide com paint e componha texto/logo/cores exatas com run_code (um script por carrossel garante consistência entre slides — salve em /templates se ficar bom), avalie visualmente lendo as imagens, e só então create_post com os slides na ordem + schedule_post.
@@ -176,19 +174,6 @@ const writeFile = createTool({
       | { ok: true; path: string; note: string }
       | { ok: false; error: string };
     return { type: "text", value: result.ok ? `${result.path} ${result.note}` : result.error };
-  },
-});
-
-const startMarketScan = createTool({
-  description:
-    "Inicia em segundo plano uma varredura de mercado: observa criadores monitorados, detecta breakouts e qualifica oportunidades. Avise o usuário que você retorna quando terminar.",
-  inputSchema: z.object({}),
-  execute: async (ctx: VandaToolCtx): Promise<string> => {
-    await ctx.scheduler.runAfter(0, internal.vanda.runMarketScan, {
-      accountId: ctx.accountId,
-      ...(ctx.threadId ? { threadId: ctx.threadId } : {}),
-    });
-    return "Varredura iniciada em segundo plano.";
   },
 });
 
@@ -425,7 +410,6 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
     read: readFile,
     write: writeFile,
     ...instagramTools,
-    start_market_scan: startMarketScan,
     paint,
     run_code: runCode,
     create_post: createPost,
@@ -433,36 +417,5 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
     cancel_schedule: cancelSchedule,
     delete_post: deletePost,
   },
-  stopWhen: stepCountIs(12),
-});
-
-// --- Background jobs the tools delegate to ----------------------------------
-// Each runs the real pipeline, then reports back into the conversation that
-// requested it (threadId), so the user hears about completion without keeping
-// the page (or the turn) open.
-
-export const runMarketScan = internalAction({
-  args: { accountId: v.id("accounts"), threadId: v.optional(v.string()) },
-  handler: async (ctx, { accountId, threadId }): Promise<void> => {
-    try {
-      const result = (await ctx.runAction(internal.marketNode.runAccount, { accountId })) as {
-        postsObserved: number;
-        opportunitiesDetected: number;
-      };
-      await ctx.runMutation(internal.chat.postAssistantNote, {
-        accountId,
-        ...(threadId ? { threadId } : {}),
-        text:
-          result.opportunitiesDetected > 0
-            ? `Terminei a varredura de mercado: observei ${result.postsObserved} posts e encontrei ${result.opportunitiesDetected} oportunidade(s) nova(s). Me peça para listá-las quando quiser.`
-            : `Terminei a varredura de mercado: observei ${result.postsObserved} posts e nenhuma oportunidade forte o suficiente apareceu desta vez. Isso é um resultado honesto — prefiro não criar conteúdo sem uma boa razão.`,
-      });
-    } catch (error) {
-      await ctx.runMutation(internal.chat.postAssistantNote, {
-        accountId,
-        ...(threadId ? { threadId } : {}),
-        text: `A varredura de mercado falhou: ${error instanceof Error ? error.message : String(error)}. Me avise se quiser que eu tente de novo.`,
-      });
-    }
-  },
+  stopWhen: stepCountIs(24),
 });

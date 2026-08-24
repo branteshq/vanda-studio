@@ -46,6 +46,7 @@ export interface InstagramProfile {
   readonly postsCount?: number | undefined;
   readonly private?: boolean | undefined;
   readonly verified?: boolean | undefined;
+  readonly latestPosts?: ReadonlyArray<InstagramPost> | undefined;
 }
 
 export interface InstagramPost {

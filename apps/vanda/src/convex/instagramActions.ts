@@ -18,6 +18,7 @@ import type { InstagramObservation, InstagramTarget } from "./instagram/types";
 const MAX_SEARCH = 20;
 const MAX_POSTS = 100;
 const MAX_COMMENTS = 50;
+const MAX_PUBLIC_ITEMS_PER_ACCOUNT_PER_DAY = 1_000;
 
 interface ActionObservation<T> extends InstagramObservation<T> {
   readonly savedTo: string;
@@ -86,12 +87,22 @@ const cachedRead = async <A>(
   if (input.requirePublicProvider && !apifyToken) {
     throw new Error("APIFY_API_TOKEN is not set on the Convex deployment");
   }
+  if (input.requirePublicProvider) {
+    const used = await ctx.runQuery(internal.instagramData.publicReadItemsSince, {
+      accountId: input.accountId,
+      since: Date.now() - 24 * 60 * 60_000,
+    });
+    if (used >= MAX_PUBLIC_ITEMS_PER_ACCOUNT_PER_DAY) {
+      throw new Error("limite diário de leituras públicas do Instagram atingido");
+    }
+  }
   const observation = (await Effect.runPromise(
     Effect.flatMap(InstagramService, input.run).pipe(
       Effect.provide(liveInstagramLayer(apifyToken)),
     ),
   )) as A;
   const typed = observation as InstagramObservation<unknown>;
+  const itemCount = Array.isArray(typed.data) ? typed.data.length : 1;
   await ctx.runMutation(internal.instagramData.saveObservation, {
     accountId: input.accountId,
     requestKey,
@@ -101,6 +112,7 @@ const cachedRead = async <A>(
     source: typed.source,
     completeness: typed.completeness,
     payload: typed.data,
+    itemCount,
     ...(typed.nextCursor ? { nextCursor: typed.nextCursor } : {}),
     observedAt: typed.observedAt,
     expiresAt: instagramExpiresAt(input.operation, typed.observedAt),

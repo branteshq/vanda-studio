@@ -628,12 +628,21 @@ export default defineSchema({
     source: v.union(v.literal("upload_post"), v.literal("apify")),
     completeness: v.union(v.literal("complete"), v.literal("partial")),
     payload: v.any(),
+    itemCount: v.optional(v.number()),
     nextCursor: v.optional(v.string()),
     observedAt: v.number(),
     expiresAt: v.number(),
   })
     .index("by_account_request", ["accountId", "requestKey"])
     .index("by_account_observed", ["accountId", "observedAt"]),
+
+  instagramReadEvents: defineTable({
+    accountId: v.id("accounts"),
+    operation: v.string(),
+    source: v.union(v.literal("upload_post"), v.literal("apify")),
+    itemCount: v.number(),
+    observedAt: v.number(),
+  }).index("by_account_observed", ["accountId", "observedAt"]),
 
   // Audit log of run_code executions: the agent-authored Python, its output, and
   // the images it produced. Doubles as the rate-limit counter and the seed for

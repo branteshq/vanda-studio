@@ -29,6 +29,21 @@ export const readCachedObservation = internalQuery({
   },
 });
 
+export const publicReadItemsSince = internalQuery({
+  args: { accountId: v.id("accounts"), since: v.number() },
+  handler: async (ctx, { accountId, since }) => {
+    const observations = await ctx.db
+      .query("instagramReadEvents")
+      .withIndex("by_account_observed", (q) =>
+        q.eq("accountId", accountId).gte("observedAt", since),
+      )
+      .collect();
+    return observations
+      .filter((observation) => observation.source === "apify")
+      .reduce((total, observation) => total + observation.itemCount, 0);
+  },
+});
+
 export const saveObservation = internalMutation({
   args: {
     accountId: v.id("accounts"),
@@ -39,6 +54,7 @@ export const saveObservation = internalMutation({
     source: v.union(v.literal("upload_post"), v.literal("apify")),
     completeness: v.union(v.literal("complete"), v.literal("partial")),
     payload: v.any(),
+    itemCount: v.optional(v.number()),
     nextCursor: v.optional(v.string()),
     observedAt: v.number(),
     expiresAt: v.number(),
@@ -54,10 +70,20 @@ export const saveObservation = internalMutation({
         q.eq("accountId", args.accountId).eq("requestKey", args.requestKey),
       )
       .unique();
+    let observationId;
     if (existing) {
       await ctx.db.patch(existing._id, args);
-      return existing._id;
+      observationId = existing._id;
+    } else {
+      observationId = await ctx.db.insert("instagramObservations", args);
     }
-    return ctx.db.insert("instagramObservations", args);
+    await ctx.db.insert("instagramReadEvents", {
+      accountId: args.accountId,
+      operation: args.operation,
+      source: args.source,
+      itemCount: args.itemCount ?? 1,
+      observedAt: args.observedAt,
+    });
+    return observationId;
   },
 });

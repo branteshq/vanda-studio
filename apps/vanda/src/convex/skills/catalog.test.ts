@@ -17,13 +17,19 @@ const skill = (patch: Partial<InstalledSkill> = {}): InstalledSkill => ({
 
 describe("skill catalog", () => {
   it("installs unslop as an always-on skill", () => {
-    expect(installedSkillSummaries()).toEqual([
-      expect.objectContaining({
-        name: "unslop",
-        alwaysApply: true,
-        location: "/skills/unslop/SKILL.md",
-      }),
-    ]);
+    expect(installedSkillSummaries()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "instagram-market-research",
+          alwaysApply: false,
+        }),
+        expect.objectContaining({
+          name: "unslop",
+          alwaysApply: true,
+          location: "/skills/unslop/SKILL.md",
+        }),
+      ]),
+    );
   });
 
   it("injects always-on instructions in full", () => {

@@ -20,12 +20,16 @@ const TTL_MS: Record<InstagramOperation, number> = {
 const stable = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(stable);
   if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .filter(([, item]) => item !== undefined)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, item]) => [key, stable(item)]),
+    const entries = Object.entries(value as Record<string, unknown>).filter(
+      ([, item]) => item !== undefined,
     );
+    const ordered = entries.reduce<Array<[string, unknown]>>((result, entry) => {
+      const index = result.findIndex(([key]) => key.localeCompare(entry[0]) > 0);
+      if (index < 0) result.push(entry);
+      else result.splice(index, 0, entry);
+      return result;
+    }, []);
+    return Object.fromEntries(ordered.map(([key, item]) => [key, stable(item)]));
   }
   return value;
 };

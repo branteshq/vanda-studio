@@ -50,7 +50,12 @@ const listChildren = (
       });
     }
   }
-  return [...children.values()].sort((left, right) => left.name.localeCompare(right.name));
+  return [...children.values()].reduce<WorkspaceEntry[]>((ordered, entry) => {
+    const index = ordered.findIndex((candidate) => candidate.name.localeCompare(entry.name) > 0);
+    if (index < 0) ordered.push(entry);
+    else ordered.splice(index, 0, entry);
+    return ordered;
+  }, []);
 };
 
 export const instagramMount: WorkspaceMount = {

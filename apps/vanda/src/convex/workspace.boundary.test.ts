@@ -94,7 +94,12 @@ describe("workspace navigation", () => {
     });
     expect(listing.ok).toBe(true);
     if (listing.ok) {
-      expect(listing.entries).toEqual([expect.objectContaining({ name: "unslop", kind: "dir" })]);
+      expect(listing.entries).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "instagram-market-research", kind: "dir" }),
+          expect.objectContaining({ name: "unslop", kind: "dir" }),
+        ]),
+      );
     }
 
     const instructions = await t.query(internal.workspaceData.read, {
@@ -146,7 +151,12 @@ describe("installed skills public query", () => {
     const asOwner = t.withIdentity({ subject: "owner" });
     await expect(
       asOwner.query(api.workspacePublic.installedSkills, { accountId }),
-    ).resolves.toEqual([expect.objectContaining({ name: "unslop", alwaysApply: true })]);
+    ).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "instagram-market-research", alwaysApply: false }),
+        expect.objectContaining({ name: "unslop", alwaysApply: true }),
+      ]),
+    );
     await expect(
       asOwner.query(api.workspacePublic.installedSkills, { accountId: foreignAccountId }),
     ).rejects.toThrow("account not found");
