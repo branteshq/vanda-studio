@@ -3,6 +3,7 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { z } from "zod";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { DEFAULT_ORCHESTRATOR_MODEL } from "./agentModels";
 import { formatSkillsForSystemPrompt } from "./skills/catalog";
 import { makeInstagramTools } from "./tools/instagram";
 
@@ -16,7 +17,7 @@ import { makeInstagramTools } from "./tools/instagram";
  * completion notes land in the conversation that asked for the work.
  */
 
-export const VANDA_MODEL = "openai/gpt-5.6-terra";
+export const VANDA_MODEL = DEFAULT_ORCHESTRATOR_MODEL;
 
 /** Every agent turn carries the account the thread belongs to. */
 type VandaCtx = { accountId: Id<"accounts"> };

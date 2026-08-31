@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { DEFAULT_ORCHESTRATOR_MODEL, orchestratorModel } from "./agentModels";
+import { orchestratorModel, resolveOrchestratorModel } from "./agentModels";
 import { DEFAULT_IMAGE_MODEL, isKnownImageModel } from "./imageModels";
 import type { Id } from "./_generated/dataModel";
 import { internalQuery, mutation, query } from "./_generated/server";
@@ -83,13 +83,14 @@ export const modelPreferences = query({
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .unique();
     if (!user) return null;
+    const conectado = isConnectedSubscriber(user);
     return {
-      orchestrator: orchestratorModel(user.orchestratorModel)?.id ?? DEFAULT_ORCHESTRATOR_MODEL,
+      orchestrator: resolveOrchestratorModel(user.orchestratorModel, { conectado }),
       image:
         user.imageModel && isKnownImageModel(user.imageModel)
           ? user.imageModel
           : DEFAULT_IMAGE_MODEL,
-      conectado: isConnectedSubscriber(user),
+      conectado,
     };
   },
 });
@@ -157,4 +158,3 @@ export const imageModelForAccount = internalQuery({
       : DEFAULT_IMAGE_MODEL;
   },
 });
-

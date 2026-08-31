@@ -2,7 +2,13 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "./_generated/api";
-import { TIER_ALLOWANCE_MICRO_USD, TRIAL_ALLOWANCE_MICRO_USD, allowanceForPlan } from "./usage";
+import {
+  PLAN_COST_SHARE,
+  TIER_ALLOWANCE_BRL,
+  TIER_ALLOWANCE_MICRO_USD,
+  TRIAL_ALLOWANCE_MICRO_USD,
+  allowanceForPlan,
+} from "./usage";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -119,9 +125,26 @@ describe("usage metering", () => {
     expect(summary!.limited).toBe(false);
   });
 
-  it("maps annual plan ids to their tier allowance", () => {
+  it("keeps the Básico R$40 cost share across paid tiers", () => {
+    expect(PLAN_COST_SHARE).toBeCloseTo(40 / 96);
+    expect(TIER_ALLOWANCE_BRL.basico).toBe(40);
+    expect(TIER_ALLOWANCE_BRL.profissional).toBeCloseTo(146 * (40 / 96));
+    expect(TIER_ALLOWANCE_BRL.conectado).toBeCloseTo(50 * (40 / 96));
     expect(allowanceForPlan("basico-anual")).toBe(TIER_ALLOWANCE_MICRO_USD.basico);
     expect(allowanceForPlan("profissional")).toBe(TIER_ALLOWANCE_MICRO_USD.profissional);
     expect(allowanceForPlan(undefined)).toBe(TRIAL_ALLOWANCE_MICRO_USD);
+  });
+
+  it("applies updated paid allowances without waiting for a billing resync", async () => {
+    const { t, accountId, userId } = await setup();
+    await t.run((ctx) =>
+      ctx.db.patch(userId, {
+        planId: "basico",
+        usageAllowanceMicroUsd: 1,
+        billingPeriodStart: 1_000,
+      }),
+    );
+    const budget = await t.query(internal.usage.budget, { accountId });
+    expect(budget.allowanceMicroUsd).toBe(TIER_ALLOWANCE_MICRO_USD.basico);
   });
 });

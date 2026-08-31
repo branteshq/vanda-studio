@@ -65,8 +65,8 @@ export const IMAGE_MODELS: ReadonlyArray<ImageModel> = [
   },
 ];
 
-/** The painter's default when no model is chosen (Nano Banana 2). */
-export const DEFAULT_IMAGE_MODEL = IMAGE_MODELS[0]!.id;
+/** The painter's default when no model is chosen. */
+export const DEFAULT_IMAGE_MODEL = "openai/gpt-image-2";
 
 /**
  * The painter the Conectado plan forces: every paint runs on the owner's
@@ -95,9 +95,7 @@ export const modelResolutions = (id: string): ReadonlyArray<ImageResolution> =>
   BY_ID.get(id)?.resolutions ?? ["1K"];
 
 /** Tiers every one of the given models supports (drives the picker's gating). */
-export const sharedResolutions = (
-  modelIds: Iterable<string>,
-): ReadonlyArray<ImageResolution> => {
+export const sharedResolutions = (modelIds: Iterable<string>): ReadonlyArray<ImageResolution> => {
   const ids = [...modelIds];
   return IMAGE_RESOLUTIONS.filter((resolution) =>
     ids.every((id) => modelResolutions(id).includes(resolution)),

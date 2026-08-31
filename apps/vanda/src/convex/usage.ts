@@ -7,7 +7,7 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
-import { tierOfPlan } from "./billing/plans";
+import { PLAN_TIERS, tierOfPlan } from "./billing/plans";
 
 /**
  * The usage meter: every real-money cost (model calls, image generation,
@@ -27,15 +27,17 @@ export const BRL_PER_USD = 5.5;
 
 const microUsdFromBrl = (brl: number): number => Math.round((brl / BRL_PER_USD) * 1_000_000);
 
-/** Usage allowance per plan tier, from the BRL cost budgets (R$20 / R$30).
- * Conectado's inference bills to the user's ChatGPT subscription; its
- * allowance is an internal ceiling for what stays on us (scans, sandbox,
- * pipeline estimates) — generous enough to never trip organically. */
-export const TIER_ALLOWANCE_MICRO_USD: Record<string, number> = {
-  basico: microUsdFromBrl(20),
-  profissional: microUsdFromBrl(30),
-  conectado: microUsdFromBrl(25),
-};
+/** Provider spend is capped at the same share of each plan's monthly price.
+ * R$40 on the R$96 Básico plan establishes a 41.67% cost envelope. */
+export const PLAN_COST_SHARE = 40 / 96;
+
+export const TIER_ALLOWANCE_BRL: Record<string, number> = Object.fromEntries(
+  PLAN_TIERS.map((plan) => [plan.tier, plan.monthly.priceBrl * PLAN_COST_SHARE]),
+);
+
+export const TIER_ALLOWANCE_MICRO_USD: Record<string, number> = Object.fromEntries(
+  Object.entries(TIER_ALLOWANCE_BRL).map(([tier, brl]) => [tier, microUsdFromBrl(brl)]),
+);
 
 /** One-time pool for users without a subscription (≈ R$7). */
 export const TRIAL_ALLOWANCE_MICRO_USD = microUsdFromBrl(7);
@@ -76,7 +78,11 @@ export const budgetOf = async (ctx: QueryCtx, user: Doc<"users">): Promise<Budge
   const periodKey = periodKeyOf(user);
   const row = await periodRow(ctx, user._id, periodKey);
   const spentMicroUsd = row?.spentMicroUsd ?? 0;
-  const allowanceMicroUsd = user.usageAllowanceMicroUsd ?? allowanceForPlan(user.planId);
+  // Paid allowances follow the current plan configuration immediately instead
+  // of retaining the amount cached when the subscription was last synchronized.
+  const allowanceMicroUsd = user.planId
+    ? allowanceForPlan(user.planId)
+    : (user.usageAllowanceMicroUsd ?? TRIAL_ALLOWANCE_MICRO_USD);
   return { ok: spentMicroUsd < allowanceMicroUsd, spentMicroUsd, allowanceMicroUsd, periodKey };
 };
 

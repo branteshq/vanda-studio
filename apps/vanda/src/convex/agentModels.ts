@@ -29,7 +29,7 @@ export const ORCHESTRATOR_MODELS: readonly OrchestratorModel[] = [
     id: "openai/gpt-5.6-terra",
     label: "GPT-5.6 Terra",
     maker: "OpenAI",
-    tagline: "Equilíbrio entre rapidez e capricho — o padrão da Vanda.",
+    tagline: "Equilíbrio entre rapidez e capricho.",
     codexCapable: true,
   },
   {
@@ -43,7 +43,7 @@ export const ORCHESTRATOR_MODELS: readonly OrchestratorModel[] = [
     id: "anthropic/claude-opus-5",
     label: "Claude Opus 5",
     maker: "Anthropic",
-    tagline: "O mais caprichoso em texto e planejamento — consome mais uso.",
+    tagline: "O padrão da Vanda para texto e planejamento — consome mais uso.",
     codexCapable: false,
   },
   {
@@ -55,26 +55,32 @@ export const ORCHESTRATOR_MODELS: readonly OrchestratorModel[] = [
   },
 ];
 
-/** The lineup's default — what a user who never chose anything runs on. */
-export const DEFAULT_ORCHESTRATOR_MODEL = "openai/gpt-5.6-terra";
+/** The OpenRouter default — what a user who never chose anything runs on. */
+export const DEFAULT_ORCHESTRATOR_MODEL = "anthropic/claude-opus-5";
 
-export const orchestratorModel = (
-  id: string | null | undefined,
-): OrchestratorModel | undefined => ORCHESTRATOR_MODELS.find((model) => model.id === id);
+/** Conectado can only use the owner's OpenAI subscription. */
+export const DEFAULT_CODEX_ORCHESTRATOR_MODEL = "openai/gpt-5.6-terra";
+
+export const orchestratorModel = (id: string | null | undefined): OrchestratorModel | undefined =>
+  ORCHESTRATOR_MODELS.find((model) => model.id === id);
 
 /**
  * The single decision point: which model id a turn actually runs on. Unknown or
- * absent preferences collapse to the default (a model retired from the catalog
- * must never wedge a conversation), and a model the transport cannot carry
- * falls back to the default rather than silently changing who pays.
+ * absent preferences collapse to the default for the active transport (a model
+ * retired from the catalog must never wedge a conversation), and a model the
+ * transport cannot carry falls back to the Codex-safe default rather than
+ * silently changing who pays.
  */
 export const resolveOrchestratorModel = (
   // `null` is what a Convex query returns for an absent preference.
   preferred: string | null | undefined,
   options: { readonly conectado: boolean },
 ): string => {
+  const fallback = options.conectado
+    ? DEFAULT_CODEX_ORCHESTRATOR_MODEL
+    : DEFAULT_ORCHESTRATOR_MODEL;
   const model = orchestratorModel(preferred);
-  if (!model) return DEFAULT_ORCHESTRATOR_MODEL;
-  if (options.conectado && !model.codexCapable) return DEFAULT_ORCHESTRATOR_MODEL;
+  if (!model) return fallback;
+  if (options.conectado && !model.codexCapable) return fallback;
   return model.id;
 };
