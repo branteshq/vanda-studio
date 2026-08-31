@@ -35,9 +35,10 @@ workflow. Enter a branch, tag, or commit SHA when starting the workflow.
 - `staging.vandastudio.app` runs the selected revision against the development Convex
   deployment and is reserved for test Instagram accounts.
 - `app.vandastudio.app` runs `main` against the production Convex deployment.
-- **Deploy production** is manually triggered from `main`. It deploys Convex first,
-  creates a staged Vercel production deployment, and promotes it only after the build
-  succeeds.
+- Every push to `main` runs the full validation suite and **Deploy production**. The
+  release deploys a changed E2B sandbox template first, then Convex, creates a staged
+  Vercel production deployment, and promotes it only after the build and smoke test
+  succeed.
 
 Vercel Git deployments are disabled for `apps/vanda`; the workflows own app deployment
 ordering. The landing project remains independent.
@@ -45,7 +46,7 @@ ordering. The landing project remains independent.
 Required GitHub environment secrets:
 
 - `staging`: `CONVEX_DEV_DEPLOY_KEY`, `VERCEL_TOKEN`
-- `production`: `CONVEX_PROD_DEPLOY_KEY`, `VERCEL_TOKEN`
+- `production`: `CONVEX_PROD_DEPLOY_KEY`, `VERCEL_TOKEN`, `E2B_API_KEY`
 
 Required GitHub environment variables in both environments:
 

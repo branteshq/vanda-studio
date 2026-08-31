@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Check out production revision
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up workspace
         uses: ./.github/actions/setup
@@ -35,6 +37,30 @@ jobs:
           pnpm typecheck
           CI=true pnpm test
           pnpm build
+
+      - name: Detect E2B template changes
+        id: e2b
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            changed=true
+          elif git diff --quiet "$BEFORE_SHA" "$GITHUB_SHA" -- \
+            apps/vanda/e2b/vanda-imaging \
+            apps/vanda/package.json \
+            pnpm-lock.yaml; then
+            changed=false
+          else
+            changed=true
+          fi
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy E2B code-analysis template
+        if: steps.e2b.outputs.changed == 'true'
+        working-directory: apps/vanda/e2b/vanda-imaging
+        env:
+          E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
+        run: node build.mjs
 
       - name: Deploy Convex production
         working-directory: apps/vanda
@@ -92,4 +118,5 @@ jobs:
             echo "- Commit: \`$GITHUB_SHA\`"
             echo "- URL: https://app.vandastudio.app"
             echo "- Vercel deployment: ${{ steps.vercel.outputs.deployment_url }}"
+            echo "- E2B template deployed: ${{ steps.e2b.outputs.changed }}"
           } >> "$GITHUB_STEP_SUMMARY"
