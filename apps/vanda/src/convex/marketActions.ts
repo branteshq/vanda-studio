@@ -6,7 +6,7 @@ import type { Id } from "./_generated/dataModel";
 import { action } from "./_generated/server";
 import type { MarketRunResult } from "./marketNode";
 
-/** Owner-triggered market pass. The hourly cron invokes the same durable entry point. */
+/** Owner-triggered legacy market pass. */
 export const runNow = action({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<MarketRunResult> => {

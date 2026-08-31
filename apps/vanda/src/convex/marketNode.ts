@@ -754,41 +754,11 @@ export const measurePublications = internalAction({
   },
 });
 
-/** Cron target: enqueue one full market pass for every onboarded account. */
-export const runAllAccounts = internalAction({
-  args: {},
-  handler: async (ctx): Promise<void> => {
-    const accounts: Array<{ _id: Id<"accounts"> }> = await ctx.runQuery(
-      internal.market.listOnboardedAccounts,
-      {},
-    );
-    for (const account of accounts) {
-      await ctx.scheduler.runAfter(0, internal.marketNode.runAccount, { accountId: account._id });
-    }
-  },
-});
-
-export const measureAllPublications = internalAction({
-  args: {},
-  handler: async (ctx): Promise<number> => {
-    const accounts: Array<{ _id: Id<"accounts"> }> = await ctx.runQuery(
-      internal.market.listOnboardedAccounts,
-      {},
-    );
-    let measured = 0;
-    for (const account of accounts)
-      measured += await ctx.runAction(internal.marketNode.measurePublications, {
-        accountId: account._id,
-      });
-    return measured;
-  },
-});
-
 /** Flat Apify estimates per pass — tuned against the real bill via usageEvents. */
 const APIFY_OBSERVE_ESTIMATE_USD = 0.05;
 const APIFY_QUALIFY_ESTIMATE_USD = 0.01;
 
-/** The manual button and the daily cron share this complete discover → observe entry point. */
+/** Owner-triggered legacy discover → observe entry point. */
 export const runAccount = internalAction({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<MarketRunResult> => {

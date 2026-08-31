@@ -21,7 +21,6 @@ import type * as calendar from "../calendar.js";
 import type * as chat from "../chat.js";
 import type * as codeRuns from "../codeRuns.js";
 import type * as codeRunsData from "../codeRunsData.js";
-import type * as crons from "../crons.js";
 import type * as gallery from "../gallery.js";
 import type * as imageModels from "../imageModels.js";
 import type * as imageUploads from "../imageUploads.js";
@@ -112,7 +111,6 @@ declare const fullApi: ApiFromModules<{
   chat: typeof chat;
   codeRuns: typeof codeRuns;
   codeRunsData: typeof codeRunsData;
-  crons: typeof crons;
   gallery: typeof gallery;
   imageModels: typeof imageModels;
   imageUploads: typeof imageUploads;
