@@ -2,6 +2,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { internal } from "./_generated/api";
+import { apifyInstagramCostUsd } from "./instagram/costs";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -37,6 +38,8 @@ describe("Instagram observation cache and workspace", () => {
       source: "apify",
       completeness: "complete",
       payload: { handle: "cafeexterno", followers: 800 },
+      itemCount: 2,
+      costUsd: apifyInstagramCostUsd(2),
       observedAt,
       expiresAt: observedAt + 60_000,
     });
@@ -45,7 +48,9 @@ describe("Instagram observation cache and workspace", () => {
       accountId,
       since: observedAt - 1,
     });
-    expect(publicItems).toBe(1);
+    expect(publicItems).toBe(2);
+    const budget = await t.query(internal.usage.budget, { accountId });
+    expect(budget.spentMicroUsd).toBe(5_400);
 
     const root = await t.query(internal.workspaceData.list, {
       accountId,
@@ -66,6 +71,7 @@ describe("Instagram observation cache and workspace", () => {
     if (!file.ok || file.file.kind !== "text") throw new Error("expected text observation");
     const parsed = JSON.parse(file.file.text) as Record<string, unknown>;
     expect(parsed["source"]).toBe("apify");
+    expect(parsed["costUsd"]).toBe(0.0054);
     expect(parsed["data"]).toEqual({ handle: "cafeexterno", followers: 800 });
   });
 
@@ -90,5 +96,7 @@ describe("Instagram observation cache and workspace", () => {
       now: 201,
     });
     expect(cached).toBeNull();
+    const budget = await t.query(internal.usage.budget, { accountId });
+    expect(budget.spentMicroUsd).toBe(0);
   });
 });

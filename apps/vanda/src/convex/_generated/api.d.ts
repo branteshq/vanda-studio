@@ -27,6 +27,7 @@ import type * as imageUploads from "../imageUploads.js";
 import type * as images from "../images.js";
 import type * as imagesData from "../imagesData.js";
 import type * as instagram_cache from "../instagram/cache.js";
+import type * as instagram_costs from "../instagram/costs.js";
 import type * as instagram_live from "../instagram/live.js";
 import type * as instagram_providers_apify from "../instagram/providers/apify.js";
 import type * as instagram_providers_uploadpost from "../instagram/providers/uploadpost.js";
@@ -117,6 +118,7 @@ declare const fullApi: ApiFromModules<{
   images: typeof images;
   imagesData: typeof imagesData;
   "instagram/cache": typeof instagram_cache;
+  "instagram/costs": typeof instagram_costs;
   "instagram/live": typeof instagram_live;
   "instagram/providers/apify": typeof instagram_providers_apify;
   "instagram/providers/uploadpost": typeof instagram_providers_uploadpost;

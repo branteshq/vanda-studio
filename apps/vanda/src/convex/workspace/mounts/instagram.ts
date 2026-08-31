@@ -86,6 +86,7 @@ export const instagramMount: WorkspaceMount = {
       observedAt: new Date(observation.observedAt).toISOString(),
       expiresAt: new Date(observation.expiresAt).toISOString(),
       completeness: observation.completeness,
+      ...(observation.costUsd !== undefined ? { costUsd: observation.costUsd } : {}),
       nextCursor: observation.nextCursor ?? null,
       data: observation.payload,
     });

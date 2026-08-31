@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
+import { chargeUsage } from "./usage";
 
 export const resolveConnectedTarget = internalQuery({
   args: { accountId: v.id("accounts") },
@@ -55,6 +56,7 @@ export const saveObservation = internalMutation({
     completeness: v.union(v.literal("complete"), v.literal("partial")),
     payload: v.any(),
     itemCount: v.optional(v.number()),
+    costUsd: v.optional(v.number()),
     nextCursor: v.optional(v.string()),
     observedAt: v.number(),
     expiresAt: v.number(),
@@ -82,8 +84,17 @@ export const saveObservation = internalMutation({
       operation: args.operation,
       source: args.source,
       itemCount: args.itemCount ?? 1,
+      ...(args.costUsd !== undefined ? { costUsd: args.costUsd } : {}),
       observedAt: args.observedAt,
     });
+    if (args.source === "apify" && args.costUsd && args.costUsd > 0) {
+      await chargeUsage(ctx, {
+        accountId: args.accountId,
+        kind: "instagram_apify",
+        usd: args.costUsd,
+        ref: `${args.operation}:${args.target}`,
+      });
+    }
     return observationId;
   },
 });

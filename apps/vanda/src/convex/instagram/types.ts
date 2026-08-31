@@ -6,6 +6,8 @@ export interface InstagramObservation<T> {
   readonly source: InstagramSource;
   readonly observedAt: number;
   readonly completeness: InstagramCompleteness;
+  /** Cost attributed to this uncached provider observation. */
+  readonly costUsd?: number | undefined;
   readonly nextCursor?: string | undefined;
 }
 

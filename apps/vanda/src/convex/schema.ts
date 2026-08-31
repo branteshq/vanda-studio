@@ -629,6 +629,7 @@ export default defineSchema({
     completeness: v.union(v.literal("complete"), v.literal("partial")),
     payload: v.any(),
     itemCount: v.optional(v.number()),
+    costUsd: v.optional(v.number()),
     nextCursor: v.optional(v.string()),
     observedAt: v.number(),
     expiresAt: v.number(),
@@ -641,6 +642,7 @@ export default defineSchema({
     operation: v.string(),
     source: v.union(v.literal("upload_post"), v.literal("apify")),
     itemCount: v.number(),
+    costUsd: v.optional(v.number()),
     observedAt: v.number(),
   }).index("by_account_observed", ["accountId", "observedAt"]),
 

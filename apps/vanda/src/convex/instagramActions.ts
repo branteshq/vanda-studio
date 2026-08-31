@@ -11,9 +11,11 @@ import {
   instagramWorkspacePath,
   type InstagramOperation,
 } from "./instagram/cache";
+import { apifyInstagramCostUsd } from "./instagram/costs";
 import { liveInstagramLayer } from "./instagram/live";
 import { InstagramService, type InstagramServiceShape } from "./instagram/service";
 import type { InstagramObservation, InstagramTarget } from "./instagram/types";
+import { USAGE_LIMIT_MESSAGE } from "./usage";
 
 const MAX_SEARCH = 20;
 const MAX_POSTS = 100;
@@ -62,6 +64,7 @@ const cachedRead = async <A>(
     readonly target: string;
     readonly workspacePath: string;
     readonly requirePublicProvider: boolean;
+    readonly maxPublicItems?: number | undefined;
     readonly run: (service: InstagramServiceShape) => Effect.Effect<A, unknown>;
   },
 ): Promise<ActionObservation<A extends InstagramObservation<infer Data> ? Data : never>> => {
@@ -77,6 +80,7 @@ const cachedRead = async <A>(
       source: cached.source,
       observedAt: cached.observedAt,
       completeness: cached.completeness,
+      ...(cached.costUsd !== undefined ? { costUsd: cached.costUsd } : {}),
       ...(cached.nextCursor ? { nextCursor: cached.nextCursor } : {}),
       savedTo: cached.workspacePath,
       cached: true,
@@ -88,12 +92,24 @@ const cachedRead = async <A>(
     throw new Error("APIFY_API_TOKEN is not set on the Convex deployment");
   }
   if (input.requirePublicProvider) {
-    const used = await ctx.runQuery(internal.instagramData.publicReadItemsSince, {
-      accountId: input.accountId,
-      since: Date.now() - 24 * 60 * 60_000,
-    });
-    if (used >= MAX_PUBLIC_ITEMS_PER_ACCOUNT_PER_DAY) {
+    const maxPublicItems = input.maxPublicItems ?? 1;
+    const [used, budget] = await Promise.all([
+      ctx.runQuery(internal.instagramData.publicReadItemsSince, {
+        accountId: input.accountId,
+        since: Date.now() - 24 * 60 * 60_000,
+      }),
+      ctx.runQuery(internal.usage.budget, { accountId: input.accountId }),
+    ]);
+    if (used + maxPublicItems > MAX_PUBLIC_ITEMS_PER_ACCOUNT_PER_DAY) {
       throw new Error("limite diário de leituras públicas do Instagram atingido");
+    }
+    const projectedMicroUsd = Math.round(apifyInstagramCostUsd(maxPublicItems) * 1_000_000);
+    if (
+      !budget.ok ||
+      (budget.periodKey !== "none" &&
+        budget.spentMicroUsd + projectedMicroUsd > budget.allowanceMicroUsd)
+    ) {
+      throw new Error(USAGE_LIMIT_MESSAGE);
     }
   }
   const observation = (await Effect.runPromise(
@@ -103,6 +119,7 @@ const cachedRead = async <A>(
   )) as A;
   const typed = observation as InstagramObservation<unknown>;
   const itemCount = Array.isArray(typed.data) ? typed.data.length : 1;
+  const costUsd = input.requirePublicProvider ? apifyInstagramCostUsd(itemCount) : undefined;
   await ctx.runMutation(internal.instagramData.saveObservation, {
     accountId: input.accountId,
     requestKey,
@@ -113,12 +130,14 @@ const cachedRead = async <A>(
     completeness: typed.completeness,
     payload: typed.data,
     itemCount,
+    ...(costUsd !== undefined ? { costUsd } : {}),
     ...(typed.nextCursor ? { nextCursor: typed.nextCursor } : {}),
     observedAt: typed.observedAt,
     expiresAt: instagramExpiresAt(input.operation, typed.observedAt),
   });
   return {
     ...typed,
+    ...(costUsd !== undefined ? { costUsd } : {}),
     savedTo: input.workspacePath,
     cached: false,
   } as ActionObservation<A extends InstagramObservation<infer Data> ? Data : never>;
@@ -140,6 +159,7 @@ export const searchProfiles = internalAction({
         query: normalizedQuery,
       }),
       requirePublicProvider: true,
+      maxPublicItems: boundedLimit,
       run: (service) => service.searchProfiles(normalizedQuery, boundedLimit),
     });
   },
@@ -167,6 +187,7 @@ export const readProfile = internalAction({
         handle: target.handle,
       }),
       requirePublicProvider: target.scope === "public",
+      maxPublicItems: 1,
       run: (service) => service.readProfile(target),
     });
   },
@@ -198,6 +219,7 @@ export const listPosts = internalAction({
         handle: target.handle,
       }),
       requirePublicProvider: target.scope === "public",
+      maxPublicItems: boundedLimit,
       run: (service) => service.listPosts(target, request),
     });
   },
@@ -219,6 +241,7 @@ export const readPost = internalAction({
       target: `post:${url}`,
       workspacePath: instagramWorkspacePath({ operation: "post", postUrl: url }),
       requirePublicProvider: true,
+      maxPublicItems: 1,
       run: (service) => service.readPost(url, transcript),
     });
   },
@@ -261,6 +284,7 @@ export const listComments = internalAction({
         postUrl: url,
       }),
       requirePublicProvider: scope === "public",
+      maxPublicItems: boundedLimit,
       run: (service) => service.listComments(request),
     });
   },
