@@ -330,7 +330,7 @@ export const generateResponse = internalAction({
     // Optional keeps already-scheduled turns from older deployments compatible.
     activityId: v.optional(v.id("chatThreadActivity")),
   },
-  handler: async (ctx, { accountId, threadId, promptMessageId, activityId }): Promise<void> => {
+  handler: async (ctx, { accountId, threadId, promptMessageId, activityId }): Promise<string> => {
     try {
       // Which model thinks as Vanda this turn: the owner's pick, resolved
       // against the transport (Conectado can only carry OpenAI models).
@@ -359,6 +359,7 @@ export const generateResponse = internalAction({
         { saveStreamDeltas: true },
       );
       await result.consumeStream();
+      return await result.text;
     } finally {
       if (activityId) await ctx.runMutation(internal.chat.finishThreadActivity, { activityId });
     }
@@ -424,9 +425,7 @@ export const stopGeneration = mutation({
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .collect();
     await Promise.all(
-      activity
-        .filter((row) => row.threadId === threadId)
-        .map((row) => ctx.db.delete(row._id)),
+      activity.filter((row) => row.threadId === threadId).map((row) => ctx.db.delete(row._id)),
     );
   },
 });

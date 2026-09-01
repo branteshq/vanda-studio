@@ -268,7 +268,10 @@ function ThreadTitle({ title }: { title: string | null }) {
   if (title === null) {
     return (
       <span className="flex h-full items-center" role="status" aria-label="Gerando título">
-        <span aria-hidden className="h-3 w-32 max-w-[75%] rounded-full bg-sidebar-foreground/20 blur-[3px]" />
+        <span
+          aria-hidden
+          className="h-3 w-32 max-w-[75%] rounded-full bg-sidebar-foreground/20 blur-[3px]"
+        />
       </span>
     );
   }
@@ -574,6 +577,35 @@ export function CollapsedSidebarControls() {
   );
 }
 
+function CaetanoNav() {
+  const navigate = useNavigate();
+  const { setOpenMobile } = useSidebar();
+  const active = useRouterState({
+    select: (state) => state.location.pathname.startsWith("/caetano"),
+  });
+  return (
+    <SidebarMenu className="px-1 pt-1 pb-2">
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          size="lg"
+          isActive={active}
+          tooltip="Caetano"
+          onClick={() => {
+            setOpenMobile(false);
+            void navigate({ to: "/caetano" });
+          }}
+          className="h-10 gap-2.5 px-3 text-body font-semibold"
+        >
+          <span className="flex size-5 items-center justify-center text-base" aria-hidden="true">
+            🐒
+          </span>
+          <span className="group-data-[collapsible=icon]:hidden">Caetano</span>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    </SidebarMenu>
+  );
+}
+
 export function AppSidebar() {
   const { state, toggleSidebar } = useSidebar();
   const { activeAccount } = useActiveAccount();
@@ -629,6 +661,7 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="min-h-0 px-2">
+        <CaetanoNav />
         {activeAccount ? (
           <div
             key={galleryActive ? "gallery" : "chat"}

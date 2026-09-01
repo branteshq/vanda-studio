@@ -48,6 +48,9 @@ export default defineSchema({
     // Same resolution rules; overridden entirely by the Conectado plan, which
     // runs every paint on the owner's ChatGPT subscription.
     imageModel: v.optional(v.string()),
+    // One canonical user-level conversation with Caetano, shared by every
+    // present and future client (web first, WhatsApp later).
+    caetanoThreadId: v.optional(v.string()),
     // BYO OpenAI subscription (plano Conectado): ChatGPT OAuth tokens,
     // AES-256-GCM encrypted like the Instagram connection tokens.
     openaiAccountId: v.optional(v.string()),
@@ -110,6 +113,9 @@ export default defineSchema({
     // Threads are now keyed in the agent component by String(accountId); this
     // field remains only for the one-time chat:migrateThreadKeys backfill.
     vandaThreadId: v.optional(v.string()),
+    // The default account-scoped Vanda thread Caetano continues. Manual Vanda
+    // conversations remain independent in the agent component.
+    caetanoVandaThreadId: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_owner", ["ownerUserId"]),
@@ -121,7 +127,17 @@ export default defineSchema({
     threadId: v.string(),
     promptMessageId: v.string(),
     startedAt: v.number(),
-  }).index("by_account", ["accountId"]),
+  })
+    .index("by_account", ["accountId"])
+    .index("by_thread", ["threadId"]),
+
+  caetanoThreadActivity: defineTable({
+    userId: v.id("users"),
+    threadId: v.string(),
+    promptMessageId: v.string(),
+    activeVandaThreadId: v.optional(v.string()),
+    startedAt: v.number(),
+  }).index("by_user", ["userId"]),
 
   // Brand canon (output of onboarding's approve): the owner-confirmed stable
   // identity — one editable row per fact. This is the durable brand memory the
