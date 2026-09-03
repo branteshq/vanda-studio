@@ -3,6 +3,7 @@ import { internal } from "../_generated/api";
 import { action, internalAction, internalMutation, internalQuery } from "../_generated/server";
 import { autumn } from "../autumn";
 import { allowanceForPlan } from "../usage";
+import { customerOrNull } from "./customerLookup";
 import { PLAN_PRODUCT_IDS } from "./plans";
 
 /**
@@ -97,8 +98,8 @@ export const syncBilling = action({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
     const result = await autumn.customers.get(ctx);
-    if (result.error) throw new Error(result.error.message || "Failed to load customer");
-    const snapshot = snapshotOf(result.data as { products?: CustomerProduct[] } | null);
+    const customer = customerOrNull(result);
+    const snapshot = snapshotOf(customer as { products?: CustomerProduct[] } | null);
     await ctx.runMutation(internal.billing.autumn.applySnapshot, {
       clerkId: identity.subject,
       planId: snapshot.planId,
@@ -112,10 +113,7 @@ export const syncBilling = action({
 
 export const startCheckout = action({
   args: { planId: PlanIdSchema },
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{ checkoutUrl: string | null; attached: boolean }> => {
+  handler: async (ctx, args): Promise<{ checkoutUrl: string | null; attached: boolean }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
     // A NEW subscriber must always land on the Stripe page — without
@@ -123,9 +121,8 @@ export const startCheckout = action({
     // subscription) gets silently charged by attach, which reads as "the
     // button did nothing". Plan CHANGES stay direct: Autumn handles
     // upgrade/downgrade proration through attach, not checkout.
-    const customer = await autumn.customers.get(ctx);
-    if (customer.error) throw new Error(customer.error.message || "Failed to load customer");
-    const products = (customer.data as { products?: CustomerProduct[] } | null)?.products ?? [];
+    const customer = customerOrNull(await autumn.customers.get(ctx));
+    const products = (customer as { products?: CustomerProduct[] } | null)?.products ?? [];
     const current = snapshotOf({ products });
     // Self-heal wedged attachments: an abandoned/failed checkout can leave a
     // plan product in past_due/incomplete — invisible to the UI (which shows
