@@ -43,6 +43,13 @@ export const threadResourceValidator = v.union(
 
 export type ThreadResource = Infer<typeof threadResourceValidator>;
 
+export const presentableResourceInputValidator = v.union(
+  v.object({ kind: v.literal("image"), imageId: v.id("images") }),
+  v.object({ kind: v.literal("post"), postId: v.id("posts") }),
+  v.object({ kind: v.literal("document"), path: v.string(), title: v.optional(v.string()) }),
+  v.object({ kind: v.literal("link"), url: v.string(), title: v.string() }),
+);
+
 const operationStatusSchema = z.enum(["pending", "running", "succeeded", "failed", "cancelled"]);
 
 export const threadResourceSchema = z.discriminatedUnion("kind", [

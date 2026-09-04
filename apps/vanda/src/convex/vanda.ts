@@ -5,7 +5,13 @@ import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { DEFAULT_ORCHESTRATOR_MODEL } from "./agentModels";
 import { recordCapabilityResult } from "./capabilityTools";
-import { capabilityResult, capabilityResultSchema, type ThreadResource } from "./resourceRefs";
+import {
+  capabilityResult,
+  capabilityResultSchema,
+  presentableResourceInputSchema,
+  type PresentableResourceInput,
+  type ThreadResource,
+} from "./resourceRefs";
 import { formatSkillsForSystemPrompt } from "./skills/catalog";
 import { makeInstagramTools } from "./tools/instagram";
 
@@ -53,7 +59,8 @@ Regras de comportamento:
   - Para gerar uma imagem NOVA condicionada a um rosto, produto ou lugar específico, passe o(s) id(s) em referenceImageIds. Servem tanto imagens anexadas quanto as de /brand/references, sem autorização extra.
   - Os IDs das imagens anexadas chegam no contexto interno da mensagem (vanda_attachment_context). Só peça para o usuário enviar/subir uma foto quando não houver NENHUMA imagem disponível (nem anexada, nem em /brand/references) e o pedido exigir uma pessoa/produto específico.
 - Edição de imagem — regra de roteamento entre paint e run_code: mudança GENERATIVA (trocar fundo, cenário, roupa, criar do zero) → paint. Composição DETERMINÍSTICA (texto sobre a imagem, logo, corte, redimensionar, colagem, moldura, cor exata da marca) → run_code. Texto renderizado por modelo generativo erra; texto composto por código não erra.
-- Análise com Python: run_code também recebe JSON/CSV/Markdown do workspace, inclusive /instagram, para calcular taxas, comparar perfis, detectar outliers, agrupar temas e produzir tabelas/gráficos. Ele não tem internet: primeiro adquira os dados com as ferramentas Instagram, depois passe os caminhos em inputPaths.`;
+- Análise com Python: run_code também recebe JSON/CSV/Markdown do workspace, inclusive /instagram, para calcular taxas, comparar perfis, detectar outliers, agrupar temas e produzir tabelas/gráficos. Ele não tem internet: primeiro adquira os dados com as ferramentas Instagram, depois passe os caminhos em inputPaths.
+- A conversa renderiza imagens, posts, documentos, links e operações retornados pelas ferramentas. Nunca diga que este chat só mostra texto. Recursos recém-criados aparecem automaticamente. Para mostrar novamente algo que já existe, use present.`;
 
 const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });
 const SKILLS_PROMPT = formatSkillsForSystemPrompt();
@@ -232,6 +239,49 @@ const writeFile = createTool({
       | { ok: true; path: string; note: string }
       | { ok: false; error: string };
     return { type: "text", value: result.ok ? `${result.path} ${result.note}` : result.error };
+  },
+});
+
+const present = createTool({
+  description:
+    "Mostra ao dono recursos que já existem. Use quando ele pedir para ver, abrir, reenviar ou conferir imagens, posts, documentos ou links anteriores. `read` mostra conteúdo para você; `present` coloca o recurso visivelmente na conversa.",
+  inputSchema: z.object({
+    resources: z.array(presentableResourceInputSchema).min(1).max(12),
+    message: z.string().optional().describe("descrição curta do que está sendo mostrado"),
+  }),
+  outputSchema: capabilityResultSchema,
+  execute: async (
+    ctx: VandaToolCtx,
+    input: { resources: PresentableResourceInput[]; message?: string | undefined },
+    options,
+  ): Promise<unknown> => {
+    const resources = await ctx.runQuery(internal.threadResources.resolvePresentable, {
+      accountId: ctx.accountId,
+      resources: input.resources.map((resource) => {
+        if (resource.kind === "image") {
+          return { kind: "image" as const, imageId: resource.imageId as Id<"images"> };
+        }
+        if (resource.kind === "post") {
+          return { kind: "post" as const, postId: resource.postId as Id<"posts"> };
+        }
+        if (resource.kind === "document") {
+          return {
+            kind: "document" as const,
+            path: resource.path,
+            ...(resource.title ? { title: resource.title } : {}),
+          };
+        }
+        return resource;
+      }),
+    });
+    return recordCapabilityResult(
+      ctx,
+      options,
+      capabilityResult(
+        { shown: resources.length, ...(input.message ? { message: input.message } : {}) },
+        { resources, presented: resources, summary: input.message },
+      ),
+    );
   },
 });
 
@@ -550,6 +600,7 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
     list: listFiles,
     read: readFile,
     write: writeFile,
+    present,
     ...instagramTools,
     paint,
     run_code: runCode,

@@ -3,7 +3,12 @@ import { v } from "convex/values";
 import { components } from "./_generated/api";
 import { internalMutation, internalQuery, query, type QueryCtx } from "./_generated/server";
 import { requireOwnedAccount, requireUser } from "./authz";
-import { dedupeResources, threadResourceValidator, type ThreadResource } from "./resourceRefs";
+import {
+  dedupeResources,
+  presentableResourceInputValidator,
+  threadResourceValidator,
+  type ThreadResource,
+} from "./resourceRefs";
 import { readPath } from "./workspace";
 
 export interface ThreadResourceManifest {
@@ -90,6 +95,48 @@ export const listForCaetano = query({
       anchorMessageId: row.anchorMessageId,
       presented: row.presented,
     }));
+  },
+});
+
+export const resolvePresentable = internalQuery({
+  args: {
+    accountId: v.id("accounts"),
+    resources: v.array(presentableResourceInputValidator),
+  },
+  handler: async (ctx, { accountId, resources }): Promise<ThreadResource[]> => {
+    if (!(await ctx.db.get(accountId))) throw new Error("account not found");
+    const resolved: ThreadResource[] = [];
+    for (const resource of resources) {
+      if (resource.kind === "image") {
+        const image = await ctx.db.get(resource.imageId);
+        if (!image || image.accountId !== accountId) throw new Error("imagem não encontrada");
+        resolved.push({ kind: "image", accountId, imageId: resource.imageId });
+        continue;
+      }
+      if (resource.kind === "post") {
+        const post = await ctx.db.get(resource.postId);
+        if (!post || post.accountId !== accountId) throw new Error("post não encontrado");
+        resolved.push({ kind: "post", accountId, postId: resource.postId });
+        continue;
+      }
+      if (resource.kind === "document") {
+        const document = await readPath(ctx, accountId, resource.path);
+        if (!document.ok) throw new Error(`documento não encontrado: ${resource.path}`);
+        resolved.push({
+          kind: "document",
+          accountId,
+          path: document.path,
+          ...(resource.title ? { title: resource.title } : {}),
+        });
+        continue;
+      }
+      const url = new URL(resource.url);
+      if (url.protocol !== "https:" && url.protocol !== "http:") {
+        throw new Error("link inválido");
+      }
+      resolved.push(resource);
+    }
+    return dedupeResources(resolved);
   },
 });
 

@@ -100,6 +100,7 @@ const TOOL_LABEL: Record<string, string> = {
   list: "Explorando",
   read: "Lendo",
   write: "Gravando",
+  present: "Mostrando resultado",
 };
 
 /**
