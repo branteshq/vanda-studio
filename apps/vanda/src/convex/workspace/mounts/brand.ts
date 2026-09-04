@@ -98,8 +98,7 @@ export const brandMount: WorkspaceMount = {
         {
           name: "kit.json",
           kind: "file",
-          summary:
-            "identidade visual: cores exatas, fontes e tagline (gravável)",
+          summary: "identidade visual: cores exatas, fontes e tagline (gravável)",
         },
         { name: "references", kind: "dir", summary: "fotos de referência (rosto, produto, lugar)" },
       ];
@@ -152,6 +151,7 @@ export const brandMount: WorkspaceMount = {
           : "Disponível como referência para geração.";
       return {
         kind: "image",
+        imageId: image._id,
         header:
           `Referência de marca (${referenceLabel(image)}) · imageId ${image._id}` +
           `${image.width && image.height ? ` · ${image.width}×${image.height}` : ""}\n` +

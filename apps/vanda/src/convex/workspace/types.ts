@@ -19,6 +19,7 @@ export type WorkspaceFile =
   | { readonly kind: "text"; readonly text: string }
   | {
       readonly kind: "image";
+      readonly imageId: Id<"images">;
       /** Metadata header the model reads alongside the pixels. */
       readonly header: string;
       readonly url: string;

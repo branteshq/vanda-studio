@@ -3,6 +3,7 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { z } from "zod";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { capabilityResult, capabilityResultSchema, type ThreadResource } from "./resourceRefs";
 
 export const CAETANO_MODEL = "openai/gpt-5.6-terra";
 
@@ -16,19 +17,36 @@ const optionalAccountId = z.string().optional().describe("id da conta; omita par
 const listAccounts = createTool({
   description: "Lista os negócios do dono e indica qual está ativo.",
   inputSchema: z.object({}),
-  execute: (ctx: CaetanoCtx): Promise<unknown> =>
-    ctx.runQuery(internal.caetanoData.listAccounts, { userId: ctx.ownerUserId }),
+  outputSchema: capabilityResultSchema,
+  execute: async (ctx: CaetanoCtx): Promise<unknown> =>
+    capabilityResult(
+      await ctx.runQuery(internal.caetanoData.listAccounts, { userId: ctx.ownerUserId }),
+    ),
 });
 
 const selectAccount = createTool({
   description: "Troca o negócio ativo do dono. Use somente após identificar claramente a conta.",
   inputSchema: z.object({ accountId: z.string() }),
+  outputSchema: capabilityResultSchema,
   execute: async (ctx: CaetanoCtx, { accountId }: { accountId: string }): Promise<unknown> => {
     await ctx.runMutation(internal.caetanoData.selectAccount, {
       userId: ctx.ownerUserId,
       accountId: accountId as Id<"accounts">,
     });
-    return { ok: true, accountId };
+    const operation: ThreadResource = {
+      kind: "operation",
+      operation: "account.select",
+      accountId: accountId as Id<"accounts">,
+      status: "succeeded",
+      label: "Negócio ativo atualizado",
+    };
+    return capabilityResult(
+      { ok: true, accountId },
+      {
+        resources: [operation],
+        presented: [operation],
+      },
+    );
   },
 });
 
@@ -36,25 +54,37 @@ const accountStatus = createTool({
   description:
     "Consulta conexão do Instagram, onboarding, memória confirmada e links principais de uma conta.",
   inputSchema: z.object({ accountId: optionalAccountId }),
-  execute: (ctx: CaetanoCtx, { accountId }: { accountId?: string | undefined }): Promise<unknown> =>
-    ctx.runQuery(internal.caetanoData.accountStatus, {
-      userId: ctx.ownerUserId,
-      ...(accountId ? { accountId: accountId as Id<"accounts"> } : {}),
-    }),
+  outputSchema: capabilityResultSchema,
+  execute: async (
+    ctx: CaetanoCtx,
+    { accountId }: { accountId?: string | undefined },
+  ): Promise<unknown> =>
+    capabilityResult(
+      await ctx.runQuery(internal.caetanoData.accountStatus, {
+        userId: ctx.ownerUserId,
+        ...(accountId ? { accountId: accountId as Id<"accounts"> } : {}),
+      }),
+    ),
 });
 
 const usageStatus = createTool({
   description: "Consulta o plano, percentual de uso e eventual bloqueio do dono.",
   inputSchema: z.object({}),
-  execute: (ctx: CaetanoCtx): Promise<unknown> =>
-    ctx.runQuery(internal.caetanoData.usageStatus, { userId: ctx.ownerUserId }),
+  outputSchema: capabilityResultSchema,
+  execute: async (ctx: CaetanoCtx): Promise<unknown> =>
+    capabilityResult(
+      await ctx.runQuery(internal.caetanoData.usageStatus, { userId: ctx.ownerUserId }),
+    ),
 });
 
 const modelPreferences = createTool({
   description: "Consulta os modelos atuais de texto e imagem do dono.",
   inputSchema: z.object({}),
-  execute: (ctx: CaetanoCtx): Promise<unknown> =>
-    ctx.runQuery(internal.caetanoData.modelPreferences, { userId: ctx.ownerUserId }),
+  outputSchema: capabilityResultSchema,
+  execute: async (ctx: CaetanoCtx): Promise<unknown> =>
+    capabilityResult(
+      await ctx.runQuery(internal.caetanoData.modelPreferences, { userId: ctx.ownerUserId }),
+    ),
 });
 
 const setModelPreferences = createTool({
@@ -68,6 +98,7 @@ const setModelPreferences = createTool({
     .refine((value) => value.orchestrator !== undefined || value.image !== undefined, {
       message: "informe ao menos um modelo",
     }),
+  outputSchema: capabilityResultSchema,
   execute: async (
     ctx: CaetanoCtx,
     input: { orchestrator?: string | undefined; image?: string | undefined },
@@ -77,7 +108,19 @@ const setModelPreferences = createTool({
       ...(input.orchestrator ? { orchestrator: input.orchestrator } : {}),
       ...(input.image ? { image: input.image } : {}),
     });
-    return { ok: true, ...input };
+    const operation: ThreadResource = {
+      kind: "operation",
+      operation: "models.update",
+      status: "succeeded",
+      label: "Modelos atualizados",
+    };
+    return capabilityResult(
+      { ok: true, ...input },
+      {
+        resources: [operation],
+        presented: [operation],
+      },
+    );
   },
 });
 
@@ -85,11 +128,17 @@ const listVandaThreads = createTool({
   description:
     "Lista conversas recentes da Vanda para encontrar trabalho anterior ou continuar uma conversa específica.",
   inputSchema: z.object({ accountId: optionalAccountId }),
-  execute: (ctx: CaetanoCtx, { accountId }: { accountId?: string | undefined }): Promise<unknown> =>
-    ctx.runQuery(internal.caetanoData.listVandaThreads, {
-      userId: ctx.ownerUserId,
-      ...(accountId ? { accountId: accountId as Id<"accounts"> } : {}),
-    }),
+  outputSchema: capabilityResultSchema,
+  execute: async (
+    ctx: CaetanoCtx,
+    { accountId }: { accountId?: string | undefined },
+  ): Promise<unknown> =>
+    capabilityResult(
+      await ctx.runQuery(internal.caetanoData.listVandaThreads, {
+        userId: ctx.ownerUserId,
+        ...(accountId ? { accountId: accountId as Id<"accounts"> } : {}),
+      }),
+    ),
 });
 
 const askVanda = createTool({
@@ -100,17 +149,20 @@ const askVanda = createTool({
     accountId: optionalAccountId,
     threadId: z.string().optional().describe("conversa específica da Vanda a continuar"),
   }),
-  execute: (
+  outputSchema: capabilityResultSchema,
+  execute: async (
     ctx: CaetanoCtx,
     input: { request: string; accountId?: string | undefined; threadId?: string | undefined },
   ): Promise<unknown> =>
-    ctx.runAction(internal.caetanoNode.askVanda, {
-      userId: ctx.ownerUserId,
-      caetanoThreadId: ctx.caetanoThreadId,
-      request: input.request,
-      ...(input.accountId ? { accountId: input.accountId as Id<"accounts"> } : {}),
-      ...(input.threadId ? { threadId: input.threadId } : {}),
-    }),
+    capabilityResult(
+      await ctx.runAction(internal.caetanoNode.askVanda, {
+        userId: ctx.ownerUserId,
+        caetanoThreadId: ctx.caetanoThreadId,
+        request: input.request,
+        ...(input.accountId ? { accountId: input.accountId as Id<"accounts"> } : {}),
+        ...(input.threadId ? { threadId: input.threadId } : {}),
+      }),
+    ),
 });
 
 const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });

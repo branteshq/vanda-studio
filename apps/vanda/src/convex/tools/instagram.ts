@@ -1,6 +1,7 @@
 import { createTool, type ToolCtx } from "@convex-dev/agent";
 import { z } from "zod";
 import type { Id } from "../_generated/dataModel";
+import { capabilityResult, capabilityResultSchema, type ThreadResource } from "../resourceRefs";
 
 type InstagramToolCtx = ToolCtx & { accountId: Id<"accounts"> };
 type Scope = "connected" | "public";
@@ -45,6 +46,21 @@ interface InstagramToolRunners {
 
 const scopeSchema = z.enum(["connected", "public"]).default("connected");
 
+const instagramResult = async (
+  ctx: InstagramToolCtx,
+  run: () => Promise<unknown>,
+): Promise<unknown> => {
+  const data = await run();
+  const savedTo =
+    data && typeof data === "object" && typeof (data as { savedTo?: unknown }).savedTo === "string"
+      ? (data as { savedTo: string }).savedTo
+      : null;
+  const resources: ThreadResource[] = savedTo
+    ? [{ kind: "document", accountId: ctx.accountId, path: savedTo }]
+    : [];
+  return capabilityResult(data, { resources });
+};
+
 /** Keep generated Convex action references in vanda.ts to avoid an API type cycle. */
 export const makeInstagramTools = (runners: InstagramToolRunners) => {
   const searchInstagramProfiles = createTool({
@@ -54,7 +70,9 @@ export const makeInstagramTools = (runners: InstagramToolRunners) => {
       query: z.string().describe("consulta curta, ex.: cafeteria pinheiros"),
       limit: z.number().int().min(1).max(20).optional().describe("máximo de perfis; padrão 10"),
     }),
-    execute: runners.searchProfiles,
+    outputSchema: capabilityResultSchema,
+    execute: (ctx: InstagramToolCtx, args) =>
+      instagramResult(ctx, () => runners.searchProfiles(ctx, args)),
   });
 
   const readInstagramProfile = createTool({
@@ -64,7 +82,9 @@ export const makeInstagramTools = (runners: InstagramToolRunners) => {
       scope: scopeSchema,
       handle: z.string().optional().describe("@handle obrigatório somente quando scope=public"),
     }),
-    execute: runners.readProfile,
+    outputSchema: capabilityResultSchema,
+    execute: (ctx: InstagramToolCtx, args) =>
+      instagramResult(ctx, () => runners.readProfile(ctx, args)),
   });
 
   const readInstagramPosts = createTool({
@@ -76,7 +96,9 @@ export const makeInstagramTools = (runners: InstagramToolRunners) => {
       limit: z.number().int().min(1).max(100).optional().describe("padrão 25"),
       cursor: z.string().optional().describe("cursor retornado pela página anterior"),
     }),
-    execute: runners.listPosts,
+    outputSchema: capabilityResultSchema,
+    execute: (ctx: InstagramToolCtx, args) =>
+      instagramResult(ctx, () => runners.listPosts(ctx, args)),
   });
 
   const readInstagramPost = createTool({
@@ -86,7 +108,9 @@ export const makeInstagramTools = (runners: InstagramToolRunners) => {
       postUrl: z.string().url().describe("URL instagram.com do post ou reel"),
       includeTranscript: z.boolean().optional().describe("extrair transcrição do reel"),
     }),
-    execute: runners.readPost,
+    outputSchema: capabilityResultSchema,
+    execute: (ctx: InstagramToolCtx, args) =>
+      instagramResult(ctx, () => runners.readPost(ctx, args)),
   });
 
   const readInstagramComments = createTool({
@@ -99,7 +123,9 @@ export const makeInstagramTools = (runners: InstagramToolRunners) => {
       limit: z.number().int().min(1).max(50).optional().describe("padrão 25"),
       cursor: z.string().optional().describe("cursor para comentários conectados"),
     }),
-    execute: runners.listComments,
+    outputSchema: capabilityResultSchema,
+    execute: (ctx: InstagramToolCtx, args) =>
+      instagramResult(ctx, () => runners.listComments(ctx, args)),
   });
 
   const readInstagramMetrics = createTool({
@@ -108,7 +134,9 @@ export const makeInstagramTools = (runners: InstagramToolRunners) => {
     inputSchema: z.object({
       postId: z.string().optional().describe("media id; omita para métricas da conta"),
     }),
-    execute: runners.readMetrics,
+    outputSchema: capabilityResultSchema,
+    execute: (ctx: InstagramToolCtx, args) =>
+      instagramResult(ctx, () => runners.readMetrics(ctx, args)),
   });
 
   return {

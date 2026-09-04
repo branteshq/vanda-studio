@@ -4,6 +4,7 @@ import { z } from "zod";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { DEFAULT_ORCHESTRATOR_MODEL } from "./agentModels";
+import { capabilityResult, capabilityResultSchema, type ThreadResource } from "./resourceRefs";
 import { formatSkillsForSystemPrompt } from "./skills/catalog";
 import { makeInstagramTools } from "./tools/instagram";
 
@@ -91,7 +92,36 @@ type WorkspaceToolResult =
   | { ok: false; error: string; nearest: string; entries: WorkspaceToolEntry[] };
 type WorkspaceToolFile =
   | { kind: "text"; text: string }
-  | { kind: "image"; header: string; url: string; mimeType: string };
+  | {
+      kind: "image";
+      imageId: Id<"images">;
+      header: string;
+      url: string;
+      mimeType: string;
+    };
+
+const imageResource = (accountId: Id<"accounts">, imageId: Id<"images">): ThreadResource => ({
+  kind: "image",
+  accountId,
+  imageId,
+});
+
+const postResource = (accountId: Id<"accounts">, postId: Id<"posts">): ThreadResource => ({
+  kind: "post",
+  accountId,
+  postId,
+});
+
+const documentResource = (
+  accountId: Id<"accounts">,
+  path: string,
+  title?: string,
+): ThreadResource => ({
+  kind: "document",
+  accountId,
+  path,
+  ...(title ? { title } : {}),
+});
 
 const renderEntries = (entries: WorkspaceToolEntry[]): string =>
   entries
@@ -110,10 +140,13 @@ const listFiles = createTool({
   inputSchema: z.object({
     path: z.string().describe('caminho do diretório, ex.: "/", "/images", "/posts"'),
   }),
-  execute: (ctx: VandaToolCtx, { path }: { path: string }): Promise<unknown> =>
-    ctx.runQuery(internal.workspaceData.list, { accountId: ctx.accountId, path }),
+  outputSchema: capabilityResultSchema,
+  execute: async (ctx: VandaToolCtx, { path }: { path: string }): Promise<unknown> =>
+    capabilityResult(
+      await ctx.runQuery(internal.workspaceData.list, { accountId: ctx.accountId, path }),
+    ),
   toModelOutput: (_ctx, { output }) => {
-    const result = output as WorkspaceToolResult;
+    const result = (output as { data: WorkspaceToolResult }).data;
     if (!result.ok) return { type: "text", value: renderMiss(result) };
     return { type: "text", value: `${result.path}\n${renderEntries(result.entries ?? [])}` };
   },
@@ -127,22 +160,31 @@ const readFile = createTool({
     offset: z.number().optional().describe("linha inicial (1-indexada), só para texto"),
     limit: z.number().optional().describe("máximo de linhas, só para texto"),
   }),
-  execute: (
+  outputSchema: capabilityResultSchema,
+  execute: async (
     ctx: VandaToolCtx,
     {
       path,
       offset,
       limit,
     }: { path: string; offset?: number | undefined; limit?: number | undefined },
-  ): Promise<unknown> =>
-    ctx.runQuery(internal.workspaceData.read, {
+  ): Promise<unknown> => {
+    const data = await ctx.runQuery(internal.workspaceData.read, {
       accountId: ctx.accountId,
       path,
       ...(offset !== undefined ? { offset } : {}),
       ...(limit !== undefined ? { limit } : {}),
-    }),
+    });
+    const resources: ThreadResource[] =
+      data.ok && data.file.kind === "image"
+        ? [imageResource(ctx.accountId, data.file.imageId)]
+        : data.ok
+          ? [documentResource(ctx.accountId, data.path)]
+          : [];
+    return capabilityResult(data, { resources });
+  },
   toModelOutput: (_ctx, { output }) => {
-    const result = output as WorkspaceToolResult;
+    const result = (output as { data: WorkspaceToolResult }).data;
     if (!result.ok) return { type: "text", value: renderMiss(result) };
     const file = result.file!;
     if (file.kind === "image") {
@@ -165,13 +207,21 @@ const writeFile = createTool({
     path: z.string().describe('caminho do arquivo, ex.: "/memory/preferencias.md"'),
     content: z.string().describe("conteúdo completo do arquivo (substitui o anterior)"),
   }),
-  execute: (
+  outputSchema: capabilityResultSchema,
+  execute: async (
     ctx: VandaToolCtx,
     { path, content }: { path: string; content: string },
-  ): Promise<unknown> =>
-    ctx.runMutation(internal.workspaceData.write, { accountId: ctx.accountId, path, content }),
+  ): Promise<unknown> => {
+    const data = await ctx.runMutation(internal.workspaceData.write, {
+      accountId: ctx.accountId,
+      path,
+      content,
+    });
+    const resources = data.ok ? [documentResource(ctx.accountId, data.path)] : [];
+    return capabilityResult(data, { resources, presented: resources });
+  },
   toModelOutput: (_ctx, { output }) => {
-    const result = output as
+    const result = (output as { data: unknown }).data as
       | { ok: true; path: string; note: string }
       | { ok: false; error: string };
     return { type: "text", value: result.ok ? `${result.path} ${result.note}` : result.error };
@@ -187,20 +237,25 @@ const createPost = createTool({
       .describe("ids de imagens da galeria (/images) ou anexadas, na ordem dos slides"),
     caption: z.string().describe("legenda completa do post, na voz da marca"),
   }),
+  outputSchema: capabilityResultSchema,
   execute: async (
     ctx: VandaToolCtx,
     { imageIds, caption }: { imageIds: string[]; caption: string },
   ): Promise<unknown> => {
-    const postId: string = await ctx.runMutation(internal.posts.createPostInternal, {
+    const postId = await ctx.runMutation(internal.posts.createPostInternal, {
       accountId: ctx.accountId,
       imageIds: imageIds as Id<"images">[],
       caption,
     });
-    return {
-      postId,
-      status: "draft",
-      proximo_passo: "use schedule_post para pedir a aprovação de publicação",
-    };
+    const resource = postResource(ctx.accountId, postId);
+    return capabilityResult(
+      {
+        postId,
+        status: "draft",
+        proximo_passo: "use schedule_post para agendar ou publicar",
+      },
+      { resources: [resource], presented: [resource] },
+    );
   },
 });
 
@@ -214,16 +269,30 @@ const schedulePost = createTool({
       .optional()
       .describe("data/hora ISO 8601 com offset para publicar; omita para publicar agora"),
   }),
+  outputSchema: capabilityResultSchema,
   execute: async (
     ctx: VandaToolCtx,
     { postId, scheduledFor }: { postId: string; scheduledFor?: string | undefined },
   ): Promise<unknown> => {
     const at = scheduledFor ? Date.parse(scheduledFor) : undefined;
     if (scheduledFor && Number.isNaN(at)) throw new Error("data de agendamento inválida");
-    return ctx.runMutation(internal.posts.schedulePostInternal, {
+    const data = await ctx.runMutation(internal.posts.schedulePostInternal, {
       accountId: ctx.accountId,
       postId: postId as Id<"posts">,
       ...(at !== undefined ? { scheduledFor: at } : {}),
+    });
+    const post = postResource(ctx.accountId, postId as Id<"posts">);
+    const operation: ThreadResource = {
+      kind: "operation",
+      operation: "post.schedule",
+      operationId: data.scheduledPostId,
+      accountId: ctx.accountId,
+      status: "pending",
+      label: data.rescheduled ? "Publicação reagendada" : "Publicação agendada",
+    };
+    return capabilityResult(data, {
+      resources: [post, operation],
+      presented: [post, operation],
     });
   },
 });
@@ -234,12 +303,24 @@ const cancelSchedule = createTool({
   inputSchema: z.object({
     postId: z.string().describe("id do post agendado"),
   }),
-  execute: async (ctx: VandaToolCtx, { postId }: { postId: string }): Promise<string> => {
+  outputSchema: capabilityResultSchema,
+  execute: async (ctx: VandaToolCtx, { postId }: { postId: string }): Promise<unknown> => {
     await ctx.runMutation(internal.posts.cancelScheduleInternal, {
       accountId: ctx.accountId,
       postId: postId as Id<"posts">,
     });
-    return "Agendamento cancelado — o post voltou a rascunho.";
+    const post = postResource(ctx.accountId, postId as Id<"posts">);
+    const operation: ThreadResource = {
+      kind: "operation",
+      operation: "post.cancel_schedule",
+      accountId: ctx.accountId,
+      status: "cancelled",
+      label: "Agendamento cancelado",
+    };
+    return capabilityResult("Agendamento cancelado; o post voltou a rascunho.", {
+      resources: [post, operation],
+      presented: [post, operation],
+    });
   },
 });
 
@@ -249,12 +330,23 @@ const deletePost = createTool({
   inputSchema: z.object({
     postId: z.string().describe("id do post a apagar"),
   }),
-  execute: async (ctx: VandaToolCtx, { postId }: { postId: string }): Promise<string> => {
+  outputSchema: capabilityResultSchema,
+  execute: async (ctx: VandaToolCtx, { postId }: { postId: string }): Promise<unknown> => {
     await ctx.runMutation(internal.posts.deletePostInternal, {
       accountId: ctx.accountId,
       postId: postId as Id<"posts">,
     });
-    return "Post apagado. As imagens continuam na galeria.";
+    const operation: ThreadResource = {
+      kind: "operation",
+      operation: "post.delete",
+      accountId: ctx.accountId,
+      status: "succeeded",
+      label: "Post apagado",
+    };
+    return capabilityResult("Post apagado. As imagens continuam na galeria.", {
+      resources: [operation],
+      presented: [operation],
+    });
   },
 });
 
@@ -275,6 +367,7 @@ const paint = createTool({
     referenceImageIds: z.array(z.string()).optional(),
     editOfImageId: z.string().optional(),
   }),
+  outputSchema: capabilityResultSchema,
   execute: async (
     ctx: VandaToolCtx,
     args: {
@@ -285,8 +378,8 @@ const paint = createTool({
       referenceImageIds?: string[] | undefined;
       editOfImageId?: string | undefined;
     },
-  ): Promise<unknown> =>
-    ctx.runAction(internal.images.paint, {
+  ): Promise<unknown> => {
+    const data = await ctx.runAction(internal.images.paint, {
       accountId: ctx.accountId,
       prompt: args.prompt,
       name: args.name,
@@ -299,7 +392,10 @@ const paint = createTool({
         ? { referenceImageIds: args.referenceImageIds as Array<Id<"images">> }
         : {}),
       ...(args.editOfImageId ? { editOfImageId: args.editOfImageId as Id<"images"> } : {}),
-    }),
+    });
+    const resource = imageResource(ctx.accountId, data.imageId);
+    return capabilityResult(data, { resources: [resource], presented: [resource] });
+  },
 });
 
 const runCode = createTool({
@@ -316,18 +412,27 @@ const runCode = createTool({
       .optional()
       .describe("caminhos de texto/dados/imagens do workspace ou imageIds diretos de anexos"),
   }),
+  outputSchema: capabilityResultSchema,
   execute: async (
     ctx: VandaToolCtx,
     args: { code: string; description: string; inputPaths?: string[] | undefined },
-  ): Promise<unknown> =>
-    ctx.runAction(internal.codeRuns.run, {
+  ): Promise<unknown> => {
+    const data = await ctx.runAction(internal.codeRuns.run, {
       accountId: ctx.accountId,
       code: args.code,
       description: args.description,
       // Lets the owner's stop button cancel the execution mid-flight.
       ...(ctx.threadId ? { threadId: ctx.threadId } : {}),
       ...(args.inputPaths ? { inputPaths: args.inputPaths } : {}),
-    }),
+    });
+    const resources: ThreadResource[] = [
+      ...data.images.map((image) => imageResource(ctx.accountId, image.imageId)),
+      ...data.artifacts.map((artifact) =>
+        documentResource(ctx.accountId, artifact.path, artifact.filename),
+      ),
+    ];
+    return capabilityResult(data, { resources, presented: resources });
+  },
 });
 
 const instagramTools = makeInstagramTools({
