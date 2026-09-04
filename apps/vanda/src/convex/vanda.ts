@@ -4,6 +4,7 @@ import { z } from "zod";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { DEFAULT_ORCHESTRATOR_MODEL } from "./agentModels";
+import { recordCapabilityResult } from "./capabilityTools";
 import { capabilityResult, capabilityResultSchema, type ThreadResource } from "./resourceRefs";
 import { formatSkillsForSystemPrompt } from "./skills/catalog";
 import { makeInstagramTools } from "./tools/instagram";
@@ -168,6 +169,7 @@ const readFile = createTool({
       offset,
       limit,
     }: { path: string; offset?: number | undefined; limit?: number | undefined },
+    options,
   ): Promise<unknown> => {
     const data = await ctx.runQuery(internal.workspaceData.read, {
       accountId: ctx.accountId,
@@ -181,7 +183,7 @@ const readFile = createTool({
         : data.ok
           ? [documentResource(ctx.accountId, data.path)]
           : [];
-    return capabilityResult(data, { resources });
+    return recordCapabilityResult(ctx, options, capabilityResult(data, { resources }));
   },
   toModelOutput: (_ctx, { output }) => {
     const result = (output as { data: WorkspaceToolResult }).data;
@@ -211,6 +213,7 @@ const writeFile = createTool({
   execute: async (
     ctx: VandaToolCtx,
     { path, content }: { path: string; content: string },
+    options,
   ): Promise<unknown> => {
     const data = await ctx.runMutation(internal.workspaceData.write, {
       accountId: ctx.accountId,
@@ -218,7 +221,11 @@ const writeFile = createTool({
       content,
     });
     const resources = data.ok ? [documentResource(ctx.accountId, data.path)] : [];
-    return capabilityResult(data, { resources, presented: resources });
+    return recordCapabilityResult(
+      ctx,
+      options,
+      capabilityResult(data, { resources, presented: resources }),
+    );
   },
   toModelOutput: (_ctx, { output }) => {
     const result = (output as { data: unknown }).data as
@@ -241,6 +248,7 @@ const createPost = createTool({
   execute: async (
     ctx: VandaToolCtx,
     { imageIds, caption }: { imageIds: string[]; caption: string },
+    options,
   ): Promise<unknown> => {
     const postId = await ctx.runMutation(internal.posts.createPostInternal, {
       accountId: ctx.accountId,
@@ -248,13 +256,17 @@ const createPost = createTool({
       caption,
     });
     const resource = postResource(ctx.accountId, postId);
-    return capabilityResult(
-      {
-        postId,
-        status: "draft",
-        proximo_passo: "use schedule_post para agendar ou publicar",
-      },
-      { resources: [resource], presented: [resource] },
+    return recordCapabilityResult(
+      ctx,
+      options,
+      capabilityResult(
+        {
+          postId,
+          status: "draft",
+          proximo_passo: "use schedule_post para agendar ou publicar",
+        },
+        { resources: [resource], presented: [resource] },
+      ),
     );
   },
 });
@@ -273,6 +285,7 @@ const schedulePost = createTool({
   execute: async (
     ctx: VandaToolCtx,
     { postId, scheduledFor }: { postId: string; scheduledFor?: string | undefined },
+    options,
   ): Promise<unknown> => {
     const at = scheduledFor ? Date.parse(scheduledFor) : undefined;
     if (scheduledFor && Number.isNaN(at)) throw new Error("data de agendamento inválida");
@@ -290,10 +303,14 @@ const schedulePost = createTool({
       status: "pending",
       label: data.rescheduled ? "Publicação reagendada" : "Publicação agendada",
     };
-    return capabilityResult(data, {
-      resources: [post, operation],
-      presented: [post, operation],
-    });
+    return recordCapabilityResult(
+      ctx,
+      options,
+      capabilityResult(data, {
+        resources: [post, operation],
+        presented: [post, operation],
+      }),
+    );
   },
 });
 
@@ -304,7 +321,7 @@ const cancelSchedule = createTool({
     postId: z.string().describe("id do post agendado"),
   }),
   outputSchema: capabilityResultSchema,
-  execute: async (ctx: VandaToolCtx, { postId }: { postId: string }): Promise<unknown> => {
+  execute: async (ctx: VandaToolCtx, { postId }: { postId: string }, options): Promise<unknown> => {
     await ctx.runMutation(internal.posts.cancelScheduleInternal, {
       accountId: ctx.accountId,
       postId: postId as Id<"posts">,
@@ -317,10 +334,14 @@ const cancelSchedule = createTool({
       status: "cancelled",
       label: "Agendamento cancelado",
     };
-    return capabilityResult("Agendamento cancelado; o post voltou a rascunho.", {
-      resources: [post, operation],
-      presented: [post, operation],
-    });
+    return recordCapabilityResult(
+      ctx,
+      options,
+      capabilityResult("Agendamento cancelado; o post voltou a rascunho.", {
+        resources: [post, operation],
+        presented: [post, operation],
+      }),
+    );
   },
 });
 
@@ -331,7 +352,7 @@ const deletePost = createTool({
     postId: z.string().describe("id do post a apagar"),
   }),
   outputSchema: capabilityResultSchema,
-  execute: async (ctx: VandaToolCtx, { postId }: { postId: string }): Promise<unknown> => {
+  execute: async (ctx: VandaToolCtx, { postId }: { postId: string }, options): Promise<unknown> => {
     await ctx.runMutation(internal.posts.deletePostInternal, {
       accountId: ctx.accountId,
       postId: postId as Id<"posts">,
@@ -343,10 +364,14 @@ const deletePost = createTool({
       status: "succeeded",
       label: "Post apagado",
     };
-    return capabilityResult("Post apagado. As imagens continuam na galeria.", {
-      resources: [operation],
-      presented: [operation],
-    });
+    return recordCapabilityResult(
+      ctx,
+      options,
+      capabilityResult("Post apagado. As imagens continuam na galeria.", {
+        resources: [operation],
+        presented: [operation],
+      }),
+    );
   },
 });
 
@@ -378,6 +403,7 @@ const paint = createTool({
       referenceImageIds?: string[] | undefined;
       editOfImageId?: string | undefined;
     },
+    options,
   ): Promise<unknown> => {
     const data = await ctx.runAction(internal.images.paint, {
       accountId: ctx.accountId,
@@ -394,7 +420,11 @@ const paint = createTool({
       ...(args.editOfImageId ? { editOfImageId: args.editOfImageId as Id<"images"> } : {}),
     });
     const resource = imageResource(ctx.accountId, data.imageId);
-    return capabilityResult(data, { resources: [resource], presented: [resource] });
+    return recordCapabilityResult(
+      ctx,
+      options,
+      capabilityResult(data, { resources: [resource], presented: [resource] }),
+    );
   },
 });
 
@@ -416,6 +446,7 @@ const runCode = createTool({
   execute: async (
     ctx: VandaToolCtx,
     args: { code: string; description: string; inputPaths?: string[] | undefined },
+    options,
   ): Promise<unknown> => {
     const data = await ctx.runAction(internal.codeRuns.run, {
       accountId: ctx.accountId,
@@ -431,7 +462,11 @@ const runCode = createTool({
         documentResource(ctx.accountId, artifact.path, artifact.filename),
       ),
     ];
-    return capabilityResult(data, { resources, presented: resources });
+    return recordCapabilityResult(
+      ctx,
+      options,
+      capabilityResult(data, { resources, presented: resources }),
+    );
   },
 });
 

@@ -3,6 +3,7 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { z } from "zod";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { recordCapabilityResult } from "./capabilityTools";
 import { capabilityResult, capabilityResultSchema, type ThreadResource } from "./resourceRefs";
 
 export const CAETANO_MODEL = "openai/gpt-5.6-terra";
@@ -28,7 +29,11 @@ const selectAccount = createTool({
   description: "Troca o negócio ativo do dono. Use somente após identificar claramente a conta.",
   inputSchema: z.object({ accountId: z.string() }),
   outputSchema: capabilityResultSchema,
-  execute: async (ctx: CaetanoCtx, { accountId }: { accountId: string }): Promise<unknown> => {
+  execute: async (
+    ctx: CaetanoCtx,
+    { accountId }: { accountId: string },
+    options,
+  ): Promise<unknown> => {
     await ctx.runMutation(internal.caetanoData.selectAccount, {
       userId: ctx.ownerUserId,
       accountId: accountId as Id<"accounts">,
@@ -40,12 +45,16 @@ const selectAccount = createTool({
       status: "succeeded",
       label: "Negócio ativo atualizado",
     };
-    return capabilityResult(
-      { ok: true, accountId },
-      {
-        resources: [operation],
-        presented: [operation],
-      },
+    return recordCapabilityResult(
+      ctx,
+      options,
+      capabilityResult(
+        { ok: true, accountId },
+        {
+          resources: [operation],
+          presented: [operation],
+        },
+      ),
     );
   },
 });
@@ -102,6 +111,7 @@ const setModelPreferences = createTool({
   execute: async (
     ctx: CaetanoCtx,
     input: { orchestrator?: string | undefined; image?: string | undefined },
+    options,
   ): Promise<unknown> => {
     await ctx.runMutation(internal.caetanoData.setModelPreferences, {
       userId: ctx.ownerUserId,
@@ -114,12 +124,16 @@ const setModelPreferences = createTool({
       status: "succeeded",
       label: "Modelos atualizados",
     };
-    return capabilityResult(
-      { ok: true, ...input },
-      {
-        resources: [operation],
-        presented: [operation],
-      },
+    return recordCapabilityResult(
+      ctx,
+      options,
+      capabilityResult(
+        { ok: true, ...input },
+        {
+          resources: [operation],
+          presented: [operation],
+        },
+      ),
     );
   },
 });

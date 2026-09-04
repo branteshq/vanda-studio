@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { threadResourceValidator } from "./resourceRefs";
 import { brandCanonColumns } from "./pipeline/storage";
 import {
   brandKinds,
@@ -138,6 +139,20 @@ export default defineSchema({
     activeVandaThreadId: v.optional(v.string()),
     startedAt: v.number(),
   }).index("by_user", ["userId"]),
+
+  // Typed resources touched or presented by one tool call. The agent component
+  // owns prose and tool history; this table is the durable domain-resource
+  // manifest that web and delegated agents can consume without parsing prose.
+  threadResourceManifests: defineTable({
+    threadId: v.string(),
+    anchorMessageId: v.string(),
+    toolCallId: v.string(),
+    resources: v.array(threadResourceValidator),
+    presented: v.array(threadResourceValidator),
+    createdAt: v.number(),
+  })
+    .index("by_thread_created", ["threadId", "createdAt"])
+    .index("by_thread_tool", ["threadId", "toolCallId"]),
 
   // Brand canon (output of onboarding's approve): the owner-confirmed stable
   // identity — one editable row per fact. This is the durable brand memory the
