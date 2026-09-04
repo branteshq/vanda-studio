@@ -20,6 +20,7 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
+import { AGENT_MAX_OUTPUT_TOKENS } from "./agentModels";
 import { requireUser } from "./authz";
 import { caetano, caetanoSystemPrompt } from "./caetanoAgent";
 import { budgetOf, USAGE_LIMIT_MESSAGE } from "./usage";
@@ -145,14 +146,50 @@ export const generateResponse = internalAction({
       const result = await caetano.streamText(
         { ...ctx, ownerUserId: userId, caetanoThreadId: threadId },
         { threadId },
-        { promptMessageId, system: caetanoSystemPrompt() },
+        {
+          promptMessageId,
+          system: caetanoSystemPrompt(),
+          maxOutputTokens: AGENT_MAX_OUTPUT_TOKENS,
+        },
         { saveStreamDeltas: true },
       );
       await result.consumeStream();
       return await result.text;
+    } catch (error) {
+      console.error("Caetano generation failed", error);
+      const recorded = await ctx.runMutation(internal.caetano.recordGenerationFailure, {
+        userId,
+        threadId,
+        activityId,
+      });
+      return recorded ? GENERATION_FAILURE_MESSAGE : "";
     } finally {
       await ctx.runMutation(internal.caetano.finishActivity, { activityId });
     }
+  },
+});
+
+const GENERATION_FAILURE_MESSAGE =
+  "Não consegui concluir esta resposta por uma falha temporária. Seu pedido foi salvo. Tente novamente.";
+
+export const recordGenerationFailure = internalMutation({
+  args: {
+    userId: v.id("users"),
+    threadId: v.string(),
+    activityId: v.id("caetanoThreadActivity"),
+  },
+  handler: async (ctx, { userId, threadId, activityId }): Promise<boolean> => {
+    const activity = await ctx.db.get(activityId);
+    if (!activity || activity.userId !== userId || activity.threadId !== threadId) return false;
+    const metadata = await getThreadMetadata(ctx, components.agent, { threadId }).catch(() => null);
+    if (!metadata || metadata.userId !== threadKey(userId)) return false;
+    await saveMessage(ctx, components.agent, {
+      threadId,
+      agentName: "caetano",
+      message: { role: "assistant", content: GENERATION_FAILURE_MESSAGE },
+    });
+    if (await ctx.db.get(activityId)) await ctx.db.delete(activityId);
+    return true;
   },
 });
 

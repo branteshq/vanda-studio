@@ -61,6 +61,13 @@ export const DEFAULT_ORCHESTRATOR_MODEL = "anthropic/claude-opus-5";
 /** Conectado can only use the owner's OpenAI subscription. */
 export const DEFAULT_CODEX_ORCHESTRATOR_MODEL = "openai/gpt-5.6-terra";
 
+/**
+ * A model's full output window is not a sensible reservation for one agent
+ * step. OpenRouter prices and credit-checks the requested maximum before it
+ * starts, so leaving this implicit can reject otherwise affordable turns.
+ */
+export const AGENT_MAX_OUTPUT_TOKENS = 8_192;
+
 export const orchestratorModel = (id: string | null | undefined): OrchestratorModel | undefined =>
   ORCHESTRATOR_MODELS.find((model) => model.id === id);
 

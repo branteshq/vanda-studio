@@ -22,7 +22,7 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
-import { resolveOrchestratorModel } from "./agentModels";
+import { AGENT_MAX_OUTPUT_TOKENS, resolveOrchestratorModel } from "./agentModels";
 import { requireOwnedAccount } from "./authz";
 import { codexChatModel, codexResponsesText } from "./pipeline/codex";
 import { budgetOf, USAGE_LIMIT_MESSAGE } from "./usage";
@@ -360,14 +360,56 @@ export const generateResponse = internalAction({
         { threadId },
         // The live-clock system prompt replaces the agent's static
         // instructions so relative dates ("amanhã às 8") resolve correctly.
-        { promptMessageId, system: systemPrompt(), ...(model ? { model } : {}) },
+        {
+          promptMessageId,
+          system: systemPrompt(),
+          maxOutputTokens: AGENT_MAX_OUTPUT_TOKENS,
+          ...(model ? { model } : {}),
+        },
         { saveStreamDeltas: true },
       );
       await result.consumeStream();
       return await result.text;
+    } catch (error) {
+      console.error("Vanda generation failed", error);
+      const recorded = await ctx.runMutation(internal.chat.recordGenerationFailure, {
+        accountId,
+        threadId,
+        ...(activityId ? { activityId } : {}),
+      });
+      return recorded ? GENERATION_FAILURE_MESSAGE : "";
     } finally {
       if (activityId) await ctx.runMutation(internal.chat.finishThreadActivity, { activityId });
     }
+  },
+});
+
+const GENERATION_FAILURE_MESSAGE =
+  "Não consegui concluir esta resposta por uma falha temporária. Seu pedido foi salvo. Tente novamente.";
+
+export const recordGenerationFailure = internalMutation({
+  args: {
+    accountId: v.id("accounts"),
+    threadId: v.string(),
+    activityId: v.optional(v.id("chatThreadActivity")),
+  },
+  handler: async (ctx, { accountId, threadId, activityId }): Promise<boolean> => {
+    if (activityId) {
+      const activity = await ctx.db.get(activityId);
+      if (!activity || activity.accountId !== accountId || activity.threadId !== threadId) {
+        // The stop action deletes the activity before aborting the stream.
+        return false;
+      }
+    }
+    const metadata = await getThreadMetadata(ctx, components.agent, { threadId }).catch(() => null);
+    if (!metadata || metadata.userId !== threadKey(accountId)) return false;
+    await saveMessage(ctx, components.agent, {
+      threadId,
+      agentName: "vanda",
+      message: { role: "assistant", content: GENERATION_FAILURE_MESSAGE },
+    });
+    if (activityId && (await ctx.db.get(activityId))) await ctx.db.delete(activityId);
+    return true;
   },
 });
 
