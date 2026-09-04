@@ -225,16 +225,24 @@ const askVanda = createTool({
   execute: async (
     ctx: CaetanoCtx,
     input: { request: string; accountId?: string | undefined; threadId?: string | undefined },
-  ): Promise<unknown> =>
-    capabilityResult(
-      await ctx.runAction(internal.caetanoNode.askVanda, {
-        userId: ctx.ownerUserId,
-        caetanoThreadId: ctx.caetanoThreadId,
-        request: input.request,
-        ...(input.accountId ? { accountId: input.accountId as Id<"accounts"> } : {}),
-        ...(input.threadId ? { threadId: input.threadId } : {}),
+    options,
+  ): Promise<unknown> => {
+    const data = await ctx.runAction(internal.caetanoNode.askVanda, {
+      userId: ctx.ownerUserId,
+      caetanoThreadId: ctx.caetanoThreadId,
+      request: input.request,
+      ...(input.accountId ? { accountId: input.accountId as Id<"accounts"> } : {}),
+      ...(input.threadId ? { threadId: input.threadId } : {}),
+    });
+    return recordCapabilityResult(
+      ctx,
+      options,
+      capabilityResult(data, {
+        resources: data.resources,
+        presented: data.presented,
       }),
-    ),
+    );
+  },
 });
 
 const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });
