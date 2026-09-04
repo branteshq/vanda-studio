@@ -73,10 +73,12 @@ import {
   downloadImageFile,
   useMediaAction,
 } from "../components/media-tile";
+import { resourcesForMessage, ThreadResourceList } from "../components/thread-resources";
 import { VandaMark } from "../components/vanda-mark";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { imageModelLabel } from "../convex/imageModels";
+import type { ThreadResource } from "../convex/resourceRefs";
 
 export const Route = createFileRoute("/_dashboard/conversa")({
   component: ConversaPage,
@@ -861,6 +863,10 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
     { accountId, threadId },
     { initialNumItems: 60, stream: true },
   );
+  const resourceManifests = useQuery(api.threadResources.listForVanda, {
+    accountId,
+    threadId,
+  });
 
   const send = async (text: string, attachments: ReadyComposerAttachment[]) => {
     const prompt = text.trim();
@@ -885,9 +891,8 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
   // The activity row covers the whole turn (tool phases included), while the
   // message status only covers streamed text — the stop affordance needs both.
   const threads = useQuery(api.chat.listThreads, { accountId });
-  const processing = threads?.some(
-    (thread) => thread.threadId === threadId && thread.processing,
-  ) ?? false;
+  const processing =
+    threads?.some((thread) => thread.threadId === threadId && thread.processing) ?? false;
 
   const loading = messages.status === "LoadingFirstPage";
   // Seamless first-send: while the fresh thread's history loads, keep showing
@@ -938,13 +943,21 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
                         <NewConversationHero />
                       </MessageScrollerItem>
                     ) : (
-                      visibleMessages.map((message) => (
+                      visibleMessages.map((message, index) => (
                         <MessageScrollerItem
                           key={message.key}
                           messageId={message.key}
                           scrollAnchor={message.role === "user"}
                         >
-                          <ChatMessage message={message} accountId={accountId} />
+                          <ChatMessage
+                            message={message}
+                            accountId={accountId}
+                            resources={resourcesForMessage(
+                              visibleMessages,
+                              index,
+                              resourceManifests ?? [],
+                            )}
+                          />
                         </MessageScrollerItem>
                       ))
                     )}
@@ -972,7 +985,15 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
 const visibleUserText = (text: string): string =>
   text.replace(/\s*<vanda_attachment_context>[\s\S]*?<\/vanda_attachment_context>/g, "").trim();
 
-function ChatMessage({ message, accountId }: { message: UIMessage; accountId: Id<"accounts"> }) {
+function ChatMessage({
+  message,
+  accountId,
+  resources,
+}: {
+  message: UIMessage;
+  accountId: Id<"accounts">;
+  resources: ThreadResource[];
+}) {
   const enter = useEntranceOnMount();
   // Which of this turn's generated images is expanded in the lightbox.
   const [lightboxId, setLightboxId] = useState<string | null>(null);
@@ -1041,6 +1062,10 @@ function ChatMessage({ message, accountId }: { message: UIMessage; accountId: Id
     (p) => p.state === "input-streaming" || p.state === "input-available",
   );
   const nothingYet = streaming && answers.length === 0 && toolRows.length === 0;
+  const legacyImageIds = new Set(paintedImages.map((image) => image.imageId));
+  const manifestResources = resources.filter(
+    (resource) => resource.kind !== "image" || !legacyImageIds.has(resource.imageId),
+  );
 
   return (
     <Message align="start" className={cn(enter && "animate-message-in")}>
@@ -1061,6 +1086,7 @@ function ChatMessage({ message, accountId }: { message: UIMessage; accountId: Id
             onOpen={() => setLightboxId(image.imageId)}
           />
         ))}
+        <ThreadResourceList resources={manifestResources} />
         {paintedImages.length > 0 ? (
           <ChatImageLightbox
             accountId={accountId}

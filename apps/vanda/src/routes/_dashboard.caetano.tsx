@@ -24,6 +24,7 @@ import {
 } from "@vanda-studio/ui/components/message-scroller";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { cn } from "@vanda-studio/ui/lib/utils";
+import { resourcesForMessage, ThreadResourceList } from "../components/thread-resources";
 import { api } from "../convex/_generated/api";
 
 export const Route = createFileRoute("/_dashboard/caetano")({ component: CaetanoPage });
@@ -116,6 +117,7 @@ function CaetanoConversation({ threadId, processing }: { threadId: string; proce
     { threadId },
     { initialNumItems: 80, stream: true },
   );
+  const resourceManifests = useQuery(api.threadResources.listForCaetano, { threadId });
   const loading = messages.status === "LoadingFirstPage";
   const streaming = messages.results.at(-1)?.status === "streaming";
 
@@ -149,13 +151,20 @@ function CaetanoConversation({ threadId, processing }: { threadId: string; proce
                     <CaetanoWelcome />
                   </MessageScrollerItem>
                 ) : (
-                  messages.results.map((message) => (
+                  messages.results.map((message, index) => (
                     <MessageScrollerItem
                       key={message.key}
                       messageId={message.key}
                       scrollAnchor={message.role === "user"}
                     >
-                      <CaetanoMessage message={message} />
+                      <CaetanoMessage
+                        message={message}
+                        resources={resourcesForMessage(
+                          messages.results,
+                          index,
+                          resourceManifests ?? [],
+                        )}
+                      />
                     </MessageScrollerItem>
                   ))
                 )}
@@ -222,7 +231,13 @@ function CaetanoWelcome() {
   );
 }
 
-function CaetanoMessage({ message }: { message: UIMessage }) {
+function CaetanoMessage({
+  message,
+  resources,
+}: {
+  message: UIMessage;
+  resources: Parameters<typeof ThreadResourceList>[0]["resources"];
+}) {
   const textParts = message.parts.flatMap((part) =>
     part.type === "text" && (part as { text: string }).text.trim()
       ? [(part as { text: string }).text]
@@ -278,6 +293,7 @@ function CaetanoMessage({ message }: { message: UIMessage }) {
             </BubbleContent>
           </Bubble>
         ))}
+        <ThreadResourceList resources={resources} />
         {nothingYet ? (
           <div className="flex items-center gap-2 text-sm text-text-3">
             <ThinkingOrb state="breathing" size={20} style={{ width: 18, height: 18 }} />
