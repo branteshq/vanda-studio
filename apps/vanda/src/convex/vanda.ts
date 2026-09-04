@@ -5,6 +5,7 @@ import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { DEFAULT_ORCHESTRATOR_MODEL } from "./agentModels";
 import { recordCapabilityResult } from "./capabilityTools";
+import { compactInstagramHistory } from "./instagram/toolSummary";
 import {
   capabilityResult,
   capabilityResultSchema,
@@ -575,6 +576,7 @@ const CHAT_FALLBACK_USD_PER_OUTPUT_TOKEN = 8e-6;
 
 export const vanda = new Agent<VandaCtx>(components.agent, {
   name: "vanda",
+  contextHandler: (_ctx, { allMessages }) => compactInstagramHistory(allMessages),
   // usage accounting makes OpenRouter return the exact request cost in-band.
   languageModel: openrouter.chat(VANDA_MODEL, { usage: { include: true } }),
   // Every chat turn burns the owner's usage meter. The thread's opaque userId

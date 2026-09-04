@@ -3,6 +3,8 @@ import type { ToolExecutionOptions } from "ai";
 import { z } from "zod";
 import type { Id } from "../_generated/dataModel";
 import { recordCapabilityResult } from "../capabilityTools";
+import type { InstagramOperation } from "../instagram/cache";
+import { summarizeInstagramResult } from "../instagram/toolSummary";
 import { capabilityResult, capabilityResultSchema, type ThreadResource } from "../resourceRefs";
 
 type InstagramToolCtx = ToolCtx & { accountId: Id<"accounts"> };
@@ -51,9 +53,10 @@ const scopeSchema = z.enum(["connected", "public"]).default("connected");
 const instagramResult = async (
   ctx: InstagramToolCtx,
   options: ToolExecutionOptions,
+  operation: InstagramOperation,
   run: () => Promise<unknown>,
 ): Promise<unknown> => {
-  const data = await run();
+  const data = summarizeInstagramResult(operation, await run());
   const savedTo =
     data && typeof data === "object" && typeof (data as { savedTo?: unknown }).savedTo === "string"
       ? (data as { savedTo: string }).savedTo
@@ -68,31 +71,31 @@ const instagramResult = async (
 export const makeInstagramTools = (runners: InstagramToolRunners) => {
   const searchInstagramProfiles = createTool({
     description:
-      "Busca perfis públicos do Instagram por palavras-chave. Use para descobrir negócios, criadores e concorrentes; os resultados vêm de dados públicos via Apify e ficam salvos em /instagram/searches.",
+      "Busca perfis públicos do Instagram por palavras-chave. Use para descobrir negócios, criadores e concorrentes; retorna resumos de perfis sem posts aninhados. Os dados completos ficam em /instagram/searches; para analisar em lote, use run_code com inputPaths.",
     inputSchema: z.object({
       query: z.string().describe("consulta curta, ex.: cafeteria pinheiros"),
       limit: z.number().int().min(1).max(20).optional().describe("máximo de perfis; padrão 10"),
     }),
     outputSchema: capabilityResultSchema,
     execute: (ctx: InstagramToolCtx, args, options) =>
-      instagramResult(ctx, options, () => runners.searchProfiles(ctx, args)),
+      instagramResult(ctx, options, "search_profiles", () => runners.searchProfiles(ctx, args)),
   });
 
   const readInstagramProfile = createTool({
     description:
-      "Lê um perfil do Instagram. scope=connected usa a conexão oficial do dono; scope=public lê qualquer perfil público pelo handle. Retorna proveniência/frescor e salva o JSON em /instagram.",
+      "Lê um perfil do Instagram. scope=connected usa a conexão oficial do dono; scope=public lê qualquer perfil público pelo handle. Retorna resumo sem posts aninhados, com proveniência/frescor. Salva o JSON completo em /instagram.",
     inputSchema: z.object({
       scope: scopeSchema,
       handle: z.string().optional().describe("@handle obrigatório somente quando scope=public"),
     }),
     outputSchema: capabilityResultSchema,
     execute: (ctx: InstagramToolCtx, args, options) =>
-      instagramResult(ctx, options, () => runners.readProfile(ctx, args)),
+      instagramResult(ctx, options, "profile", () => runners.readProfile(ctx, args)),
   });
 
   const readInstagramPosts = createTool({
     description:
-      "Lista posts/reels/carrosséis. scope=connected lê o catálogo oficial da conta; scope=public lê um perfil público. Use cursor para continuar uma leitura conectada. O resultado completo fica em /instagram.",
+      "Lista posts/reels/carrosséis. scope=connected lê o catálogo oficial da conta; scope=public lê um perfil público. Use cursor para continuar uma leitura conectada. Retorna uma prévia limitada com IDs, URLs e métricas; o resultado completo fica em /instagram. Analise grandes volumes com run_code e inputPaths.",
     inputSchema: z.object({
       scope: scopeSchema,
       handle: z.string().optional().describe("@handle obrigatório quando scope=public"),
@@ -101,24 +104,24 @@ export const makeInstagramTools = (runners: InstagramToolRunners) => {
     }),
     outputSchema: capabilityResultSchema,
     execute: (ctx: InstagramToolCtx, args, options) =>
-      instagramResult(ctx, options, () => runners.listPosts(ctx, args)),
+      instagramResult(ctx, options, "posts", () => runners.listPosts(ctx, args)),
   });
 
   const readInstagramPost = createTool({
     description:
-      "Lê em detalhe um post ou reel público por URL. Ative includeTranscript para obter a transcrição de um reel quando disponível. Salva em /instagram/posts.",
+      "Lê em detalhe um post ou reel público por URL. Ative includeTranscript para obter a transcrição de um reel quando disponível. Retorna prévia com legenda/transcrição limitadas e salva os textos completos em /instagram/posts.",
     inputSchema: z.object({
       postUrl: z.string().url().describe("URL instagram.com do post ou reel"),
       includeTranscript: z.boolean().optional().describe("extrair transcrição do reel"),
     }),
     outputSchema: capabilityResultSchema,
     execute: (ctx: InstagramToolCtx, args, options) =>
-      instagramResult(ctx, options, () => runners.readPost(ctx, args)),
+      instagramResult(ctx, options, "post", () => runners.readPost(ctx, args)),
   });
 
   const readInstagramComments = createTool({
     description:
-      "Lê comentários de um post. Para scope=connected passe o media postId retornado por read_instagram_posts; para scope=public passe postUrl. Leituras conectadas são oficiais e pagináveis; públicas podem ser parciais.",
+      "Lê comentários de um post. Para scope=connected passe o media postId retornado por read_instagram_posts; para scope=public passe postUrl. Retorna prévia limitada sem respostas aninhadas e salva os dados completos em /instagram. Leituras conectadas são oficiais e pagináveis; públicas podem ser parciais.",
     inputSchema: z.object({
       scope: scopeSchema,
       postId: z.string().optional().describe("media id para post da conta conectada"),
@@ -128,18 +131,18 @@ export const makeInstagramTools = (runners: InstagramToolRunners) => {
     }),
     outputSchema: capabilityResultSchema,
     execute: (ctx: InstagramToolCtx, args, options) =>
-      instagramResult(ctx, options, () => runners.listComments(ctx, args)),
+      instagramResult(ctx, options, "comments", () => runners.listComments(ctx, args)),
   });
 
   const readInstagramMetrics = createTool({
     description:
-      "Lê insights privados da conta Instagram conectada. Sem postId retorna métricas da conta e audiência; com postId retorna alcance, visualizações, saves, shares e engajamento daquele post, inclusive orgânico.",
+      "Lê insights privados da conta Instagram conectada. Sem postId retorna métricas resumidas da conta; com postId retorna alcance, visualizações, saves, shares e engajamento daquele post, inclusive orgânico. Demografia e dados completos ficam no workspace para análise com run_code.",
     inputSchema: z.object({
       postId: z.string().optional().describe("media id; omita para métricas da conta"),
     }),
     outputSchema: capabilityResultSchema,
     execute: (ctx: InstagramToolCtx, args, options) =>
-      instagramResult(ctx, options, () => runners.readMetrics(ctx, args)),
+      instagramResult(ctx, options, "insights", () => runners.readMetrics(ctx, args)),
   });
 
   return {

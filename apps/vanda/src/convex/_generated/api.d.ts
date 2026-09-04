@@ -38,6 +38,7 @@ import type * as instagram_live from "../instagram/live.js";
 import type * as instagram_providers_apify from "../instagram/providers/apify.js";
 import type * as instagram_providers_uploadpost from "../instagram/providers/uploadpost.js";
 import type * as instagram_service from "../instagram/service.js";
+import type * as instagram_toolSummary from "../instagram/toolSummary.js";
 import type * as instagram_types from "../instagram/types.js";
 import type * as instagramActions from "../instagramActions.js";
 import type * as instagramData from "../instagramData.js";
@@ -137,6 +138,7 @@ declare const fullApi: ApiFromModules<{
   "instagram/providers/apify": typeof instagram_providers_apify;
   "instagram/providers/uploadpost": typeof instagram_providers_uploadpost;
   "instagram/service": typeof instagram_service;
+  "instagram/toolSummary": typeof instagram_toolSummary;
   "instagram/types": typeof instagram_types;
   instagramActions: typeof instagramActions;
   instagramData: typeof instagramData;
