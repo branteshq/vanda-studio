@@ -1,11 +1,15 @@
+import { useState } from "react";
 import type { UIMessage } from "@convex-dev/agent/react";
 import { useQuery } from "convex-helpers/react/cache";
-import { Check, Clock3, ExternalLink, FileText, ImageOff, LoaderCircle, X } from "lucide-react";
+import { Check, Clock3, ExternalLink, FileText, LoaderCircle, X } from "lucide-react";
 import { Markdown } from "@vanda-studio/ui/components/markdown";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import { dedupeResources, resourceKey, type ThreadResource } from "../convex/resourceRefs";
+import { ThreadImage, ThreadImageLightbox } from "./thread-images";
+
+type ImageResourceRef = Extract<ThreadResource, { kind: "image" }>;
 
 export interface PresentedResourceManifest {
   readonly anchorMessageId: string;
@@ -38,21 +42,58 @@ export const resourcesForMessage = (
 };
 
 export function ThreadResourceList({ resources }: { resources: readonly ThreadResource[] }) {
+  const [selectedImage, setSelectedImage] = useState<ImageResourceRef | null>(null);
   const unique = dedupeResources(resources);
   if (unique.length === 0) return null;
   return (
     <div className="grid w-full gap-2.5">
       {unique.map((resource) => (
-        <ThreadResourceView key={resourceKey(resource)} resource={resource} />
+        <ThreadResourceView
+          key={resourceKey(resource)}
+          resource={resource}
+          onOpenImage={setSelectedImage}
+        />
       ))}
+      {selectedImage ? (
+        <ThreadImageLightbox
+          accountId={selectedImage.accountId}
+          images={unique.filter(
+            (resource): resource is ImageResourceRef =>
+              resource.kind === "image" && resource.accountId === selectedImage.accountId,
+          )}
+          selectedId={selectedImage.imageId}
+          onSelect={(imageId) => {
+            const next = unique.find(
+              (resource): resource is ImageResourceRef =>
+                resource.kind === "image" &&
+                resource.accountId === selectedImage.accountId &&
+                resource.imageId === imageId,
+            );
+            if (next) setSelectedImage(next);
+          }}
+          onClose={() => setSelectedImage(null)}
+        />
+      ) : null}
     </div>
   );
 }
 
-function ThreadResourceView({ resource }: { resource: ThreadResource }) {
+function ThreadResourceView({
+  resource,
+  onOpenImage,
+}: {
+  resource: ThreadResource;
+  onOpenImage: (image: ImageResourceRef) => void;
+}) {
   switch (resource.kind) {
     case "image":
-      return <ImageResource resource={resource} />;
+      return (
+        <ThreadImage
+          image={resource}
+          accountId={resource.accountId}
+          onOpen={() => onOpenImage(resource)}
+        />
+      );
     case "post":
       return <PostResource resource={resource} />;
     case "document":
@@ -62,42 +103,6 @@ function ThreadResourceView({ resource }: { resource: ThreadResource }) {
     case "operation":
       return <OperationResource resource={resource} />;
   }
-}
-
-function ImageResource({ resource }: { resource: Extract<ThreadResource, { kind: "image" }> }) {
-  const image = useQuery(api.gallery.get, {
-    accountId: resource.accountId,
-    imageId: resource.imageId,
-  });
-  if (image === undefined) return <Skeleton className="aspect-[4/5] w-full max-w-sm rounded-xl" />;
-  if (image === null || !image.url) {
-    return (
-      <ResourceNotice icon={<ImageOff />} title="Imagem indisponível">
-        Ela pode ter sido removida da galeria.
-      </ResourceNotice>
-    );
-  }
-  const ratio = image.width && image.height ? image.width / image.height : 4 / 5;
-  return (
-    <a
-      href={image.url}
-      target="_blank"
-      rel="noreferrer"
-      className="group relative block w-full max-w-sm overflow-hidden rounded-xl border border-border bg-inset"
-    >
-      <div style={{ aspectRatio: ratio }}>
-        <img
-          src={image.url}
-          alt={image.name ?? "Imagem criada pela Vanda"}
-          loading="lazy"
-          className="size-full object-cover transition-transform duration-200 group-hover:scale-[1.015]"
-        />
-      </div>
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-3 pt-8 pb-2.5 text-white">
-        <p className="truncate text-sm font-medium">{image.name ?? "Imagem"}</p>
-      </div>
-    </a>
-  );
 }
 
 const POST_STATUS: Record<string, string> = {

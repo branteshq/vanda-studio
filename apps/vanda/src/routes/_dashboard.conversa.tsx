@@ -1,6 +1,4 @@
 import {
-  createContext,
-  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -19,19 +17,7 @@ import {
 } from "@convex-dev/agent/react";
 import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
-import {
-  ArrowUp,
-  Check,
-  ChevronDown,
-  Copy,
-  Download,
-  ImageOff,
-  Paperclip,
-  Square,
-  SquarePen,
-  Trash2,
-  X,
-} from "lucide-react";
+import { ArrowUp, Check, ChevronDown, Paperclip, Square, X } from "lucide-react";
 import { ThinkingOrb, type OrbState } from "thinking-orbs";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Bubble, BubbleContent } from "@vanda-studio/ui/components/bubble";
@@ -60,24 +46,12 @@ import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { useActiveAccount } from "../components/active-account";
-import { ImageLightbox, type ImageLightboxData } from "../components/image-lightbox";
-import {
-  ActionStateIcon,
-  MediaTile,
-  MediaTileAction,
-  MediaTileActions,
-  MediaTileBadge,
-  MediaTileCaption,
-  MediaTileMedia,
-  copyImageToClipboard,
-  downloadImageFile,
-  useMediaAction,
-} from "../components/media-tile";
+import { EntranceReadyContext, useEntranceOnMount } from "../components/thread-entrance";
+import { ThreadImage, ThreadImageLightbox } from "../components/thread-images";
 import { resourcesForMessage, ThreadResourceList } from "../components/thread-resources";
 import { VandaMark } from "../components/vanda-mark";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
-import { imageModelLabel } from "../convex/imageModels";
 import type { ThreadResource } from "../convex/resourceRefs";
 
 export const Route = createFileRoute("/_dashboard/conversa")({
@@ -813,18 +787,6 @@ function ChatComposer({
   );
 }
 
-/**
- * True once the initial history has painted, so entrance animations fire only for
- * content that arrives afterward — never the whole thread cascading in on load.
- * Components freeze the value at their own mount, so a row/card/attachment animates
- * iff it mounted after first paint.
- */
-const EntranceReadyContext = createContext(false);
-function useEntranceOnMount(): boolean {
-  const ready = useContext(EntranceReadyContext);
-  return useState(ready)[0];
-}
-
 /** Hide the canned greeting stored by the pre-empty-state thread model. */
 function isDefaultWelcome(message: UIMessage): boolean {
   if (message.role !== "assistant") return false;
@@ -1092,7 +1054,7 @@ function ChatMessage({
           </Bubble>
         ))}
         {paintedImages.map((image) => (
-          <PaintedImage
+          <ThreadImage
             key={image.imageId}
             image={image}
             accountId={accountId}
@@ -1101,7 +1063,7 @@ function ChatMessage({
         ))}
         <ThreadResourceList resources={manifestResources} />
         {paintedImages.length > 0 ? (
-          <ChatImageLightbox
+          <ThreadImageLightbox
             accountId={accountId}
             images={paintedImages}
             selectedId={lightboxId}
@@ -1247,198 +1209,6 @@ function CodeRunRow({ part }: { part: ToolPartView }) {
           ) : null}
         </div>
       ) : null}
-    </div>
-  );
-}
-
-/**
- * A loose image returned directly by the synchronous paint tool. The transcript
- * freezes the URL at generation time, so liveness comes from the gallery: when
- * the record is gone (deleted from the canvas), the frame gives way to a quiet
- * tombstone instead of a broken image.
- */
-/**
- * A generated image in the conversation — the same MediaTile surface as the
- * gallery (hover zoom, copy/download/delete chips, name+model caption scrim),
- * minus the selection toggle: chat has no multi-select. Clicking opens the
- * shared lightbox.
- */
-function PaintedImage({
-  image,
-  accountId,
-  onOpen,
-}: {
-  image: PaintedImageView;
-  accountId: Id<"accounts">;
-  onOpen: () => void;
-}) {
-  const enter = useEntranceOnMount();
-  const live = useQuery(api.gallery.get, {
-    accountId,
-    imageId: image.imageId as Id<"images">,
-  });
-  const url = live?.url ?? image.url;
-  const remove = useMutation(api.gallery.remove);
-  const copy = useMediaAction(() => copyImageToClipboard(url!));
-  const download = useMediaAction(() => downloadImageFile(url!, live?.name ?? null));
-
-  if (live === null) return <DeletedImageNotice />;
-
-  return (
-    <MediaTile
-      label={live?.name ?? "Imagem criada pela Vanda"}
-      {...(url ? { onOpen } : {})}
-      className={cn("max-w-sm", enter && "animate-attachment-in")}
-    >
-      <MediaTileMedia aspectRatio={image.width / image.height}>
-        {url ? (
-          <img
-            src={url}
-            alt={live?.name ?? "Imagem criada pela Vanda"}
-            loading="lazy"
-            className="size-full object-cover"
-          />
-        ) : (
-          // run_code outputs carry no frozen URL — hold the frame until the
-          // gallery subscription resolves, with the image "taking shape".
-          <span className="relative block size-full">
-            <Skeleton className="size-full" />
-            <span className="absolute inset-0 flex items-center justify-center">
-              <ThinkingOrb state="shaping" size={64} aria-label="Preparando a imagem…" />
-            </span>
-          </span>
-        )}
-      </MediaTileMedia>
-
-      {live?.edited ? (
-        <MediaTileBadge label="Editada">
-          <SquarePen />
-        </MediaTileBadge>
-      ) : null}
-
-      {url && (
-        <MediaTileActions>
-          <MediaTileAction label="Copiar imagem" onClick={copy.run}>
-            <ActionStateIcon state={copy.state} icon={<Copy />} />
-          </MediaTileAction>
-          <MediaTileAction label="Baixar" onClick={download.run}>
-            <ActionStateIcon state={download.state} icon={<Download />} />
-          </MediaTileAction>
-          <MediaTileAction
-            label="Excluir"
-            onClick={() => void remove({ accountId, imageId: image.imageId as Id<"images"> })}
-            className="hover:bg-destructive/85"
-          >
-            <Trash2 />
-          </MediaTileAction>
-        </MediaTileActions>
-      )}
-
-      {live ? (
-        <MediaTileCaption>
-          <p className="truncate text-body-sm font-medium text-white">{live.name ?? "Sem nome"}</p>
-          {live.model ? (
-            <p className="truncate text-note text-white/70">{imageModelLabel(live.model)}</p>
-          ) : null}
-        </MediaTileCaption>
-      ) : null}
-    </MediaTile>
-  );
-}
-
-/**
- * Bridges a turn's generated images to the same ImageLightbox the gallery
- * uses — identical panel (rename, copy, download, delete, prompt, cost),
- * arrows navigating the turn's images. `gallery.get` is already subscribed by
- * the inline preview, so opening the viewer costs nothing extra.
- */
-function ChatImageLightbox({
-  accountId,
-  images,
-  selectedId,
-  onSelect,
-  onClose,
-}: {
-  accountId: Id<"accounts">;
-  images: PaintedImageView[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  onClose: () => void;
-}) {
-  const detail = useQuery(
-    api.gallery.get,
-    selectedId ? { accountId, imageId: selectedId as Id<"images"> } : "skip",
-  );
-  const rename = useMutation(api.gallery.rename);
-  const remove = useMutation(api.gallery.remove);
-
-  // The record vanished under the viewer (deleted from another surface) — close
-  // instead of spinning forever on a query that will never resolve.
-  useEffect(() => {
-    if (selectedId && detail === null) onClose();
-  }, [selectedId, detail, onClose]);
-
-  const index = images.findIndex((image) => image.imageId === selectedId);
-  const prev = index > 0 ? images[index - 1] : undefined;
-  const next = index >= 0 && index < images.length - 1 ? images[index + 1] : undefined;
-  const fallback = index >= 0 ? images[index] : undefined;
-
-  const image: ImageLightboxData | null = detail
-    ? {
-        id: detail.id,
-        url: detail.url,
-        name: detail.name,
-        model: detail.model ? imageModelLabel(detail.model) : null,
-        prompt: detail.prompt,
-        width: detail.width,
-        height: detail.height,
-        generationMs: detail.generationMs,
-        costUsd: detail.costUsd,
-        createdAt: detail.createdAt,
-        origin: detail.origin,
-        edited: detail.edited,
-        promptAuthor: detail.promptAuthor,
-      }
-    : fallback
-      ? {
-          id: fallback.imageId,
-          url: fallback.url ?? null,
-          name: null,
-          width: fallback.width,
-          height: fallback.height,
-        }
-      : null;
-
-  return (
-    <ImageLightbox
-      open={selectedId !== null}
-      onClose={onClose}
-      image={image}
-      loading={detail === undefined}
-      onPrev={prev ? () => onSelect(prev.imageId) : undefined}
-      onNext={next ? () => onSelect(next.imageId) : undefined}
-      onRename={(name) => {
-        if (selectedId) void rename({ accountId, imageId: selectedId as Id<"images">, name });
-      }}
-      onDelete={() => {
-        if (!selectedId) return;
-        void remove({ accountId, imageId: selectedId as Id<"images"> }).then(onClose);
-      }}
-    />
-  );
-}
-
-/** The tombstone left behind when a painted image was deleted from the gallery. */
-function DeletedImageNotice() {
-  return (
-    <div className="flex w-full max-w-sm items-center gap-3 rounded-xl border border-dashed border-border bg-muted/40 px-3.5 py-3">
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-text-4">
-        <ImageOff className="size-4" />
-      </span>
-      <div className="min-w-0">
-        <p className="text-body font-medium text-text-2">Imagem excluída</p>
-        <p className="text-body-sm text-text-4">Esta imagem foi removida da galeria.</p>
-      </div>
     </div>
   );
 }
