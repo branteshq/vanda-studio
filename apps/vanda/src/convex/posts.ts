@@ -19,10 +19,17 @@ export const createPostInternal = internalMutation({
     accountId: v.id("accounts"),
     imageIds: v.array(v.id("images")),
     caption: v.string(),
+    originThreadId: v.optional(v.string()),
+    caetanoThreadId: v.optional(v.string()),
   },
-  handler: async (ctx, { accountId, imageIds, caption }): Promise<Id<"posts">> => {
+  handler: async (
+    ctx,
+    { accountId, imageIds, caption, originThreadId, caetanoThreadId },
+  ): Promise<Id<"posts">> => {
     if (imageIds.length < 1 || imageIds.length > MAX_POST_IMAGES) {
-      throw new Error(`um post precisa de 1 a ${MAX_POST_IMAGES} imagens (recebi ${imageIds.length})`);
+      throw new Error(
+        `um post precisa de 1 a ${MAX_POST_IMAGES} imagens (recebi ${imageIds.length})`,
+      );
     }
     if (caption.trim() === "") throw new Error("a legenda não pode ser vazia");
     if (caption.length > MAX_CAPTION_CHARS) {
@@ -36,6 +43,8 @@ export const createPostInternal = internalMutation({
     }
     return ctx.db.insert("posts", {
       accountId,
+      ...(originThreadId ? { originThreadId } : {}),
+      ...(caetanoThreadId ? { caetanoThreadId } : {}),
       type: imageIds.length > 1 ? "feed" : "image",
       imageIds,
       caption,
@@ -57,15 +66,27 @@ export const schedulePostInternal = internalMutation({
     accountId: v.id("accounts"),
     postId: v.id("posts"),
     scheduledFor: v.optional(v.number()),
+    originThreadId: v.optional(v.string()),
+    caetanoThreadId: v.optional(v.string()),
   },
   handler: async (
     ctx,
-    { accountId, postId, scheduledFor },
-  ): Promise<{ scheduledPostId: Id<"scheduledPosts">; scheduledFor: number; rescheduled: boolean }> => {
+    { accountId, postId, scheduledFor, originThreadId, caetanoThreadId },
+  ): Promise<{
+    scheduledPostId: Id<"scheduledPosts">;
+    scheduledFor: number;
+    rescheduled: boolean;
+  }> => {
     const post = await ctx.db.get(postId);
     if (post === null || post.accountId !== accountId) throw new Error("post não encontrado");
     const at = scheduledFor ?? Date.now() + 5_000;
     const now = Date.now();
+    if (originThreadId || caetanoThreadId) {
+      await ctx.db.patch(postId, {
+        ...(originThreadId ? { originThreadId } : {}),
+        ...(caetanoThreadId ? { caetanoThreadId } : {}),
+      });
+    }
     const existing = await ctx.db
       .query("scheduledPosts")
       .withIndex("by_post", (q) => q.eq("postId", postId))
@@ -74,7 +95,8 @@ export const schedulePostInternal = internalMutation({
       if (existing.status !== "scheduled") {
         throw new Error(`post já está ${existing.status} — não dá mais para reagendar`);
       }
-      if (existing.scheduledJobId !== undefined) await ctx.scheduler.cancel(existing.scheduledJobId);
+      if (existing.scheduledJobId !== undefined)
+        await ctx.scheduler.cancel(existing.scheduledJobId);
       const scheduledJobId = await ctx.scheduler.runAt(
         at,
         internal.publishScheduledNode.runScheduledPost,
@@ -119,7 +141,8 @@ export const cancelScheduleInternal = internalMutation({
     if (scheduled.status !== "scheduled") {
       throw new Error(`agendamento já está ${scheduled.status} — não dá para cancelar`);
     }
-    if (scheduled.scheduledJobId !== undefined) await ctx.scheduler.cancel(scheduled.scheduledJobId);
+    if (scheduled.scheduledJobId !== undefined)
+      await ctx.scheduler.cancel(scheduled.scheduledJobId);
     await ctx.db.delete(scheduled._id);
     await ctx.db.patch(postId, { status: "draft" });
   },

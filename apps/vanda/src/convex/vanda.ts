@@ -27,8 +27,8 @@ import { makeInstagramTools } from "./tools/instagram";
 
 export const VANDA_MODEL = DEFAULT_ORCHESTRATOR_MODEL;
 
-/** Every agent turn carries the account the thread belongs to. */
-type VandaCtx = { accountId: Id<"accounts"> };
+/** Every agent turn carries its account and optional Caetano return thread. */
+type VandaCtx = { accountId: Id<"accounts">; caetanoThreadId?: string | undefined };
 type VandaToolCtx = ToolCtx & VandaCtx;
 
 const INSTRUCTIONS = `Você é a Vanda, uma operadora de crescimento de Instagram para pequenos negócios brasileiros. Você conversa em português do Brasil, com tom direto, caloroso e profissional.
@@ -304,6 +304,8 @@ const createPost = createTool({
       accountId: ctx.accountId,
       imageIds: imageIds as Id<"images">[],
       caption,
+      ...(ctx.threadId ? { originThreadId: ctx.threadId } : {}),
+      ...(ctx.caetanoThreadId ? { caetanoThreadId: ctx.caetanoThreadId } : {}),
     });
     const resource = postResource(ctx.accountId, postId);
     return recordCapabilityResult(
@@ -343,6 +345,8 @@ const schedulePost = createTool({
       accountId: ctx.accountId,
       postId: postId as Id<"posts">,
       ...(at !== undefined ? { scheduledFor: at } : {}),
+      ...(ctx.threadId ? { originThreadId: ctx.threadId } : {}),
+      ...(ctx.caetanoThreadId ? { caetanoThreadId: ctx.caetanoThreadId } : {}),
     });
     const post = postResource(ctx.accountId, postId as Id<"posts">);
     const operation: ThreadResource = {

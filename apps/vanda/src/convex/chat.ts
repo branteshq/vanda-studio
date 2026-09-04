@@ -329,8 +329,13 @@ export const generateResponse = internalAction({
     promptMessageId: v.string(),
     // Optional keeps already-scheduled turns from older deployments compatible.
     activityId: v.optional(v.id("chatThreadActivity")),
+    // Delegated turns return durable async outcomes to Caetano as well.
+    caetanoThreadId: v.optional(v.string()),
   },
-  handler: async (ctx, { accountId, threadId, promptMessageId, activityId }): Promise<string> => {
+  handler: async (
+    ctx,
+    { accountId, threadId, promptMessageId, activityId, caetanoThreadId },
+  ): Promise<string> => {
     try {
       // Which model thinks as Vanda this turn: the owner's pick, resolved
       // against the transport (Conectado can only carry OpenAI models).
@@ -351,7 +356,7 @@ export const generateResponse = internalAction({
             ? undefined // the agent's configured default — no override needed
             : openrouterChatModel(modelId);
       const result = await vanda.streamText(
-        { ...ctx, accountId },
+        { ...ctx, accountId, ...(caetanoThreadId ? { caetanoThreadId } : {}) },
         { threadId },
         // The live-clock system prompt replaces the agent's static
         // instructions so relative dates ("amanhã às 8") resolve correctly.

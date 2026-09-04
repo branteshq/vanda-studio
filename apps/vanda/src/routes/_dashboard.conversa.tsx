@@ -163,6 +163,14 @@ interface ToolPartView {
 const toolNameOf = (part: ToolPartView): string =>
   part.type === "dynamic-tool" ? (part.toolName ?? "tool") : part.type.slice("tool-".length);
 
+const toolDataOf = (part: ToolPartView): unknown => {
+  const output = part.output;
+  if (output && typeof output === "object" && "data" in output) {
+    return (output as { data: unknown }).data;
+  }
+  return output;
+};
+
 interface PaintedImageView {
   imageId: string;
   /** Frozen at generation time by paint; run_code images resolve live from the gallery. */
@@ -173,7 +181,7 @@ interface PaintedImageView {
 
 const paintedImageOf = (part: ToolPartView): PaintedImageView | null => {
   if (toolNameOf(part) !== "paint" || part.state !== "output-available") return null;
-  const output = part.output;
+  const output = toolDataOf(part);
   if (!output || typeof output !== "object") return null;
   const value = output as Record<string, unknown>;
   return typeof value.imageId === "string" &&
@@ -192,7 +200,7 @@ const paintedImageOf = (part: ToolPartView): PaintedImageView | null => {
 /** Images produced by a completed run_code call (no frozen URL — gallery is live source). */
 const codeImagesOf = (part: ToolPartView): PaintedImageView[] => {
   if (toolNameOf(part) !== "run_code" || part.state !== "output-available") return [];
-  const output = part.output;
+  const output = toolDataOf(part);
   if (!output || typeof output !== "object") return [];
   const images = (output as { images?: unknown }).images;
   if (!Array.isArray(images)) return [];
@@ -209,7 +217,11 @@ const codeImagesOf = (part: ToolPartView): PaintedImageView[] => {
 /** The agent-facing fields of a run_code part, for the expandable code trace. */
 const codeRunViewOf = (part: ToolPartView) => {
   const input = (part.input ?? {}) as { code?: unknown; description?: unknown };
-  const output = (part.output ?? {}) as { ok?: unknown; stdout?: unknown; stderr?: unknown };
+  const output = (toolDataOf(part) ?? {}) as {
+    ok?: unknown;
+    stdout?: unknown;
+    stderr?: unknown;
+  };
   return {
     code: typeof input.code === "string" ? input.code : "",
     description: typeof input.description === "string" ? input.description : "",

@@ -728,6 +728,9 @@ export default defineSchema({
 
   posts: defineTable({
     accountId: v.id("accounts"),
+    // Conversation destinations for deterministic publication follow-ups.
+    originThreadId: v.optional(v.string()),
+    caetanoThreadId: v.optional(v.string()),
     type: v.union(...postTypes.map((type) => v.literal(type))),
     imageIds: v.array(v.id("images")),
     caption: v.string(),

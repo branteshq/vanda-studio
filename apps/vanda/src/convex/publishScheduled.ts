@@ -62,6 +62,15 @@ export const setScheduledStatus = internalMutation({
     const post = await ctx.db.get(scheduled.postId);
     if (!post) return;
     if (status === "published") await ctx.db.patch(post._id, { status: "published" });
+    if (
+      scheduled.status !== status &&
+      (status === "published" || status === "failed") &&
+      (post.originThreadId || post.caetanoThreadId)
+    ) {
+      await ctx.scheduler.runAfter(0, internal.threadResources.postPublicationFollowup, {
+        scheduledPostId,
+      });
+    }
     const opportunity = post.opportunityId ? await ctx.db.get(post.opportunityId) : null;
     if (opportunity) {
       if (status === "published")

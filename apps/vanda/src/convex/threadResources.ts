@@ -1,7 +1,13 @@
-import { getThreadMetadata } from "@convex-dev/agent";
+import { getThreadMetadata, saveMessage } from "@convex-dev/agent";
 import { v } from "convex/values";
 import { components } from "./_generated/api";
-import { internalMutation, internalQuery, query, type QueryCtx } from "./_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import { requireOwnedAccount, requireUser } from "./authz";
 import {
   dedupeResources,
@@ -17,6 +23,38 @@ export interface ThreadResourceManifest {
   readonly presented: ThreadResource[];
 }
 
+interface ManifestWrite {
+  readonly threadId: string;
+  readonly anchorMessageId: string;
+  readonly toolCallId: string;
+  readonly resources: readonly ThreadResource[];
+  readonly presented: readonly ThreadResource[];
+}
+
+const upsertManifest = async (ctx: MutationCtx, args: ManifestWrite): Promise<void> => {
+  const existing = await ctx.db
+    .query("threadResourceManifests")
+    .withIndex("by_thread_tool", (q) =>
+      q.eq("threadId", args.threadId).eq("toolCallId", args.toolCallId),
+    )
+    .unique();
+  const value = {
+    anchorMessageId: args.anchorMessageId,
+    resources: dedupeResources(args.resources),
+    presented: dedupeResources(args.presented),
+  };
+  if (existing) {
+    await ctx.db.patch(existing._id, value);
+    return;
+  }
+  await ctx.db.insert("threadResourceManifests", {
+    threadId: args.threadId,
+    toolCallId: args.toolCallId,
+    ...value,
+    createdAt: Date.now(),
+  });
+};
+
 export const record = internalMutation({
   args: {
     threadId: v.string(),
@@ -25,29 +63,7 @@ export const record = internalMutation({
     resources: v.array(threadResourceValidator),
     presented: v.array(threadResourceValidator),
   },
-  handler: async (ctx, args): Promise<void> => {
-    const existing = await ctx.db
-      .query("threadResourceManifests")
-      .withIndex("by_thread_tool", (q) =>
-        q.eq("threadId", args.threadId).eq("toolCallId", args.toolCallId),
-      )
-      .unique();
-    const value = {
-      anchorMessageId: args.anchorMessageId,
-      resources: dedupeResources(args.resources),
-      presented: dedupeResources(args.presented),
-    };
-    if (existing) {
-      await ctx.db.patch(existing._id, value);
-      return;
-    }
-    await ctx.db.insert("threadResourceManifests", {
-      threadId: args.threadId,
-      toolCallId: args.toolCallId,
-      ...value,
-      createdAt: Date.now(),
-    });
-  },
+  handler: upsertManifest,
 });
 
 const manifestsForThread = async (ctx: QueryCtx, threadId: string) =>
@@ -67,6 +83,81 @@ export const forPrompt = internalQuery({
       resources: dedupeResources(matching.flatMap((row) => row.resources)),
       presented: dedupeResources(matching.flatMap((row) => row.presented)),
     };
+  },
+});
+
+export const postPublicationFollowup = internalMutation({
+  args: { scheduledPostId: v.id("scheduledPosts") },
+  handler: async (ctx, { scheduledPostId }): Promise<void> => {
+    const scheduled = await ctx.db.get(scheduledPostId);
+    if (!scheduled || (scheduled.status !== "published" && scheduled.status !== "failed")) return;
+    const post = await ctx.db.get(scheduled.postId);
+    if (!post) return;
+    const succeeded = scheduled.status === "published";
+    const operation: ThreadResource = {
+      kind: "operation",
+      operation: "post.publish",
+      operationId: scheduledPostId,
+      accountId: post.accountId,
+      status: succeeded ? "succeeded" : "failed",
+      label: succeeded
+        ? "Publicado no Instagram"
+        : `Falha ao publicar${scheduled.lastError ? `: ${scheduled.lastError}` : ""}`,
+    };
+    const resources: ThreadResource[] = [
+      { kind: "post", accountId: post.accountId, postId: post._id },
+      operation,
+      ...(scheduled.permalink
+        ? [{ kind: "link" as const, url: scheduled.permalink, title: "Ver no Instagram" }]
+        : []),
+    ];
+    const owner = await ctx.db
+      .get(post.accountId)
+      .then((account) => (account?.ownerUserId ? ctx.db.get(account.ownerUserId) : null));
+    const destinations = [
+      ...(post.originThreadId
+        ? [
+            {
+              threadId: post.originThreadId,
+              agentName: "vanda",
+              expectedUserId: String(post.accountId),
+            },
+          ]
+        : []),
+      ...(post.caetanoThreadId && owner
+        ? [
+            {
+              threadId: post.caetanoThreadId,
+              agentName: "caetano",
+              expectedUserId: `caetano:${owner._id}`,
+            },
+          ]
+        : []),
+    ].filter(
+      (destination, index, all) =>
+        all.findIndex((candidate) => candidate.threadId === destination.threadId) === index,
+    );
+    for (const destination of destinations) {
+      const metadata = await getThreadMetadata(ctx, components.agent, {
+        threadId: destination.threadId,
+      }).catch(() => null);
+      if (!metadata || metadata.userId !== destination.expectedUserId) continue;
+      const text = succeeded
+        ? "A publicação terminou e já está no Instagram."
+        : `A publicação falhou${scheduled.lastError ? `: ${scheduled.lastError}` : "."}`;
+      const { messageId } = await saveMessage(ctx, components.agent, {
+        threadId: destination.threadId,
+        agentName: destination.agentName,
+        message: { role: "assistant", content: text },
+      });
+      await upsertManifest(ctx, {
+        threadId: destination.threadId,
+        anchorMessageId: messageId,
+        toolCallId: `publication:${scheduledPostId}:${scheduled.status}`,
+        resources,
+        presented: resources,
+      });
+    }
   },
 });
 

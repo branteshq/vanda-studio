@@ -34,7 +34,10 @@ export const askVanda = internalAction({
       caetanoThreadId: args.caetanoThreadId,
       vandaThreadId: prepared.threadId,
     });
-    const response = await ctx.runAction(internal.chat.generateResponse, prepared);
+    const response = await ctx.runAction(internal.chat.generateResponse, {
+      ...prepared,
+      caetanoThreadId: args.caetanoThreadId,
+    });
     const manifest = await ctx.runQuery(internal.threadResources.forPrompt, {
       threadId: prepared.threadId,
       anchorMessageId: prepared.promptMessageId,
