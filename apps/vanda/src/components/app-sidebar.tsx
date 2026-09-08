@@ -17,6 +17,7 @@ import {
   Trash2,
   UsersRound,
 } from "lucide-react";
+import caetanoWelcomeUrl from "@vanda-studio/ui/assets/caetano/caetano-expression-welcome.png?url";
 import { Avatar, AvatarFallback, AvatarImage } from "@vanda-studio/ui/components/avatar";
 import { Button } from "@vanda-studio/ui/components/button";
 import {
@@ -596,8 +597,15 @@ function CaetanoNav() {
           }}
           className="h-10 gap-2.5 px-3 text-body font-semibold"
         >
-          <span className="flex size-5 items-center justify-center text-base" aria-hidden="true">
-            🐒
+          <span
+            className="flex size-5 items-center justify-center overflow-hidden rounded-full bg-brand-accent/12"
+            aria-hidden="true"
+          >
+            <img
+              src={caetanoWelcomeUrl}
+              alt=""
+              className="size-7 max-w-none translate-y-0.5 object-contain"
+            />
           </span>
           <span className="group-data-[collapsible=icon]:hidden">Caetano</span>
         </SidebarMenuButton>

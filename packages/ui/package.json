@@ -10,6 +10,8 @@
     "./assets/vanda-logo.svg": "./src/assets/vanda-logo.svg",
     "./assets/vanda-mark-solid.svg": "./src/assets/vanda-mark-solid.svg",
     "./assets/vanda-mark-white.svg": "./src/assets/vanda-mark-white.svg",
+    "./assets/caetano/caetano-expression-welcome.png": "./src/assets/caetano/caetano-expression-welcome.png",
+    "./assets/caetano/caetano-pose-waving.png": "./src/assets/caetano/caetano-pose-waving.png",
     "./components/*": "./src/components/*.tsx",
     "./hooks/*": "./src/hooks/*.ts",
     "./lib/*": "./src/lib/*.ts",

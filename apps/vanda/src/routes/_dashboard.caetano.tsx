@@ -10,6 +10,8 @@ import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
 import { ArrowUp, Square } from "lucide-react";
 import { ThinkingOrb } from "thinking-orbs";
+import caetanoWelcomeUrl from "@vanda-studio/ui/assets/caetano/caetano-expression-welcome.png?url";
+import caetanoWavingUrl from "@vanda-studio/ui/assets/caetano/caetano-pose-waving.png?url";
 import { Bubble, BubbleContent } from "@vanda-studio/ui/components/bubble";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Markdown } from "@vanda-studio/ui/components/markdown";
@@ -192,8 +194,13 @@ function CaetanoFrame({ children }: { children: React.ReactNode }) {
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <header className="flex h-14 shrink-0 items-center justify-center border-b border-border/60 px-4">
         <div className="flex items-center gap-2 text-sm font-semibold text-text-1">
-          <span className="flex size-7 items-center justify-center rounded-full bg-brand-accent/12 text-base">
-            🐒
+          <span className="flex size-7 items-center justify-center overflow-hidden rounded-full bg-brand-accent/12">
+            <img
+              src={caetanoWelcomeUrl}
+              alt=""
+              aria-hidden="true"
+              className="size-9 max-w-none translate-y-0.5 object-contain"
+            />
           </span>
           Caetano
         </div>
@@ -206,8 +213,13 @@ function CaetanoFrame({ children }: { children: React.ReactNode }) {
 function CaetanoWelcome() {
   return (
     <div className="mx-auto max-w-xl text-center">
-      <div className="mx-auto mb-5 flex size-16 items-center justify-center rounded-2xl border border-border bg-surface-2 text-4xl shadow-sm">
-        🐒
+      <div className="mx-auto mb-5 flex size-16 items-center justify-center overflow-hidden rounded-2xl border border-border bg-surface-2 shadow-sm">
+        <img
+          src={caetanoWavingUrl}
+          alt=""
+          aria-hidden="true"
+          className="size-20 max-w-none object-contain"
+        />
       </div>
       <h1 className="text-2xl font-semibold tracking-tight text-text-1">Fala com o Caetano</h1>
       <p className="mt-2 text-sm leading-6 text-text-3">
