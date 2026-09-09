@@ -108,7 +108,7 @@ describe("Caetano control plane", () => {
         threadId: sent.threadId,
         prompt: "Outra mensagem",
       }),
-    ).rejects.toThrow("Caetano já está trabalhando");
+    ).resolves.toHaveProperty("threadId", sent.threadId);
     await owner.mutation(api.caetano.stopGeneration, { threadId: sent.threadId });
     expect((await owner.query(api.caetano.state, {})).processing).toBe(false);
   });

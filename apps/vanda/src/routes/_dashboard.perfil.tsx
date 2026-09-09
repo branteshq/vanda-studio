@@ -42,6 +42,7 @@ import {
 import { PLAN_TIERS, planLabel, tierOfPlan } from "../convex/billing/plans";
 import { parseBrandKit } from "../convex/workspace/brandKit";
 import { useActiveAccount } from "../components/active-account";
+import { WhatsAppSettings } from "../components/whatsapp-settings";
 
 export const Route = createFileRoute("/_dashboard/perfil")({
   component: ProfilePage,
@@ -189,6 +190,7 @@ function ProfilePage() {
             {tab === "conta" ? (
               <div className="mt-6">
                 <AccountTab />
+                <WhatsAppSettings />
                 {viewed ? <InstagramConnectCard accountId={viewed.id} name={viewed.name} /> : null}
               </div>
             ) : null}

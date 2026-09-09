@@ -25,6 +25,66 @@ import {
 } from "./pipeline/constants";
 
 export default defineSchema({
+  caetanoInbox: defineTable({
+    userId: v.id("users"),
+    threadId: v.string(),
+    promptMessageId: v.string(),
+    channel: v.union(v.literal("web"), v.literal("whatsapp")),
+    connectionId: v.optional(v.id("whatsappConnections")),
+    externalMessageId: v.optional(v.string()),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("running"),
+      v.literal("done"),
+      v.literal("stopped"),
+    ),
+  }).index("by_user_status", ["userId", "status"]),
+  whatsappLinks: defineTable({
+    userId: v.id("users"),
+    tokenHash: v.string(),
+    expiresAt: v.number(),
+  })
+    .index("by_hash", ["tokenHash"])
+    .index("by_user", ["userId"]),
+  whatsappConnections: defineTable({
+    userId: v.id("users"),
+    phoneNumberId: v.string(),
+    sender: v.string(),
+    recipientKind: v.union(v.literal("phone"), v.literal("bsuid")),
+    phone: v.optional(v.string()),
+    lastInboundAt: v.number(),
+    connectedAt: v.number(),
+    active: v.boolean(),
+  })
+    .index("by_sender", ["phoneNumberId", "sender"])
+    .index("by_user", ["userId"]),
+  whatsappReceipts: defineTable({
+    key: v.string(),
+    receivedAt: v.number(),
+  }).index("by_key", ["key"]),
+  whatsappOutbox: defineTable({
+    connectionId: v.id("whatsappConnections"),
+    text: v.string(),
+    sourceMessageId: v.optional(v.string()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("sending"),
+      v.literal("sent"),
+      v.literal("delivered"),
+      v.literal("read"),
+      v.literal("failed"),
+      v.literal("unknown"),
+      v.literal("awaiting_window"),
+      v.literal("cancelled"),
+    ),
+    attempts: v.number(),
+    externalMessageId: v.optional(v.string()),
+    error: v.optional(v.string()),
+    nextAttemptAt: v.optional(v.number()),
+  })
+    .index("by_connection", ["connectionId"])
+    .index("by_connection_status", ["connectionId", "status"])
+    .index("by_external", ["externalMessageId"]),
   users: defineTable({
     name: v.string(),
     email: v.string(),
@@ -134,6 +194,8 @@ export default defineSchema({
     .index("by_thread", ["threadId"]),
 
   caetanoThreadActivity: defineTable({
+    inboxId: v.optional(v.id("caetanoInbox")),
+
     userId: v.id("users"),
     threadId: v.string(),
     promptMessageId: v.string(),
