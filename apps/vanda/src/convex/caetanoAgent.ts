@@ -104,7 +104,7 @@ const modelPreferences = createTool({
 
 const setModelPreferences = createTool({
   description:
-    "Altera modelos do dono. Texto aceita ids do catálogo (ex.: anthropic/claude-opus-5); imagem aceita ids do catálogo (ex.: openai/gpt-image-2).",
+    "Altera modelos do dono. Texto aceita ids do catálogo (ex.: anthropic/claude-opus-5); imagem aceita ids do catálogo (ex.: openai/gpt-image-2.5-flare, openai/gpt-image-2.5-sunburst).",
   inputSchema: z
     .object({
       orchestrator: z.string().optional(),

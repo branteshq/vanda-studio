@@ -4,15 +4,29 @@ import {
   DEFAULT_ORCHESTRATOR_MODEL,
   resolveOrchestratorModel,
 } from "./agentModels";
-import { DEFAULT_IMAGE_MODEL } from "./imageModels";
+import {
+  DEFAULT_IMAGE_MODEL,
+  IMAGE_MODELS,
+  isKnownImageModel,
+  modelResolutions,
+} from "./imageModels";
 
 describe("model defaults", () => {
-  it("uses Opus 5 and GPT Image 2 by default", () => {
+  it("uses Opus 5 and GPT Image 2.5 Flare by default", () => {
     expect(DEFAULT_ORCHESTRATOR_MODEL).toBe("anthropic/claude-opus-5");
-    expect(DEFAULT_IMAGE_MODEL).toBe("openai/gpt-image-2");
+    expect(DEFAULT_IMAGE_MODEL).toBe("openai/gpt-image-2.5-flare");
     expect(resolveOrchestratorModel(undefined, { conectado: false })).toBe(
       DEFAULT_ORCHESTRATOR_MODEL,
     );
+  });
+
+  it("replaces GPT Image 2 with both 2.5 variants in the shared picker catalog", () => {
+    expect(isKnownImageModel("openai/gpt-image-2")).toBe(false);
+    for (const id of ["openai/gpt-image-2.5-flare", "openai/gpt-image-2.5-sunburst"]) {
+      expect(isKnownImageModel(id)).toBe(true);
+      expect(IMAGE_MODELS.find((model) => model.id === id)?.label).toContain("GPT Image 2.5");
+      expect(modelResolutions(id)).toEqual(["1K"]);
+    }
   });
 
   it("keeps Conectado on a model its OpenAI transport can serve", () => {

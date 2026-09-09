@@ -35,6 +35,7 @@ import {
 } from "../convex/agentModels";
 import {
   CONECTADO_IMAGE_MODEL,
+  CONECTADO_IMAGE_MODELS,
   DEFAULT_IMAGE_MODEL,
   IMAGE_MODELS,
 } from "../convex/imageModels";
@@ -515,7 +516,8 @@ function ModelsCard() {
   const imageId = conectado ? CONECTADO_IMAGE_MODEL : (prefs?.image ?? DEFAULT_IMAGE_MODEL);
 
   const orchestrator = ORCHESTRATOR_MODELS.find((model) => model.id === orchestratorId);
-  const image = IMAGE_MODELS.find((model) => model.id === imageId);
+  const imageModels = conectado ? CONECTADO_IMAGE_MODELS : IMAGE_MODELS;
+  const image = imageModels.find((model) => model.id === imageId);
 
   const choose = async (action: Promise<unknown>) => {
     setError(null);
@@ -587,13 +589,13 @@ function ModelsCard() {
             <SelectTrigger className="w-56" aria-label="Modelo de imagens" disabled={conectado}>
               <SelectValue>
                 {(value) => {
-                  const model = IMAGE_MODELS.find((item) => item.id === value);
+                  const model = imageModels.find((item) => item.id === value);
                   return model ? <span className="truncate">{model.label}</span> : null;
                 }}
               </SelectValue>
             </SelectTrigger>
             <SelectContent align="end" className="w-72">
-              {IMAGE_MODELS.map((model) => (
+              {imageModels.map((model) => (
                 <SelectItem key={model.id} value={model.id}>
                   <span className="flex items-center gap-2">
                     <span className="truncate font-medium">{model.label}</span>

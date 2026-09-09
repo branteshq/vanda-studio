@@ -172,7 +172,10 @@ async function paintImage(
 
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
-    if (model && !isKnownImageModel(model)) throw new Error(`unknown image model: ${model}`);
+    const sub = await ctx.runQuery(internal.openaiSub.subscriberState, { accountId });
+    if (model && !isKnownImageModel(model) && !(sub.active && model === CONECTADO_IMAGE_MODEL)) {
+      throw new Error(`unknown image model: ${model}`);
+    }
     // No model named (every agent paint): the owner's default, then the
     // catalog default. Conectado overrides both further down.
     const selectedModel =
@@ -201,8 +204,6 @@ async function paintImage(
 
     // Conectado plan: every paint runs gpt-image-2 on the owner's ChatGPT
     // subscription — model choice collapses, cost to the Vanda meter is zero.
-    const sub = await ctx.runQuery(internal.openaiSub.subscriberState, { accountId });
-
     const startedAt = Date.now();
     let generated;
     try {
@@ -256,7 +257,8 @@ async function paintImage(
     const targetRatio = ratioWidth / ratioHeight;
     const sniffed = sniffImage(generated.bytes);
     const ratioMatches =
-      sniffed !== null && Math.abs(sniffed.width / sniffed.height - targetRatio) / targetRatio < 0.01;
+      sniffed !== null &&
+      Math.abs(sniffed.width / sniffed.height - targetRatio) / targetRatio < 0.01;
     const tooBigToDecode = sniffed !== null && sniffed.width * sniffed.height > MAX_DECODE_PIXELS;
 
     let width: number;

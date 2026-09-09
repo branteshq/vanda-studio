@@ -43,10 +43,17 @@ export const IMAGE_MODELS: ReadonlyArray<ImageModel> = [
     resolutions: ["1K"],
   },
   {
-    id: "openai/gpt-image-2",
-    label: "GPT Image 2",
+    id: "openai/gpt-image-2.5-flare",
+    label: "GPT Image 2.5 Flare",
     priceTier: "$$$",
-    blurb: "Modelo de imagem da OpenAI",
+    blurb: "Modelo de imagem da OpenAI, padrão da Vanda",
+    resolutions: ["1K"],
+  },
+  {
+    id: "openai/gpt-image-2.5-sunburst",
+    label: "GPT Image 2.5 Sunburst",
+    priceTier: "$$$",
+    blurb: "Variante Sunburst da OpenAI para geração e edição",
     resolutions: ["1K"],
   },
   {
@@ -66,7 +73,7 @@ export const IMAGE_MODELS: ReadonlyArray<ImageModel> = [
 ];
 
 /** The painter's default when no model is chosen. */
-export const DEFAULT_IMAGE_MODEL = "openai/gpt-image-2";
+export const DEFAULT_IMAGE_MODEL = "openai/gpt-image-2.5-flare";
 
 /**
  * The painter the Conectado plan forces: every paint runs on the owner's
@@ -75,6 +82,17 @@ export const DEFAULT_IMAGE_MODEL = "openai/gpt-image-2";
  * picker all read this one constant.
  */
 export const CONECTADO_IMAGE_MODEL = "openai/gpt-image-2";
+
+/** Separate subscription transport; not selectable in the OpenRouter catalog. */
+export const CONECTADO_IMAGE_MODELS: ReadonlyArray<ImageModel> = [
+  {
+    id: CONECTADO_IMAGE_MODEL,
+    label: "GPT Image 2",
+    priceTier: "$$$",
+    blurb: "Pela sua assinatura do ChatGPT",
+    resolutions: ["1K"],
+  },
+];
 
 const BY_ID = new Map(IMAGE_MODELS.map((model) => [model.id, model]));
 
@@ -87,6 +105,7 @@ export const CODE_IMAGE_MODEL = "python/pillow";
 /** The display label for a model id, falling back to the raw id if unknown. */
 export const imageModelLabel = (id: string | undefined): string => {
   if (id === CODE_IMAGE_MODEL) return "Pillow (código)";
+  if (id === CONECTADO_IMAGE_MODEL) return "GPT Image 2";
   return (id && BY_ID.get(id)?.label) ?? id ?? "Desconhecido";
 };
 

@@ -11,13 +11,13 @@ import type { Id } from "../convex/_generated/dataModel";
 import { tierOfPlan } from "../convex/billing/plans";
 import {
   CONECTADO_IMAGE_MODEL,
+  CONECTADO_IMAGE_MODELS,
   DEFAULT_IMAGE_MODEL,
   IMAGE_MODELS,
   IMAGE_RESOLUTIONS,
   sharedResolutions,
   type ImageResolution,
 } from "../convex/imageModels";
-
 
 const ASPECT_RATIOS = ["1:1", "4:5", "9:16", "16:9"] as const;
 type AspectRatio = (typeof ASPECT_RATIOS)[number];
@@ -49,9 +49,7 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
   const generate = useMutation(api.gallery.generate);
   const summary = useQuery(api.usage.summary);
   const connectedOnly = summary?.plan != null && tierOfPlan(summary.plan) === "conectado";
-  const availableModels = connectedOnly
-    ? IMAGE_MODELS.filter((model) => model.id === CONECTADO_IMAGE_MODEL)
-    : IMAGE_MODELS;
+  const availableModels = connectedOnly ? CONECTADO_IMAGE_MODELS : IMAGE_MODELS;
   const prefs = useQuery(api.users.modelPreferences);
   const [prompt, setPrompt] = useState("");
   // `null` = untouched, so the composer follows the owner's default from
@@ -201,9 +199,7 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
         </div>
 
         <div>
-          <label className="section-label mb-1.5 block text-sidebar-foreground/75">
-            Resolução
-          </label>
+          <label className="section-label mb-1.5 block text-sidebar-foreground/75">Resolução</label>
           <div className="grid grid-cols-3 gap-1.5">
             {IMAGE_RESOLUTIONS.map((tier) => {
               const supported = allowedResolutions.includes(tier);

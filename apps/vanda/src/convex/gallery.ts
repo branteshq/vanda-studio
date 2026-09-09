@@ -4,7 +4,8 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
-import { isKnownImageModel } from "./imageModels";
+import { CONECTADO_IMAGE_MODEL, isKnownImageModel } from "./imageModels";
+import { isConnectedSubscriber } from "./openaiSub";
 
 /**
  * The account's creative gallery. Every generated or uploaded image lands here
@@ -81,9 +82,7 @@ export const list = query({
       .order("desc")
       .paginate(paginationOpts);
     const items = await Promise.all(
-      page.page
-        .filter((image) => image.purpose !== "reference")
-        .map((image) => toItem(ctx, image)),
+      page.page.filter((image) => image.purpose !== "reference").map((image) => toItem(ctx, image)),
     );
     return { ...page, page: items };
   },
@@ -185,12 +184,25 @@ export const generate = mutation({
   },
   handler: async (
     ctx,
-    { accountId, prompt, modelIds, aspectRatio, count, resolution, referenceImageIds, editOfImageId },
+    {
+      accountId,
+      prompt,
+      modelIds,
+      aspectRatio,
+      count,
+      resolution,
+      referenceImageIds,
+      editOfImageId,
+    },
   ): Promise<{ scheduled: number }> => {
-    await requireOwnedAccount(ctx, accountId);
+    const account = await requireOwnedAccount(ctx, accountId);
+    const owner = account.ownerUserId ? await ctx.db.get(account.ownerUserId) : null;
+    const conectado = owner !== null && isConnectedSubscriber(owner);
     const trimmed = prompt.trim();
     if (!trimmed) throw new Error("prompt vazio");
-    const models = modelIds.filter(isKnownImageModel);
+    const models = modelIds.filter(
+      (id) => isKnownImageModel(id) || (conectado && id === CONECTADO_IMAGE_MODEL),
+    );
     if (models.length === 0) throw new Error("nenhum modelo válido selecionado");
     const perModel = Math.max(1, Math.floor(count));
     const total = models.length * perModel;
