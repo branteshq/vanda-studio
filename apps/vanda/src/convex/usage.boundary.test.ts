@@ -1,4 +1,5 @@
 // @vitest-environment edge-runtime
+import agentComponent from "@convex-dev/agent/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "./_generated/api";
@@ -15,6 +16,7 @@ const modules = import.meta.glob("./**/*.ts");
 
 const setup = async () => {
   const t = convexTest(schema, modules);
+  agentComponent.register(t);
   const ids = await t.run(async (ctx) => {
     const now = Date.now();
     const userId = await ctx.db.insert("users", {
@@ -123,6 +125,41 @@ describe("usage metering", () => {
     expect(summary!.plan).toBeNull();
     expect(summary!.usedPct).toBe(50);
     expect(summary!.limited).toBe(false);
+  });
+
+  it("keeps paid-service spending after switching but unblocks connected ChatGPT", async () => {
+    const { t, accountId, userId } = await setup();
+    await t.run((ctx) =>
+      ctx.db.patch(userId, {
+        planId: "basico",
+        billingPeriodStart: 1_000,
+      }),
+    );
+    await t.mutation(internal.usage.charge, { accountId, kind: "chat", usd: 20 });
+    await t.run((ctx) => ctx.db.patch(userId, { planId: "conectado" }));
+    const owner = t.withIdentity({ subject: "ana" });
+    expect(await owner.query(api.usage.summary, {})).toMatchObject({
+      limited: true,
+      chatLimited: true,
+    });
+    await expect(owner.mutation(api.chat.sendMessage, { accountId, prompt: "Oi" })).rejects.toThrow(
+      "Limite de uso",
+    );
+    await t.run((ctx) => ctx.db.patch(userId, { openaiAccessCiphertext: "encrypted" }));
+    expect(await owner.query(api.usage.summary, {})).toMatchObject({
+      limited: true,
+      chatLimited: false,
+    });
+    await expect(
+      owner.mutation(api.chat.sendMessage, { accountId, prompt: "Oi" }),
+    ).resolves.toHaveProperty("threadId");
+    expect(await t.query(internal.usage.budget, { accountId })).toMatchObject({
+      ok: false,
+      spentMicroUsd: 20_000_000,
+      periodKey: "p1000",
+    });
+    await t.run((ctx) => ctx.db.patch(userId, { openaiAccessCiphertext: undefined }));
+    expect(await owner.query(api.usage.summary, {})).toMatchObject({ chatLimited: true });
   });
 
   it("keeps the Básico R$40 cost share across paid tiers", () => {

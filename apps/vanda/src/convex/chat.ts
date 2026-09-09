@@ -26,6 +26,7 @@ import { AGENT_MAX_OUTPUT_TOKENS, resolveOrchestratorModel } from "./agentModels
 import { requireOwnedAccount } from "./authz";
 import { codexChatModel, codexResponsesText } from "./pipeline/codex";
 import { budgetOf, USAGE_LIMIT_MESSAGE } from "./usage";
+import { isConnectedSubscriber } from "./openaiSub";
 import { openrouterChatModel, systemPrompt, vanda, VANDA_MODEL } from "./vanda";
 
 /**
@@ -174,7 +175,7 @@ export const sendMessage = mutation({
     // limit, nothing is generated (a generated apology would itself cost).
     if (account.ownerUserId) {
       const owner = await ctx.db.get(account.ownerUserId);
-      if (owner && !(await budgetOf(ctx, owner)).ok) {
+      if (owner && !isConnectedSubscriber(owner) && !(await budgetOf(ctx, owner)).ok) {
         throw new Error(USAGE_LIMIT_MESSAGE);
       }
     }

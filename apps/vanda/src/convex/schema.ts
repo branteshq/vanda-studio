@@ -39,6 +39,7 @@ export default defineSchema({
     billingPeriodStart: v.optional(v.number()),
     billingPeriodEnd: v.optional(v.number()),
     billingSyncedAt: v.optional(v.number()),
+    billingChangeStartedAt: v.optional(v.number()),
     // A plan change Autumn deferred to the next renewal (downgrades).
     scheduledPlanId: v.optional(v.string()),
     // Which model thinks as Vanda (an id from agentModels.ORCHESTRATOR_MODELS).

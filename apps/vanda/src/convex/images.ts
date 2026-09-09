@@ -152,8 +152,11 @@ async function paintImage(
     const trimmedPrompt = prompt.trim();
     if (!trimmedPrompt) throw new Error("image prompt is empty");
 
-    const budget = await ctx.runQuery(internal.usage.budget, { accountId });
-    if (!budget.ok) throw new Error(USAGE_LIMIT_MESSAGE);
+    const sub = await ctx.runQuery(internal.openaiSub.subscriberState, { accountId });
+    if (!sub.active) {
+      const budget = await ctx.runQuery(internal.usage.budget, { accountId });
+      if (!budget.ok) throw new Error(USAGE_LIMIT_MESSAGE);
+    }
 
     // Identity wall: account ownership and reference authorization are checked
     // in a database query before any URL reaches the image model.
@@ -171,8 +174,8 @@ async function paintImage(
     const inputReferences = [...new Set([editUrl, ...referenceUrls].filter(Boolean))] as string[];
 
     const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
-    const sub = await ctx.runQuery(internal.openaiSub.subscriberState, { accountId });
+    if (!apiKey && !sub.active)
+      throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
     if (model && !isKnownImageModel(model) && !(sub.active && model === CONECTADO_IMAGE_MODEL)) {
       throw new Error(`unknown image model: ${model}`);
     }
@@ -219,6 +222,7 @@ async function paintImage(
           signal: abort.signal,
         });
       } else {
+        if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
         generated = await Effect.runPromise(
           Effect.flatMap(ImageAssetGenerator, (generator) =>
             generator.generate({

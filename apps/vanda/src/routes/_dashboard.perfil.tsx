@@ -275,7 +275,9 @@ function UsageCard() {
             </div>
             <p className="mt-2 text-xs text-text-4">
               {summary?.limited
-                ? "Limite atingido — faça upgrade para continuar."
+                ? summary.chatLimited
+                  ? "Limite atingido. Mude de plano ou aguarde a renovação."
+                  : "Limite dos serviços pagos pela Vanda atingido. Conversa e imagens pela sua assinatura do ChatGPT continuam disponíveis."
                 : summary?.renewsAt
                   ? `Renova em ${new Date(summary.renewsAt).toLocaleDateString("pt-BR")}`
                   : "Crédito de teste — assine para renovar todo mês."}
@@ -320,6 +322,18 @@ function AccountTab() {
   const summary = useQuery(api.usage.summary);
   const syncBilling = useAction(api.billing.autumn.syncBilling);
   const startCheckout = useAction(api.billing.autumn.startCheckout);
+  const previewPlanChange = useAction(api.billing.autumn.previewPlanChange);
+  const changePlan = useAction(api.billing.autumn.changePlan);
+  const [schedule, setSchedule] = useState<"immediate" | "end_of_cycle">("immediate");
+  const [preview, setPreview] = useState<{
+    planId: string;
+    currentPlanId: string;
+    scheduledPlanId: string | null;
+    total: number;
+    currency: string;
+    effectiveAt: number | null;
+    schedule: "immediate" | "end_of_cycle";
+  } | null>(null);
   const getPortalUrl = useAction(api.billing.autumn.getBillingPortalUrl);
   const [interval, setInterval] = useState<"monthly" | "annual">("monthly");
   const [busy, setBusy] = useState<string | null>(null);
@@ -335,6 +349,11 @@ function AccountTab() {
     setBusy(planId);
     setError(null);
     try {
+      if (summary?.plan) {
+        const result = await previewPlanChange({ planId, schedule });
+        setPreview({ ...result, planId, schedule });
+        return;
+      }
       const { checkoutUrl, attached } = await startCheckout({ planId });
       if (checkoutUrl) {
         window.location.href = checkoutUrl;
@@ -345,6 +364,24 @@ function AccountTab() {
       if (attached) await syncBilling();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(null);
+    }
+  };
+  const confirmChange = async () => {
+    if (!preview) return;
+    setBusy(preview.planId);
+    setError(null);
+    try {
+      const { effectiveAt: _, ...input } = preview;
+      const result = await changePlan(input);
+      setPreview(null);
+      if (result.checkoutUrl) window.location.href = result.checkoutUrl;
+      else await syncBilling();
+    } catch (cause) {
+      setPreview(null);
+      setError(cause instanceof Error ? cause.message : String(cause));
+      await syncBilling().catch(() => {});
     } finally {
       setBusy(null);
     }
@@ -382,6 +419,69 @@ function AccountTab() {
         <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-body-sm text-destructive">
           {error}
         </p>
+      ) : null}
+
+      {currentTier ? (
+        <fieldset className="mt-4 flex flex-wrap gap-4" disabled={busy !== null}>
+          <legend className="mb-2 text-body-sm">Quando mudar de plano?</legend>
+          {(
+            [
+              ["immediate", "Agora, com cobrança ou crédito proporcional"],
+              ["end_of_cycle", "Na próxima renovação"],
+            ] as const
+          ).map(([value, label]) => (
+            <label key={value} className="flex items-center gap-2 text-body-sm">
+              <input
+                type="radio"
+                name="plan-schedule"
+                value={value}
+                checked={schedule === value}
+                onChange={() => {
+                  setSchedule(value);
+                  setPreview(null);
+                }}
+              />
+              {label}
+            </label>
+          ))}
+        </fieldset>
+      ) : null}
+      {preview ? (
+        <section
+          className="mt-4 rounded-lg border border-border bg-surface p-4"
+          aria-label="Confirmar mudança de plano"
+        >
+          <h3 className="font-semibold">Confirmar mudança de plano</h3>
+          <p className="mt-2 text-body-sm">
+            {PLAN_TIERS.find((tier) => tier.tier === tierOfPlan(preview.planId))?.label}.
+            {preview.schedule === "immediate"
+              ? " A mudança vale agora."
+              : ` A mudança vale na renovação${preview.effectiveAt ? ` em ${new Date(preview.effectiveAt).toLocaleDateString("pt-BR")}` : ""}.`}
+          </p>
+          <p className="mt-2 text-body-sm">
+            {preview.total < 0 ? "Crédito proporcional: " : "Cobrança prevista: "}
+            {new Intl.NumberFormat("pt-BR", {
+              style: "currency",
+              currency: preview.currency,
+            }).format(Math.abs(preview.total))}
+          </p>
+          <p className="mt-2 text-xs text-text-3">
+            Créditos seguem as regras da cobrança e não significam reembolso no cartão. O uso já
+            consumido dos serviços pagos pela Vanda não é zerado. No plano ChatGPT, conecte sua
+            assinatura em Perfil para usar conversa e imagens por ela.
+          </p>
+          {preview.scheduledPlanId ? (
+            <p className="mt-2 text-body-sm">Esta escolha substitui a mudança já agendada.</p>
+          ) : null}
+          <div className="mt-3 flex gap-2">
+            <Button disabled={busy !== null} onClick={() => void confirmChange()}>
+              Confirmar mudança
+            </Button>
+            <Button variant="outline" disabled={busy !== null} onClick={() => setPreview(null)}>
+              Cancelar
+            </Button>
+          </div>
+        </section>
       ) : null}
 
       <div className="mt-4 flex w-fit gap-1 rounded-lg border border-border bg-surface p-1">
@@ -424,9 +524,8 @@ function AccountTab() {
           const annual = interval === "annual" ? tier.annual : undefined;
           const price = annual ?? tier.monthly;
           const perMonth = annual ? annual.perMonthBrl : tier.monthly.priceBrl;
-          const current = currentTier === tier.tier;
-          const scheduled =
-            summary?.scheduledPlan != null && tierOfPlan(summary.scheduledPlan) === tier.tier;
+          const current = summary?.plan === price.productId;
+          const scheduled = summary?.scheduledPlan === price.productId;
           return (
             <PlanCard
               key={tier.tier}
@@ -461,8 +560,14 @@ function AccountTab() {
                 ) : scheduled ? (
                   // A downgrade Autumn deferred: it activates at the renewal.
                   <div className="text-center">
-                    <Button variant="outline" size="sm" className="w-full" disabled>
-                      Agendado
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      disabled={busy !== null}
+                      onClick={() => void subscribe(price.productId)}
+                    >
+                      {schedule === "immediate" ? "Mudar agora" : "Revisar agendamento"}
                     </Button>
                     <p className="mt-1.5 text-xs text-text-4">
                       ativa na renovação

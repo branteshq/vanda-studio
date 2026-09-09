@@ -8,6 +8,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { PLAN_TIERS, tierOfPlan } from "./billing/plans";
+import { isConnectedSubscriber } from "./openaiSub";
 
 /**
  * The usage meter: every real-money cost (model calls, image generation,
@@ -173,6 +174,7 @@ export const summary = query({
     scheduledPlan: string | null;
     usedPct: number;
     limited: boolean;
+    chatLimited: boolean;
     renewsAt: number | null;
   } | null> => {
     const identity = await ctx.auth.getUserIdentity();
@@ -192,6 +194,7 @@ export const summary = query({
       scheduledPlan: user.scheduledPlanId ?? null,
       usedPct,
       limited: !state.ok,
+      chatLimited: !state.ok && !isConnectedSubscriber(user),
       renewsAt: user.planId ? (user.billingPeriodEnd ?? null) : null,
     };
   },

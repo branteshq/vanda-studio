@@ -199,7 +199,8 @@ export const prepareVandaTurn = internalMutation({
   handler: async (ctx, { userId, accountId, threadId, request }): Promise<PreparedVandaTurn> => {
     const user = await ctx.db.get(userId);
     if (!user) throw new Error("user not found");
-    if (!(await budgetOf(ctx, user)).ok) throw new Error(USAGE_LIMIT_MESSAGE);
+    if (!isConnectedSubscriber(user) && !(await budgetOf(ctx, user)).ok)
+      throw new Error(USAGE_LIMIT_MESSAGE);
     const account = await ownedAccount(ctx, user, accountId);
     if (account.onboardedAt === undefined) throw new Error("conta ainda não concluiu o onboarding");
 

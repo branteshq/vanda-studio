@@ -5,12 +5,18 @@ import { autumn } from "../autumn";
 import { allowanceForPlan } from "../usage";
 import { customerOrNull } from "./customerLookup";
 import { PLAN_PRODUCT_IDS } from "./plans";
+import {
+  billingRequest,
+  planChangeParams,
+  parsePreview,
+  assertPreviewUnchanged,
+} from "./planChanges";
 
 /**
  * Autumn is the billing brain: plans, checkout, portal, subscription state.
  * Enforcement never calls it — syncBilling copies the active plan and period
- * onto the users row (the snapshot usage.ts reads), on dashboard load, after
- * checkout, and via a daily cron backstop.
+ * onto the users row (the snapshot usage.ts reads), on dashboard load and
+ * after checkout or a plan change.
  */
 
 // Trailing slashes are stripped so `${BASE_URL}/perfil` never doubles up —
@@ -40,12 +46,14 @@ interface BillingSnapshot {
 }
 
 const snapshotOf = (customer: { products?: CustomerProduct[] } | null): BillingSnapshot => {
-  const active = customer?.products?.find(
+  const products = customer?.products?.filter(
+    (product) => product.id && (PLAN_PRODUCT_IDS as readonly string[]).includes(product.id),
+  );
+  const active = products?.find(
     (product) => product.status === "active" || product.status === "trialing",
   );
-  // Downgrades don't switch immediately — Autumn schedules them for the next
-  // renewal. The UI needs to know, or the owner clicks "change plan" twice.
-  const scheduled = customer?.products?.find((product) => product.status === "scheduled");
+  // Preserve scheduled changes, including legacy automatically deferred downgrades.
+  const scheduled = products?.find((product) => product.status === "scheduled");
   if (!active?.id) {
     return {
       planId: null,
@@ -124,6 +132,9 @@ export const startCheckout = action({
     const customer = customerOrNull(await autumn.customers.get(ctx));
     const products = (customer as { products?: CustomerProduct[] } | null)?.products ?? [];
     const current = snapshotOf({ products });
+    if (current.planId !== null) {
+      throw new Error("Confira e confirme a prévia para mudar de plano.");
+    }
     // Self-heal wedged attachments: an abandoned/failed checkout can leave a
     // plan product in past_due/incomplete — invisible to the UI (which shows
     // trial) yet blocking every new attach with "already attached". Anything
@@ -181,6 +192,142 @@ export const startCheckout = action({
   },
 });
 
+const ScheduleSchema = v.union(v.literal("immediate"), v.literal("end_of_cycle"));
+
+export const previewPlanChange = action({
+  args: { planId: PlanIdSchema, schedule: ScheduleSchema },
+  handler: async (ctx, { planId, schedule }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const current = snapshotOf(customerOrNull(await autumn.customers.get(ctx)));
+    if (!current.planId) throw new Error("Assine um plano antes de solicitar uma mudança.");
+    const preview = parsePreview(
+      await billingRequest("preview_attach", planChangeParams(identity.subject, planId, schedule)),
+    );
+    return {
+      ...preview,
+      currentPlanId: current.planId,
+      scheduledPlanId: current.scheduledPlanId,
+      effectiveAt: schedule === "immediate" ? null : current.periodEnd,
+    };
+  },
+});
+
+export const acquireChangeLock = internalMutation({
+  args: { clerkId: v.string() },
+  handler: async (ctx, { clerkId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .unique();
+    if (!user) throw new Error("user not found");
+    const now = Date.now();
+    if (user.billingChangeStartedAt && now - user.billingChangeStartedAt < 10 * 60_000) {
+      throw new Error("Uma mudança de plano já está em andamento. Aguarde e confira seu plano.");
+    }
+    await ctx.db.patch(user._id, { billingChangeStartedAt: now });
+    return now;
+  },
+});
+
+export const releaseChangeLock = internalMutation({
+  args: { clerkId: v.string(), startedAt: v.number() },
+  handler: async (ctx, { clerkId, startedAt }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .unique();
+    if (user?.billingChangeStartedAt === startedAt)
+      await ctx.db.patch(user._id, { billingChangeStartedAt: undefined });
+  },
+});
+
+export const changePlan = action({
+  args: {
+    planId: PlanIdSchema,
+    schedule: ScheduleSchema,
+    currentPlanId: v.string(),
+    scheduledPlanId: v.union(v.string(), v.null()),
+    total: v.number(),
+    currency: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ checkoutUrl: string | null; attached: boolean }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const startedAt = await ctx.runMutation(internal.billing.autumn.acquireChangeLock, {
+      clerkId: identity.subject,
+    });
+    try {
+      const current = snapshotOf(customerOrNull(await autumn.customers.get(ctx)));
+      if (
+        current.planId !== args.currentPlanId ||
+        current.scheduledPlanId !== args.scheduledPlanId
+      ) {
+        throw new Error("Seu plano mudou. Atualize a prévia antes de confirmar.");
+      }
+      const params = planChangeParams(identity.subject, args.planId, args.schedule);
+      assertPreviewUnchanged(parsePreview(await billingRequest("preview_attach", params)), args);
+      // A scheduled downgrade must be removed on the active plan, never by
+      // canceling the active subscription. Sync even if the replacement fails.
+      try {
+        if (current.scheduledPlanId) {
+          await billingRequest("update", {
+            customer_id: identity.subject,
+            plan_id: current.planId,
+            cancel_action: "uncancel",
+          });
+          assertPreviewUnchanged(
+            parsePreview(await billingRequest("preview_attach", params)),
+            args,
+          );
+        }
+        const result = (await billingRequest("attach", {
+          ...params,
+          success_url: `${BASE_URL}/perfil`,
+          redirect_mode: "if_required",
+        })) as { payment_url?: string | null; required_action?: unknown };
+        if (result.required_action && !result.payment_url) {
+          throw new Error("A cobrança precisa de atenção. Abra Gerenciar cobrança e faturas.");
+        }
+        return { checkoutUrl: result.payment_url ?? null, attached: !result.payment_url };
+      } finally {
+        await ctx.runAction(internal.billing.autumn.syncCallerBilling, {
+          clerkId: identity.subject,
+        });
+      }
+    } finally {
+      await ctx.runMutation(internal.billing.autumn.releaseChangeLock, {
+        clerkId: identity.subject,
+        startedAt,
+      });
+    }
+  },
+});
+
+/** Refresh after a billing write even when the browser closes before its response. */
+export const syncCallerBilling = internalAction({
+  args: { clerkId: v.string() },
+  handler: async (ctx, { clerkId }) => {
+    const key = process.env.AUTUMN_SECRET_KEY;
+    if (!key) throw new Error("Autumn não configurado");
+    const response = await fetch(
+      `https://api.useautumn.com/v1/customers/${encodeURIComponent(clerkId)}`,
+      {
+        headers: { Authorization: `Bearer ${key}` },
+      },
+    );
+    if (!response.ok) throw new Error("Não foi possível sincronizar o plano.");
+    const snapshot = snapshotOf(await response.json());
+    await ctx.runMutation(internal.billing.autumn.applySnapshot, {
+      clerkId,
+      planId: snapshot.planId,
+      periodStart: snapshot.periodStart,
+      periodEnd: snapshot.periodEnd,
+      scheduledPlanId: snapshot.scheduledPlanId,
+    });
+  },
+});
+
 export const getBillingPortalUrl = action({
   args: {},
   handler: async (ctx): Promise<{ url: string }> => {
@@ -203,9 +350,7 @@ export const listSubscribed = internalQuery({
 });
 
 /**
- * Daily backstop: re-sync every subscribed user straight from Autumn's REST
- * API (the component client only resolves the authenticated caller). Keeps
- * period rollovers and cancellations honest even if no one opens the app.
+ * Manual repair: re-sync subscribers from Autumn. No polling cron is registered.
  */
 export const syncAllSubscribed = internalAction({
   args: {},

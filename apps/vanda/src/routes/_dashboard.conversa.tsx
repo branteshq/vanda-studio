@@ -662,7 +662,7 @@ function ChatComposer({
 
   // Over the usage limit nothing is generated server-side; the composer says
   // so instead of failing sends — a static card, never an LLM-written apology.
-  if (usage?.limited) {
+  if (usage?.chatLimited) {
     return (
       <footer className="shrink-0 bg-app px-4 py-3 md:px-6">
         <div className="mx-auto w-full max-w-3xl">
