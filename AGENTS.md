@@ -15,7 +15,7 @@ Search here for real implementations when docs aren't enough.
 
 ## Version Control (Jujutsu)
 
-This project uses Jujutsu (jj), not git. **Never push to upstream.**
+All version-control operations in this repository must use Jujutsu (`jj`), not Git. **Never push to upstream.**
 
 ### Commit Format
 

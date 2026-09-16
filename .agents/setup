@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+jj_version="0.45.1"
+
+if ! command -v jj >/dev/null 2>&1; then
+  case "$(uname -m)" in
+    x86_64) jj_arch="x86_64" ;;
+    aarch64 | arm64) jj_arch="aarch64" ;;
+    *)
+      echo "Unsupported architecture for Jujutsu: $(uname -m)" >&2
+      exit 1
+      ;;
+  esac
+
+  archive="jj-v${jj_version}-${jj_arch}-unknown-linux-musl.tar.gz"
+  tmp_dir="$(mktemp -d)"
+  trap 'rm -rf "$tmp_dir"' EXIT
+
+  curl -fsSL "https://github.com/jj-vcs/jj/releases/download/v${jj_version}/${archive}" \
+    -o "$tmp_dir/$archive"
+  tar -xzf "$tmp_dir/$archive" -C "$tmp_dir"
+  install -Dm755 "$tmp_dir/jj" "$HOME/.local/bin/jj"
+fi
+
+pnpm install --frozen-lockfile
+jj --version
