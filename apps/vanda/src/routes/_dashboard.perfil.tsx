@@ -5,19 +5,19 @@ import { useAction, useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
 import {
   ArrowLeft,
-  ArrowUpRight,
+  Building2,
   Check,
   ChevronRight,
   CreditCard,
   ExternalLink,
   FileCode2,
-  House,
   LogOut,
   NotebookPen,
   Palette,
   Plug,
   SlidersHorizontal,
   Sparkles,
+  UserRound,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@vanda-studio/ui/components/avatar";
 import { Button } from "@vanda-studio/ui/components/button";
@@ -68,6 +68,7 @@ type TabKey =
   | "plano"
   | "modelos"
   | "conexoes"
+  | "instagram"
   | "marca"
   | "memoria"
   | "templates"
@@ -76,45 +77,45 @@ type TabKey =
 const TABS = [
   {
     key: "inicio",
-    label: "Visão geral",
-    icon: House,
-    description: "Um espaço para deixar a Vanda mais sua.",
+    label: "Conta",
+    icon: UserRound,
+    description: "Seu perfil e sua assinatura.",
   },
   {
     key: "plano",
     label: "Plano e uso",
     icon: CreditCard,
-    description: "O ritmo é seu. Encontre o plano que acompanha suas ideias.",
+    description: "Acompanhe seu uso e gerencie sua assinatura.",
   },
   {
     key: "modelos",
     label: "Modelos",
     icon: SlidersHorizontal,
-    description: "Escolha quem pensa, escreve e cria com você.",
+    description: "Defina os modelos usados nas conversas e na criação de imagens.",
   },
   {
     key: "conexoes",
     label: "Conexões",
     icon: Plug,
-    description: "Suas ferramentas, trabalhando juntas.",
+    description: "Contas e ferramentas conectadas ao seu perfil pessoal.",
   },
   {
     key: "marca",
     label: "Marca",
     icon: Palette,
-    description: "A identidade que guia cada criação da Vanda.",
+    description: "Identidade visual e informações que a Vanda usa neste negócio.",
   },
   {
     key: "memoria",
     label: "Memória",
     icon: NotebookPen,
-    description: "O que você ensina, a Vanda leva para a próxima ideia.",
+    description: "Preferências e instruções salvas para este negócio.",
   },
   {
     key: "templates",
     label: "Templates",
     icon: FileCode2,
-    description: "O que deu certo merece um próximo capítulo.",
+    description: "Códigos de edição salvos para reutilizar nas próximas criações.",
   },
   {
     key: "skills",
@@ -122,30 +123,13 @@ const TABS = [
     icon: Sparkles,
     description: "Habilidades especializadas para o seu negócio.",
   },
-] satisfies Array<{ key: TabKey; label: string; icon: typeof House; description: string }>;
-
-const BUSINESS_TABS = new Set<TabKey>(["marca", "memoria", "templates", "skills"]);
-
-const SHORTCUTS = [
   {
-    key: "marca",
-    label: "Dê personalidade",
-    description: "Cores, fontes e tudo que faz a sua marca ser sua.",
-    icon: Palette,
-  },
-  {
-    key: "modelos",
-    label: "Escolha sua dupla",
-    description: "Uma inteligência para conversar. Outra para criar.",
-    icon: SlidersHorizontal,
-  },
-  {
-    key: "conexoes",
-    label: "Conecte as pontas",
-    description: "Do WhatsApp ao Instagram, aproxime suas ferramentas.",
+    key: "instagram",
+    label: "Conexões",
     icon: Plug,
+    description: "Conecte o Instagram para publicar por este negócio.",
   },
-] satisfies Array<{ key: TabKey; label: string; description: string; icon: typeof House }>;
+] satisfies Array<{ key: TabKey; label: string; icon: typeof UserRound; description: string }>;
 
 function getInitials(name: string) {
   return name
@@ -164,9 +148,13 @@ function ProfilePage() {
   const ready = accounts?.filter((account) => account.onboardedAt !== null) ?? [];
   const [viewedId, setViewedId] = useState<Id<"accounts"> | null>(null);
   const viewed = ready.find((account) => account.id === viewedId) ?? activeAccount ?? ready[0];
-  const [tab, setTab] = useState<TabKey>("inicio");
+  const [scope, setScope] = useState<"personal" | "business">("personal");
+  const [personalTab, setPersonalTab] = useState<TabKey>("inicio");
+  const [businessTab, setBusinessTab] = useState<TabKey>("marca");
+  const businessSection = scope === "business";
+  const tab = businessSection ? businessTab : personalTab;
+  const setTab = businessSection ? setBusinessTab : setPersonalTab;
   const section = TABS.find((item) => item.key === tab)!;
-  const businessSection = BUSINESS_TABS.has(tab);
   const summary = useQuery(api.usage.summary);
   const syncBilling = useAction(api.billing.autumn.syncBilling);
 
@@ -186,260 +174,190 @@ function ProfilePage() {
   };
 
   return (
-    <div className="min-h-svh bg-app text-text md:grid md:grid-cols-[232px_minmax(0,1fr)]">
-      <aside className="border-b border-border bg-surface md:sticky md:top-0 md:flex md:h-svh md:flex-col md:overflow-y-auto md:border-r md:border-b-0">
-        <div className="flex items-center justify-between px-5 py-5 md:block md:px-6 md:pt-8">
-          <div className="flex items-center gap-2">
-            <VandaMark size={30} />
-            <span className="text-xl font-semibold tracking-tight">
-              vanda<span className="ml-1 font-normal text-text-3">studio</span>
-            </span>
-          </div>
+    <div className="min-h-svh bg-app text-text">
+      <header className="relative z-20 grid grid-cols-[1fr_auto] items-center gap-3 border-b border-border bg-surface px-4 py-3 md:sticky md:top-0 md:h-16 md:grid-cols-[1fr_auto_1fr] md:py-0">
+        <div>
           <Button
             variant="ghost"
             size="sm"
-            className="md:mt-7 md:w-full md:justify-start"
+            className="text-text-3"
             onClick={() => void navigate({ to: "/conversa", search: {} })}
           >
-            <ArrowLeft /> <span className="hidden sm:inline">Voltar à conversa</span>
-            <span className="sm:hidden">Voltar</span>
+            <ArrowLeft /> Voltar à Vanda
           </Button>
         </div>
-        <nav aria-label="Perfil e configurações" className="px-3 pb-4 md:pt-4">
+        <div
+          aria-label="Escopo das configurações"
+          role="group"
+          className="order-last col-span-2 flex justify-self-center rounded-lg border border-border bg-muted p-1 md:order-none md:col-span-1"
+        >
           {[
-            { label: "Seu espaço", items: TABS.slice(0, 4) },
-            { label: "Seu negócio", items: TABS.slice(4) },
-          ].map((group) => (
-            <div key={group.label} className="mt-3 first:mt-0 md:mt-8">
-              <p className="mb-2 px-3 font-mono text-[10px] tracking-widest text-text-4 uppercase">
-                {group.label}
-              </p>
-              <div className="grid grid-cols-4 gap-1 md:grid-cols-1">
-                {group.items.map(({ key, label, icon: Icon }) => (
-                  <button
-                    key={key}
-                    type="button"
-                    aria-current={tab === key ? "page" : undefined}
-                    onClick={() => setTab(key)}
-                    className={cn(
-                      "flex min-h-10 items-center justify-center gap-2 rounded-md px-2 py-2 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-ring md:justify-start md:px-3 md:text-body-sm",
-                      tab === key
-                        ? "bg-brand-accent/10 font-medium text-brand-soft"
-                        : "text-text-3 hover:bg-muted hover:text-text",
-                    )}
-                  >
-                    <Icon className="hidden size-4 shrink-0 sm:block" />
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            { key: "personal", label: "Pessoal" },
+            { key: "business", label: "Negócio" },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              aria-label={label}
+              aria-pressed={scope === key}
+              onClick={() => setScope(key as typeof scope)}
+              className={cn(
+                "flex min-h-9 items-center gap-2 rounded-md border px-5 text-body-sm transition-colors focus-visible:outline-2 focus-visible:outline-ring",
+                scope === key
+                  ? "border-border-strong bg-surface font-medium text-text"
+                  : "border-transparent text-text-3 hover:text-text",
+              )}
+            >
+              {key === "personal" ? (
+                <Avatar className="size-5">
+                  <AvatarImage src={user?.imageUrl} alt="" />
+                  <AvatarFallback className="text-[9px]">{getInitials(name)}</AvatarFallback>
+                </Avatar>
+              ) : (
+                <Building2 className="size-4" />
+              )}
+              {label}
+            </button>
           ))}
-        </nav>
-        <div className="hidden border-t border-border p-5 md:mt-auto md:block">
-          <div className="flex items-center gap-3">
-            <Avatar className="size-9">
-              <AvatarImage src={user?.imageUrl} alt={name} />
-              <AvatarFallback>{getInitials(name) || "MC"}</AvatarFallback>
-            </Avatar>
-            <div className="min-w-0">
-              <p className="truncate text-body-sm font-medium">{name}</p>
-              {email ? (
-                <p className="truncate text-xs text-text-4" title={email}>
-                  {email}
-                </p>
-              ) : null}
-            </div>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mt-3 w-full justify-start text-text-3"
-            onClick={() => void handleSignOut()}
-          >
-            <LogOut />
-            Sair da conta
-          </Button>
         </div>
-      </aside>
-      <div className="min-w-0">
-        <header className="flex min-h-20 flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-10">
-          <p className="text-xs text-text-4">
-            Perfil <span className="mx-2 text-text-6">/</span>
-            <span className="text-text-2">{section.label}</span>
-          </p>
-          <div className="flex items-center gap-3">
-            <span className="hidden font-mono text-[10px] tracking-widest text-text-4 uppercase lg:inline">
-              Negócio em foco
-            </span>
-            {accounts === undefined ? (
-              <Skeleton className="h-9 w-44" />
-            ) : viewed ? (
-              <Select
-                value={viewed.id}
-                onValueChange={(value) => setViewedId(value as Id<"accounts">)}
-              >
-                <SelectTrigger className="w-44 sm:w-52" aria-label="Negócio em foco">
-                  <SelectValue>{() => <span className="truncate">{viewed.name}</span>}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {ready.map((account) => (
-                    <SelectItem key={account.id} value={account.id}>
-                      {account.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <span className="text-body-sm text-text-3">Nenhum negócio</span>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="justify-self-end text-text-3 md:hidden"
+          aria-label="Sair da conta"
+          onClick={() => void handleSignOut()}
+        >
+          <LogOut />
+        </Button>
+      </header>
+      <div className="md:grid md:grid-cols-[224px_minmax(0,1fr)]">
+        <aside className="border-b border-border bg-sidebar md:sticky md:top-16 md:flex md:h-[calc(100svh-4rem)] md:flex-col md:overflow-y-auto md:border-r md:border-b-0">
+          {businessSection ? (
+            <div className="border-b border-border p-4">
+              <p className="mb-2 text-xs font-medium text-text-3">Negócio</p>
+              {accounts === undefined ? (
+                <Skeleton className="h-9 w-full" />
+              ) : viewed ? (
+                <Select
+                  value={viewed.id}
+                  onValueChange={(value) => setViewedId(value as Id<"accounts">)}
+                >
+                  <SelectTrigger className="w-full bg-surface" aria-label="Negócio em foco">
+                    <SelectValue>
+                      {() => <span className="truncate">{viewed.name}</span>}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ready.map((account) => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {account.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-body-sm text-text-3">Nenhum negócio</p>
+              )}
+            </div>
+          ) : null}
+          <nav
+            aria-label="Perfil e configurações"
+            className="flex gap-1 overflow-x-auto p-3 md:flex-col"
+          >
+            {(businessSection ? TABS.slice(4) : TABS.slice(0, 4)).map(
+              ({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-current={tab === key ? "page" : undefined}
+                  onClick={() => setTab(key)}
+                  className={cn(
+                    "flex min-h-10 shrink-0 items-center gap-2.5 rounded-md border px-3 text-body-sm transition-colors focus-visible:outline-2 focus-visible:outline-ring md:w-full",
+                    tab === key
+                      ? "border-border-strong bg-surface font-medium text-text"
+                      : "border-transparent text-text-3 hover:bg-surface hover:text-text",
+                  )}
+                >
+                  <Icon className="size-4 shrink-0" />
+                  <span>{label}</span>
+                </button>
+              ),
             )}
+          </nav>
+          <div className="mt-auto hidden p-4 md:block">
+            <div className="mb-3 flex items-center gap-2 border-b border-border px-2 pb-4 text-body-sm text-text-3">
+              <VandaMark size={20} />
+              <span>
+                <span className="font-medium text-text-2">Vanda</span> Studio
+              </span>
+            </div>
             <Button
               variant="ghost"
-              size="icon-sm"
-              className="md:hidden"
-              aria-label="Sair da conta"
+              size="sm"
+              className="w-full justify-start text-text-3"
               onClick={() => void handleSignOut()}
             >
               <LogOut />
+              Sair da conta
             </Button>
           </div>
-        </header>
-        <main className="mx-auto max-w-6xl px-5 py-8 sm:px-10 sm:py-12">
+        </aside>
+        <main className="min-w-0 p-4 sm:p-6 lg:p-8">
           {tab === "inicio" ? (
-            <>
-              <section className="relative isolate overflow-hidden border-b border-border pb-10 sm:pb-14">
-                <VandaMark
-                  size={280}
-                  from="currentColor"
-                  to="currentColor"
-                  className="pointer-events-none absolute -top-10 -right-12 -z-10 rotate-12 text-brand-accent/10 sm:right-0"
-                />
-                <p className="font-mono text-[10px] tracking-widest text-text-4 uppercase">
-                  Seu estúdio começa aqui
-                </p>
-                <h1 className="mt-5 text-4xl leading-[1.1] font-medium tracking-tight sm:text-5xl lg:text-6xl">
-                  Seu espaço,
-                  <br />
-                  <span className="text-brand-soft">do seu jeito.</span>
-                </h1>
-                <p className="mt-5 max-w-sm text-body leading-relaxed text-text-3">
-                  Ajuste os detalhes. Conecte suas ferramentas.
-                  <br className="hidden sm:block" /> Deixe mais espaço para as suas ideias.
-                </p>
+            <div className="space-y-6">
+              <h1 className="sr-only">Conta</h1>
+              <section className="overflow-hidden rounded-xl border border-border bg-surface">
+                <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
+                  <h2 className="text-body font-semibold">Perfil</h2>
+                  <Button variant="outline" size="sm" onClick={() => clerk.openUserProfile()}>
+                    Editar perfil
+                  </Button>
+                </div>
+                <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:gap-6 sm:p-6">
+                  <Avatar className="size-16 shrink-0">
+                    <AvatarImage src={user?.imageUrl} alt={name} />
+                    <AvatarFallback className="text-lg">{getInitials(name) || "MC"}</AvatarFallback>
+                  </Avatar>
+                  <dl className="grid min-w-0 flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:gap-10">
+                    <div>
+                      <dt className="text-xs font-medium text-text-3">Nome</dt>
+                      <dd className="mt-1.5 break-words text-body">{name}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-medium text-text-3">E-mail</dt>
+                      <dd className="mt-1.5 break-all text-body">{email ?? "Não informado"}</dd>
+                    </div>
+                  </dl>
+                </div>
               </section>
-              <div className="mt-8 grid gap-5 lg:grid-cols-[1.15fr_1fr]">
-                <section className="flex flex-col rounded-xl border border-border bg-surface p-6">
-                  <p className="font-mono text-[10px] tracking-widest text-text-4 uppercase">
-                    Seu negócio em foco
-                  </p>
-                  <div className="my-6 flex items-center gap-4">
-                    <span className="flex size-14 shrink-0 items-center justify-center rounded-xl border border-brand-accent/20 bg-brand-accent/5 text-lg font-medium text-brand-soft">
-                      {getInitials(viewed?.name ?? "") || "—"}
-                    </span>
-                    <div className="min-w-0">
-                      <h2 className="truncate text-xl font-medium tracking-tight">
-                        {viewed?.name ?? "Seu negócio"}
-                      </h2>
-                      <p className="mt-1 text-body-sm text-text-3">
-                        {viewed?.handle
-                          ? `@${viewed.handle}`
-                          : "Uma identidade. Infinitas possibilidades."}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setTab("marca")}
-                    className="mt-auto flex items-center justify-between border-t border-border pt-4 text-body-sm text-text-2 hover:text-brand-soft focus-visible:outline-2 focus-visible:outline-ring"
-                  >
-                    Conhecer minha marca
-                    <ArrowUpRight className="size-4" />
-                  </button>
-                </section>
-                <section className="rounded-xl border border-border bg-surface p-6">
-                  <div className="flex items-center justify-between">
-                    <p className="font-mono text-[10px] tracking-widest text-text-4 uppercase">
-                      Seu plano
-                    </p>
-                    <CreditCard className="size-4 text-text-4" />
-                  </div>
-                  <UsageCard />
-                  <button
-                    type="button"
-                    onClick={() => setTab("plano")}
-                    className="mt-5 flex w-full items-center justify-between border-t border-border pt-4 text-body-sm text-text-2 hover:text-brand-soft focus-visible:outline-2 focus-visible:outline-ring"
-                  >
-                    Ver planos e cobrança
-                    <ArrowUpRight className="size-4" />
-                  </button>
-                </section>
-              </div>
-              <div className="mt-10 mb-4 flex items-center gap-3">
-                <h2 className="font-mono text-[10px] tracking-widest text-text-4 uppercase">
-                  Faça a Vanda trabalhar do seu jeito
-                </h2>
-                <span className="h-px flex-1 bg-border" />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                {SHORTCUTS.map(({ key, label, description, icon: Icon }) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setTab(key)}
-                    className="group flex flex-col items-start rounded-xl border border-border bg-surface p-5 text-left transition-colors hover:border-border-strong hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
-                  >
-                    <div className="mb-7 flex w-full items-center justify-between">
-                      <Icon className="size-5 text-brand-soft" />
-                      <ArrowUpRight className="size-4 text-text-5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 motion-reduce:transform-none" />
-                    </div>
-                    <h3 className="text-body font-medium">{label}</h3>
-                    <p className="mt-2 text-body-sm leading-relaxed text-text-3">{description}</p>
-                  </button>
-                ))}
-              </div>
-              <p className="mt-8 flex items-center gap-2 text-xs text-text-4">
-                <VandaMark size={18} from="currentColor" to="currentColor" />
-                Feito para criar. Configurado por você.
-              </p>
-            </>
+              <UsageCard
+                action={
+                  <Button size="sm" variant="outline" onClick={() => setPersonalTab("plano")}>
+                    Gerenciar plano
+                  </Button>
+                }
+              />
+            </div>
           ) : (
-            <div className="mb-8 border-b border-border pb-7">
-              <p className="mb-3 font-mono text-[10px] tracking-widest text-text-4 uppercase">
-                {businessSection ? (viewed?.name ?? "Seu negócio") : "Seu espaço"}
-              </p>
-              <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">{section.label}</h1>
-              <p className="mt-3 max-w-lg text-body leading-relaxed text-text-3">
+            <div className="mb-6">
+              <h1 className="text-xl font-semibold tracking-tight">{section.label}</h1>
+              <p className="mt-1.5 text-body-sm leading-relaxed text-text-3">
                 {section.description}
               </p>
             </div>
           )}
           {tab === "plano" ? (
-            <>
-              <div className="mb-8 max-w-xl rounded-xl border border-border bg-surface p-6">
-                <UsageCard />
-              </div>
+            <div className="space-y-8">
+              <UsageCard />
               <AccountTab />
-            </>
+            </div>
           ) : null}
           {tab === "modelos" ? <ModelsCard /> : null}
           {tab === "conexoes" ? (
-            <div className="space-y-8">
-              <section>
-                <h2 className="font-mono text-[10px] tracking-widest text-text-4 uppercase">
-                  Pessoal · todos os seus negócios
-                </h2>
-                <WhatsAppSettings />
-                {summary?.plan && tierOfPlan(summary.plan) === "conectado" ? (
-                  <OpenAiConnectCard />
-                ) : null}
-              </section>
-              {viewed ? (
-                <section>
-                  <h2 className="font-mono text-[10px] tracking-widest text-text-4 uppercase">
-                    Negócio · {viewed.name}
-                  </h2>
-                  <InstagramConnectCard key={viewed.id} accountId={viewed.id} name={viewed.name} />
-                </section>
+            <div className="space-y-4">
+              <WhatsAppSettings />
+              {summary?.plan && tierOfPlan(summary.plan) === "conectado" ? (
+                <OpenAiConnectCard />
               ) : null}
             </div>
           ) : null}
@@ -468,9 +386,12 @@ function ProfilePage() {
                 />
               ) : null}
               {tab === "skills" ? <SkillsTab accountId={viewed.id} /> : null}
+              {tab === "instagram" ? (
+                <InstagramConnectCard accountId={viewed.id} name={viewed.name} />
+              ) : null}
             </div>
           ) : null}
-          {businessSection ? (
+          {businessSection && viewed && tab !== "instagram" ? (
             <Button
               variant="ghost"
               className="mt-6 text-text-3"
@@ -493,36 +414,49 @@ function ProfilePage() {
  * The shared usage summary: the plan name and the bar —
  * the owner only ever sees a percentage, never the underlying money.
  */
-function UsageCard() {
+function UsageCard({ action }: { action?: ReactNode }) {
   const summary = useQuery(api.usage.summary);
   const pct = summary?.usedPct ?? 0;
 
   return (
-    <section aria-label="Uso do plano" className="w-full">
-      <div className="mt-4 text-left">
+    <section
+      aria-label="Uso do plano"
+      className="overflow-hidden rounded-xl border border-border bg-surface"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
+        <div>
+          <h2 className="text-body font-semibold">Plano</h2>
+          {summary === undefined ? (
+            <Skeleton className="mt-2 h-4 w-36" />
+          ) : (
+            <p className="mt-1 text-body-sm text-text-3">{planLabel(summary?.plan ?? null)}</p>
+          )}
+        </div>
+        {action}
+      </div>
+      <div className="p-5 sm:p-6">
         {summary === undefined ? (
-          <div className="space-y-2" aria-hidden>
-            <Skeleton className="h-3.5 w-24" />
-            <Skeleton className="h-1.5 w-full rounded-full" />
+          <div className="space-y-4" role="status" aria-label="Carregando uso do plano">
+            <Skeleton className="h-10 w-24" />
+            <Skeleton className="h-2 w-full rounded-full" />
+            <Skeleton className="h-4 w-48" />
           </div>
         ) : summary?.plan && tierOfPlan(summary.plan) === "conectado" ? (
           // Conectado: inference rides the owner's ChatGPT — no bar to show.
           <>
-            <p className="text-xl font-medium tracking-tight">{planLabel(summary.plan)}</p>
-            <p className="mt-1 text-xs text-text-4">
-              Inferência pela sua assinatura do ChatGPT — uso incluído.
+            <p className="text-body font-medium">Uso pela sua assinatura do ChatGPT</p>
+            <p className="mt-2 text-body-sm text-text-3">
+              Conversas e imagens usam os limites da sua conta OpenAI.
             </p>
           </>
         ) : (
           <>
-            <div className="flex items-baseline justify-between gap-2">
-              <p className="text-xl font-medium tracking-tight">
-                {planLabel(summary?.plan ?? null)}
-              </p>
-              <span className="text-body-sm text-text-3">{pct}%</span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-medium tracking-tight tabular-nums">{pct}%</span>
+              <span className="text-body-sm text-text-3">utilizado</span>
             </div>
             <div
-              className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
+              className="mt-4 h-2 overflow-hidden rounded-full bg-muted"
               role="progressbar"
               aria-valuenow={pct}
               aria-valuemin={0}
@@ -537,7 +471,7 @@ function UsageCard() {
                 style={{ width: `${pct}%` }}
               />
             </div>
-            <p className="mt-2 text-xs text-text-4">
+            <p className="mt-3 text-body-sm leading-relaxed text-text-3">
               {summary?.limited
                 ? summary.chatLimited
                   ? "Limite atingido. Mude de plano ou aguarde a renovação."
@@ -549,6 +483,9 @@ function UsageCard() {
           </>
         )}
       </div>
+      <p className="border-t border-border px-5 py-3 text-xs text-text-4 sm:px-6">
+        O plano é compartilhado entre seus negócios.
+      </p>
     </section>
   );
 }
