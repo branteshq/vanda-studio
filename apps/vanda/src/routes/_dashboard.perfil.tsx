@@ -5,11 +5,18 @@ import { useAction, useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
 import {
   ArrowLeft,
+  ArrowUpRight,
   Check,
+  ChevronRight,
+  CreditCard,
   ExternalLink,
   FileCode2,
+  House,
   LogOut,
   NotebookPen,
+  Palette,
+  Plug,
+  SlidersHorizontal,
   Sparkles,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@vanda-studio/ui/components/avatar";
@@ -44,6 +51,7 @@ import { parseBrandKit } from "../convex/workspace/brandKit";
 import { useActiveAccount } from "../components/active-account";
 import { WhatsAppSettings } from "../components/whatsapp-settings";
 import { errorMessage } from "../errors";
+import { VandaMark } from "../components/vanda-mark";
 
 export const Route = createFileRoute("/_dashboard/perfil")({
   component: ProfilePage,
@@ -55,15 +63,89 @@ export const Route = createFileRoute("/_dashboard/perfil")({
  * (the dashboard layout skips the sidebar chrome for this route).
  */
 
-type TabKey = "conta" | "marca" | "memoria" | "templates" | "skills";
+type TabKey =
+  | "inicio"
+  | "plano"
+  | "modelos"
+  | "conexoes"
+  | "marca"
+  | "memoria"
+  | "templates"
+  | "skills";
 
-const TABS: Array<{ key: TabKey; label: string }> = [
-  { key: "conta", label: "Conta" },
-  { key: "marca", label: "Marca" },
-  { key: "memoria", label: "Memória" },
-  { key: "templates", label: "Templates" },
-  { key: "skills", label: "Skills" },
-];
+const TABS = [
+  {
+    key: "inicio",
+    label: "Visão geral",
+    icon: House,
+    description: "Um espaço para deixar a Vanda mais sua.",
+  },
+  {
+    key: "plano",
+    label: "Plano e uso",
+    icon: CreditCard,
+    description: "O ritmo é seu. Encontre o plano que acompanha suas ideias.",
+  },
+  {
+    key: "modelos",
+    label: "Modelos",
+    icon: SlidersHorizontal,
+    description: "Escolha quem pensa, escreve e cria com você.",
+  },
+  {
+    key: "conexoes",
+    label: "Conexões",
+    icon: Plug,
+    description: "Suas ferramentas, trabalhando juntas.",
+  },
+  {
+    key: "marca",
+    label: "Marca",
+    icon: Palette,
+    description: "A identidade que guia cada criação da Vanda.",
+  },
+  {
+    key: "memoria",
+    label: "Memória",
+    icon: NotebookPen,
+    description: "O que você ensina, a Vanda leva para a próxima ideia.",
+  },
+  {
+    key: "templates",
+    label: "Templates",
+    icon: FileCode2,
+    description: "O que deu certo merece um próximo capítulo.",
+  },
+  {
+    key: "skills",
+    label: "Skills",
+    icon: Sparkles,
+    description: "Habilidades especializadas para o seu negócio.",
+  },
+] satisfies Array<{ key: TabKey; label: string; icon: typeof House; description: string }>;
+
+const BUSINESS_TABS = new Set<TabKey>(["marca", "memoria", "templates", "skills"]);
+
+const SHORTCUTS = [
+  {
+    key: "marca",
+    label: "Dê personalidade",
+    description: "Cores, fontes e tudo que faz a sua marca ser sua.",
+    icon: Palette,
+  },
+  {
+    key: "modelos",
+    label: "Escolha sua dupla",
+    description: "Uma inteligência para conversar. Outra para criar.",
+    icon: SlidersHorizontal,
+  },
+  {
+    key: "conexoes",
+    label: "Conecte as pontas",
+    description: "Do WhatsApp ao Instagram, aproxime suas ferramentas.",
+    icon: Plug,
+  },
+] satisfies Array<{ key: TabKey; label: string; description: string; icon: typeof House }>;
 
 function getInitials(name: string) {
   return name
@@ -78,11 +160,20 @@ function ProfilePage() {
   const { user } = useUser();
   const clerk = useClerk();
   const navigate = useNavigate();
-  const { accounts, activeAccount } = useActiveAccount();
+  const { accounts, activeAccount, selectAccount } = useActiveAccount();
   const ready = accounts?.filter((account) => account.onboardedAt !== null) ?? [];
   const [viewedId, setViewedId] = useState<Id<"accounts"> | null>(null);
   const viewed = ready.find((account) => account.id === viewedId) ?? activeAccount ?? ready[0];
-  const [tab, setTab] = useState<TabKey>("conta");
+  const [tab, setTab] = useState<TabKey>("inicio");
+  const section = TABS.find((item) => item.key === tab)!;
+  const businessSection = BUSINESS_TABS.has(tab);
+  const summary = useQuery(api.usage.summary);
+  const syncBilling = useAction(api.billing.autumn.syncBilling);
+
+  // Checkout returns here, even when the plan section isn't open.
+  useEffect(() => {
+    void syncBilling().catch(() => {});
+  }, [syncBilling]);
 
   const name = user?.fullName ?? user?.username ?? "Minha conta";
   const email = user?.primaryEmailAddress?.emailAddress ?? null;
@@ -95,142 +186,311 @@ function ProfilePage() {
   };
 
   return (
-    <div className="min-h-svh bg-app text-text">
-      <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-8">
-        <header className="flex items-center justify-between">
+    <div className="min-h-svh bg-app text-text md:grid md:grid-cols-[232px_minmax(0,1fr)]">
+      <aside className="border-b border-border bg-surface md:sticky md:top-0 md:flex md:h-svh md:flex-col md:overflow-y-auto md:border-r md:border-b-0">
+        <div className="flex items-center justify-between px-5 py-5 md:block md:px-6 md:pt-8">
+          <div className="flex items-center gap-2">
+            <VandaMark size={30} />
+            <span className="text-xl font-semibold tracking-tight">
+              vanda<span className="ml-1 font-normal text-text-3">studio</span>
+            </span>
+          </div>
           <Button
             variant="ghost"
             size="sm"
+            className="md:mt-7 md:w-full md:justify-start"
             onClick={() => void navigate({ to: "/conversa", search: {} })}
           >
-            <ArrowLeft />
-            Voltar para a conversa
+            <ArrowLeft /> <span className="hidden sm:inline">Voltar à conversa</span>
+            <span className="sm:hidden">Voltar</span>
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => void handleSignOut()}>
-            <LogOut />
-            Sair
-          </Button>
-        </header>
-
-        <div className="mt-10 grid gap-10 md:grid-cols-[260px_1fr]">
-          <aside className="flex flex-col items-center text-center md:items-start md:text-left">
-            <Avatar className="size-24">
-              <AvatarImage src={user?.imageUrl} alt={name} />
-              <AvatarFallback className="text-xl font-semibold">
-                {getInitials(name) || "MC"}
-              </AvatarFallback>
-            </Avatar>
-            <h1 className="mt-4 text-lg font-semibold tracking-tight">{name}</h1>
-            {email ? <p className="mt-0.5 text-body-sm text-text-3">{email}</p> : null}
-
-            <UsageCard />
-
-            <section className="mt-8 w-full">
-              <h2 className="section-label px-1 text-text-3">Negócios</h2>
-              <div className="mt-2 space-y-1">
-                {accounts === undefined ? (
-                  <>
-                    <Skeleton className="h-11 w-full rounded-lg" />
-                    <Skeleton className="h-11 w-full rounded-lg" />
-                  </>
-                ) : (
-                  ready.map((account) => {
-                    const selected = account.id === viewed?.id;
-                    return (
-                      <button
-                        key={account.id}
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() => setViewedId(account.id)}
-                        className={cn(
-                          "flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left transition-colors duration-150 ease-[var(--ease-out)]",
-                          selected
-                            ? "border-border-strong bg-surface"
-                            : "border-transparent hover:bg-surface",
-                        )}
-                      >
-                        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-border-strong text-[11px] font-semibold text-text-2">
-                          {getInitials(account.name) || "?"}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-body font-medium">
-                            {account.name}
-                          </span>
-                          {account.handle ? (
-                            <span className="block truncate text-xs text-text-3">
-                              @{account.handle}
-                            </span>
-                          ) : null}
-                        </span>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </section>
-          </aside>
-
-          <main className="min-w-0">
-            <div className="flex w-fit gap-1 rounded-lg border border-border bg-surface p-1">
-              {TABS.map(({ key, label }) => (
-                <button
-                  key={key}
-                  type="button"
-                  aria-pressed={tab === key}
-                  onClick={() => setTab(key)}
-                  className={cn(
-                    "rounded-md px-3.5 py-1.5 text-body-sm font-medium transition-colors duration-150 ease-[var(--ease-out)]",
-                    tab === key ? "bg-muted text-text" : "text-text-3 hover:text-text",
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {tab === "conta" ? (
-              <div className="mt-6">
-                <AccountTab />
-                <WhatsAppSettings />
-                {viewed ? <InstagramConnectCard accountId={viewed.id} name={viewed.name} /> : null}
-              </div>
-            ) : null}
-            {viewed && tab !== "conta" ? (
-              // Keyed by account so file selections reset when switching business.
-              <div key={viewed.id} className="mt-6 space-y-6">
-                {tab === "marca" ? <BrandTab accountId={viewed.id} /> : null}
-                {tab === "memoria" ? (
-                  <FolderTab
-                    accountId={viewed.id}
-                    folder="/memory"
-                    format="markdown"
-                    emptyIcon={NotebookPen}
-                    emptyTitle="Nenhuma nota ainda"
-                    emptyBody={`As notas duráveis da Vanda sobre este negócio moram aqui. Diga na conversa algo como "nunca use vermelho nas artes" — ela grava, e o que está gravado ela não esquece.`}
-                  />
-                ) : null}
-                {tab === "templates" ? (
-                  <FolderTab
-                    accountId={viewed.id}
-                    folder="/templates"
-                    format="code"
-                    emptyIcon={FileCode2}
-                    emptyTitle="Nenhum template ainda"
-                    emptyBody={`Códigos de edição de imagem que deram certo podem virar templates reutilizáveis. Peça na conversa: "salve esse código como template" — ele aparece aqui.`}
-                  />
-                ) : null}
-                {tab === "skills" ? <SkillsTab accountId={viewed.id} /> : null}
-              </div>
-            ) : null}
-          </main>
         </div>
+        <nav aria-label="Perfil e configurações" className="px-3 pb-4 md:pt-4">
+          {[
+            { label: "Seu espaço", items: TABS.slice(0, 4) },
+            { label: "Seu negócio", items: TABS.slice(4) },
+          ].map((group) => (
+            <div key={group.label} className="mt-3 first:mt-0 md:mt-8">
+              <p className="mb-2 px-3 font-mono text-[10px] tracking-widest text-text-4 uppercase">
+                {group.label}
+              </p>
+              <div className="grid grid-cols-4 gap-1 md:grid-cols-1">
+                {group.items.map(({ key, label, icon: Icon }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-current={tab === key ? "page" : undefined}
+                    onClick={() => setTab(key)}
+                    className={cn(
+                      "flex min-h-10 items-center justify-center gap-2 rounded-md px-2 py-2 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-ring md:justify-start md:px-3 md:text-body-sm",
+                      tab === key
+                        ? "bg-brand-accent/10 font-medium text-brand-soft"
+                        : "text-text-3 hover:bg-muted hover:text-text",
+                    )}
+                  >
+                    <Icon className="hidden size-4 shrink-0 sm:block" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </nav>
+        <div className="hidden border-t border-border p-5 md:mt-auto md:block">
+          <div className="flex items-center gap-3">
+            <Avatar className="size-9">
+              <AvatarImage src={user?.imageUrl} alt={name} />
+              <AvatarFallback>{getInitials(name) || "MC"}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="truncate text-body-sm font-medium">{name}</p>
+              {email ? (
+                <p className="truncate text-xs text-text-4" title={email}>
+                  {email}
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-3 w-full justify-start text-text-3"
+            onClick={() => void handleSignOut()}
+          >
+            <LogOut />
+            Sair da conta
+          </Button>
+        </div>
+      </aside>
+      <div className="min-w-0">
+        <header className="flex min-h-20 flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-10">
+          <p className="text-xs text-text-4">
+            Perfil <span className="mx-2 text-text-6">/</span>
+            <span className="text-text-2">{section.label}</span>
+          </p>
+          <div className="flex items-center gap-3">
+            <span className="hidden font-mono text-[10px] tracking-widest text-text-4 uppercase lg:inline">
+              Negócio em foco
+            </span>
+            {accounts === undefined ? (
+              <Skeleton className="h-9 w-44" />
+            ) : viewed ? (
+              <Select
+                value={viewed.id}
+                onValueChange={(value) => setViewedId(value as Id<"accounts">)}
+              >
+                <SelectTrigger className="w-44 sm:w-52" aria-label="Negócio em foco">
+                  <SelectValue>{() => <span className="truncate">{viewed.name}</span>}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {ready.map((account) => (
+                    <SelectItem key={account.id} value={account.id}>
+                      {account.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <span className="text-body-sm text-text-3">Nenhum negócio</span>
+            )}
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="md:hidden"
+              aria-label="Sair da conta"
+              onClick={() => void handleSignOut()}
+            >
+              <LogOut />
+            </Button>
+          </div>
+        </header>
+        <main className="mx-auto max-w-6xl px-5 py-8 sm:px-10 sm:py-12">
+          {tab === "inicio" ? (
+            <>
+              <section className="relative isolate overflow-hidden border-b border-border pb-10 sm:pb-14">
+                <VandaMark
+                  size={280}
+                  from="currentColor"
+                  to="currentColor"
+                  className="pointer-events-none absolute -top-10 -right-12 -z-10 rotate-12 text-brand-accent/10 sm:right-0"
+                />
+                <p className="font-mono text-[10px] tracking-widest text-text-4 uppercase">
+                  Seu estúdio começa aqui
+                </p>
+                <h1 className="mt-5 text-4xl leading-[1.1] font-medium tracking-tight sm:text-5xl lg:text-6xl">
+                  Seu espaço,
+                  <br />
+                  <span className="text-brand-soft">do seu jeito.</span>
+                </h1>
+                <p className="mt-5 max-w-sm text-body leading-relaxed text-text-3">
+                  Ajuste os detalhes. Conecte suas ferramentas.
+                  <br className="hidden sm:block" /> Deixe mais espaço para as suas ideias.
+                </p>
+              </section>
+              <div className="mt-8 grid gap-5 lg:grid-cols-[1.15fr_1fr]">
+                <section className="flex flex-col rounded-xl border border-border bg-surface p-6">
+                  <p className="font-mono text-[10px] tracking-widest text-text-4 uppercase">
+                    Seu negócio em foco
+                  </p>
+                  <div className="my-6 flex items-center gap-4">
+                    <span className="flex size-14 shrink-0 items-center justify-center rounded-xl border border-brand-accent/20 bg-brand-accent/5 text-lg font-medium text-brand-soft">
+                      {getInitials(viewed?.name ?? "") || "—"}
+                    </span>
+                    <div className="min-w-0">
+                      <h2 className="truncate text-xl font-medium tracking-tight">
+                        {viewed?.name ?? "Seu negócio"}
+                      </h2>
+                      <p className="mt-1 text-body-sm text-text-3">
+                        {viewed?.handle
+                          ? `@${viewed.handle}`
+                          : "Uma identidade. Infinitas possibilidades."}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTab("marca")}
+                    className="mt-auto flex items-center justify-between border-t border-border pt-4 text-body-sm text-text-2 hover:text-brand-soft focus-visible:outline-2 focus-visible:outline-ring"
+                  >
+                    Conhecer minha marca
+                    <ArrowUpRight className="size-4" />
+                  </button>
+                </section>
+                <section className="rounded-xl border border-border bg-surface p-6">
+                  <div className="flex items-center justify-between">
+                    <p className="font-mono text-[10px] tracking-widest text-text-4 uppercase">
+                      Seu plano
+                    </p>
+                    <CreditCard className="size-4 text-text-4" />
+                  </div>
+                  <UsageCard />
+                  <button
+                    type="button"
+                    onClick={() => setTab("plano")}
+                    className="mt-5 flex w-full items-center justify-between border-t border-border pt-4 text-body-sm text-text-2 hover:text-brand-soft focus-visible:outline-2 focus-visible:outline-ring"
+                  >
+                    Ver planos e cobrança
+                    <ArrowUpRight className="size-4" />
+                  </button>
+                </section>
+              </div>
+              <div className="mt-10 mb-4 flex items-center gap-3">
+                <h2 className="font-mono text-[10px] tracking-widest text-text-4 uppercase">
+                  Faça a Vanda trabalhar do seu jeito
+                </h2>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {SHORTCUTS.map(({ key, label, description, icon: Icon }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setTab(key)}
+                    className="group flex flex-col items-start rounded-xl border border-border bg-surface p-5 text-left transition-colors hover:border-border-strong hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
+                  >
+                    <div className="mb-7 flex w-full items-center justify-between">
+                      <Icon className="size-5 text-brand-soft" />
+                      <ArrowUpRight className="size-4 text-text-5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 motion-reduce:transform-none" />
+                    </div>
+                    <h3 className="text-body font-medium">{label}</h3>
+                    <p className="mt-2 text-body-sm leading-relaxed text-text-3">{description}</p>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-8 flex items-center gap-2 text-xs text-text-4">
+                <VandaMark size={18} from="currentColor" to="currentColor" />
+                Feito para criar. Configurado por você.
+              </p>
+            </>
+          ) : (
+            <div className="mb-8 border-b border-border pb-7">
+              <p className="mb-3 font-mono text-[10px] tracking-widest text-text-4 uppercase">
+                {businessSection ? (viewed?.name ?? "Seu negócio") : "Seu espaço"}
+              </p>
+              <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">{section.label}</h1>
+              <p className="mt-3 max-w-lg text-body leading-relaxed text-text-3">
+                {section.description}
+              </p>
+            </div>
+          )}
+          {tab === "plano" ? (
+            <>
+              <div className="mb-8 max-w-xl rounded-xl border border-border bg-surface p-6">
+                <UsageCard />
+              </div>
+              <AccountTab />
+            </>
+          ) : null}
+          {tab === "modelos" ? <ModelsCard /> : null}
+          {tab === "conexoes" ? (
+            <div className="space-y-8">
+              <section>
+                <h2 className="font-mono text-[10px] tracking-widest text-text-4 uppercase">
+                  Pessoal · todos os seus negócios
+                </h2>
+                <WhatsAppSettings />
+                {summary?.plan && tierOfPlan(summary.plan) === "conectado" ? (
+                  <OpenAiConnectCard />
+                ) : null}
+              </section>
+              {viewed ? (
+                <section>
+                  <h2 className="font-mono text-[10px] tracking-widest text-text-4 uppercase">
+                    Negócio · {viewed.name}
+                  </h2>
+                  <InstagramConnectCard key={viewed.id} accountId={viewed.id} name={viewed.name} />
+                </section>
+              ) : null}
+            </div>
+          ) : null}
+          {viewed && businessSection ? (
+            // Keyed by account so file selections reset when switching business.
+            <div key={viewed.id} className="space-y-6">
+              {tab === "marca" ? <BrandTab accountId={viewed.id} /> : null}
+              {tab === "memoria" ? (
+                <FolderTab
+                  accountId={viewed.id}
+                  folder="/memory"
+                  format="markdown"
+                  emptyIcon={NotebookPen}
+                  emptyTitle="Nenhuma nota ainda"
+                  emptyBody={`As notas duráveis da Vanda sobre este negócio moram aqui. Diga na conversa algo como "nunca use vermelho nas artes" — ela grava, e o que está gravado ela não esquece.`}
+                />
+              ) : null}
+              {tab === "templates" ? (
+                <FolderTab
+                  accountId={viewed.id}
+                  folder="/templates"
+                  format="code"
+                  emptyIcon={FileCode2}
+                  emptyTitle="Nenhum template ainda"
+                  emptyBody={`Códigos de edição de imagem que deram certo podem virar templates reutilizáveis. Peça na conversa: "salve esse código como template" — ele aparece aqui.`}
+                />
+              ) : null}
+              {tab === "skills" ? <SkillsTab accountId={viewed.id} /> : null}
+            </div>
+          ) : null}
+          {businessSection ? (
+            <Button
+              variant="ghost"
+              className="mt-6 text-text-3"
+              onClick={() => {
+                if (viewed) selectAccount(viewed.id);
+                void navigate({ to: "/conversa", search: {} });
+              }}
+            >
+              Ajuste com a Vanda na conversa
+              <ChevronRight />
+            </Button>
+          ) : null}
+        </main>
       </div>
     </div>
   );
 }
 
 /**
- * The t3-style usage block in the left column: the plan name and the bar —
+ * The shared usage summary: the plan name and the bar —
  * the owner only ever sees a percentage, never the underlying money.
  */
 function UsageCard() {
@@ -238,9 +498,8 @@ function UsageCard() {
   const pct = summary?.usedPct ?? 0;
 
   return (
-    <section className="mt-8 w-full">
-      <h2 className="section-label px-1 text-text-3">Uso do plano</h2>
-      <div className="mt-2 rounded-xl border border-border bg-surface p-4 text-left">
+    <section aria-label="Uso do plano" className="w-full">
+      <div className="mt-4 text-left">
         {summary === undefined ? (
           <div className="space-y-2" aria-hidden>
             <Skeleton className="h-3.5 w-24" />
@@ -249,7 +508,7 @@ function UsageCard() {
         ) : summary?.plan && tierOfPlan(summary.plan) === "conectado" ? (
           // Conectado: inference rides the owner's ChatGPT — no bar to show.
           <>
-            <p className="text-body font-medium">{planLabel(summary.plan)}</p>
+            <p className="text-xl font-medium tracking-tight">{planLabel(summary.plan)}</p>
             <p className="mt-1 text-xs text-text-4">
               Inferência pela sua assinatura do ChatGPT — uso incluído.
             </p>
@@ -257,7 +516,9 @@ function UsageCard() {
         ) : (
           <>
             <div className="flex items-baseline justify-between gap-2">
-              <p className="text-body font-medium">{planLabel(summary?.plan ?? null)}</p>
+              <p className="text-xl font-medium tracking-tight">
+                {planLabel(summary?.plan ?? null)}
+              </p>
               <span className="text-body-sm text-text-3">{pct}%</span>
             </div>
             <div
@@ -316,10 +577,8 @@ const TIER_FEATURES: Record<string, string[]> = {
 };
 
 /**
- * The account tab, t3-style: choose-your-plan cards side by side with a
- * monthly/annual switch, plus the billing portal for whoever is subscribed.
- * Checkout and portal ride Autumn; the enforcement snapshot re-syncs on every
- * visit — this page is also the post-checkout landing.
+ * Plan comparison and billing controls. Checkout and portal ride Autumn;
+ * the page refreshes the enforcement snapshot on arrival from checkout.
  */
 function AccountTab() {
   const summary = useQuery(api.usage.summary);
@@ -341,10 +600,6 @@ function AccountTab() {
   const [interval, setInterval] = useState<"monthly" | "annual">("monthly");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    void syncBilling().catch(() => {});
-  }, [syncBilling]);
 
   const currentTier = summary?.plan ? tierOfPlan(summary.plan) : null;
 
@@ -509,7 +764,7 @@ function AccountTab() {
         ))}
       </div>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <PlanCard
           title="Teste grátis"
           priceLine={<span className="text-xl font-semibold">R$0</span>}
@@ -598,9 +853,6 @@ function AccountTab() {
           );
         })}
       </div>
-
-      {currentTier === "conectado" ? <OpenAiConnectCard /> : null}
-      <ModelsCard />
     </div>
   );
 }
@@ -959,11 +1211,13 @@ function PlanCard({
         highlight ? "border-brand-accent/50" : "border-border",
       )}
     >
-      {badge ? (
-        <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-brand-accent px-2.5 py-0.5 text-[11px] font-semibold text-white">
-          {badge}
-        </span>
-      ) : null}
+      <div className="mb-3 min-h-6">
+        {badge ? (
+          <span className="inline-block rounded-md bg-brand-accent/10 px-2 py-1 text-[10px] font-medium text-brand-soft">
+            {badge}
+          </span>
+        ) : null}
+      </div>
       <h3 className="text-body font-semibold">{title}</h3>
       <p className="mt-2">{priceLine}</p>
       <ul className="mt-4 flex-1 space-y-2">
@@ -1068,12 +1322,12 @@ function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-border bg-surface p-5">
+    <section className="min-w-0 rounded-xl border border-border bg-surface p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h3 className="text-body font-semibold">{title}</h3>
         {caption ? <p className="text-xs text-text-4">{caption}</p> : null}
       </div>
-      <div className="mt-3">{children}</div>
+      <div className="mt-5">{children}</div>
     </section>
   );
 }
@@ -1116,13 +1370,14 @@ function BrandTab({ accountId }: { accountId: Id<"accounts"> }) {
 
       <BrandKitCard accountId={accountId} />
 
-      <SectionCard title="Memória de marca" caption="fatos confirmados por você">
-        <FileBody result={memory} format="markdown" />
-      </SectionCard>
-
-      <SectionCard title="Anotações da Vanda" caption="ela grava aqui — sempre com a sua aprovação">
-        <FileBody result={notes} format="markdown" />
-      </SectionCard>
+      <div className="grid gap-6 xl:grid-cols-2">
+        <SectionCard title="Memória de marca" caption="fatos confirmados por você">
+          <FileBody result={memory} format="markdown" />
+        </SectionCard>
+        <SectionCard title="Anotações da Vanda" caption="sempre com a sua aprovação">
+          <FileBody result={notes} format="markdown" />
+        </SectionCard>
+      </div>
     </>
   );
 }
@@ -1152,22 +1407,24 @@ function BrandKitCard({ accountId }: { accountId: Id<"accounts"> }) {
           pede a sua aprovação antes de gravar.
         </p>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-6">
           {kit.colors.length > 0 ? (
-            <div className="flex flex-wrap gap-x-6 gap-y-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {kit.colors.map((color) => (
-                <div key={color.hex} className="flex flex-col items-center gap-1.5">
+                <div key={color.hex} className="overflow-hidden rounded-lg border border-border">
                   <span
                     aria-hidden
-                    className="size-14 rounded-full border border-border shadow-sm"
+                    className="block h-24 w-full"
                     style={{ backgroundColor: color.hex }}
                   />
-                  <span className="font-mono text-xs text-text-2">{color.hex}</span>
-                  {color.name || color.role ? (
-                    <span className="max-w-24 truncate text-[11px] text-text-4">
-                      {color.name ?? color.role}
-                    </span>
-                  ) : null}
+                  <div className="p-3">
+                    <span className="font-mono text-xs text-text-2">{color.hex}</span>
+                    {color.name || color.role ? (
+                      <span className="mt-1 block truncate text-[11px] text-text-3">
+                        {color.name ?? color.role}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1178,7 +1435,7 @@ function BrandKitCard({ accountId }: { accountId: Id<"accounts"> }) {
               {kit.fonts.map((font) => (
                 <div
                   key={`${font.family}-${font.role ?? ""}`}
-                  className="flex min-w-36 flex-col items-center rounded-lg border border-border px-5 py-3"
+                  className="flex min-w-36 flex-col rounded-lg border border-border px-5 py-4"
                 >
                   <span
                     aria-hidden
@@ -1194,7 +1451,11 @@ function BrandKitCard({ accountId }: { accountId: Id<"accounts"> }) {
             </div>
           ) : null}
 
-          {kit.tagline ? <p className="text-body-sm text-text-2 italic">“{kit.tagline}”</p> : null}
+          {kit.tagline ? (
+            <p className="border-t border-border pt-5 text-xl leading-relaxed font-medium tracking-tight text-text-2">
+              “{kit.tagline}”
+            </p>
+          ) : null}
         </div>
       )}
     </SectionCard>
@@ -1211,7 +1472,8 @@ function FileBody({ result, format }: { result: FileResult; format: "markdown" |
       </div>
     );
   }
-  if (result.text === null) return <p className="text-body-sm text-text-3">(vazio)</p>;
+  if (!result.text)
+    return <p className="text-body-sm text-text-3">Nada registrado por aqui ainda.</p>;
   if (format === "code") {
     return (
       <pre className="overflow-x-auto rounded-lg border border-border bg-muted/40 p-3 font-mono text-body-sm leading-relaxed whitespace-pre text-text-2">
@@ -1256,10 +1518,12 @@ function FolderTab({
 
   if (entries.length === 0) {
     return (
-      <div className="flex flex-col items-center rounded-xl border border-dashed border-border px-6 py-12 text-center">
-        <EmptyIcon className="size-6 text-text-4" />
-        <h3 className="mt-3 text-body font-semibold">{emptyTitle}</h3>
-        <p className="mt-1.5 max-w-md text-body-sm leading-relaxed text-text-3">{emptyBody}</p>
+      <div className="flex min-h-80 flex-col items-center justify-center rounded-xl border border-border bg-surface px-6 py-12 text-center">
+        <span className="flex size-14 items-center justify-center rounded-xl border border-brand-accent/20 bg-brand-accent/5">
+          <EmptyIcon className="size-6 text-brand-soft" />
+        </span>
+        <h3 className="mt-6 text-lg font-medium tracking-tight">{emptyTitle}</h3>
+        <p className="mt-3 max-w-md text-body-sm leading-relaxed text-text-3">{emptyBody}</p>
       </div>
     );
   }
@@ -1280,7 +1544,9 @@ function FolderTab({
                 active ? "border-border-strong bg-surface" : "border-transparent hover:bg-surface",
               )}
             >
-              <span className="shrink-0 font-mono text-body-sm font-medium">{entry.name}</span>
+              <span className="min-w-0 break-all font-mono text-body-sm font-medium">
+                {entry.name}
+              </span>
               {entry.summary ? (
                 <span className="min-w-0 flex-1 truncate text-xs text-text-4">{entry.summary}</span>
               ) : null}
