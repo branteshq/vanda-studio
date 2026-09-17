@@ -36,6 +36,19 @@ jj new                       # create new commit
 jj log                       # view history
 ```
 
+### Convex production access
+
+The normal `CONVEX_DEPLOY_KEY` targets development.
+
+For read-only production diagnostics, run Convex commands with:
+
+```
+    CONVEX_DEPLOY_KEY="$CONVEX_PROD_DEPLOY_KEY" pnpm exec convex logs --prod
+```
+
+Never deploy, mutate production state, or reveal secret values unless explicitly requested.
+
+
 ### Rules
 
 - **Every completed TODO = one commit**
