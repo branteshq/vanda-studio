@@ -15,6 +15,8 @@ export interface ImageModel {
   readonly id: string;
   /** User-facing name shown in the picker and the image detail view. */
   readonly label: string;
+  /** Lab whose mark appears alongside the model in the picker. */
+  readonly maker: "OpenAI" | "Google" | "Black Forest Labs";
   /** Relative cost hint for the picker ("$" cheapest … "$$$" priciest). */
   readonly priceTier: "$" | "$$" | "$$$";
   /** One-line description under the label in the picker. */
@@ -31,6 +33,7 @@ export const IMAGE_MODELS: ReadonlyArray<ImageModel> = [
   {
     id: "google/gemini-3.1-flash-image",
     label: "Nano Banana 2",
+    maker: "Google",
     priceTier: "$",
     blurb: "Equilíbrio de velocidade e qualidade",
     resolutions: ["1K", "2K", "4K"],
@@ -38,6 +41,7 @@ export const IMAGE_MODELS: ReadonlyArray<ImageModel> = [
   {
     id: "google/gemini-3.1-flash-lite-image",
     label: "Nano Banana 2 Lite",
+    maker: "Google",
     priceTier: "$",
     blurb: "Geração e edição focadas em eficiência",
     resolutions: ["1K"],
@@ -45,6 +49,7 @@ export const IMAGE_MODELS: ReadonlyArray<ImageModel> = [
   {
     id: "openai/gpt-image-2.5-flare",
     label: "GPT Image 2.5 Flare",
+    maker: "OpenAI",
     priceTier: "$$$",
     blurb: "Modelo de imagem da OpenAI, padrão da Vanda",
     resolutions: ["1K"],
@@ -52,6 +57,7 @@ export const IMAGE_MODELS: ReadonlyArray<ImageModel> = [
   {
     id: "openai/gpt-image-2.5-sunburst",
     label: "GPT Image 2.5 Sunburst",
+    maker: "OpenAI",
     priceTier: "$$$",
     blurb: "Variante Sunburst da OpenAI para geração e edição",
     resolutions: ["1K"],
@@ -59,6 +65,7 @@ export const IMAGE_MODELS: ReadonlyArray<ImageModel> = [
   {
     id: "google/gemini-3-pro-image",
     label: "Nano Banana Pro",
+    maker: "Google",
     priceTier: "$$",
     blurb: "Geração rápida de alta qualidade",
     resolutions: ["1K", "2K", "4K"],
@@ -66,6 +73,7 @@ export const IMAGE_MODELS: ReadonlyArray<ImageModel> = [
   {
     id: "black-forest-labs/flux.2-flex",
     label: "Flux 2 Flex",
+    maker: "Black Forest Labs",
     priceTier: "$$",
     blurb: "Geração criativa e flexível",
     resolutions: ["1K"],
@@ -88,6 +96,7 @@ export const CONECTADO_IMAGE_MODELS: ReadonlyArray<ImageModel> = [
   {
     id: CONECTADO_IMAGE_MODEL,
     label: "GPT Image 2",
+    maker: "OpenAI",
     priceTier: "$$$",
     blurb: "Pela sua assinatura do ChatGPT",
     resolutions: ["1K"],

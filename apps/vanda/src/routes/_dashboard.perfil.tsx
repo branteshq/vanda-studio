@@ -22,7 +22,12 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@vanda-studio/ui/components/avatar";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Markdown } from "@vanda-studio/ui/components/markdown";
-import { AnthropicIcon, OpenAiIcon } from "@vanda-studio/ui/components/model-marks";
+import {
+  AnthropicIcon,
+  FluxIcon,
+  GeminiIcon,
+  OpenAiIcon,
+} from "@vanda-studio/ui/components/model-marks";
 import {
   Select,
   SelectContent,
@@ -46,6 +51,7 @@ import {
   CONECTADO_IMAGE_MODELS,
   DEFAULT_IMAGE_MODEL,
   IMAGE_MODELS,
+  type ImageModel,
 } from "../convex/imageModels";
 import { PLAN_TIERS, planLabel, tierOfPlan } from "../convex/billing/plans";
 import { parseBrandKit } from "../convex/workspace/brandKit";
@@ -883,7 +889,12 @@ function ModelsCard() {
               <SelectValue>
                 {(value) => {
                   const model = imageModels.find((item) => item.id === value);
-                  return model ? <span className="truncate">{model.label}</span> : null;
+                  return model ? (
+                    <>
+                      <MakerMark maker={model.maker} />
+                      <span className="truncate">{model.label}</span>
+                    </>
+                  ) : null;
                 }}
               </SelectValue>
             </SelectTrigger>
@@ -891,6 +902,7 @@ function ModelsCard() {
               {imageModels.map((model) => (
                 <SelectItem key={model.id} value={model.id}>
                   <span className="flex items-center gap-2">
+                    <MakerMark maker={model.maker} />
                     <span className="truncate font-medium">{model.label}</span>
                     <span className="text-note font-semibold text-green">{model.priceTier}</span>
                   </span>
@@ -942,8 +954,13 @@ function ModelRow({
 }
 
 /** The maker's brand mark — monochrome, inheriting the row's text color. */
-function MakerMark({ maker }: { maker: ModelMaker }) {
-  const Icon = maker === "OpenAI" ? OpenAiIcon : AnthropicIcon;
+function MakerMark({ maker }: { maker: ModelMaker | ImageModel["maker"] }) {
+  const Icon = {
+    OpenAI: OpenAiIcon,
+    Anthropic: AnthropicIcon,
+    Google: GeminiIcon,
+    "Black Forest Labs": FluxIcon,
+  }[maker];
   return <Icon className="size-4 shrink-0 text-text-2" />;
 }
 
