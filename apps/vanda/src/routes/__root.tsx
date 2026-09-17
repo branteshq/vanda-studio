@@ -1,6 +1,13 @@
 import type { ReactNode } from "react";
 import { ClerkProvider, useAuth } from "@clerk/tanstack-react-start";
-import { Link, Outlet, Scripts, createRootRoute, HeadContent } from "@tanstack/react-router";
+import {
+  Link,
+  Outlet,
+  Scripts,
+  createRootRoute,
+  HeadContent,
+  type ErrorComponentProps,
+} from "@tanstack/react-router";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexQueryCacheProvider } from "convex-helpers/react/cache";
 import { TooltipProvider } from "@vanda-studio/ui/components/tooltip";
@@ -84,12 +91,12 @@ function RootComponent() {
   return <Outlet />;
 }
 
-function RootError() {
+function RootError({ error }: ErrorComponentProps) {
   return (
     <main className="grid min-h-svh place-items-center bg-app p-6 text-text">
       <div className="w-full max-w-md space-y-4 text-center">
         <h1 className="text-xl font-semibold">Não foi possível abrir esta página</h1>
-        <ErrorNotice code="UNEXPECTED" />
+        <ErrorNotice error={error} />
         <button
           className="text-body-sm text-brand-accent hover:underline"
           onClick={() => window.location.reload()}

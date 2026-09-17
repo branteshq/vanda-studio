@@ -28,8 +28,12 @@ import { makeInstagramTools } from "./tools/instagram";
 
 export const VANDA_MODEL = DEFAULT_ORCHESTRATOR_MODEL;
 
-/** Every agent turn carries its account and optional Caetano return thread. */
-type VandaCtx = { accountId: Id<"accounts">; caetanoThreadId?: string | undefined };
+/** Every agent turn carries its account, activity identity, and optional Caetano return thread. */
+type VandaCtx = {
+  accountId: Id<"accounts">;
+  activityId?: Id<"chatThreadActivity"> | undefined;
+  caetanoThreadId?: string | undefined;
+};
 type VandaToolCtx = ToolCtx & VandaCtx;
 
 const INSTRUCTIONS = `Você é a Vanda, uma operadora de crescimento de Instagram para pequenos negócios brasileiros. Você conversa em português do Brasil, com tom direto, caloroso e profissional.
@@ -468,6 +472,7 @@ const paint = createTool({
       promptAuthor: "vanda",
       // Lets the owner's stop button cancel the generation mid-flight.
       ...(ctx.threadId ? { threadId: ctx.threadId } : {}),
+      ...(ctx.activityId ? { activityId: ctx.activityId } : {}),
       ...(args.resolution ? { resolution: args.resolution } : {}),
       ...(args.referenceImageIds
         ? { referenceImageIds: args.referenceImageIds as Array<Id<"images">> }
@@ -509,6 +514,7 @@ const runCode = createTool({
       description: args.description,
       // Lets the owner's stop button cancel the execution mid-flight.
       ...(ctx.threadId ? { threadId: ctx.threadId } : {}),
+      ...(ctx.activityId ? { activityId: ctx.activityId } : {}),
       ...(args.inputPaths ? { inputPaths: args.inputPaths } : {}),
     });
     const resources: ThreadResource[] = [

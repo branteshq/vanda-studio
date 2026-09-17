@@ -2,6 +2,8 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type QueryCtx } from "./_generated/server";
 import { chargeUsage } from "./usage";
+import { isErrorCode } from "../errors";
+import { errorCodeValidator } from "./publicErrors";
 
 const loadOwnedImage = async (ctx: QueryCtx, accountId: Id<"accounts">, imageId: Id<"images">) => {
   const image = await ctx.db.get(imageId);
@@ -68,9 +70,17 @@ export const savePaintedImage = internalMutation({
     // Gallery fan-outs pre-insert a "generating" row; passing it here fills
     // that row in place (keeping its grid position) instead of inserting.
     placeholderId: v.optional(v.id("images")),
+    // Chat output may persist only while its exact originating turn is active.
+    activityId: v.optional(v.id("chatThreadActivity")),
   },
   handler: async (ctx, args) => {
     if (!(await ctx.db.get(args.accountId))) throw new Error("account not found");
+    if (args.activityId) {
+      const activity = await ctx.db.get(args.activityId);
+      if (!activity || activity.accountId !== args.accountId) {
+        throw new Error("activity expired");
+      }
+    }
     const fields = {
       storageId: args.storageId,
       prompt: args.prompt,
@@ -106,6 +116,7 @@ export const savePaintedImage = internalMutation({
         ...fields,
         status: undefined,
         generationError: undefined,
+        generationErrorCode: undefined,
       });
       return args.placeholderId;
     }
@@ -121,10 +132,20 @@ export const savePaintedImage = internalMutation({
 
 /** Mark a gallery placeholder as failed so the grid can show why. */
 export const markPaintFailed = internalMutation({
-  args: { imageId: v.id("images"), error: v.string() },
-  handler: async (ctx, { imageId, error }) => {
+  args: {
+    imageId: v.id("images"),
+    generationErrorCode: v.optional(errorCodeValidator),
+    // Compatibility for already-scheduled calls. Only exact catalog codes are
+    // accepted; arbitrary diagnostics are never parsed or persisted.
+    error: v.optional(v.string()),
+  },
+  handler: async (ctx, { imageId, generationErrorCode, error }) => {
     const image = await ctx.db.get(imageId);
     if (!image || image.status !== "generating") return;
-    await ctx.db.patch(imageId, { status: "failed", generationError: error.slice(0, 300) });
+    await ctx.db.patch(imageId, {
+      status: "failed",
+      generationError: undefined,
+      generationErrorCode: generationErrorCode ?? (isErrorCode(error) ? error : "UNEXPECTED"),
+    });
   },
 });

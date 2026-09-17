@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { errorCodeValidator } from "./publicErrors";
 import { threadResourceValidator } from "./resourceRefs";
 import { brandCanonColumns } from "./pipeline/storage";
 import {
@@ -700,7 +701,10 @@ export default defineSchema({
     // "generating" placeholders, then filled in place (status cleared) or
     // marked "failed". Absent = ready.
     status: v.optional(v.union(v.literal("generating"), v.literal("failed"))),
+    // Legacy diagnostics remain readable for migration, but never cross the
+    // gallery API boundary. New failures persist only a catalogued code.
     generationError: v.optional(v.string()),
+    generationErrorCode: v.optional(errorCodeValidator),
     // Set when this image was produced by a run_code execution.
     codeRunId: v.optional(v.id("codeRuns")),
     // Set when this image is a paint edit of another image (provenance).

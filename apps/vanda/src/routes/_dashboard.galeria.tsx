@@ -34,7 +34,7 @@ import { FilterMenu, type FilterOption } from "../components/filter-menu";
 import { ImageLightbox, type ImageLightboxData } from "../components/image-lightbox";
 import { PostPreviewDialog } from "../components/post-preview";
 import { useWorkRail } from "../components/work-rail";
-import { errorMessage } from "../errors";
+import { errorCopy, type ErrorCode } from "../errors";
 import {
   ActionStateIcon,
   MediaTile,
@@ -531,14 +531,29 @@ function GeneratingCard({ item }: { item: GalleryItem }) {
 }
 
 /** A generation that died: what failed, why, and a way to clear the slot. */
+export function GalleryFailureMessage({ code }: { code: ErrorCode }) {
+  const copy = errorCopy[code];
+  return (
+    <>
+      <p className="text-body-sm font-medium text-destructive">{copy.title}</p>
+      <p className="line-clamp-3 max-w-full text-note text-text-4">{copy.message}</p>
+      {"action" in copy ? (
+        <a className="text-note font-medium text-destructive underline underline-offset-4" href={copy.href}>
+          {copy.action}
+        </a>
+      ) : null}
+    </>
+  );
+}
+
 function FailedCard({
   item,
   accountId,
-  error,
+  code,
 }: {
   item: GalleryItem;
   accountId: Id<"accounts">;
-  error: string;
+  code: ErrorCode;
 }) {
   const ratio = item.width && item.height ? item.width / item.height : 1;
   const remove = useMutation(api.gallery.remove);
@@ -547,8 +562,7 @@ function FailedCard({
       style={{ aspectRatio: ratio }}
       className="relative flex w-full flex-col items-center justify-center gap-1.5 overflow-hidden rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-center"
     >
-      <p className="text-body-sm font-medium text-destructive">Falhou</p>
-      <p className="line-clamp-3 max-w-full text-note text-text-4">{error}</p>
+      <GalleryFailureMessage code={code} />
       {item.model && <p className="text-note text-text-4">{imageModelLabel(item.model)}</p>}
       <ActionTooltip label="Descartar" side="bottom">
         <button
@@ -589,14 +603,18 @@ function GalleryCard({
 
   if (item.status === "failed") {
     return (
-      <FailedCard item={item} accountId={accountId} error={errorMessage(item.generationError)} />
+      <FailedCard
+        item={item}
+        accountId={accountId}
+        code={item.generationErrorCode ?? "UNEXPECTED"}
+      />
     );
   }
   if (item.status === "generating") {
     // The action can die without reporting (deploy restart) — after the
     // timeout the slot flips to a dismissible failure instead of pulsing forever.
     return Date.now() - item.createdAt > GENERATION_TIMEOUT_MS ? (
-      <FailedCard item={item} accountId={accountId} error="Tempo esgotado" />
+      <FailedCard item={item} accountId={accountId} code="TIMEOUT" />
     ) : (
       <GeneratingCard item={item} />
     );

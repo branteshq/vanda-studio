@@ -6,6 +6,7 @@ import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/s
 import { requireOwnedAccount } from "./authz";
 import { CONECTADO_IMAGE_MODEL, isKnownImageModel } from "./imageModels";
 import { isConnectedSubscriber } from "./openaiSub";
+import { isErrorCode, type ErrorCode } from "../errors";
 
 /**
  * The account's creative gallery. Every generated or uploaded image lands here
@@ -38,7 +39,7 @@ export interface GalleryItem {
   createdAt: number;
   /** Generation lifecycle: "generating" placeholder, "failed", or null = ready. */
   status: "generating" | "failed" | null;
-  generationError: string | null;
+  generationErrorCode: ErrorCode | null;
 }
 
 export interface GalleryItemDetail extends GalleryItem {
@@ -68,7 +69,11 @@ const toItem = async (ctx: QueryCtx, image: Doc<"images">): Promise<GalleryItem>
   edited: image.editOfImageId !== undefined || image.codeRunId !== undefined,
   createdAt: image.createdAt,
   status: image.status ?? null,
-  generationError: image.generationError ?? null,
+  generationErrorCode:
+    image.status === "failed"
+      ? image.generationErrorCode ??
+        (isErrorCode(image.generationError) ? image.generationError : "UNEXPECTED")
+      : null,
 });
 
 /** The account's gallery, newest first. Reference photos stay in the profile. */

@@ -9,7 +9,7 @@ import { internalAction, type ActionCtx } from "./_generated/server";
 import { codexGenerateImage } from "./pipeline/codex";
 import { ImageAssetGenerator, openRouterImageGeneratorLayer } from "./pipeline/imageGeneration";
 import { MAX_DECODE_PIXELS, sniffImage } from "./pipeline/imageBytes";
-import { publicError } from "../errors";
+import { errorCode, publicError } from "../errors";
 import {
   CONECTADO_IMAGE_MODEL,
   clampResolution,
@@ -89,6 +89,8 @@ export const paint = internalAction({
     placeholderImageId: v.optional(v.id("images")),
     // Chat paints carry their thread so the owner's stop cancels them mid-flight.
     threadId: v.optional(v.string()),
+    // Identifies the exact originating turn. Optional for gallery/background paints.
+    activityId: v.optional(v.id("chatThreadActivity")),
   },
   handler: async (
     ctx,
@@ -103,10 +105,11 @@ export const paint = internalAction({
     try {
       return await paintImage(ctx, args);
     } catch (error) {
+      console.error("Image generation failed", error);
       if (args.placeholderImageId) {
         await ctx.runMutation(internal.imagesData.markPaintFailed, {
           imageId: args.placeholderImageId,
-          error: error instanceof Error ? error.message : String(error),
+          generationErrorCode: errorCode(error),
         });
       }
       throw error;
@@ -128,6 +131,7 @@ async function paintImage(
     resolution,
     placeholderImageId,
     threadId,
+    activityId,
   }: {
     accountId: Id<"accounts">;
     prompt: string;
@@ -140,6 +144,7 @@ async function paintImage(
     resolution?: ImageResolution | undefined;
     placeholderImageId?: Id<"images"> | undefined;
     threadId?: string | undefined;
+    activityId?: Id<"chatThreadActivity"> | undefined;
   },
 ): Promise<{
   imageId: Id<"images">;
@@ -191,10 +196,13 @@ async function paintImage(
     // mid-flight. (Streams can't signal us here — no deltas flow during tools.)
     const abort = new AbortController();
     let cancelled = false;
-    const watcher = threadId
+    const watcher = activityId || threadId
       ? setInterval(() => {
           ctx
-            .runQuery(internal.chat.threadHasActivity, { accountId, threadId })
+            .runQuery(
+              activityId ? internal.chat.activityExists : internal.chat.threadHasActivity,
+              activityId ? { activityId } : { accountId, threadId: threadId! },
+            )
             .then((active) => {
               if (!active) {
                 cancelled = true;
@@ -253,7 +261,10 @@ async function paintImage(
     // result the owner already walked away from.
     if (
       cancelled ||
-      (threadId && !(await ctx.runQuery(internal.chat.threadHasActivity, { accountId, threadId })))
+      (activityId && !(await ctx.runQuery(internal.chat.activityExists, { activityId }))) ||
+      (!activityId &&
+        threadId &&
+        !(await ctx.runQuery(internal.chat.threadHasActivity, { accountId, threadId })))
     ) {
       throw new Error("geração interrompida pelo dono");
     }
@@ -304,6 +315,7 @@ async function paintImage(
       ...(promptAuthor ? { promptAuthor } : {}),
       ...(placeholderImageId ? { placeholderId: placeholderImageId } : {}),
       ...(editOfImageId ? { editOfImageId } : {}),
+      ...(activityId ? { activityId } : {}),
     });
     const url = await ctx.storage.getUrl(storageId);
     if (!url) throw new Error("stored image URL is unavailable");

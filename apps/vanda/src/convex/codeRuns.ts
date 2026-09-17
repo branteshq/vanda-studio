@@ -80,10 +80,12 @@ export const run = internalAction({
     inputPaths: v.optional(v.array(v.string())),
     // Chat runs carry their thread so the owner's stop cancels them mid-flight.
     threadId: v.optional(v.string()),
+    // Identifies the exact originating turn. Optional for non-chat runs.
+    activityId: v.optional(v.id("chatThreadActivity")),
   },
   handler: async (
     ctx,
-    { accountId, code, description, inputPaths, threadId },
+    { accountId, code, description, inputPaths, threadId, activityId },
   ): Promise<{
     ok: boolean;
     stdout: string;
@@ -156,19 +158,23 @@ export const run = internalAction({
     // the thread's activity row; a watcher polls it and kills the sandbox.
     let cancelled = false;
     let killSandbox: (() => Promise<void>) | null = null;
-    const watcher = threadId
-      ? setInterval(() => {
-          ctx
-            .runQuery(internal.chat.threadHasActivity, { accountId, threadId })
-            .then((active) => {
-              if (!active) {
-                cancelled = true;
-                killSandbox?.().catch(() => {});
-              }
-            })
-            .catch(() => {});
-        }, 2500)
-      : undefined;
+    const watcher =
+      activityId || threadId
+        ? setInterval(() => {
+            ctx
+              .runQuery(
+                activityId ? internal.chat.activityExists : internal.chat.threadHasActivity,
+                activityId ? { activityId } : { accountId, threadId: threadId! },
+              )
+              .then((active) => {
+                if (!active) {
+                  cancelled = true;
+                  killSandbox?.().catch(() => {});
+                }
+              })
+              .catch(() => {});
+          }, 2500)
+        : undefined;
 
     const startedAt = Date.now();
     let result: SandboxRunResult;
@@ -200,109 +206,120 @@ export const run = internalAction({
     // owner already walked away from.
     if (
       cancelled ||
-      (threadId && !(await ctx.runQuery(internal.chat.threadHasActivity, { accountId, threadId })))
+      (activityId && !(await ctx.runQuery(internal.chat.activityExists, { activityId }))) ||
+      (!activityId &&
+        threadId &&
+        !(await ctx.runQuery(internal.chat.threadHasActivity, { accountId, threadId })))
     ) {
       return fail("execução interrompida pelo dono");
     }
-    const durationMs = Date.now() - startedAt;
-    const costUsd = durationMs * SANDBOX_USD_PER_MS;
+    try {
+      const durationMs = Date.now() - startedAt;
+      const costUsd = durationMs * SANDBOX_USD_PER_MS;
 
-    // Sandbox output is untrusted: images are sniffed; structured text is
-    // UTF-8 decoded and capped before it enters the workspace.
-    const skipped = [...result.skipped];
-    const images: Array<{ imageId: Id<"images">; name: string; width: number; height: number }> =
-      [];
-    const artifacts: Array<{
-      artifactId: Id<"codeRunArtifacts">;
-      filename: string;
-      mimeType: string;
-      path: string;
-    }> = [];
-    const runName = entityName(description, codeRunId);
-    for (const output of result.outputs) {
-      const sniffed = sniffImage(output.bytes);
-      if (sniffed) {
-        if (sniffed.width * sniffed.height > MAX_OUTPUT_PIXELS) {
-          skipped.push(`${output.filename}: maior que ${MAX_OUTPUT_PIXELS / 1_000_000}MP`);
+      // Sandbox output is untrusted: images are sniffed; structured text is
+      // UTF-8 decoded and capped before it enters the workspace.
+      const skipped = [...result.skipped];
+      const images: Array<{ imageId: Id<"images">; name: string; width: number; height: number }> =
+        [];
+      const artifacts: Array<{
+        artifactId: Id<"codeRunArtifacts">;
+        filename: string;
+        mimeType: string;
+        path: string;
+      }> = [];
+      const runName = entityName(description, codeRunId);
+      for (const output of result.outputs) {
+        const sniffed = sniffImage(output.bytes);
+        if (sniffed) {
+          if (sniffed.width * sniffed.height > MAX_OUTPUT_PIXELS) {
+            skipped.push(`${output.filename}: maior que ${MAX_OUTPUT_PIXELS / 1_000_000}MP`);
+            continue;
+          }
+          const storageId = await ctx.storage.store(bytesBlob(output.bytes, sniffed.mimeType));
+          const imageId = await ctx.runMutation(internal.imagesData.savePaintedImage, {
+            accountId,
+            storageId,
+            prompt: description,
+            mimeType: sniffed.mimeType,
+            width: sniffed.width,
+            height: sniffed.height,
+            model: CODE_IMAGE_MODEL,
+            generationMs: durationMs,
+            costUsd: costUsd / result.outputs.length,
+            name: filenameToName(output.filename),
+            promptAuthor: "vanda",
+            codeRunId,
+            ...(activityId ? { activityId } : {}),
+          });
+          images.push({
+            imageId,
+            name: filenameToName(output.filename),
+            width: sniffed.width,
+            height: sniffed.height,
+          });
           continue;
         }
-        const storageId = await ctx.storage.store(bytesBlob(output.bytes, sniffed.mimeType));
-        const imageId = await ctx.runMutation(internal.imagesData.savePaintedImage, {
-          accountId,
-          storageId,
-          prompt: description,
-          mimeType: sniffed.mimeType,
-          width: sniffed.width,
-          height: sniffed.height,
-          model: CODE_IMAGE_MODEL,
-          generationMs: durationMs,
-          costUsd: costUsd / result.outputs.length,
-          name: filenameToName(output.filename),
-          promptAuthor: "vanda",
-          codeRunId,
-        });
-        images.push({
-          imageId,
-          name: filenameToName(output.filename),
-          width: sniffed.width,
-          height: sniffed.height,
-        });
-        continue;
-      }
 
-      const mimeType = artifactMimeType(output.filename);
-      if (!mimeType) {
-        skipped.push(`${output.filename}: extensão de saída não permitida`);
-        continue;
-      }
-      if (output.bytes.byteLength > MAX_TEXT_ARTIFACT_BYTES) {
-        skipped.push(`${output.filename}: maior que 1MB`);
-        continue;
-      }
-      let content: string;
-      try {
-        content = new TextDecoder("utf-8", { fatal: true }).decode(output.bytes);
-      } catch {
-        skipped.push(`${output.filename}: texto não é UTF-8 válido`);
-        continue;
-      }
-      if (mimeType === "application/json") {
+        const mimeType = artifactMimeType(output.filename);
+        if (!mimeType) {
+          skipped.push(`${output.filename}: extensão de saída não permitida`);
+          continue;
+        }
+        if (output.bytes.byteLength > MAX_TEXT_ARTIFACT_BYTES) {
+          skipped.push(`${output.filename}: maior que 1MB`);
+          continue;
+        }
+        let content: string;
         try {
-          JSON.parse(content);
+          content = new TextDecoder("utf-8", { fatal: true }).decode(output.bytes);
         } catch {
-          skipped.push(`${output.filename}: JSON inválido`);
+          skipped.push(`${output.filename}: texto não é UTF-8 válido`);
           continue;
         }
+        if (mimeType === "application/json") {
+          try {
+            JSON.parse(content);
+          } catch {
+            skipped.push(`${output.filename}: JSON inválido`);
+            continue;
+          }
+        }
+        const artifactId = await ctx.runMutation(internal.codeRunsData.saveCodeRunArtifact, {
+          codeRunId,
+          filename: output.filename,
+          mimeType,
+          content,
+          ...(activityId ? { activityId } : {}),
+        });
+        artifacts.push({
+          artifactId,
+          filename: output.filename,
+          mimeType,
+          path: `/runs/${runName}/outputs/${output.filename}`,
+        });
       }
-      const artifactId = await ctx.runMutation(internal.codeRunsData.saveCodeRunArtifact, {
-        codeRunId,
-        filename: output.filename,
-        mimeType,
-        content,
-      });
-      artifacts.push({
-        artifactId,
-        filename: output.filename,
-        mimeType,
-        path: `/runs/${runName}/outputs/${output.filename}`,
-      });
-    }
 
-    const stdout = truncateKeepTail(result.stdout);
-    const stderr = truncateKeepTail(
-      [result.stderr, ...skipped.map((note) => `arquivo ignorado — ${note}`)]
-        .filter(Boolean)
-        .join("\n"),
-    );
-    await ctx.runMutation(internal.codeRunsData.finishCodeRun, {
-      codeRunId,
-      status: result.ok ? "ok" : "failed",
-      stdout,
-      stderr,
-      durationMs,
-      costUsd,
-      imageIds: images.map((image) => image.imageId),
-    });
-    return { ok: result.ok, stdout, stderr, images, artifacts };
+      const stdout = truncateKeepTail(result.stdout);
+      const stderr = truncateKeepTail(
+        [result.stderr, ...skipped.map((note) => `arquivo ignorado — ${note}`)]
+          .filter(Boolean)
+          .join("\n"),
+      );
+      await ctx.runMutation(internal.codeRunsData.finishCodeRun, {
+        codeRunId,
+        status: result.ok ? "ok" : "failed",
+        stdout,
+        stderr,
+        durationMs,
+        costUsd,
+        imageIds: images.map((image) => image.imageId),
+        ...(activityId ? { activityId } : {}),
+      });
+      return { ok: result.ok, stdout, stderr, images, artifacts };
+    } catch (error) {
+      console.error("Code run output persistence failed", { codeRunId, error });
+      return fail("Não foi possível salvar o resultado desta execução.");
+    }
   },
 });

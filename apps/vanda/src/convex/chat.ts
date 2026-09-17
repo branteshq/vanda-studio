@@ -341,7 +341,12 @@ export const generateResponse = internalAction({
             ? undefined // the agent's configured default — no override needed
             : openrouterChatModel(modelId);
       const result = await vanda.streamText(
-        { ...ctx, accountId, ...(caetanoThreadId ? { caetanoThreadId } : {}) },
+        {
+          ...ctx,
+          accountId,
+          ...(activityId ? { activityId } : {}),
+          ...(caetanoThreadId ? { caetanoThreadId } : {}),
+        },
         { threadId },
         // The live-clock system prompt replaces the agent's static
         // instructions so relative dates ("amanhã às 8") resolve correctly.
@@ -416,14 +421,25 @@ export const expireThreadActivity = internalMutation({
     const [prompt] = await ctx.runQuery(components.agent.messages.getMessagesByIds, {
       messageIds: [activity.promptMessageId],
     });
-    // Abort by the prompt's order, not by whichever stream happens to be newest.
-    if (prompt) {
-      await abortStream(ctx, components.agent, {
-        threadId: activity.threadId,
-        order: prompt.order,
-        reason: "timeout",
-      });
+    const thread = await getThreadMetadata(ctx, components.agent, {
+      threadId: activity.threadId,
+    }).catch(() => null);
+    if (
+      !prompt ||
+      prompt.threadId !== activity.threadId ||
+      !thread ||
+      thread.userId !== threadKey(activity.accountId)
+    ) {
+      // Broken references must not poison the sweep or write into another account's thread.
+      await ctx.db.delete(activityId);
+      return true;
     }
+    // Abort by the prompt's order, not by whichever stream happens to be newest.
+    await abortStream(ctx, components.agent, {
+      threadId: activity.threadId,
+      order: prompt.order,
+      reason: "timeout",
+    });
     return ctx.runMutation(internal.chat.recordGenerationFailure, {
       accountId: activity.accountId,
       threadId: activity.threadId,

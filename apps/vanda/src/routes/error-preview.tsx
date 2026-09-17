@@ -2,6 +2,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { Button } from "@vanda-studio/ui/components/button";
 import { ErrorNotice, showErrorToast } from "../components/error-feedback";
 import { errorCopy, publicError, type ErrorCode } from "../errors";
+import { GalleryFailureMessage } from "./_dashboard.galeria";
 
 export const Route = createFileRoute("/error-preview")({
   beforeLoad: () => {
@@ -28,6 +29,16 @@ function ErrorPreview() {
             Simular erro inesperado
           </Button>
         </div>
+        <section aria-label="Erros da galeria" className="grid gap-4 md:grid-cols-2">
+          {(["RECONNECT_REQUIRED", "PROVIDER_LIMIT"] as const).map((code) => (
+            <div
+              key={code}
+              className="flex min-h-48 flex-col items-center justify-center gap-1.5 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-center"
+            >
+              <GalleryFailureMessage code={code} />
+            </div>
+          ))}
+        </section>
         <div className="grid gap-4 md:grid-cols-2">
           {(Object.keys(errorCopy) as ErrorCode[]).map((code) => (
             <section

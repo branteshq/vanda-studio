@@ -11,6 +11,50 @@ const modules = import.meta.glob("./**/*.ts");
 const failureText = "Algo deu errado. Tente novamente em instantes.";
 
 describe("agent generation failures", () => {
+  it("clears broken references without blocking valid records in the same sweep", async () => {
+    const t = convexTest(schema, modules);
+    agentComponent.register(t);
+    const setup = await t.run(async (ctx) => {
+      const now = Date.now();
+      const accountId = await ctx.db.insert("accounts", { createdAt: now, updatedAt: now });
+      const rows = [];
+      for (const kind of ["missing-prompt", "missing-thread", "foreign-thread", "valid"]) {
+        const threadId = await createThread(ctx, components.agent, {
+          userId: kind === "foreign-thread" ? "someone-else" : String(accountId),
+        });
+        const { messageId } = await saveMessage(ctx, components.agent, { threadId, prompt: kind });
+        const activityId = await ctx.db.insert("chatThreadActivity", {
+          accountId,
+          threadId,
+          promptMessageId: messageId,
+          startedAt: now - 20 * 60_000,
+        });
+        if (kind === "missing-prompt")
+          await ctx.runMutation(components.agent.messages.deleteByIds, { messageIds: [messageId] });
+        rows.push({ kind, threadId, activityId });
+      }
+      return rows;
+    });
+    await t.action(components.agent.threads.deleteAllForThreadIdSync, {
+      threadId: setup[1]!.threadId,
+    });
+    await t.mutation(internal.chat.expireStaleActivities, {});
+    expect(await t.run((ctx) => ctx.db.query("chatThreadActivity").collect())).toEqual([]);
+    for (const row of [setup[2]!, setup[3]!]) {
+      const messages = await t.run((ctx) =>
+        listUIMessages(ctx, components.agent, {
+          threadId: row.threadId,
+          paginationOpts: { cursor: null, numItems: 10 },
+        }),
+      );
+      expect(messages.page.filter((message) => message.role === "assistant")).toHaveLength(
+        row.kind === "valid" ? 1 : 0,
+      );
+    }
+    await t.mutation(internal.chat.expireStaleActivities, {});
+    expect(await t.run((ctx) => ctx.db.query("chatThreadActivity").collect())).toEqual([]);
+  });
+
   it("leaves a visible message when a Vanda turn fails", async () => {
     const t = convexTest(schema, modules);
     agentComponent.register(t);

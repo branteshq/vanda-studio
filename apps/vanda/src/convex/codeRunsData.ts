@@ -130,10 +130,15 @@ export const saveCodeRunArtifact = internalMutation({
     filename: v.string(),
     mimeType: v.string(),
     content: v.string(),
+    activityId: v.optional(v.id("chatThreadActivity")),
   },
   handler: async (ctx, args) => {
     const run = await ctx.db.get(args.codeRunId);
     if (!run) throw new Error("code run not found");
+    if (args.activityId) {
+      const activity = await ctx.db.get(args.activityId);
+      if (!activity || activity.accountId !== run.accountId) throw new Error("activity expired");
+    }
     if (args.content.length > 1024 * 1024) throw new Error("artifact larger than 1MB");
     if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(args.filename)) {
       throw new Error("invalid artifact filename");
@@ -160,10 +165,15 @@ export const finishCodeRun = internalMutation({
     durationMs: v.optional(v.number()),
     costUsd: v.optional(v.number()),
     imageIds: v.optional(v.array(v.id("images"))),
+    activityId: v.optional(v.id("chatThreadActivity")),
   },
-  handler: async (ctx, { codeRunId, ...outcome }) => {
+  handler: async (ctx, { codeRunId, activityId, ...outcome }) => {
     const run = await ctx.db.get(codeRunId);
     if (!run || run.status !== "running") return;
+    if (activityId) {
+      const activity = await ctx.db.get(activityId);
+      if (!activity || activity.accountId !== run.accountId) throw new Error("activity expired");
+    }
     await ctx.db.patch(codeRunId, outcome);
     if (outcome.costUsd) {
       await chargeUsage(ctx, {
