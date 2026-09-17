@@ -28,7 +28,11 @@ vi.mock("convex/react", () => ({
 }));
 vi.mock("../components/active-account", () => ({
   useActiveAccount: () => ({
-    accounts: [{ id: "business-a", name: "Business A", onboardedAt: 1 }],
+    accounts: [
+      { id: "business-a", name: "Business A", onboardedAt: 1 },
+      { id: "business-b", name: "Business B", onboardedAt: 1 },
+      { id: "unfinished", name: "Unfinished", onboardedAt: null },
+    ],
     activeAccount: { id: "business-a", name: "Business A", onboardedAt: 1 },
     selectAccount: mocks.selectAccount,
   }),
@@ -85,15 +89,19 @@ it("separates account settings and marks the selected destination", async () => 
   expect(container.textContent).not.toContain("Instagram · Business A");
   expect(container.textContent).not.toContain("Escolha seu plano");
   expect(container.querySelector('[aria-label="Negócio em foco"]')).toBeNull();
-  await click("Negócio");
+  await click("Business A");
   await click("Conexões");
   expect(container.textContent).toContain("Instagram · Business A");
   expect(container.textContent).not.toContain("Caetano no WhatsApp");
-  expect(container.querySelector('[aria-label="Negócio em foco"]')).not.toBeNull();
+  expect(container.querySelector('[aria-label="Negócio em foco"]')).toBeNull();
+  await click("Business B");
+  expect(container.textContent).toContain("Instagram · Business B");
+  expect(container.textContent).not.toContain("Instagram · Business A");
+  expect(container.querySelector('header [aria-label="Unfinished"]')).toBeNull();
 });
 
 it("offers a business-scoped path from empty memory back to the conversation", async () => {
-  await click("Negócio");
+  await click("Business A");
   await click("Memória");
   expect(container.textContent).toContain("Nenhuma nota ainda");
   await click("Ajuste com a Vanda na conversa");
@@ -103,12 +111,12 @@ it("offers a business-scoped path from empty memory back to the conversation", a
 
 it("remembers each scope's destination instead of showing the wrong settings", async () => {
   await click("Modelos");
-  await click("Negócio");
+  await click("Business A");
   await click("Templates");
   await click("Pessoal");
   expect(container.querySelector("h1")?.textContent).toBe("Modelos");
   expect(container.querySelector('[aria-current="page"]')?.textContent).toBe("Modelos");
-  await click("Negócio");
+  await click("Business A");
   expect(container.querySelector("h1")?.textContent).toBe("Templates");
   expect(container.querySelector('[aria-current="page"]')?.textContent).toBe("Templates");
 });

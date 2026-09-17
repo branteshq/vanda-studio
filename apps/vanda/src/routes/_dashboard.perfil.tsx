@@ -144,14 +144,13 @@ function ProfilePage() {
   const { user } = useUser();
   const clerk = useClerk();
   const navigate = useNavigate();
-  const { accounts, activeAccount, selectAccount } = useActiveAccount();
+  const { accounts, selectAccount } = useActiveAccount();
   const ready = accounts?.filter((account) => account.onboardedAt !== null) ?? [];
   const [viewedId, setViewedId] = useState<Id<"accounts"> | null>(null);
-  const viewed = ready.find((account) => account.id === viewedId) ?? activeAccount ?? ready[0];
-  const [scope, setScope] = useState<"personal" | "business">("personal");
+  const viewed = ready.find((account) => account.id === viewedId);
   const [personalTab, setPersonalTab] = useState<TabKey>("inicio");
   const [businessTab, setBusinessTab] = useState<TabKey>("marca");
-  const businessSection = scope === "business";
+  const businessSection = viewed !== undefined;
   const tab = businessSection ? businessTab : personalTab;
   const setTab = businessSection ? setBusinessTab : setPersonalTab;
   const section = TABS.find((item) => item.key === tab)!;
@@ -175,40 +174,43 @@ function ProfilePage() {
 
   return (
     <div className="min-h-svh bg-app text-text">
-      <header className="relative z-20 grid grid-cols-[1fr_auto] items-center gap-3 border-b border-border bg-surface px-4 py-3 md:sticky md:top-0 md:h-16 md:grid-cols-[1fr_auto_1fr] md:py-0">
-        <div>
+      <header className="sticky top-0 z-20 grid h-12 grid-cols-[auto_minmax(0,1fr)_auto] items-center border-b border-border bg-surface md:grid-cols-[224px_minmax(0,1fr)]">
+        <div className="px-2 md:px-4">
           <Button
             variant="ghost"
             size="sm"
             className="text-text-3"
+            aria-label="Voltar à Vanda"
             onClick={() => void navigate({ to: "/conversa", search: {} })}
           >
-            <ArrowLeft /> Voltar à Vanda
+            <ArrowLeft />
+            <span className="hidden md:inline">Voltar à Vanda</span>
           </Button>
         </div>
         <div
           aria-label="Escopo das configurações"
           role="group"
-          className="order-last col-span-2 flex justify-self-center rounded-lg border border-border bg-muted p-1 md:order-none md:col-span-1"
+          className="flex h-full min-w-0 items-stretch gap-1 overflow-x-auto px-2 md:px-6"
         >
           {[
-            { key: "personal", label: "Pessoal" },
-            { key: "business", label: "Negócio" },
-          ].map(({ key, label }) => (
+            { id: null, label: "Pessoal" },
+            ...ready.map((account) => ({ id: account.id, label: account.name })),
+          ].map(({ id, label }) => (
             <button
-              key={key}
+              key={id ?? "personal"}
               type="button"
               aria-label={label}
-              aria-pressed={scope === key}
-              onClick={() => setScope(key as typeof scope)}
+              title={label}
+              aria-pressed={id === (viewed?.id ?? null)}
+              onClick={() => setViewedId(id)}
               className={cn(
-                "flex min-h-9 items-center gap-2 rounded-md border px-5 text-body-sm transition-colors focus-visible:outline-2 focus-visible:outline-ring",
-                scope === key
-                  ? "border-border-strong bg-surface font-medium text-text"
-                  : "border-transparent text-text-3 hover:text-text",
+                "flex max-w-48 shrink-0 items-center gap-2 border-b-2 px-3 text-body-sm transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
+                id === (viewed?.id ?? null)
+                  ? "border-brand-accent font-medium text-text"
+                  : "border-transparent text-text-3 hover:bg-muted hover:text-text",
               )}
             >
-              {key === "personal" ? (
+              {id === null ? (
                 <Avatar className="size-5">
                   <AvatarImage src={user?.imageUrl} alt="" />
                   <AvatarFallback className="text-[9px]">{getInitials(name)}</AvatarFallback>
@@ -216,9 +218,10 @@ function ProfilePage() {
               ) : (
                 <Building2 className="size-4" />
               )}
-              {label}
+              <span className="truncate">{label}</span>
             </button>
           ))}
+          {accounts === undefined ? <Skeleton className="my-auto h-5 w-28 shrink-0" /> : null}
         </div>
         <Button
           variant="ghost"
@@ -231,35 +234,7 @@ function ProfilePage() {
         </Button>
       </header>
       <div className="md:grid md:grid-cols-[224px_minmax(0,1fr)]">
-        <aside className="border-b border-border bg-sidebar md:sticky md:top-16 md:flex md:h-[calc(100svh-4rem)] md:flex-col md:overflow-y-auto md:border-r md:border-b-0">
-          {businessSection ? (
-            <div className="border-b border-border p-4">
-              <p className="mb-2 text-xs font-medium text-text-3">Negócio</p>
-              {accounts === undefined ? (
-                <Skeleton className="h-9 w-full" />
-              ) : viewed ? (
-                <Select
-                  value={viewed.id}
-                  onValueChange={(value) => setViewedId(value as Id<"accounts">)}
-                >
-                  <SelectTrigger className="w-full bg-surface" aria-label="Negócio em foco">
-                    <SelectValue>
-                      {() => <span className="truncate">{viewed.name}</span>}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ready.map((account) => (
-                      <SelectItem key={account.id} value={account.id}>
-                        {account.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <p className="text-body-sm text-text-3">Nenhum negócio</p>
-              )}
-            </div>
-          ) : null}
+        <aside className="border-b border-border bg-sidebar md:sticky md:top-12 md:flex md:h-[calc(100svh-3rem)] md:flex-col md:overflow-y-auto md:border-r md:border-b-0">
           <nav
             aria-label="Perfil e configurações"
             className="flex gap-1 overflow-x-auto p-3 md:flex-col"
