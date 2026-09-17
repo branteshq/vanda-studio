@@ -58,7 +58,6 @@ import { parseBrandKit } from "../convex/workspace/brandKit";
 import { useActiveAccount } from "../components/active-account";
 import { WhatsAppSettings } from "../components/whatsapp-settings";
 import { errorMessage } from "../errors";
-import { VandaMark } from "../components/vanda-mark";
 
 export const Route = createFileRoute("/_dashboard/perfil")({
   component: ProfilePage,
@@ -267,12 +266,6 @@ function ProfilePage() {
             )}
           </nav>
           <div className="mt-auto hidden p-4 md:block">
-            <div className="mb-3 flex items-center gap-2 border-b border-border px-2 pb-4 text-body-sm text-text-3">
-              <VandaMark size={20} />
-              <span>
-                <span className="font-medium text-text-2">Vanda</span> Studio
-              </span>
-            </div>
             <Button
               variant="ghost"
               size="sm"
