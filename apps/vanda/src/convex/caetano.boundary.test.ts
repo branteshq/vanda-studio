@@ -112,4 +112,55 @@ describe("Caetano control plane", () => {
     await owner.mutation(api.caetano.stopGeneration, { threadId: sent.threadId });
     expect((await owner.query(api.caetano.state, {})).processing).toBe(false);
   });
+
+  it("accepts an owned image-only message and exposes the image in the transcript", async () => {
+    const { t, accountId } = await setup();
+    const owner = t.withIdentity({ subject: "ana" });
+    const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["image"])));
+    const uploaded = await owner.mutation(api.imageUploads.addImage, {
+      accountId,
+      storageId,
+      mimeType: "image/png",
+      width: 800,
+      height: 600,
+    });
+
+    const sent = await owner.mutation(api.caetano.sendMessage, {
+      prompt: "",
+      imageIds: [uploaded.imageId],
+    });
+    const messages = await owner.query(api.caetano.listMessages, {
+      threadId: sent.threadId,
+      paginationOpts: { cursor: null, numItems: 20 },
+    });
+
+    expect(
+      messages.page.some((message) => message.parts.some((part) => part.type === "file")),
+    ).toBe(true);
+    expect((await t.run((ctx) => ctx.db.get(uploaded.imageId)))?.lastAttachedAt).toEqual(
+      expect.any(Number),
+    );
+  });
+
+  it("refuses an image from another account", async () => {
+    const { t, foreignAccountId } = await setup();
+    const foreignImageId = await t.run(async (ctx) => {
+      const storageId = await ctx.storage.store(new Blob(["foreign-image"]));
+      return ctx.db.insert("images", {
+        accountId: foreignAccountId,
+        origin: "uploaded",
+        purpose: "post",
+        storageId,
+        mimeType: "image/png",
+        createdAt: Date.now(),
+      });
+    });
+
+    await expect(
+      t.withIdentity({ subject: "ana" }).mutation(api.caetano.sendMessage, {
+        prompt: "descreva",
+        imageIds: [foreignImageId],
+      }),
+    ).rejects.toThrow("image not found");
+  });
 });

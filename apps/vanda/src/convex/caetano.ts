@@ -22,8 +22,9 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { AGENT_MAX_OUTPUT_TOKENS } from "./agentModels";
-import { requireUser } from "./authz";
+import { requireOwnedAccount, requireUser } from "./authz";
 import { caetano, caetanoSystemPrompt } from "./caetanoAgent";
+import { resolveMessageImages } from "./messageImages";
 import { budgetOf, USAGE_LIMIT_MESSAGE } from "./usage";
 
 const threadKey = (userId: Id<"users">): string => `caetano:${userId}`;
@@ -78,11 +79,17 @@ const submitMessage = async (
     readonly prompt: string;
     readonly connectionId?: Id<"whatsappConnections"> | undefined;
     readonly externalMessageId?: string | undefined;
+    readonly images?: ReadonlyArray<{
+      readonly imageId: Id<"images">;
+      readonly url: string;
+      readonly mimeType: string;
+    }>;
   },
 ): Promise<{ threadId: string; messageId: string }> => {
   if (!(await budgetOf(ctx, user)).ok) throw new Error(USAGE_LIMIT_MESSAGE);
   const text = input.prompt.trim();
-  if (!text) throw new Error("mensagem vazia");
+  const images = input.images ?? [];
+  if (!text && images.length === 0) throw new Error("mensagem vazia");
 
   const queued = await ctx.db
     .query("caetanoInbox")
@@ -107,8 +114,27 @@ const submitMessage = async (
 
   const { messageId } = await saveMessage(ctx, components.agent, {
     threadId: target,
-    message: { role: "user", content: text },
+    message: {
+      role: "user",
+      content:
+        images.length === 0
+          ? text
+          : [
+              ...(text ? [{ type: "text" as const, text }] : []),
+              ...images.map((image) => ({
+                type: "image" as const,
+                image: image.url,
+                mediaType: image.mimeType,
+              })),
+            ],
+    },
   });
+  if (images.length > 0) {
+    const attachedAt = Date.now();
+    await Promise.all(
+      images.map((image) => ctx.db.patch(image.imageId, { lastAttachedAt: attachedAt })),
+    );
+  }
   await ctx.db.insert("caetanoInbox", {
     userId: user._id,
     threadId: target,
@@ -123,9 +149,24 @@ const submitMessage = async (
 };
 
 export const sendMessage = mutation({
-  args: { threadId: v.optional(v.string()), prompt: v.string() },
-  handler: async (ctx, input): Promise<{ threadId: string; messageId: string }> =>
-    submitMessage(ctx, await requireUser(ctx), input),
+  args: {
+    threadId: v.optional(v.string()),
+    prompt: v.string(),
+    imageIds: v.optional(v.array(v.id("images"))),
+  },
+  handler: async (
+    ctx,
+    { imageIds, ...input },
+  ): Promise<{ threadId: string; messageId: string }> => {
+    const user = await requireUser(ctx);
+    let images: Awaited<ReturnType<typeof resolveMessageImages>> = [];
+    if (imageIds?.length) {
+      if (!user.activeAccountId) throw new Error("nenhuma conta ativa");
+      await requireOwnedAccount(ctx, user.activeAccountId);
+      images = await resolveMessageImages(ctx, user.activeAccountId, imageIds);
+    }
+    return submitMessage(ctx, user, { ...input, images });
+  },
 });
 
 /** Channel-neutral ingress used by future clients after they resolve an external identity. */

@@ -18,7 +18,7 @@ export default defineConfig(({ mode }) => {
     envPrefix: ["VITE_", "PUBLIC_"],
     server: {
       port: 3000,
-      allowedHosts: [".trycloudflare.com"],
+      allowedHosts: [".trycloudflare.com", ".onamp.dev"],
     },
     // React singleton discipline. Two failure modes bracket this config:
     // fully external (the fresh-build default) leaves a bare require('react')

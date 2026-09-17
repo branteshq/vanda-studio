@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   optimisticallySendMessage,
@@ -8,12 +8,10 @@ import {
 } from "@convex-dev/agent/react";
 import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
-import { ArrowUp, Square } from "lucide-react";
 import { ThinkingOrb } from "thinking-orbs";
 import caetanoWelcomeUrl from "@vanda-studio/ui/assets/caetano/caetano-expression-welcome.png?url";
 import caetanoWavingUrl from "@vanda-studio/ui/assets/caetano/caetano-pose-waving.png?url";
 import { Bubble, BubbleContent } from "@vanda-studio/ui/components/bubble";
-import { Button } from "@vanda-studio/ui/components/button";
 import { Markdown } from "@vanda-studio/ui/components/markdown";
 import { Message, MessageContent } from "@vanda-studio/ui/components/message";
 import {
@@ -25,9 +23,14 @@ import {
   MessageScrollerViewport,
 } from "@vanda-studio/ui/components/message-scroller";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
-import { cn } from "@vanda-studio/ui/lib/utils";
+import {
+  ImageMessageComposer,
+  MessageImageAttachments,
+  type ReadyImageAttachment,
+} from "../components/image-message-composer";
 import { resourcesForMessage, ThreadResourceList } from "../components/thread-resources";
 import { api } from "../convex/_generated/api";
+import type { Id } from "../convex/_generated/dataModel";
 
 export const Route = createFileRoute("/_dashboard/caetano")({ component: CaetanoPage });
 
@@ -63,17 +66,24 @@ function CaetanoPage() {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const send = async () => {
-    const prompt = draft.trim();
-    if (!prompt || state?.processing) return;
+  const send = async (text: string, attachments: ReadyImageAttachment[]) => {
+    const prompt = text.trim();
+    if ((!prompt && attachments.length === 0) || state?.processing) return;
     setDraft("");
     setPending(prompt);
     setError(null);
     try {
-      await sendMessage({ ...(state?.threadId ? { threadId: state.threadId } : {}), prompt });
+      await sendMessage({
+        ...(state?.threadId ? { threadId: state.threadId } : {}),
+        prompt,
+        ...(attachments.length > 0
+          ? { imageIds: attachments.map((attachment) => attachment.imageId) }
+          : {}),
+      });
     } catch (cause) {
       setDraft(prompt);
       setError(cause instanceof Error ? cause.message : "Não consegui enviar agora.");
+      throw cause;
     } finally {
       setPending(null);
     }
@@ -91,20 +101,39 @@ function CaetanoPage() {
             Enviando…
           </div>
         ) : null}
-        <CaetanoComposer
+        <ImageMessageComposer
+          accountId={state.activeAccountId}
           draft={draft}
           onDraftChange={setDraft}
           onSend={send}
+          placeholder="Fala com o Caetano…"
+          ariaLabel="Mensagem para o Caetano"
+          agentName="O Caetano"
           working={pending !== null}
           error={error}
+          hint="Caetano pode errar. Confira publicações e configurações importantes."
         />
       </CaetanoFrame>
     );
   }
-  return <CaetanoConversation threadId={state.threadId} processing={state.processing} />;
+  return (
+    <CaetanoConversation
+      accountId={state.activeAccountId}
+      threadId={state.threadId}
+      processing={state.processing}
+    />
+  );
 }
 
-function CaetanoConversation({ threadId, processing }: { threadId: string; processing: boolean }) {
+function CaetanoConversation({
+  accountId,
+  threadId,
+  processing,
+}: {
+  accountId: Id<"accounts"> | null;
+  threadId: string;
+  processing: boolean;
+}) {
   const sendMessage = useMutation(api.caetano.sendMessage).withOptimisticUpdate((store, args) => {
     if (!args.threadId || !args.prompt.trim()) return;
     optimisticallySendMessage(api.caetano.listMessages)(store, {
@@ -124,16 +153,23 @@ function CaetanoConversation({ threadId, processing }: { threadId: string; proce
   const loading = messages.status === "LoadingFirstPage";
   const streaming = messages.results.at(-1)?.status === "streaming";
 
-  const send = async () => {
-    const prompt = draft.trim();
-    if (!prompt || processing || streaming) return;
+  const send = async (text: string, attachments: ReadyImageAttachment[]) => {
+    const prompt = text.trim();
+    if ((!prompt && attachments.length === 0) || processing || streaming) return;
     setDraft("");
     setError(null);
     try {
-      await sendMessage({ threadId, prompt });
+      await sendMessage({
+        threadId,
+        prompt,
+        ...(attachments.length > 0
+          ? { imageIds: attachments.map((attachment) => attachment.imageId) }
+          : {}),
+      });
     } catch (cause) {
       setDraft(prompt);
       setError(cause instanceof Error ? cause.message : "Não consegui enviar agora.");
+      throw cause;
     }
   };
 
@@ -177,13 +213,18 @@ function CaetanoConversation({ threadId, processing }: { threadId: string; proce
           </MessageScroller>
         </div>
       </MessageScrollerProvider>
-      <CaetanoComposer
+      <ImageMessageComposer
+        accountId={accountId}
         draft={draft}
         onDraftChange={setDraft}
         onSend={send}
+        placeholder="Fala com o Caetano…"
+        ariaLabel="Mensagem para o Caetano"
+        agentName="O Caetano"
         working={processing || streaming}
         onStop={() => void stop({ threadId })}
         error={error}
+        hint="Caetano pode errar. Confira publicações e configurações importantes."
       />
     </CaetanoFrame>
   );
@@ -257,13 +298,23 @@ function CaetanoMessage({
       : [],
   );
   if (message.role === "user") {
-    if (textParts.length === 0) return null;
+    const attachments = message.parts.flatMap((part) => {
+      if (part.type !== "file") return [];
+      const file = part as { mediaType: string; url: string; filename?: string };
+      return file.mediaType.startsWith("image/")
+        ? [{ url: file.url, fileName: file.filename ?? "Imagem anexada" }]
+        : [];
+    });
+    if (textParts.length === 0 && attachments.length === 0) return null;
     return (
       <Message align="end" className="animate-message-in">
         <MessageContent>
-          <Bubble variant="muted">
-            <BubbleContent className="whitespace-pre-wrap">{textParts.join("\n")}</BubbleContent>
-          </Bubble>
+          <MessageImageAttachments attachments={attachments} />
+          {textParts.length > 0 ? (
+            <Bubble variant="muted">
+              <BubbleContent className="whitespace-pre-wrap">{textParts.join("\n")}</BubbleContent>
+            </Bubble>
+          ) : null}
         </MessageContent>
       </Message>
     );
@@ -321,83 +372,6 @@ function CaetanoMessage({
 function CaetanoStreamingText({ text, streaming }: { text: string; streaming: boolean }) {
   const [visible] = useSmoothText(text, { charsPerSec: 900, startStreaming: streaming });
   return <Markdown>{visible}</Markdown>;
-}
-
-function CaetanoComposer({
-  draft,
-  onDraftChange,
-  onSend,
-  working,
-  onStop,
-  error,
-}: {
-  draft: string;
-  onDraftChange: (value: string) => void;
-  onSend: () => Promise<void>;
-  working: boolean;
-  onStop?: (() => void) | undefined;
-  error: string | null;
-}) {
-  const textarea = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    const element = textarea.current;
-    if (!element) return;
-    element.style.height = "0px";
-    element.style.height = `${Math.min(element.scrollHeight, 180)}px`;
-  }, [draft]);
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    void onSend();
-  };
-  const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      if (!working) void onSend();
-    }
-  };
-
-  return (
-    <div className="shrink-0 px-3 pb-4 md:px-6 md:pb-6">
-      <form
-        onSubmit={submit}
-        className={cn(
-          "mx-auto flex w-full max-w-3xl items-end gap-2 rounded-2xl border border-border bg-surface-1 p-2 shadow-sm transition-shadow focus-within:shadow-md",
-          error && "border-danger/50",
-        )}
-      >
-        <textarea
-          ref={textarea}
-          value={draft}
-          onChange={(event) => onDraftChange(event.target.value)}
-          onKeyDown={keyDown}
-          rows={1}
-          placeholder="Fala com o Caetano…"
-          aria-label="Mensagem para o Caetano"
-          className="max-h-[180px] min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-6 text-text-1 outline-none placeholder:text-text-3"
-        />
-        {working && onStop ? (
-          <Button
-            type="button"
-            size="icon"
-            variant="secondary"
-            aria-label="Interromper"
-            onClick={onStop}
-          >
-            <Square className="size-3.5 fill-current" />
-          </Button>
-        ) : (
-          <Button type="submit" size="icon" aria-label="Enviar" disabled={!draft.trim() || working}>
-            <ArrowUp className="size-4" />
-          </Button>
-        )}
-      </form>
-      {error ? <p className="mx-auto mt-2 max-w-3xl px-2 text-xs text-danger">{error}</p> : null}
-      <p className="mx-auto mt-2 max-w-3xl text-center text-[11px] text-text-3">
-        Caetano pode errar. Confira publicações e configurações importantes.
-      </p>
-    </div>
-  );
 }
 
 function CaetanoMessagesSkeleton() {
