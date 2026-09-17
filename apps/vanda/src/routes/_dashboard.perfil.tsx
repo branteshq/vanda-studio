@@ -169,6 +169,7 @@ function ProfilePage() {
   }, [syncBilling]);
 
   const name = user?.fullName ?? user?.username ?? "Minha conta";
+  const personalLabel = user?.firstName?.trim() || "Minha conta";
   const email = user?.primaryEmailAddress?.emailAddress ?? null;
 
   const handleSignOut = async () => {
@@ -199,7 +200,7 @@ function ProfilePage() {
           className="flex h-full min-w-0 items-stretch gap-1 overflow-x-auto px-2 md:px-6"
         >
           {[
-            { id: null, label: "Pessoal" },
+            { id: null, label: personalLabel },
             ...ready.map((account) => ({ id: account.id, label: account.name })),
           ].map(({ id, label }) => (
             <button

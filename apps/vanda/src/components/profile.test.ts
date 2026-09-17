@@ -11,9 +11,10 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   selectAccount: vi.fn(),
   openUserProfile: vi.fn(),
+  user: { fullName: "Test Owner", firstName: "Test" as string | null },
 }));
 vi.mock("@clerk/tanstack-react-start", () => ({
-  useUser: () => ({ user: { fullName: "Test Owner" } }),
+  useUser: () => ({ user: mocks.user }),
   useClerk: () => ({ signOut: mocks.action, openUserProfile: mocks.openUserProfile }),
 }));
 vi.mock("@tanstack/react-router", () => ({
@@ -51,6 +52,7 @@ const click = async (label: string) => {
 beforeEach(async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   vi.clearAllMocks();
+  mocks.user.firstName = "Test";
   mocks.query.mockImplementation((ref, args) => {
     const name = getFunctionName(ref);
     if (name === "usage:summary") return { plan: "profissional", usedPct: 37 };
@@ -77,6 +79,17 @@ it("refreshes billing on arrival without opening the plan comparison", () => {
   expect(container.querySelector("dl")?.textContent).toContain("Test Owner");
   expect(container.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("37");
   expect(container.textContent).not.toContain("Escolha seu plano");
+});
+
+it("labels the personal page with the first name and omits sidebar branding", async () => {
+  expect(container.querySelector('header [aria-label="Test"]')?.getAttribute("aria-pressed")).toBe(
+    "true",
+  );
+  expect(container.querySelector("aside")?.textContent).not.toContain("Vanda Studio");
+  expect(container.querySelector("aside")?.textContent).toContain("Sair da conta");
+  mocks.user.firstName = null;
+  await act(async () => root.render(createElement(Route.options.component as ComponentType)));
+  expect(container.querySelector('header [aria-label="Minha conta"]')).not.toBeNull();
 });
 
 it("separates account settings and marks the selected destination", async () => {
@@ -113,7 +126,7 @@ it("remembers each scope's destination instead of showing the wrong settings", a
   await click("Modelos");
   await click("Business A");
   await click("Templates");
-  await click("Pessoal");
+  await click("Test");
   expect(container.querySelector("h1")?.textContent).toBe("Modelos");
   expect(container.querySelector('[aria-current="page"]')?.textContent).toBe("Modelos");
   await click("Business A");
