@@ -25,6 +25,7 @@ import { Button } from "@vanda-studio/ui/components/button";
 import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+import { errorMessage } from "../errors";
 
 const MAX_COMPOSER_HEIGHT = 224;
 
@@ -126,6 +127,7 @@ export function ImageMessageComposer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useLayoutEffect(() => {
     const element = textareaRef.current;
@@ -218,7 +220,7 @@ export function ImageMessageComposer({
       if (!cancelledUploads.current.has(clientId)) {
         updateAttachment(clientId, {
           state: "error",
-          error: cause instanceof Error ? cause.message : "Falha no envio",
+          error: errorMessage(cause),
         });
       }
     } finally {
@@ -276,12 +278,14 @@ export function ImageMessageComposer({
   const submit = async () => {
     if (!canSend) return;
     setSubmitting(true);
+    setSubmitError(null);
     try {
       await onSend(draft, readyAttachments);
       for (const attachment of attachments) URL.revokeObjectURL(attachment.previewUrl);
       setAttachments([]);
-    } catch {
+    } catch (cause) {
       // The parent restores text; uploaded images remain available for retry.
+      if (!error) setSubmitError(errorMessage(cause));
     } finally {
       setSubmitting(false);
     }
@@ -416,7 +420,11 @@ export function ImageMessageComposer({
             )}
           </div>
         </form>
-        {error ? <p className="mt-2 px-2 text-xs text-danger">{error}</p> : null}
+        {error || submitError ? (
+          <p role="alert" className="mt-2 px-2 text-xs text-danger">
+            {error ?? submitError}
+          </p>
+        ) : null}
         {hint ? <p className="mt-2 text-center text-[11px] text-text-3">{hint}</p> : null}
       </div>
     </footer>

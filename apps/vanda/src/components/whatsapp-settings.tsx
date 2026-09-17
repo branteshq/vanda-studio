@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { api } from "../convex/_generated/api";
+import { errorMessage } from "../errors";
+import { showErrorToast } from "./error-feedback";
 
 const statuses: Record<string, string> = {
   pending: "Na fila",
@@ -22,14 +24,12 @@ export function WhatsAppSettings() {
   const retry = useMutation(api.whatsappData.retryDelivery);
   const [link, setLink] = useState<{ url: string; expiresAt: number } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const run = async (work: () => Promise<unknown>) => {
     setBusy(true);
-    setError(null);
     try {
       await work();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      showErrorToast(cause);
     } finally {
       setBusy(false);
     }
@@ -68,8 +68,8 @@ export function WhatsAppSettings() {
       ) : (
         <>
           <p className="mt-3 text-body-sm text-text-3">
-            Gere o vínculo abaixo e envie a mensagem pronta pelo seu WhatsApp. O link expira em
-            10 minutos; não compartilhe.
+            Gere o vínculo abaixo e envie a mensagem pronta pelo seu WhatsApp. O link expira em 10
+            minutos; não compartilhe.
           </p>
           <Button
             className="mt-3"
@@ -107,7 +107,9 @@ export function WhatsAppSettings() {
                 <span>
                   {statuses[delivery.status] ?? delivery.status}
                   {delivery.error ? (
-                    <span className="block text-xs text-text-3">{delivery.error}</span>
+                    <span className="block text-xs text-text-3">
+                      {errorMessage(delivery.error)}
+                    </span>
                   ) : null}
                 </span>
                 {["failed", "unknown"].includes(delivery.status) ? (
@@ -136,11 +138,6 @@ export function WhatsAppSettings() {
         Envie “parar” para interromper. Respostas do WhatsApp aparecem também no aplicativo. Pedidos
         feitos só no aplicativo não são enviados ao WhatsApp. Por enquanto, envie apenas texto.
       </p>
-      {error ? (
-        <p role="alert" className="mt-3 text-body-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
     </section>
   );
 }

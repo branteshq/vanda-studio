@@ -81,3 +81,21 @@ corepack pnpm run typecheck
 corepack pnpm run lint
 corepack pnpm run build
 ```
+
+### User-facing errors
+
+`apps/vanda/src/errors.ts` owns public error codes and Portuguese copy. Throw
+`publicError("USAGE_LIMIT")` (or another catalog code) for an expected Convex
+failure. In Effect pipelines, map tagged failures at the action boundary with
+`Effect.catchTag`; keep diagnostic details in server logs, not public payloads.
+
+UI code must use `errorMessage(error)`, `ErrorNotice`, or `showErrorToast(error)`.
+Never render exception messages, stack traces, provider bodies, or persisted raw
+error strings. Unknown errors get safe generic copy. Keep chat/form errors inline;
+use Sonner for action notifications, without also showing the same failure inline.
+Retries are user-initiated, not automatic replays of mutations.
+
+Visit `/error-preview` on the development server to exercise the real inline and
+toast states, including an unknown exception. The route returns 404 in production.
+Vanda's minute-by-minute expiry sweep settles turns older than 15 minutes, including
+orphaned activity records from before timeout handling existed.

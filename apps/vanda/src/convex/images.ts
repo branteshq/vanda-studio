@@ -9,7 +9,7 @@ import { internalAction, type ActionCtx } from "./_generated/server";
 import { codexGenerateImage } from "./pipeline/codex";
 import { ImageAssetGenerator, openRouterImageGeneratorLayer } from "./pipeline/imageGeneration";
 import { MAX_DECODE_PIXELS, sniffImage } from "./pipeline/imageBytes";
-import { USAGE_LIMIT_MESSAGE } from "./usage";
+import { publicError } from "../errors";
 import {
   CONECTADO_IMAGE_MODEL,
   clampResolution,
@@ -155,7 +155,7 @@ async function paintImage(
     const sub = await ctx.runQuery(internal.openaiSub.subscriberState, { accountId });
     if (!sub.active) {
       const budget = await ctx.runQuery(internal.usage.budget, { accountId });
-      if (!budget.ok) throw new Error(USAGE_LIMIT_MESSAGE);
+      if (!budget.ok) throw publicError("USAGE_LIMIT");
     }
 
     // Identity wall: account ownership and reference authorization are checked
@@ -234,7 +234,13 @@ async function paintImage(
               ...(inputReferences.length > 0 ? { referenceUrls: inputReferences } : {}),
               signal: abort.signal,
             }),
-          ).pipe(Effect.provide(openRouterImageGeneratorLayer({ apiKey, model: selectedModel }))),
+          ).pipe(
+            Effect.provide(openRouterImageGeneratorLayer({ apiKey, model: selectedModel })),
+            Effect.catchTag("ImageGenerationFailed", (error) => {
+              console.error("Image generation failed", error);
+              return Effect.fail(publicError("UNAVAILABLE"));
+            }),
+          ),
         );
       }
     } catch (error) {

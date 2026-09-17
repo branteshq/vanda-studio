@@ -1,5 +1,6 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { defaultSettingsMiddleware, wrapLanguageModel, type LanguageModel } from "ai";
+import { publicError } from "../../errors";
 
 /**
  * Adapters for the ChatGPT subscription backend (the Conectado plan): the
@@ -11,9 +12,6 @@ import { defaultSettingsMiddleware, wrapLanguageModel, type LanguageModel } from
  */
 
 const CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex";
-
-export const CODEX_QUOTA_MESSAGE =
-  "O limite do seu plano ChatGPT foi atingido — aguarde a janela renovar ou tente mais tarde.";
 
 export interface CodexAuth {
   access: string;
@@ -62,7 +60,8 @@ export const codexChatModel = (auth: CodexAuth, modelId: string): LanguageModel 
         }
       }
       const response = await fetch(url, { ...init, body: body ?? null });
-      if (response.status === 429) throw new Error(CODEX_QUOTA_MESSAGE);
+      if (response.status === 429) throw publicError("PROVIDER_LIMIT");
+      if (response.status === 401) throw publicError("RECONNECT_REQUIRED");
       return response;
     }) as typeof fetch,
   });
@@ -113,7 +112,8 @@ export const codexResponsesText = async (args: {
       parallel_tool_calls: true,
     }),
   });
-  if (response.status === 429) throw new Error(CODEX_QUOTA_MESSAGE);
+  if (response.status === 429) throw publicError("PROVIDER_LIMIT");
+  if (response.status === 401) throw publicError("RECONNECT_REQUIRED");
   if (!response.ok || !response.body) {
     throw new Error(`codex responses HTTP ${response.status}`);
   }
@@ -203,7 +203,8 @@ export const codexGenerateImage = async (args: {
     }),
     ...(args.signal ? { signal: args.signal } : {}),
   });
-  if (response.status === 429) throw new Error(CODEX_QUOTA_MESSAGE);
+  if (response.status === 429) throw publicError("PROVIDER_LIMIT");
+  if (response.status === 401) throw publicError("RECONNECT_REQUIRED");
   if (!response.ok) {
     const body = await response.text().catch(() => "");
     throw new Error(`codex image HTTP ${response.status}${body ? `: ${body.slice(0, 200)}` : ""}`);

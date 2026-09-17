@@ -4,6 +4,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
+import { publicError } from "../errors";
 
 /**
  * Node-side of the OpenAI connection: AES-256-GCM token encryption (the same
@@ -15,9 +16,6 @@ const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 const TOKEN_URL = "https://auth.openai.com/oauth/token";
 /** Refresh when the access token has less than this much life left. */
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
-
-const RECONNECT_MESSAGE =
-  "Sua conexão com a OpenAI expirou — reconecte em Perfil → Conta para continuar.";
 
 function encryptionKey(): Buffer {
   const material = process.env.OPENAI_TOKEN_ENCRYPTION_KEY;
@@ -87,7 +85,7 @@ export const getAccess = internalAction({
       !user.openaiRefreshAuthTag ||
       !user.openaiAccountId
     ) {
-      throw new Error(RECONNECT_MESSAGE);
+      throw publicError("RECONNECT_REQUIRED");
     }
 
     const expiresAt = user.openaiTokenExpiresAt ?? 0;
@@ -112,14 +110,14 @@ export const getAccess = internalAction({
         client_id: CLIENT_ID,
       }),
     });
-    if (!response.ok) throw new Error(RECONNECT_MESSAGE);
+    if (!response.ok) throw publicError("RECONNECT_REQUIRED");
     const tokens = (await response.json()) as {
       access_token?: string;
       refresh_token?: string;
       expires_in?: number;
     };
     if (!tokens.access_token || !tokens.refresh_token || typeof tokens.expires_in !== "number") {
-      throw new Error(RECONNECT_MESSAGE);
+      throw publicError("RECONNECT_REQUIRED");
     }
 
     const encryptedAccess = encrypt(tokens.access_token);

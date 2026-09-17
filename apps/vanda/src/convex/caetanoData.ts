@@ -16,7 +16,8 @@ import {
 import { orchestratorModel, resolveOrchestratorModel } from "./agentModels";
 import { DEFAULT_IMAGE_MODEL, isKnownImageModel } from "./imageModels";
 import { isConnectedSubscriber } from "./openaiSub";
-import { budgetOf, USAGE_LIMIT_MESSAGE } from "./usage";
+import { budgetOf } from "./usage";
+import { publicError } from "../errors";
 
 const accountThreadKey = (accountId: Id<"accounts">): string => String(accountId);
 
@@ -200,7 +201,7 @@ export const prepareVandaTurn = internalMutation({
     const user = await ctx.db.get(userId);
     if (!user) throw new Error("user not found");
     if (!isConnectedSubscriber(user) && !(await budgetOf(ctx, user)).ok)
-      throw new Error(USAGE_LIMIT_MESSAGE);
+      throw publicError("USAGE_LIMIT");
     const account = await ownedAccount(ctx, user, accountId);
     if (account.onboardedAt === undefined) throw new Error("conta ainda não concluiu o onboarding");
 

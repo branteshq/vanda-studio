@@ -25,10 +25,12 @@ import {
 import { AGENT_MAX_OUTPUT_TOKENS, resolveOrchestratorModel } from "./agentModels";
 import { requireOwnedAccount } from "./authz";
 import { codexChatModel, codexResponsesText } from "./pipeline/codex";
-import { budgetOf, USAGE_LIMIT_MESSAGE } from "./usage";
+import { budgetOf } from "./usage";
 import { isConnectedSubscriber } from "./openaiSub";
 import { resolveMessageImages } from "./messageImages";
 import { openrouterChatModel, systemPrompt, vanda, VANDA_MODEL } from "./vanda";
+import { errorMessage, publicError } from "../errors";
+import { errorCodeValidator, safeFailure } from "./publicErrors";
 
 /**
  * The account's Vanda conversations. Multi-thread: the agent component owns
@@ -53,7 +55,7 @@ async function requireAccountThread(
   threadId: string,
 ) {
   const meta = await getThreadMetadata(ctx, components.agent, { threadId }).catch(() => null);
-  if (!meta || meta.userId !== threadKey(accountId)) throw new Error("thread not found");
+  if (!meta || meta.userId !== threadKey(accountId)) throw publicError("NOT_FOUND");
   return meta;
 }
 
@@ -112,7 +114,7 @@ export const renameThread = mutation({
     await requireOwnedAccount(ctx, accountId);
     await requireAccountThread(ctx, accountId, threadId);
     const trimmed = title.trim();
-    if (!trimmed) throw new Error("título vazio");
+    if (!trimmed) throw publicError("INVALID_INPUT");
     await updateThreadMetadata(ctx, components.agent, {
       threadId,
       patch: { title: trimmed.slice(0, 80) },
@@ -155,12 +157,12 @@ export const sendMessage = mutation({
     if (account.ownerUserId) {
       const owner = await ctx.db.get(account.ownerUserId);
       if (owner && !isConnectedSubscriber(owner) && !(await budgetOf(ctx, owner)).ok) {
-        throw new Error(USAGE_LIMIT_MESSAGE);
+        throw publicError("USAGE_LIMIT");
       }
     }
     const trimmed = prompt.trim();
     const images = await resolveMessageImages(ctx, accountId, imageIds ?? []);
-    if (!trimmed && images.length === 0) throw new Error("mensagem vazia");
+    if (!trimmed && images.length === 0) throw publicError("INVALID_INPUT");
 
     let title: string | null = null;
     let target = threadId;
@@ -316,7 +318,10 @@ export const generateResponse = internalAction({
     ctx,
     { accountId, threadId, promptMessageId, activityId, caetanoThreadId },
   ): Promise<string> => {
+    let streamError: unknown;
     try {
+      if (activityId && !(await ctx.runQuery(internal.chat.activityExists, { activityId })))
+        return "";
       // Which model thinks as Vanda this turn: the owner's pick, resolved
       // against the transport (Conectado can only carry OpenAI models).
       const sub = await ctx.runQuery(internal.openaiSub.subscriberState, { accountId });
@@ -344,53 +349,107 @@ export const generateResponse = internalAction({
           promptMessageId,
           system: systemPrompt(),
           maxOutputTokens: AGENT_MAX_OUTPUT_TOKENS,
+          onError: ({ error }) => {
+            streamError = error;
+          },
           ...(model ? { model } : {}),
         },
         { saveStreamDeltas: true },
       );
       await result.consumeStream();
+      if (streamError !== undefined) throw streamError;
       return await result.text;
     } catch (error) {
-      console.error("Vanda generation failed", error);
+      console.error("Vanda generation failed", { threadId, error: streamError ?? error });
+      const failure = safeFailure(streamError ?? error);
       const recorded = await ctx.runMutation(internal.chat.recordGenerationFailure, {
         accountId,
         threadId,
         ...(activityId ? { activityId } : {}),
+        code: failure.code,
       });
-      return recorded ? GENERATION_FAILURE_MESSAGE : "";
+      return recorded ? failure.message : "";
     } finally {
       if (activityId) await ctx.runMutation(internal.chat.finishThreadActivity, { activityId });
     }
   },
 });
 
-const GENERATION_FAILURE_MESSAGE =
-  "Não consegui concluir esta resposta por uma falha temporária. Seu pedido foi salvo. Tente novamente.";
-
 export const recordGenerationFailure = internalMutation({
   args: {
     accountId: v.id("accounts"),
     threadId: v.string(),
     activityId: v.optional(v.id("chatThreadActivity")),
+    code: v.optional(errorCodeValidator),
   },
-  handler: async (ctx, { accountId, threadId, activityId }): Promise<boolean> => {
+  handler: async (ctx, { accountId, threadId, activityId, code }): Promise<boolean> => {
+    let promptMessageId: string | undefined;
     if (activityId) {
       const activity = await ctx.db.get(activityId);
       if (!activity || activity.accountId !== accountId || activity.threadId !== threadId) {
         // The stop action deletes the activity before aborting the stream.
         return false;
       }
+      promptMessageId = activity.promptMessageId;
     }
     const metadata = await getThreadMetadata(ctx, components.agent, { threadId }).catch(() => null);
     if (!metadata || metadata.userId !== threadKey(accountId)) return false;
     await saveMessage(ctx, components.agent, {
       threadId,
+      ...(promptMessageId ? { promptMessageId } : {}),
       agentName: "vanda",
-      message: { role: "assistant", content: GENERATION_FAILURE_MESSAGE },
+      message: {
+        role: "assistant",
+        content: errorMessage({ kind: "vanda-error", code: code ?? "UNEXPECTED" }),
+      },
     });
     if (activityId && (await ctx.db.get(activityId))) await ctx.db.delete(activityId);
     return true;
   },
+});
+
+export const expireThreadActivity = internalMutation({
+  args: { activityId: v.id("chatThreadActivity") },
+  handler: async (ctx, { activityId }): Promise<boolean> => {
+    const activity = await ctx.db.get(activityId);
+    if (!activity) return false;
+    const [prompt] = await ctx.runQuery(components.agent.messages.getMessagesByIds, {
+      messageIds: [activity.promptMessageId],
+    });
+    // Abort by the prompt's order, not by whichever stream happens to be newest.
+    if (prompt) {
+      await abortStream(ctx, components.agent, {
+        threadId: activity.threadId,
+        order: prompt.order,
+        reason: "timeout",
+      });
+    }
+    return ctx.runMutation(internal.chat.recordGenerationFailure, {
+      accountId: activity.accountId,
+      threadId: activity.threadId,
+      activityId,
+      code: "TIMEOUT",
+    });
+  },
+});
+
+/** Also recovers rows created before timeout handling existed. */
+export const expireStaleActivities = internalMutation({
+  args: {},
+  handler: async (ctx): Promise<void> => {
+    const stale = await ctx.db
+      .query("chatThreadActivity")
+      .withIndex("by_started", (q) => q.lte("startedAt", Date.now() - 15 * 60_000))
+      .take(100);
+    for (const activity of stale) {
+      await ctx.runMutation(internal.chat.expireThreadActivity, { activityId: activity._id });
+    }
+  },
+});
+
+export const activityExists = internalQuery({
+  args: { activityId: v.id("chatThreadActivity") },
+  handler: async (ctx, { activityId }) => (await ctx.db.get(activityId)) !== null,
 });
 
 export const finishThreadActivity = internalMutation({

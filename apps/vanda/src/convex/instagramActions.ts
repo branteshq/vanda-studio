@@ -15,7 +15,7 @@ import { apifyInstagramCostUsd } from "./instagram/costs";
 import { liveInstagramLayer } from "./instagram/live";
 import { InstagramService, type InstagramServiceShape } from "./instagram/service";
 import type { InstagramObservation, InstagramTarget } from "./instagram/types";
-import { USAGE_LIMIT_MESSAGE } from "./usage";
+import { publicError } from "../errors";
 
 const MAX_SEARCH = 20;
 const MAX_POSTS = 100;
@@ -109,7 +109,7 @@ const cachedRead = async <A>(
       (budget.periodKey !== "none" &&
         budget.spentMicroUsd + projectedMicroUsd > budget.allowanceMicroUsd)
     ) {
-      throw new Error(USAGE_LIMIT_MESSAGE);
+      throw publicError("USAGE_LIMIT");
     }
   }
   const observation = (await Effect.runPromise(

@@ -87,10 +87,6 @@ export const budgetOf = async (ctx: QueryCtx, user: Doc<"users">): Promise<Budge
   return { ok: spentMicroUsd < allowanceMicroUsd, spentMicroUsd, allowanceMicroUsd, periodKey };
 };
 
-/** The user-facing limit message — also the tool/action error text. */
-export const USAGE_LIMIT_MESSAGE =
-  "Limite de uso do plano atingido. Faça upgrade em Perfil para continuar.";
-
 /**
  * Append a charge and bump the period counter. Callable from any mutation
  * (transactional with the write that produced the cost). Accounts without an
@@ -148,7 +144,7 @@ export const charge = internalMutation({
 
 /**
  * The gate actions consult before spending. Accounts without an owner are
- * never blocked (nothing to bill). Callers throw USAGE_LIMIT_MESSAGE on !ok.
+ * never blocked (nothing to bill). Callers throw publicError("USAGE_LIMIT") on !ok.
  */
 export const budget = internalQuery({
   args: { accountId: v.optional(v.id("accounts")), userId: v.optional(v.id("users")) },

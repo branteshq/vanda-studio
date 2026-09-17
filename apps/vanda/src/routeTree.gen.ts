@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as ErrorPreviewRouteImport } from './routes/error-preview'
 import { Route as DashboardRouteImport } from './routes/_dashboard'
 import { Route as DashboardIndexRouteImport } from './routes/_dashboard.index'
 import { Route as LoginSplatRouteImport } from './routes/login.$'
@@ -28,6 +29,11 @@ const SsoCallbackRoute = SsoCallbackRouteImport.update({
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ErrorPreviewRoute = ErrorPreviewRouteImport.update({
+  id: '/error-preview',
+  path: '/error-preview',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -72,6 +78,7 @@ const DashboardCaetanoRoute = DashboardCaetanoRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof DashboardIndexRoute
+  '/error-preview': typeof ErrorPreviewRoute
   '/onboarding': typeof OnboardingRoute
   '/sso-callback': typeof SsoCallbackRoute
   '/caetano': typeof DashboardCaetanoRoute
@@ -82,6 +89,7 @@ export interface FileRoutesByFullPath {
   '/login/$': typeof LoginSplatRoute
 }
 export interface FileRoutesByTo {
+  '/error-preview': typeof ErrorPreviewRoute
   '/onboarding': typeof OnboardingRoute
   '/sso-callback': typeof SsoCallbackRoute
   '/caetano': typeof DashboardCaetanoRoute
@@ -95,6 +103,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_dashboard': typeof DashboardRouteWithChildren
+  '/error-preview': typeof ErrorPreviewRoute
   '/onboarding': typeof OnboardingRoute
   '/sso-callback': typeof SsoCallbackRoute
   '/_dashboard/caetano': typeof DashboardCaetanoRoute
@@ -109,6 +118,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/error-preview'
     | '/onboarding'
     | '/sso-callback'
     | '/caetano'
@@ -119,6 +129,7 @@ export interface FileRouteTypes {
     | '/login/$'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/error-preview'
     | '/onboarding'
     | '/sso-callback'
     | '/caetano'
@@ -131,6 +142,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_dashboard'
+    | '/error-preview'
     | '/onboarding'
     | '/sso-callback'
     | '/_dashboard/caetano'
@@ -144,6 +156,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRouteWithChildren
+  ErrorPreviewRoute: typeof ErrorPreviewRoute
   OnboardingRoute: typeof OnboardingRoute
   SsoCallbackRoute: typeof SsoCallbackRoute
   LoginSplatRoute: typeof LoginSplatRoute
@@ -163,6 +176,13 @@ declare module '@tanstack/react-router' {
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/error-preview': {
+      id: '/error-preview'
+      path: '/error-preview'
+      fullPath: '/error-preview'
+      preLoaderRoute: typeof ErrorPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_dashboard': {
@@ -248,6 +268,7 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRouteWithChildren,
+  ErrorPreviewRoute: ErrorPreviewRoute,
   OnboardingRoute: OnboardingRoute,
   SsoCallbackRoute: SsoCallbackRoute,
   LoginSplatRoute: LoginSplatRoute,

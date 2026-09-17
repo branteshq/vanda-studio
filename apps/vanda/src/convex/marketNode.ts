@@ -43,7 +43,7 @@ import {
   openRouterSourceUnderstandingLayer,
   type SourceEvidence,
 } from "./pipeline/sourceUnderstanding";
-import { USAGE_LIMIT_MESSAGE } from "./usage";
+import { publicError } from "../errors";
 
 const ACTIVE_WINDOW_MS = 1000 * 60 * 60 * 24 * 30;
 const MIN_FOLLOWERS = 50;
@@ -763,7 +763,7 @@ export const runAccount = internalAction({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<MarketRunResult> => {
     const budget = await ctx.runQuery(internal.usage.budget, { accountId });
-    if (!budget.ok) throw new Error(USAGE_LIMIT_MESSAGE);
+    if (!budget.ok) throw publicError("USAGE_LIMIT");
     // Charged up front: the Apify fetches happen regardless of what we find.
     await ctx.runMutation(internal.usage.charge, {
       accountId,

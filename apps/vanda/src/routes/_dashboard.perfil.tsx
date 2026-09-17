@@ -43,6 +43,7 @@ import { PLAN_TIERS, planLabel, tierOfPlan } from "../convex/billing/plans";
 import { parseBrandKit } from "../convex/workspace/brandKit";
 import { useActiveAccount } from "../components/active-account";
 import { WhatsAppSettings } from "../components/whatsapp-settings";
+import { errorMessage } from "../errors";
 
 export const Route = createFileRoute("/_dashboard/perfil")({
   component: ProfilePage,
@@ -365,7 +366,7 @@ function AccountTab() {
       // so the cards and the usage bar flip to the new plan reactively.
       if (attached) await syncBilling();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(errorMessage(cause));
     } finally {
       setBusy(null);
     }
@@ -382,7 +383,7 @@ function AccountTab() {
       else await syncBilling();
     } catch (cause) {
       setPreview(null);
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(errorMessage(cause));
       await syncBilling().catch(() => {});
     } finally {
       setBusy(null);
@@ -395,7 +396,7 @@ function AccountTab() {
       const { url } = await getPortalUrl();
       if (url) window.location.href = url;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(errorMessage(cause));
     } finally {
       setBusy(null);
     }
@@ -631,7 +632,7 @@ function ModelsCard() {
     try {
       await action;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(errorMessage(cause));
     }
   };
 
@@ -789,7 +790,7 @@ function InstagramConnectCard({ accountId, name }: { accountId: Id<"accounts">; 
       });
       window.location.href = url;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(errorMessage(cause));
       setBusy(false);
     }
   };
@@ -855,7 +856,7 @@ function OpenAiConnectCard() {
               setDevice(null);
               setFlowState("idle");
             } else if (result.status === "failed") {
-              setFlowError(result.message ?? "A conexão falhou. Tente de novo.");
+              setFlowError(errorMessage(result.message));
               setFlowState("failed");
             }
           })
@@ -877,7 +878,7 @@ function OpenAiConnectCard() {
       setDevice(info);
       setFlowState("waiting");
     } catch (cause) {
-      setFlowError(cause instanceof Error ? cause.message : String(cause));
+      setFlowError(errorMessage(cause));
       setFlowState("failed");
     }
   };

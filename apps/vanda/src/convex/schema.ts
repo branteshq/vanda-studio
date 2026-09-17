@@ -191,7 +191,8 @@ export default defineSchema({
     startedAt: v.number(),
   })
     .index("by_account", ["accountId"])
-    .index("by_thread", ["threadId"]),
+    .index("by_thread", ["threadId"])
+    .index("by_started", ["startedAt"]),
 
   caetanoThreadActivity: defineTable({
     inboxId: v.optional(v.id("caetanoInbox")),

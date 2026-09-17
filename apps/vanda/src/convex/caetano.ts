@@ -25,7 +25,9 @@ import { AGENT_MAX_OUTPUT_TOKENS } from "./agentModels";
 import { requireOwnedAccount, requireUser } from "./authz";
 import { caetano, caetanoSystemPrompt } from "./caetanoAgent";
 import { resolveMessageImages } from "./messageImages";
-import { budgetOf, USAGE_LIMIT_MESSAGE } from "./usage";
+import { budgetOf } from "./usage";
+import { errorMessage, publicError } from "../errors";
+import { errorCodeValidator, safeFailure } from "./publicErrors";
 
 const threadKey = (userId: Id<"users">): string => `caetano:${userId}`;
 
@@ -35,8 +37,7 @@ const requireCaetanoThread = async (
   threadId: string,
 ) => {
   const metadata = await getThreadMetadata(ctx, components.agent, { threadId }).catch(() => null);
-  if (!metadata || metadata.userId !== threadKey(userId))
-    throw new Error("conversa não encontrada");
+  if (!metadata || metadata.userId !== threadKey(userId)) throw publicError("NOT_FOUND");
   return metadata;
 };
 
@@ -86,10 +87,10 @@ const submitMessage = async (
     }>;
   },
 ): Promise<{ threadId: string; messageId: string }> => {
-  if (!(await budgetOf(ctx, user)).ok) throw new Error(USAGE_LIMIT_MESSAGE);
+  if (!(await budgetOf(ctx, user)).ok) throw publicError("USAGE_LIMIT");
   const text = input.prompt.trim();
   const images = input.images ?? [];
-  if (!text && images.length === 0) throw new Error("mensagem vazia");
+  if (!text && images.length === 0) throw publicError("INVALID_INPUT");
 
   const queued = await ctx.db
     .query("caetanoInbox")
@@ -103,7 +104,7 @@ const submitMessage = async (
       () => null,
     );
     if (!metadata || metadata.userId !== threadKey(user._id)) {
-      if (input.threadId) throw new Error("conversa não encontrada");
+      if (input.threadId) throw publicError("NOT_FOUND");
       target = undefined;
     }
   }
@@ -218,9 +219,20 @@ export const startNext = internalMutation({
 
 export const expireTurn = internalMutation({
   args: { activityId: v.id("caetanoThreadActivity") },
-  handler: async (ctx, { activityId }) => {
+  handler: async (ctx, { activityId }): Promise<boolean> => {
     const activity = await ctx.db.get(activityId);
-    if (activity) await stopForUser(ctx, activity.userId, activity.threadId);
+    if (!activity) return false;
+    const message = errorMessage({ kind: "vanda-error", code: "TIMEOUT" });
+    await saveMessage(ctx, components.agent, {
+      threadId: activity.threadId,
+      promptMessageId: activity.promptMessageId,
+      agentName: "caetano",
+      message: { role: "assistant", content: message },
+    });
+    await deliverForActivity(ctx, activityId, message);
+    // Preserve the existing expiry behavior: stop delegated work and queued turns too.
+    await stopForUser(ctx, activity.userId, activity.threadId);
+    return true;
   },
 });
 
@@ -274,11 +286,12 @@ export const generateResponse = internalAction({
     activityId: v.id("caetanoThreadActivity"),
   },
   handler: async (ctx, { userId, threadId, promptMessageId, activityId }): Promise<string> => {
+    let streamError: unknown;
     try {
       const turn = await ctx.runQuery(internal.caetano.turnIsActive, { activityId });
       if (!turn) return "";
       if (!(await ctx.runQuery(internal.usage.budget, { userId })).ok)
-        throw new Error(USAGE_LIMIT_MESSAGE);
+        throw publicError("USAGE_LIMIT");
       const result = await caetano.streamText(
         { ...ctx, ownerUserId: userId, caetanoThreadId: threadId },
         { threadId },
@@ -290,47 +303,53 @@ export const generateResponse = internalAction({
               ? "\n\nEste turno veio do WhatsApp, que neste sandbox aceita somente texto. Não diga que imagens ou arquivos foram anexados aqui. Recursos apresentados ficam disponíveis na conversa web; links de acesso serão incluídos pelo sistema quando disponíveis. Responda de forma curta, sem tabelas Markdown."
               : ""),
           maxOutputTokens: AGENT_MAX_OUTPUT_TOKENS,
+          onError: ({ error }) => {
+            streamError = error;
+          },
         },
         { saveStreamDeltas: true },
       );
       await result.consumeStream();
+      if (streamError !== undefined) throw streamError;
       const text = await result.text;
       await ctx.runMutation(internal.caetano.deliverTurn, { activityId, text });
       return text;
     } catch (error) {
-      console.error("Caetano generation failed", error);
+      console.error("Caetano generation failed", { threadId, error: streamError ?? error });
+      const failure = safeFailure(streamError ?? error);
       const recorded = await ctx.runMutation(internal.caetano.recordGenerationFailure, {
         userId,
         threadId,
         activityId,
+        code: failure.code,
       });
-      return recorded ? GENERATION_FAILURE_MESSAGE : "";
+      return recorded ? failure.message : "";
     } finally {
       await ctx.runMutation(internal.caetano.finishActivity, { activityId });
     }
   },
 });
 
-const GENERATION_FAILURE_MESSAGE =
-  "Não consegui concluir esta resposta por uma falha temporária. Seu pedido foi salvo. Tente novamente.";
-
 export const recordGenerationFailure = internalMutation({
   args: {
     userId: v.id("users"),
     threadId: v.string(),
     activityId: v.id("caetanoThreadActivity"),
+    code: v.optional(errorCodeValidator),
   },
-  handler: async (ctx, { userId, threadId, activityId }): Promise<boolean> => {
+  handler: async (ctx, { userId, threadId, activityId, code }): Promise<boolean> => {
     const activity = await ctx.db.get(activityId);
     if (!activity || activity.userId !== userId || activity.threadId !== threadId) return false;
     const metadata = await getThreadMetadata(ctx, components.agent, { threadId }).catch(() => null);
     if (!metadata || metadata.userId !== threadKey(userId)) return false;
+    const message = errorMessage({ kind: "vanda-error", code: code ?? "UNEXPECTED" });
     await saveMessage(ctx, components.agent, {
       threadId,
+      promptMessageId: activity.promptMessageId,
       agentName: "caetano",
-      message: { role: "assistant", content: GENERATION_FAILURE_MESSAGE },
+      message: { role: "assistant", content: message },
     });
-    await deliverForActivity(ctx, activityId, GENERATION_FAILURE_MESSAGE);
+    await deliverForActivity(ctx, activityId, message);
     await ctx.runMutation(internal.caetano.finishActivity, { activityId });
     return true;
   },

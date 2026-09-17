@@ -744,7 +744,7 @@ function ToolRow({ part }: { part: ToolPartView }) {
       >
         {label}
         {toolPathOf(part) ? <span className="font-mono"> {toolPathOf(part)}</span> : null}
-        {failed && part.errorText ? ` — ${part.errorText}` : null}
+        {failed ? " — Não foi possível concluir esta etapa." : null}
       </MarkerContent>
     </Marker>
   );
@@ -784,7 +784,7 @@ function CodeRunRow({ part }: { part: ToolPartView }) {
             className="inline-flex cursor-pointer items-center gap-1 text-left transition-colors hover:text-text-3"
           >
             {label}
-            {failed && part.errorText ? ` — ${part.errorText}` : null}
+            {failed ? " — Não foi possível concluir esta etapa." : null}
             <ChevronDown
               className={cn("size-3 transition-transform duration-200", open && "rotate-180")}
             />
@@ -796,12 +796,12 @@ function CodeRunRow({ part }: { part: ToolPartView }) {
           <pre className="max-h-64 overflow-auto rounded-lg border border-border bg-muted/40 p-3 font-mono text-body-sm whitespace-pre text-text-3">
             {view.code}
           </pre>
-          {view.stdout ? (
+          {view.stdout && !errored ? (
             <pre className="max-h-32 overflow-auto rounded-lg border border-border bg-muted/40 p-3 font-mono text-body-sm whitespace-pre text-text-4">
               {view.stdout}
             </pre>
           ) : null}
-          {view.stderr ? (
+          {view.stderr && !errored ? (
             <pre className="max-h-32 overflow-auto rounded-lg border border-destructive/30 bg-destructive/5 p-3 font-mono text-body-sm whitespace-pre text-destructive">
               {view.stderr}
             </pre>

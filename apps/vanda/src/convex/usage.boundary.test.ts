@@ -142,9 +142,9 @@ describe("usage metering", () => {
       limited: true,
       chatLimited: true,
     });
-    await expect(owner.mutation(api.chat.sendMessage, { accountId, prompt: "Oi" })).rejects.toThrow(
-      "Limite de uso",
-    );
+    await expect(
+      owner.mutation(api.chat.sendMessage, { accountId, prompt: "Oi" }),
+    ).rejects.toMatchObject({ data: { kind: "vanda-error", code: "USAGE_LIMIT" } });
     await t.run((ctx) => ctx.db.patch(userId, { openaiAccessCiphertext: "encrypted" }));
     expect(await owner.query(api.usage.summary, {})).toMatchObject({
       limited: true,

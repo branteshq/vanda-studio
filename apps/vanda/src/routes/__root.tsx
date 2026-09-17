@@ -4,6 +4,8 @@ import { Link, Outlet, Scripts, createRootRoute, HeadContent } from "@tanstack/r
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexQueryCacheProvider } from "convex-helpers/react/cache";
 import { TooltipProvider } from "@vanda-studio/ui/components/tooltip";
+import { Toaster } from "sonner";
+import { ErrorNotice } from "../components/error-feedback";
 import { getConvexClient } from "../convexClient";
 import appCss from "../styles.css?url";
 import vandaMarkIconUrl from "@vanda-studio/ui/assets/vanda-mark.svg?url";
@@ -28,6 +30,7 @@ export const Route = createRootRoute({
     ],
   }),
   component: RootComponent,
+  errorComponent: RootError,
   notFoundComponent: NotFound,
   shellComponent: RootDocument,
 });
@@ -60,7 +63,14 @@ function RootDocument({ children }: { children: ReactNode }) {
             {/* Keeps query subscriptions warm ~5min after unmount: navigating back to
                 any screen renders instantly from live local data instead of a refetch. */}
             <ConvexQueryCacheProvider>
-              <TooltipProvider>{children}</TooltipProvider>
+              <TooltipProvider>
+                {children}
+                <Toaster
+                  theme="dark"
+                  position="bottom-right"
+                  toastOptions={{ className: "border-border bg-surface text-text" }}
+                />
+              </TooltipProvider>
             </ConvexQueryCacheProvider>
           </ConvexProviderWithClerk>
         </ClerkProvider>
@@ -72,4 +82,21 @@ function RootDocument({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   return <Outlet />;
+}
+
+function RootError() {
+  return (
+    <main className="grid min-h-svh place-items-center bg-app p-6 text-text">
+      <div className="w-full max-w-md space-y-4 text-center">
+        <h1 className="text-xl font-semibold">Não foi possível abrir esta página</h1>
+        <ErrorNotice code="UNEXPECTED" />
+        <button
+          className="text-body-sm text-brand-accent hover:underline"
+          onClick={() => window.location.reload()}
+        >
+          Tentar novamente
+        </button>
+      </div>
+    </main>
+  );
 }

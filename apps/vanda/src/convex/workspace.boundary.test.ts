@@ -159,7 +159,7 @@ describe("installed skills public query", () => {
     );
     await expect(
       asOwner.query(api.workspacePublic.installedSkills, { accountId: foreignAccountId }),
-    ).rejects.toThrow("account not found");
+    ).rejects.toMatchObject({ data: { kind: "vanda-error", code: "NOT_FOUND" } });
   });
 });
 

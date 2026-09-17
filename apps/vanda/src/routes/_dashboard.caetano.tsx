@@ -31,6 +31,7 @@ import {
 import { resourcesForMessage, ThreadResourceList } from "../components/thread-resources";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+import { errorMessage } from "../errors";
 
 export const Route = createFileRoute("/_dashboard/caetano")({ component: CaetanoPage });
 
@@ -82,7 +83,7 @@ function CaetanoPage() {
       });
     } catch (cause) {
       setDraft(prompt);
-      setError(cause instanceof Error ? cause.message : "Não consegui enviar agora.");
+      setError(errorMessage(cause));
       throw cause;
     } finally {
       setPending(null);
@@ -168,7 +169,7 @@ function CaetanoConversation({
       });
     } catch (cause) {
       setDraft(prompt);
-      setError(cause instanceof Error ? cause.message : "Não consegui enviar agora.");
+      setError(errorMessage(cause));
       throw cause;
     }
   };

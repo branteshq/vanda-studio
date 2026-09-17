@@ -34,6 +34,7 @@ import { FilterMenu, type FilterOption } from "../components/filter-menu";
 import { ImageLightbox, type ImageLightboxData } from "../components/image-lightbox";
 import { PostPreviewDialog } from "../components/post-preview";
 import { useWorkRail } from "../components/work-rail";
+import { errorMessage } from "../errors";
 import {
   ActionStateIcon,
   MediaTile,
@@ -588,7 +589,7 @@ function GalleryCard({
 
   if (item.status === "failed") {
     return (
-      <FailedCard item={item} accountId={accountId} error={item.generationError ?? "Erro"} />
+      <FailedCard item={item} accountId={accountId} error={errorMessage(item.generationError)} />
     );
   }
   if (item.status === "generating") {

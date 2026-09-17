@@ -12,7 +12,7 @@ import {
   type SandboxRunResult,
 } from "./pipeline/codeExecution";
 import { CODE_IMAGE_MODEL } from "./imageModels";
-import { USAGE_LIMIT_MESSAGE } from "./usage";
+import { publicError } from "../errors";
 import { sniffImage } from "./pipeline/imageBytes";
 import { entityName } from "./workspace/types";
 
@@ -97,7 +97,7 @@ export const run = internalAction({
     }>;
   }> => {
     const budget = await ctx.runQuery(internal.usage.budget, { accountId });
-    if (!budget.ok) throw new Error(USAGE_LIMIT_MESSAGE);
+    if (!budget.ok) throw publicError("USAGE_LIMIT");
     const trimmedCode = code.trim();
     if (!trimmedCode) throw new Error("código vazio");
     const apiKey = process.env.E2B_API_KEY;
