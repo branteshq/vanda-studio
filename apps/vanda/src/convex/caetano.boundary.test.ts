@@ -1,8 +1,9 @@
 // @vitest-environment edge-runtime
 import agentComponent from "@convex-dev/agent/test";
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { api, internal } from "./_generated/api";
+import { caetano } from "./caetanoAgent";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -50,6 +51,86 @@ const setup = async () => {
 };
 
 describe("Caetano control plane", () => {
+  it("persists a separate owner-scoped model, including on the ChatGPT plan", async () => {
+    const { t, userId, foreignUserId } = await setup();
+    const owner = t.withIdentity({ subject: "ana" });
+    expect(await owner.query(api.users.modelPreferences)).toMatchObject({
+      caetano: "openai/gpt-5.6-terra",
+      orchestrator: "anthropic/claude-opus-5",
+    });
+    await t.run((ctx) =>
+      ctx.db.patch(userId, { planId: "conectado", openaiAccessCiphertext: "test-token" }),
+    );
+    await owner.mutation(api.users.setCaetanoModel, { modelId: "anthropic/claude-sonnet-5" });
+    expect(await owner.query(api.users.modelPreferences)).toMatchObject({
+      caetano: "anthropic/claude-sonnet-5",
+      orchestrator: "openai/gpt-5.6-terra",
+      conectado: true,
+    });
+    expect(await t.query(internal.caetanoData.modelPreferences, { userId })).toMatchObject({
+      caetano: "anthropic/claude-sonnet-5",
+    });
+    expect((await t.run((ctx) => ctx.db.get(foreignUserId)))?.caetanoModel).toBeUndefined();
+    await expect(owner.mutation(api.users.setCaetanoModel, { modelId: "unknown" })).rejects.toThrow(
+      "modelo desconhecido",
+    );
+    await expect(
+      t.mutation(api.users.setCaetanoModel, { modelId: "openai/gpt-5.6-sol" }),
+    ).rejects.toThrow();
+    await t.mutation(internal.caetanoData.setModelPreferences, {
+      userId,
+      caetano: "openai/gpt-5.6-sol",
+    });
+    expect((await owner.query(api.users.modelPreferences))?.caetano).toBe("openai/gpt-5.6-sol");
+    await expect(
+      t.mutation(internal.caetanoData.setModelPreferences, { userId, caetano: "unknown" }),
+    ).rejects.toThrow("modelo do Caetano desconhecido");
+    await t.run((ctx) => ctx.db.patch(userId, { caetanoModel: "retired/model" }));
+    expect((await owner.query(api.users.modelPreferences))?.caetano).toBe("openai/gpt-5.6-terra");
+    expect((await t.query(internal.caetanoData.modelPreferences, { userId })).caetano).toBe(
+      "openai/gpt-5.6-terra",
+    );
+  });
+
+  it.each(["web", "whatsapp"] as const)("uses the saved model on each %s turn", async (channel) => {
+    const { t, userId } = await setup();
+    const stream = vi.spyOn(caetano, "streamText").mockResolvedValue({
+      consumeStream: async () => {},
+      text: Promise.resolve("Feito"),
+    } as unknown as Awaited<ReturnType<typeof caetano.streamText>>);
+    try {
+      for (const modelId of ["openai/gpt-5.6-sol", "anthropic/claude-sonnet-5"]) {
+        await t.withIdentity({ subject: "ana" }).mutation(api.users.setCaetanoModel, { modelId });
+        const turn = await t.run(async (ctx) => {
+          const base = { userId, threadId: "test-thread", promptMessageId: "test-prompt" };
+          const inboxId = await ctx.db.insert("caetanoInbox", {
+            ...base,
+            channel,
+            status: "running",
+          });
+          const activityId = await ctx.db.insert("caetanoThreadActivity", {
+            ...base,
+            inboxId,
+            startedAt: Date.now(),
+          });
+          return { ...base, activityId };
+        });
+        expect(await t.action(internal.caetano.generateResponse, turn)).toBe("Feito");
+        expect(stream).toHaveBeenLastCalledWith(
+          expect.objectContaining({ ownerUserId: userId }),
+          { threadId: "test-thread" },
+          expect.objectContaining({
+            model: expect.objectContaining({ modelId }),
+            promptMessageId: "test-prompt",
+          }),
+          { saveStreamDeltas: true },
+        );
+      }
+    } finally {
+      stream.mockRestore();
+    }
+  });
+
   it("sees only the owner's accounts and refuses foreign selection", async () => {
     const { t, userId, accountId, foreignAccountId } = await setup();
     const accounts = await t.query(internal.caetanoData.listAccounts, { userId });

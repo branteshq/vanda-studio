@@ -107,6 +107,8 @@ export default defineSchema({
     // Absent = the catalog default; unknown ids resolve to it too, so retiring
     // a model never wedges a conversation.
     orchestratorModel: v.optional(v.string()),
+    // Caetano's independent choice from the same text catalog; always OpenRouter.
+    caetanoModel: v.optional(v.string()),
     // Which model paints by default (an id from imageModels.IMAGE_MODELS).
     // Same resolution rules; overridden entirely by the Conectado plan, which
     // runs every paint on the owner's ChatGPT subscription.

@@ -36,6 +36,7 @@ import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import {
+  DEFAULT_CAETANO_MODEL,
   DEFAULT_ORCHESTRATOR_MODEL,
   ORCHESTRATOR_MODELS,
   type ModelMaker,
@@ -770,20 +771,19 @@ function AccountTab() {
 }
 
 /**
- * The two model choices, side by side: who thinks (orchestrator) and who
- * paints (image). Both are the owner's call, and both are constrained by the
- * same thing — on Conectado, inference rides their ChatGPT subscription, so
- * the orchestrator is limited to OpenAI models and every paint collapses to
- * GPT Image 2. The constraint is shown, never silently applied.
+ * Vanda and image choices respect the connected transport. Caetano has an
+ * independent preference and continues using Vanda's OpenRouter budget.
  */
 function ModelsCard() {
   const prefs = useQuery(api.users.modelPreferences);
   const setAgentModel = useMutation(api.users.setAgentModel);
+  const setCaetanoModel = useMutation(api.users.setCaetanoModel);
   const setImageModel = useMutation(api.users.setImageModel);
   const [error, setError] = useState<string | null>(null);
 
   const conectado = prefs?.conectado ?? false;
   const orchestratorId = prefs?.orchestrator ?? DEFAULT_ORCHESTRATOR_MODEL;
+  const caetanoId = prefs?.caetano ?? DEFAULT_CAETANO_MODEL;
   // On Conectado the plan decides the painter — show what will actually run.
   const imageId = conectado ? CONECTADO_IMAGE_MODEL : (prefs?.image ?? DEFAULT_IMAGE_MODEL);
 
@@ -804,50 +804,71 @@ function ModelsCard() {
     <div className="mt-4 rounded-xl border border-border bg-surface p-5">
       <h3 className="text-body font-semibold">Modelos</h3>
       <p className="mt-0.5 text-body-sm text-text-3">
-        Quem pensa e escreve, e quem desenha as imagens.
+        Escolha os modelos da Vanda, do Caetano e das imagens.
       </p>
 
       <div className="mt-4 space-y-4 border-t border-border pt-4">
-        <ModelRow
-          label="Conversa"
-          description={orchestrator?.tagline ?? "O modelo que pensa e escreve como a Vanda."}
-          loading={prefs === undefined}
-        >
-          <Select
-            value={orchestratorId}
-            onValueChange={(value) => void choose(setAgentModel({ modelId: String(value) }))}
+        {[
+          {
+            label: "Conversa",
+            ariaLabel: "Modelo de conversa",
+            id: orchestratorId,
+            description: orchestrator?.tagline ?? "O modelo que pensa e escreve como a Vanda.",
+            setModel: setAgentModel,
+            connectedTransport: conectado,
+          },
+          {
+            label: "Caetano",
+            ariaLabel: "Modelo do Caetano",
+            id: caetanoId,
+            description:
+              "No aplicativo e no WhatsApp. Consome o uso do plano Vanda, inclusive no plano ChatGPT.",
+            setModel: setCaetanoModel,
+            connectedTransport: false,
+          },
+        ].map((choice) => (
+          <ModelRow
+            key={choice.label}
+            label={choice.label}
+            description={choice.description}
+            loading={prefs === undefined}
           >
-            <SelectTrigger className="w-56" aria-label="Modelo de conversa">
-              <SelectValue>
-                {(value) => {
-                  const model = ORCHESTRATOR_MODELS.find((item) => item.id === value);
-                  return model ? (
-                    <>
-                      <MakerMark maker={model.maker} />
-                      <span className="truncate">{model.label}</span>
-                    </>
-                  ) : null;
-                }}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent align="end" className="w-72">
-              {ORCHESTRATOR_MODELS.map((model) => {
-                const blocked = conectado && !model.codexCapable;
-                return (
-                  <SelectItem key={model.id} value={model.id} disabled={blocked}>
-                    <span className="flex items-center gap-2">
-                      <MakerMark maker={model.maker} />
-                      <span className="truncate font-medium">{model.label}</span>
-                    </span>
-                    <span className="mt-0.5 block text-xs text-text-4">
-                      {blocked ? "Indisponível pela assinatura do ChatGPT" : model.tagline}
-                    </span>
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
-        </ModelRow>
+            <Select
+              value={choice.id}
+              onValueChange={(value) => void choose(choice.setModel({ modelId: String(value) }))}
+            >
+              <SelectTrigger className="w-56" aria-label={choice.ariaLabel}>
+                <SelectValue>
+                  {(value) => {
+                    const model = ORCHESTRATOR_MODELS.find((item) => item.id === value);
+                    return model ? (
+                      <>
+                        <MakerMark maker={model.maker} />
+                        <span className="truncate">{model.label}</span>
+                      </>
+                    ) : null;
+                  }}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent align="end" className="w-72">
+                {ORCHESTRATOR_MODELS.map((model) => {
+                  const blocked = choice.connectedTransport && !model.codexCapable;
+                  return (
+                    <SelectItem key={model.id} value={model.id} disabled={blocked}>
+                      <span className="flex items-center gap-2">
+                        <MakerMark maker={model.maker} />
+                        <span className="truncate font-medium">{model.label}</span>
+                      </span>
+                      <span className="mt-0.5 block text-xs text-text-4">
+                        {blocked ? "Indisponível pela assinatura do ChatGPT" : model.tagline}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </ModelRow>
+        ))}
 
         <ModelRow
           label="Imagens"
@@ -883,8 +904,8 @@ function ModelsCard() {
 
       {conectado ? (
         <p className="mt-4 text-xs text-text-4">
-          No plano ChatGPT tudo roda pela sua assinatura da OpenAI: a conversa fica nos modelos da
-          OpenAI e as imagens saem sempre no GPT Image 2.
+          No plano ChatGPT, a conversa com a Vanda e as imagens usam sua assinatura da OpenAI. O
+          Caetano usa o saldo Vanda e pode usar qualquer modelo de texto listado.
         </p>
       ) : null}
 

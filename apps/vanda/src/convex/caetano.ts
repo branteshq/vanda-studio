@@ -23,7 +23,7 @@ import {
 } from "./_generated/server";
 import { AGENT_MAX_OUTPUT_TOKENS } from "./agentModels";
 import { requireOwnedAccount, requireUser } from "./authz";
-import { caetano, caetanoSystemPrompt } from "./caetanoAgent";
+import { caetano, caetanoLanguageModel, caetanoSystemPrompt } from "./caetanoAgent";
 import { resolveMessageImages } from "./messageImages";
 import { budgetOf } from "./usage";
 import { errorMessage, publicError } from "../errors";
@@ -292,11 +292,13 @@ export const generateResponse = internalAction({
       if (!turn) return "";
       if (!(await ctx.runQuery(internal.usage.budget, { userId })).ok)
         throw publicError("USAGE_LIMIT");
+      const preferences = await ctx.runQuery(internal.caetanoData.modelPreferences, { userId });
       const result = await caetano.streamText(
         { ...ctx, ownerUserId: userId, caetanoThreadId: threadId },
         { threadId },
         {
           promptMessageId,
+          model: caetanoLanguageModel(preferences.caetano),
           system:
             caetanoSystemPrompt() +
             (turn.channel === "whatsapp"

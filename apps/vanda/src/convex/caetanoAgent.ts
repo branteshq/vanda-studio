@@ -3,6 +3,7 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { z } from "zod";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { resolveCaetanoModel } from "./agentModels";
 import { recordCapabilityResult } from "./capabilityTools";
 import {
   capabilityResult,
@@ -11,8 +12,6 @@ import {
   type PresentableResourceInput,
   type ThreadResource,
 } from "./resourceRefs";
-
-export const CAETANO_MODEL = "openai/gpt-5.6-terra";
 
 export type CaetanoCtx = ToolCtx & {
   readonly ownerUserId: Id<"users">;
@@ -93,7 +92,7 @@ const usageStatus = createTool({
 });
 
 const modelPreferences = createTool({
-  description: "Consulta os modelos atuais de texto e imagem do dono.",
+  description: "Consulta os modelos atuais da Vanda, do Caetano e de imagem do dono.",
   inputSchema: z.object({}),
   outputSchema: capabilityResultSchema,
   execute: async (ctx: CaetanoCtx): Promise<unknown> =>
@@ -104,24 +103,36 @@ const modelPreferences = createTool({
 
 const setModelPreferences = createTool({
   description:
-    "Altera modelos do dono. Texto aceita ids do catálogo (ex.: anthropic/claude-opus-5); imagem aceita ids do catálogo (ex.: openai/gpt-image-2.5-flare, openai/gpt-image-2.5-sunburst).",
+    "Altera modelos do dono. orchestrator controla a Vanda; caetano controla o Caetano no próximo turno (web e WhatsApp). Ambos aceitam ids de texto do catálogo (ex.: anthropic/claude-opus-5). Caetano usa o saldo Vanda, não a assinatura ChatGPT. image aceita ids de imagem do catálogo (ex.: openai/gpt-image-2.5-flare).",
   inputSchema: z
     .object({
       orchestrator: z.string().optional(),
+      caetano: z.string().optional(),
       image: z.string().optional(),
     })
-    .refine((value) => value.orchestrator !== undefined || value.image !== undefined, {
-      message: "informe ao menos um modelo",
-    }),
+    .refine(
+      (value) =>
+        value.orchestrator !== undefined ||
+        value.caetano !== undefined ||
+        value.image !== undefined,
+      {
+        message: "informe ao menos um modelo",
+      },
+    ),
   outputSchema: capabilityResultSchema,
   execute: async (
     ctx: CaetanoCtx,
-    input: { orchestrator?: string | undefined; image?: string | undefined },
+    input: {
+      orchestrator?: string | undefined;
+      caetano?: string | undefined;
+      image?: string | undefined;
+    },
     options,
   ): Promise<unknown> => {
     await ctx.runMutation(internal.caetanoData.setModelPreferences, {
       userId: ctx.ownerUserId,
       ...(input.orchestrator ? { orchestrator: input.orchestrator } : {}),
+      ...(input.caetano ? { caetano: input.caetano } : {}),
       ...(input.image ? { image: input.image } : {}),
     });
     const operation: ThreadResource = {
@@ -246,6 +257,8 @@ const askVanda = createTool({
 });
 
 const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });
+export const caetanoLanguageModel = (preferred?: string | null) =>
+  openrouter.chat(resolveCaetanoModel(preferred), { usage: { include: true } });
 
 const FALLBACK_INPUT_USD = 2e-6;
 const FALLBACK_OUTPUT_USD = 8e-6;
@@ -262,7 +275,7 @@ Quando a Vanda terminar, responda com um resumo curto do resultado e o estado fi
 
 export const caetano = new Agent<CaetanoCtx>(components.agent, {
   name: "caetano",
-  languageModel: openrouter.chat(CAETANO_MODEL, { usage: { include: true } }),
+  languageModel: caetanoLanguageModel(),
   usageHandler: async (ctx, { userId, usage, providerMetadata, model, provider }) => {
     if (!userId?.startsWith("caetano:") || !provider.includes("openrouter")) return;
     const ownerUserId = userId.slice("caetano:".length) as Id<"users">;

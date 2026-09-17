@@ -13,7 +13,7 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
-import { orchestratorModel, resolveOrchestratorModel } from "./agentModels";
+import { orchestratorModel, resolveCaetanoModel, resolveOrchestratorModel } from "./agentModels";
 import { DEFAULT_IMAGE_MODEL, isKnownImageModel } from "./imageModels";
 import { isConnectedSubscriber } from "./openaiSub";
 import { budgetOf } from "./usage";
@@ -121,6 +121,7 @@ export const modelPreferences = internalQuery({
     const conectado = isConnectedSubscriber(user);
     return {
       orchestrator: resolveOrchestratorModel(user.orchestratorModel, { conectado }),
+      caetano: resolveCaetanoModel(user.caetanoModel),
       image:
         user.imageModel && isKnownImageModel(user.imageModel)
           ? user.imageModel
@@ -134,13 +135,19 @@ export const setModelPreferences = internalMutation({
   args: {
     userId: v.id("users"),
     orchestrator: v.optional(v.string()),
+    caetano: v.optional(v.string()),
     image: v.optional(v.string()),
   },
-  handler: async (ctx, { userId, orchestrator, image }): Promise<void> => {
+  handler: async (ctx, { userId, orchestrator, caetano, image }): Promise<void> => {
     const user = await ctx.db.get(userId);
     if (!user) throw new Error("user not found");
     const conectado = isConnectedSubscriber(user);
-    const patch: { orchestratorModel?: string; imageModel?: string; updatedAt: number } = {
+    const patch: {
+      orchestratorModel?: string;
+      caetanoModel?: string;
+      imageModel?: string;
+      updatedAt: number;
+    } = {
       updatedAt: Date.now(),
     };
     if (orchestrator !== undefined) {
@@ -150,6 +157,11 @@ export const setModelPreferences = internalMutation({
         throw new Error("este modelo não roda pela assinatura conectada do ChatGPT");
       }
       patch.orchestratorModel = selected.id;
+    }
+    if (caetano !== undefined) {
+      const selected = orchestratorModel(caetano);
+      if (!selected) throw new Error("modelo do Caetano desconhecido");
+      patch.caetanoModel = selected.id;
     }
     if (image !== undefined) {
       if (!isKnownImageModel(image)) throw new Error("modelo de imagem desconhecido");
