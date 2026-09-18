@@ -69,10 +69,16 @@ export const imagesMount: WorkspaceMount = {
   },
   read: async (ctx, accountId, segments): Promise<WorkspaceFile | null> => {
     if (segments.length !== 1) return null;
-    const images = await loadGallery(ctx, accountId);
-    const image = resolveByName(segments[0]!, images);
+    const base = segments[0]!.replace(/\.[a-z0-9]+$/i, "");
+    const directId = ctx.db.normalizeId("images", base);
 
-    if (!image) return null;
+    // Full IDs returned by search_media bypass the recency window, including
+    // references. Friendly/suffix paths retain the gallery's exact membership.
+    const image = directId
+      ? await ctx.db.get(directId)
+      : resolveByName(segments[0]!, await loadGallery(ctx, accountId));
+
+    if (!image || image.accountId !== accountId || image.status !== undefined) return null;
     const url = await imageUrl(ctx, image);
 
     if (!url) return null;

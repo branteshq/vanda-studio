@@ -190,6 +190,101 @@ describe("previous work boundaries", () => {
     expect(second.messages.at(-1)?.text).toContain("girassol");
   });
 
+  it("overfetches excluded conversation candidates and reports an exhausted window", async () => {
+    const { t, userId, accountId, threadIds } = await setup();
+    await t.run(async (ctx) => {
+      await updateThreadMetadata(ctx, components.agent, {
+        threadId: threadIds[0]!,
+        patch: { status: "archived" },
+      });
+
+      for (let index = 0; index < 13; index++) {
+        const threadId = await createThread(ctx, components.agent, {
+          userId: String(accountId),
+          title: `Arquivada ${index}`,
+        });
+
+        await saveMessage(ctx, components.agent, {
+          threadId,
+          message: { role: "user", content: "agulha histórica" },
+        });
+        await updateThreadMetadata(ctx, components.agent, {
+          threadId,
+          patch: { status: "archived" },
+        });
+      }
+    });
+
+    const activeThreadId = await t.run(async (ctx) => {
+      const threadId = await createThread(ctx, components.agent, {
+        userId: String(accountId),
+        title: "Ativa",
+      });
+
+      await saveMessage(ctx, components.agent, {
+        threadId,
+        message: { role: "user", content: "agulha histórica válida" },
+      });
+
+      return threadId;
+    });
+
+    const result = await t.query(internal.previousWork.searchConversations, {
+      userId,
+      query: "agulha histórica",
+      source: "vanda",
+    });
+
+    expect(result.matches.map((match) => match.threadId)).toContain(activeThreadId);
+    expect(result.matches).toHaveLength(1);
+    expect(result.incomplete).toBe(false);
+
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 48; index++) {
+        const threadId = await createThread(ctx, components.agent, {
+          userId: String(accountId),
+          title: `Esgotada ${index}`,
+        });
+
+        await saveMessage(ctx, components.agent, {
+          threadId,
+          message: { role: "user", content: "janela saturada" },
+        });
+        await updateThreadMetadata(ctx, components.agent, {
+          threadId,
+          patch: { status: "archived" },
+        });
+      }
+    });
+
+    const exhausted = await t.query(internal.previousWork.searchConversations, {
+      userId,
+      query: "janela saturada",
+      source: "vanda",
+    });
+
+    expect(exhausted.matches).toEqual([]);
+    expect(exhausted.incomplete).toBe(true);
+    expect(exhausted.note).toContain("Refine a consulta");
+
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 13; i++)
+        await saveMessage(ctx, components.agent, {
+          threadId: activeThreadId,
+          message: { role: "user", content: `resultados ativos ${i}` },
+        });
+    });
+
+    const limited = await t.query(internal.previousWork.searchConversations, {
+      userId,
+      query: "resultados ativos",
+      source: "vanda",
+    });
+
+    expect(limited.matches).toHaveLength(12);
+    expect(limited.incomplete).toBe(true);
+  });
+
   it("finds media beyond an empty page and never returns another business's resources", async () => {
     const { t, userId, accountId, otherAccountId, threadIds } = await setup();
 
@@ -247,5 +342,110 @@ describe("previous work boundaries", () => {
     });
 
     expect(history.resources).toEqual([{ kind: "image", accountId, imageId: images.own }]);
+  });
+
+  it("reads search media by full id beyond the gallery and enforces readiness and ownership", async () => {
+    const { t, userId, accountId, otherAccountId } = await setup();
+
+    const ids = await t.run(async (ctx) => {
+      const older = await ctx.db.insert("images", {
+        accountId,
+        name: "Arquivo profundo",
+        origin: "uploaded",
+        externalUrl: "https://images.example/older.jpg",
+        createdAt: 1,
+      });
+
+      const reference = await ctx.db.insert("images", {
+        accountId,
+        name: "Referencia profunda",
+        origin: "uploaded",
+        purpose: "reference",
+        // Failed metadata analysis does not remove the actual image bytes.
+        inspectionStatus: "failed",
+        externalUrl: "https://images.example/reference.jpg",
+        createdAt: 2,
+      });
+
+      const pending = await ctx.db.insert("images", {
+        accountId,
+        name: "Arquivo profundo pendente",
+        origin: "generated",
+        status: "generating",
+        externalUrl: "https://images.example/pending.jpg",
+        createdAt: 1_000,
+      });
+
+      const failed = await ctx.db.insert("images", {
+        accountId,
+        name: "Arquivo profundo falho",
+        origin: "generated",
+        status: "failed",
+        externalUrl: "https://images.example/failed.jpg",
+        createdAt: 4,
+      });
+
+      const foreign = await ctx.db.insert("images", {
+        accountId: otherAccountId,
+        name: "Arquivo profundo alheio",
+        origin: "uploaded",
+        externalUrl: "https://images.example/foreign.jpg",
+        createdAt: 5,
+      });
+
+      for (let index = 0; index < 101; index++)
+        await ctx.db.insert("images", {
+          accountId,
+          name: "Recente",
+          origin: "uploaded",
+          externalUrl: `https://images.example/recent-${index}.jpg`,
+          createdAt: 100 + index,
+        });
+
+      return { older, reference, pending, failed, foreign };
+    });
+
+    const searchAll = async (query: string) => {
+      const found: string[] = [];
+      let cursor: string | undefined;
+      let done = false;
+
+      while (!done) {
+        const page = cursor
+          ? await t.query(internal.previousWork.searchMedia, { userId, query, cursor })
+          : await t.query(internal.previousWork.searchMedia, { userId, query });
+
+        found.push(...page.images.map((image) => image.imageId));
+        cursor = page.continueCursor;
+        done = page.isDone;
+      }
+
+      return found;
+    };
+
+    const found = [...(await searchAll("arquivo")), ...(await searchAll("referencia"))];
+
+    expect(found).toEqual(expect.arrayContaining([ids.older, ids.reference]));
+
+    for (const imageId of [ids.pending, ids.failed, ids.foreign])
+      expect(found).not.toContain(imageId);
+
+    for (const imageId of [ids.older, ids.reference]) {
+      const read = await t.query(internal.workspaceData.read, {
+        accountId,
+        path: `/images/${imageId}`,
+      });
+
+      expect(read).toMatchObject({ ok: true, file: { kind: "image", imageId } });
+    }
+
+    for (const imageId of [ids.pending, ids.failed, ids.foreign]) {
+      const read = await t.query(internal.workspaceData.read, {
+        accountId,
+        path: `/images/${imageId}`,
+      });
+
+      expect(read.ok).toBe(false);
+    }
   });
 });
