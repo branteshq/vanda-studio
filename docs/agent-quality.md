@@ -40,7 +40,7 @@ real model behavior separately; their assertions are not aesthetic judgments.
 
 Tool discovery, maintained product help, conversation-content search, media discovery,
 and a fictional-brand evaluation harness are implemented locally. Four fictional
-brands and 18 cases cover creation, revision, recall, help, failures, delegation, and
+brands and 19 cases cover creation, revision, recall, help, failures, delegation, and
 scheduling intent. Trials and provisional findings are recorded below. Nothing in
 these implementations deploys or changes shared data.
 
@@ -589,6 +589,50 @@ consistency, real-photo editing, deployed search, latency, and comparison with
 another GPT model need further trials. Scheduling authorization remains prompt
 guidance, not an enforced server-side approval gate. These results support a better
 working default and a repeatable evaluation loop, not “works for every request.”
+
+## Oracle follow-up: retrieval, memory, and evaluation boundaries
+
+The review found three correctness issues. They are now addressed locally:
+
+- Image IDs from media search resolve directly with ownership and generation-state
+  checks, including references and files older than the 100-image gallery window.
+  Gallery listings retain their existing membership. Failed background description
+  analysis does not make existing image bytes unreadable.
+- History search examines at most 48 candidates to return 12 eligible messages.
+  Archived hits no longer consume the initial 12 slots. Reaching either limit sets
+  `incomplete: true` and asks for a narrower query. This is bounded overfetch, not
+  exhaustive search or pagination; the component search API has no cursor.
+- Always-on `/memory` has a shared 24,000-byte serialized UTF-8 budget, including
+  paths and escaping. Writes cannot increase an over-budget account. Existing large
+  files are preserved, preference files are prioritized, and a visible partial-memory
+  notice directs retrieval rather than treating missing context as missing knowledge.
+  No automatic destructive truncation or semantic summarization occurs. Decreasing
+  writes allow incremental recovery. Long documents can be copied to discoverable
+  `/notes` before compacting memory; brand identity, visual kit, and brand notes
+  remain separate, always-included context. This is not a total model-token budget.
+
+The suite now includes a nineteenth case: an attached-image revision delegated
+through Caetano. The harness reproduces production's attachment manifest and
+attachment timestamp without starting a competing scheduled agent run. Existing
+production-ingress boundary tests check transfer of the exact prompt and image.
+
+Evaluation guards now require a successful `inspect_image` result for every final
+delegated image after the last delegation, actual rejected paint execution, and a
+conservative failure-disclosure check. Pixel tests decode the PNGs and inspect every
+protected foreground pixel, including the purple pen's enclosed background-colored
+interior. Tests allow genuine background changes and reject single-pixel corruption;
+they no longer equate an unchanged bounding rectangle with preserved objects.
+The text check remains a heuristic, not proof of semantic truthfulness.
+
+Offline verification covers byte-budget boundaries, escaped/multibyte content,
+incremental legacy recovery, archived-result crowding, exhausted search windows,
+old/reference media reads, wrong-account and generation-in-flight reads, and the
+evaluation guards' false-positive cases. The previous 18/18 live result predates
+these stricter checks; no new paid live run or deployed-state change was made in
+this review-fix pass. Replaying the saved PNGs passed Pimba and Orvalho preservation
+and rejected the known Café edge-pixel change at (461,374), as expected. Typecheck
+and targeted lint pass; the full offline suite passes 314 tests across 52 files,
+with 15 opt-in live cases skipped by default.
 
 ## External references
 

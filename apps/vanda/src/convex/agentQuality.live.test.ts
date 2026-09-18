@@ -9,6 +9,12 @@ import { expect, it, vi } from "vitest";
 import { z } from "zod";
 import { brands, cases } from "../../evals/fixtures";
 import { referenceImage } from "../../evals/references";
+import {
+  assertDelegatedImagesWereInspected,
+  assertProtectedPixelsPreserved,
+  assertRejectedPaintWasReported,
+  type EvalTraceStep,
+} from "../../evals/assertions";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { caetano } from "./caetanoAgent";
@@ -53,7 +59,7 @@ it.skipIf(!enabled).each(suite)(
     const t = convexTest(schema, modules);
     agentComponent.register(t);
     const startedAt = Date.now();
-    const trace: unknown[] = [];
+    const trace: EvalTraceStep[] = [];
     const network: { host: string; path: string; status: number; error?: string }[] = [];
     const scheduleAttempts: { postId: string; scheduledFor?: string | undefined }[] = [];
     const schedules: { postId: string; scheduledFor?: string | undefined }[] = [];
@@ -292,8 +298,12 @@ it.skipIf(!enabled).each(suite)(
 
       const attachments: { imageId: Id<"images">; url: string; mimeType: string }[] = [];
 
+      let referenceBytes: Uint8Array | undefined;
+      let referenceImageId: Id<"images"> | undefined;
+
       if (entry.kind === "revision") {
-        const bytes = referenceImage(entry.id);
+        const bytes = referenceImage(entry.referenceId ?? entry.id);
+        referenceBytes = bytes;
         await writeFile(resolve(directory, "reference.png"), bytes);
         const url = `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`;
 
@@ -311,6 +321,7 @@ it.skipIf(!enabled).each(suite)(
           }),
         );
 
+        referenceImageId = imageId;
         attachments.push({ imageId, url, mimeType: "image/png" });
       }
 
@@ -359,10 +370,40 @@ it.skipIf(!enabled).each(suite)(
           message: { role: "user", content: messageWithImages(entry.prompt, attachments) },
         });
 
+        // Mirrors caetano.sendMessage's attachment contract. Calling that public mutation here
+        // would also schedule startNext, racing this harness's explicitly traced action.
+        if (entry.agent === "caetano" && attachments.length > 0) {
+          await ctx.runMutation(internal.threadResources.record, {
+            threadId,
+            anchorMessageId: saved.messageId,
+            toolCallId: `attachments:${saved.messageId}`,
+            resources: attachments.map(({ imageId }) => ({
+              kind: "image" as const,
+              accountId: ids.accountId,
+              imageId,
+            })),
+            presented: [],
+          });
+
+          for (const { imageId } of attachments)
+            await ctx.db.patch(imageId, { lastAttachedAt: startedAt });
+        }
+
         return { threadId, promptMessageId: saved.messageId };
       });
 
       if (entry.agent === "caetano") {
+        if (attachments.length > 0) {
+          const ingress = await t.query(internal.threadResources.forPrompt, {
+            threadId: turn.threadId,
+            anchorMessageId: turn.promptMessageId,
+          });
+
+          expect(ingress.resources).toEqual([
+            { kind: "image", accountId: ids.accountId, imageId: referenceImageId },
+          ]);
+        }
+
         const activityId = await t.run(async (ctx) => {
           await ctx.db.patch(ids.userId, { caetanoThreadId: turn.threadId });
 
@@ -409,7 +450,13 @@ it.skipIf(!enabled).each(suite)(
         artifacts: await ctx.db.query("codeRunArtifacts").collect(),
       }));
 
+      const imageBytes = new Map<string, Uint8Array>();
+
       for (const image of state.images) {
+        if (image.externalUrl?.startsWith("data:image/")) {
+          imageBytes.set(image._id, Buffer.from(image.externalUrl.split(",")[1]!, "base64"));
+        }
+
         if (!image.storageId) continue;
 
         const bytes = await t.run(async (ctx) => {
@@ -418,7 +465,11 @@ it.skipIf(!enabled).each(suite)(
           return blob ? await blob.arrayBuffer() : null;
         });
 
-        if (bytes) await writeFile(resolve(directory, `${image._id}.png`), new Uint8Array(bytes));
+        if (bytes) {
+          const output = new Uint8Array(bytes);
+          imageBytes.set(image._id, output);
+          await writeFile(resolve(directory, `${image._id}.png`), output);
+        }
       }
 
       await writeFile(
@@ -464,9 +515,33 @@ it.skipIf(!enabled).each(suite)(
         if (entry.id === "orvalho-product-draft") expect(state.posts[0]?.imageIds).toHaveLength(3);
       }
 
-      if (entry.kind === "revision") expect(state.images.length).toBeGreaterThan(1);
+      const finalImageIds = state.posts.flatMap((post) => post.imageIds);
 
-      if (entry.id === "orvalho-tool-failure") expect(state.images).toEqual([]);
+      if (entry.kind === "revision") {
+        expect(state.images.length).toBeGreaterThan(1);
+
+        const revised = state.images
+          .toReversed()
+          .find((image) => image._id !== referenceImageId && imageBytes.has(image._id));
+
+        expect(revised, "revision must produce a decodable image").toBeDefined();
+        finalImageIds.push(revised!._id);
+
+        await assertProtectedPixelsPreserved(
+          entry.referenceId ?? entry.id,
+          referenceBytes!,
+          imageBytes.get(revised!._id)!,
+        );
+      }
+
+      if (entry.id === "orvalho-tool-failure") {
+        expect(state.images).toEqual([]);
+        expect(vanda.options.tools!.paint.execute).toHaveBeenCalled();
+        assertRejectedPaintWasReported(trace, response);
+      }
+
+      if (entry.agent === "caetano" && (entry.kind === "creative" || entry.kind === "revision"))
+        assertDelegatedImagesWereInspected(trace, finalImageIds);
 
       if (entry.id === "pimba-past-preference") expect(response).toContain("Bora rabiscar?");
 
