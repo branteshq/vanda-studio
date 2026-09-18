@@ -13,7 +13,7 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
-import { orchestratorModel, resolveCaetanoModel, resolveOrchestratorModel } from "./agentModels";
+import { requireTextModel, resolveCaetanoModel, resolveOrchestratorModel } from "./agentModels";
 import {
   DEFAULT_IMAGE_MODEL,
   isKnownImageModel,
@@ -144,7 +144,7 @@ export const modelPreferences = internalQuery({
 
     return {
       orchestrator: resolveOrchestratorModel(user.orchestratorModel, { conectado }),
-      caetano: resolveCaetanoModel(user.caetanoModel),
+      caetano: resolveCaetanoModel(user.caetanoModel, { conectado }),
       image: conectado
         ? resolveConnectedImageModel(user.imageModel)
         : user.imageModel && isKnownImageModel(user.imageModel)
@@ -180,21 +180,13 @@ export const setModelPreferences = internalMutation({
     };
 
     if (orchestrator !== undefined) {
-      const selected = orchestratorModel(orchestrator);
-
-      if (!selected) throw new Error("modelo de texto desconhecido");
-
-      if (conectado && !selected.codexCapable) {
-        throw new Error("este modelo não roda pela assinatura conectada do ChatGPT");
-      }
+      const selected = requireTextModel(orchestrator, conectado);
 
       patch.orchestratorModel = selected.id;
     }
 
     if (caetano !== undefined) {
-      const selected = orchestratorModel(caetano);
-
-      if (!selected) throw new Error("modelo do Caetano desconhecido");
+      const selected = requireTextModel(caetano, conectado);
       patch.caetanoModel = selected.id;
     }
 

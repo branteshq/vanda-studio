@@ -137,6 +137,14 @@ it("enables the subscription image picker and displays the selected new models",
   expect(container.querySelector('[aria-label="Modelo de conversa"]')?.textContent).toContain(
     "GPT-6 Astra",
   );
+  await click("Modelo do Caetano");
+
+  const opus = [...document.querySelectorAll('[role="option"]')].find((option) =>
+    option.textContent?.includes("Claude Opus 5"),
+  );
+
+  expect(opus).toBeDefined();
+  expect(opus?.getAttribute("aria-disabled")).toBe("true");
 });
 
 it("refreshes billing on arrival without opening the plan comparison", () => {

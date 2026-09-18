@@ -52,6 +52,7 @@ import {
   DEFAULT_CAETANO_MODEL,
   DEFAULT_ORCHESTRATOR_MODEL,
   ORCHESTRATOR_MODELS,
+  isTextModelAvailable,
   type ModelMaker,
 } from "../convex/agentModels";
 import {
@@ -948,16 +949,13 @@ function ModelsCard() {
             id: orchestratorId,
             description: orchestrator?.tagline ?? "O modelo que pensa e escreve como a Vanda.",
             setModel: setAgentModel,
-            connectedTransport: conectado,
           },
           {
             label: "Caetano",
             ariaLabel: "Modelo do Caetano",
             id: caetanoId,
-            description:
-              "No aplicativo e no WhatsApp. Consome o uso do plano Vanda, inclusive no plano ChatGPT.",
+            description: "No aplicativo e no WhatsApp. Usa a mesma conexão da Vanda.",
             setModel: setCaetanoModel,
-            connectedTransport: false,
           },
         ].map((choice) => (
           <ModelRow
@@ -986,7 +984,7 @@ function ModelsCard() {
               </SelectTrigger>
               <SelectContent align="end" className="w-72">
                 {ORCHESTRATOR_MODELS.map((model) => {
-                  const blocked = choice.connectedTransport && !model.codexCapable;
+                  const blocked = !isTextModelAvailable(model, conectado);
 
                   return (
                     <SelectItem key={model.id} value={model.id} disabled={blocked}>
@@ -1046,8 +1044,8 @@ function ModelsCard() {
 
       {conectado ? (
         <p className="mt-4 text-xs text-text-4">
-          No plano ChatGPT, a conversa com a Vanda e as imagens usam sua assinatura da OpenAI. O
-          Caetano usa o saldo Vanda e pode usar qualquer modelo de texto listado.
+          No plano ChatGPT, Vanda, Caetano e imagens usam sua assinatura da OpenAI. Apenas modelos
+          compatíveis com essa conexão ficam disponíveis.
         </p>
       ) : null}
 

@@ -135,7 +135,7 @@ const modelPreferences = createTool({
 
 const setModelPreferences = createTool({
   description:
-    "Altera modelos do dono. orchestrator controla a Vanda; caetano controla o Caetano no próximo turno (web e WhatsApp). Ambos aceitam ids de texto do catálogo (ex.: anthropic/claude-opus-5). Caetano usa o saldo Vanda, não a assinatura ChatGPT. image aceita ids de imagem do catálogo (ex.: openai/gpt-image-2.5-flare).",
+    "Altera modelos do dono. orchestrator controla a Vanda; caetano controla o Caetano no próximo turno (web e WhatsApp). Ambos aceitam ids de texto do catálogo compatíveis com a conexão do dono. No plano ChatGPT ambos usam a assinatura e só aceitam modelos compatíveis. image aceita ids de imagem do catálogo compatíveis com a conexão (ex.: openai/gpt-image-2.5-flare).",
   inputSchema: z
     .object({
       orchestrator: z.string().optional(),

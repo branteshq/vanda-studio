@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { z } from "zod";
-import { orchestratorModel, resolveCaetanoModel, resolveOrchestratorModel } from "./agentModels";
+import { requireTextModel, resolveCaetanoModel, resolveOrchestratorModel } from "./agentModels";
 import {
   DEFAULT_IMAGE_MODEL,
   isKnownImageModel,
@@ -102,8 +102,7 @@ export const current = query({
 });
 
 /**
- * The model pickers' state. Conectado constrains Vanda's text/image choices,
- * while Caetano keeps using Vanda's OpenRouter budget on every plan.
+ * The model pickers' state. Conectado constrains both agents and image choices.
  * Conectado inference rides their ChatGPT subscription, so the orchestrator is
  * limited to supported OpenAI text and image models.
  */
@@ -131,7 +130,7 @@ export const modelPreferences = query({
 
     return {
       orchestrator: resolveOrchestratorModel(user.orchestratorModel, { conectado }),
-      caetano: resolveCaetanoModel(user.caetanoModel),
+      caetano: resolveCaetanoModel(user.caetanoModel, { conectado }),
       image: conectado
         ? resolveConnectedImageModel(user.imageModel)
         : user.imageModel && isKnownImageModel(user.imageModel)
@@ -147,28 +146,18 @@ export const setAgentModel = mutation({
   args: { modelId: v.string() },
   handler: async (ctx, { modelId }): Promise<void> => {
     const user = await requireUser(ctx);
-    const model = orchestratorModel(modelId);
-
-    if (!model) throw new Error("modelo desconhecido");
-
-    if (!model.codexCapable && isConnectedSubscriber(user)) {
-      throw new Error(
-        "este modelo não roda pela sua assinatura do ChatGPT — escolha um modelo OpenAI ou mude de plano",
-      );
-    }
+    const model = requireTextModel(modelId, isConnectedSubscriber(user));
 
     await ctx.db.patch(user._id, { orchestratorModel: model.id, updatedAt: Date.now() });
   },
 });
 
-/** Caetano always uses OpenRouter, independently of Vanda's transport. */
+/** Caetano follows the same transport policy as Vanda. */
 export const setCaetanoModel = mutation({
   args: { modelId: v.string() },
   handler: async (ctx, { modelId }): Promise<void> => {
     const user = await requireUser(ctx);
-    const model = orchestratorModel(modelId);
-
-    if (!model) throw new Error("modelo desconhecido");
+    const model = requireTextModel(modelId, isConnectedSubscriber(user));
     await ctx.db.patch(user._id, { caetanoModel: model.id, updatedAt: Date.now() });
   },
 });

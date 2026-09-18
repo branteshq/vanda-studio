@@ -74,8 +74,28 @@ export const DEFAULT_CAETANO_MODEL = "openai/gpt-5.6-terra";
 export const orchestratorModel = (id: string | null | undefined): OrchestratorModel | undefined =>
   ORCHESTRATOR_MODELS.find((model) => model.id === id);
 
-export const resolveCaetanoModel = (preferred: string | null | undefined): string =>
-  orchestratorModel(preferred)?.id ?? DEFAULT_CAETANO_MODEL;
+export const isTextModelAvailable = (model: OrchestratorModel, conectado: boolean): boolean =>
+  !conectado || model.codexCapable;
+
+export const requireTextModel = (id: string, conectado: boolean): OrchestratorModel => {
+  const model = orchestratorModel(id);
+
+  if (!model) throw new Error("modelo desconhecido");
+
+  if (!isTextModelAvailable(model, conectado))
+    throw new Error("este modelo não roda pela assinatura conectada do ChatGPT");
+
+  return model;
+};
+
+export const resolveCaetanoModel = (
+  preferred: string | null | undefined,
+  options: { readonly conectado: boolean } = { conectado: false },
+): string =>
+  resolveOrchestratorModel(preferred ?? DEFAULT_CAETANO_MODEL, {
+    ...options,
+    fallback: DEFAULT_CAETANO_MODEL,
+  });
 
 /**
  * The single decision point: which model id a turn actually runs on. Unknown or
@@ -87,17 +107,17 @@ export const resolveCaetanoModel = (preferred: string | null | undefined): strin
 export const resolveOrchestratorModel = (
   // `null` is what a Convex query returns for an absent preference.
   preferred: string | null | undefined,
-  options: { readonly conectado: boolean },
+  options: { readonly conectado: boolean; readonly fallback?: string },
 ): string => {
   const fallback = options.conectado
     ? DEFAULT_CODEX_ORCHESTRATOR_MODEL
-    : DEFAULT_ORCHESTRATOR_MODEL;
+    : (options.fallback ?? DEFAULT_ORCHESTRATOR_MODEL);
 
   const model = orchestratorModel(preferred);
 
   if (!model) return fallback;
 
-  if (options.conectado && !model.codexCapable) return fallback;
+  if (!isTextModelAvailable(model, options.conectado)) return fallback;
 
   return model.id;
 };

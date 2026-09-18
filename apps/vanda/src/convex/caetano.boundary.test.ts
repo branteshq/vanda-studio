@@ -70,14 +70,31 @@ describe("Caetano control plane", () => {
     await t.run((ctx) =>
       ctx.db.patch(userId, { planId: "conectado", openaiAccessCiphertext: "test-token" }),
     );
-    await owner.mutation(api.users.setCaetanoModel, { modelId: "anthropic/claude-sonnet-5" });
+
+    for (const mutation of [api.users.setCaetanoModel, api.users.setAgentModel]) {
+      await expect(
+        owner.mutation(mutation, { modelId: "anthropic/claude-opus-5" }),
+      ).rejects.toThrow("ChatGPT");
+    }
+
+    for (const field of ["caetano", "orchestrator"] as const) {
+      await expect(
+        t.mutation(internal.caetanoData.setModelPreferences, {
+          userId,
+          [field]: "anthropic/claude-opus-5",
+        }),
+      ).rejects.toThrow("ChatGPT");
+    }
+
+    // Preferences saved before a plan change must resolve to a supported model.
+    await t.run((ctx) => ctx.db.patch(userId, { caetanoModel: "anthropic/claude-opus-5" }));
     expect(await owner.query(api.users.modelPreferences)).toMatchObject({
-      caetano: "anthropic/claude-sonnet-5",
+      caetano: "openai/gpt-5.6-terra",
       orchestrator: "openai/gpt-5.6-terra",
       conectado: true,
     });
     expect(await t.query(internal.caetanoData.modelPreferences, { userId })).toMatchObject({
-      caetano: "anthropic/claude-sonnet-5",
+      caetano: "openai/gpt-5.6-terra",
     });
     expect((await t.run((ctx) => ctx.db.get(foreignUserId)))?.caetanoModel).toBeUndefined();
     await expect(owner.mutation(api.users.setCaetanoModel, { modelId: "unknown" })).rejects.toThrow(
@@ -93,7 +110,7 @@ describe("Caetano control plane", () => {
     expect((await owner.query(api.users.modelPreferences))?.caetano).toBe("openai/gpt-5.6-sol");
     await expect(
       t.mutation(internal.caetanoData.setModelPreferences, { userId, caetano: "unknown" }),
-    ).rejects.toThrow("modelo do Caetano desconhecido");
+    ).rejects.toThrow("modelo desconhecido");
     await t.run((ctx) => ctx.db.patch(userId, { caetanoModel: "retired/model" }));
     expect((await owner.query(api.users.modelPreferences))?.caetano).toBe("openai/gpt-5.6-terra");
     expect((await t.query(internal.caetanoData.modelPreferences, { userId })).caetano).toBe(
@@ -147,7 +164,8 @@ describe("Caetano control plane", () => {
         }
 
         for (const modelId of ["openai/gpt-5.6-sol", "anthropic/claude-sonnet-5"]) {
-          await t.withIdentity({ subject: "ana" }).mutation(api.users.setCaetanoModel, { modelId });
+          // Exercise legacy preferences from before a subscription plan switch.
+          await t.run((ctx) => ctx.db.patch(userId, { caetanoModel: modelId }));
 
           const turn = await t.run(async (ctx) => {
             const base = { userId, threadId: "test-thread", promptMessageId: "test-prompt" };
