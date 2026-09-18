@@ -482,6 +482,24 @@ experiments, not choices Davi needs to make upfront.
 As work proceeds, add the experiment, what changed, the observed result, and the
 decision here. Keep hypotheses distinct from measured or directly observed facts.
 
+## Live GPT trials: integration findings
+
+The initial subscription trials exposed two failures that mocked model tests missed:
+
+- The installed OpenAI SDK confused our ordinary `tool_search` function with its
+  native tool-search operation during history replay. The next request failed with
+  HTTP 400 (missing `arguments`). Updated `@ai-sdk/openai` to 3.0.114, which contains
+  the upstream fix. The connection-help trial now completes using `account_status`,
+  `tool_search`, and `product_help`.
+- Image tool outputs used the newer `file` representation, but this SDK's Responses
+  adapter silently discarded it. Paint/inspect/read now return `image-url`. A wire
+  regression test checks for `input_image` in the outgoing provider request. This
+  enables inspection; it does not prove the agent judged an image correctly.
+
+Typecheck and all 303 offline tests pass after these fixes. Early harness runs also
+had missing activity rows and incorrect mock-storage handling; those are setup
+failures, not evidence about model taste or reliable first-attempt performance.
+
 ## External references
 
 - [Amp tools](https://ampcode.com/docs/tools)

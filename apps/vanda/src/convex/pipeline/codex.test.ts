@@ -1,8 +1,9 @@
-import { streamText } from "ai";
+import { streamText, tool } from "ai";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { errorCode, errorMessage } from "../../errors";
 import { codexChatModel, codexResponsesText, codexGenerateImage } from "./codex";
+import { imageModelOutput } from "../messageImages";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -33,6 +34,116 @@ describe("ChatGPT image models", () => {
 });
 
 describe("ChatGPT public errors", () => {
+  it("sends image tool outputs as pixels on the actual Responses wire", async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response("", { status: 400 }));
+    vi.stubGlobal("fetch", request);
+    const url = "https://example.com/fixture.png";
+
+    const result = streamText({
+      model: codexChatModel(
+        { access: "test-only", accountId: "test-only" },
+        "openai/gpt-5.6-terra",
+      ),
+      messages: [
+        { role: "user", content: "Revise a imagem" },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool-call",
+              toolCallId: "inspect-1",
+              toolName: "inspect_image",
+              input: { imageId: "image-1" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool-result",
+              toolCallId: "inspect-1",
+              toolName: "inspect_image",
+              output: imageModelOutput({ imageId: "image-1", url, mimeType: "image/png" }),
+            },
+          ],
+        },
+      ],
+      maxRetries: 0,
+      onError: () => {},
+    });
+
+    await result.consumeStream();
+    const body: unknown = JSON.parse(z.string().parse(request.mock.calls[0]?.[1]?.body));
+    expect(body).toMatchObject({
+      input: expect.arrayContaining([
+        {
+          type: "function_call_output",
+          call_id: "inspect-1",
+          output: [
+            { type: "input_text", text: expect.stringContaining("imageId=image-1") },
+            { type: "input_image", image_url: url },
+          ],
+        },
+      ]),
+    });
+  });
+
+  it("replays our tool_search as a function, not OpenAI native tool search", async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response("", { status: 400 }));
+    vi.stubGlobal("fetch", request);
+
+    const result = streamText({
+      model: codexChatModel(
+        { access: "test-only", accountId: "test-only" },
+        "openai/gpt-5.6-terra",
+      ),
+      tools: { tool_search: tool({ inputSchema: z.object({ query: z.string() }) }) },
+      messages: [
+        { role: "user", content: "Encontre ajuda do produto" },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool-call",
+              toolCallId: "search-1",
+              toolName: "tool_search",
+              input: { query: "product_help" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool-result",
+              toolCallId: "search-1",
+              toolName: "tool_search",
+              output: { type: "json", value: { tools: ["product_help"] } },
+            },
+          ],
+        },
+      ],
+      maxRetries: 0,
+      onError: () => {},
+    });
+
+    await result.consumeStream();
+    const body: unknown = JSON.parse(z.string().parse(request.mock.calls[0]?.[1]?.body));
+    expect(body).toMatchObject({
+      store: false,
+      input: expect.arrayContaining([
+        {
+          type: "function_call",
+          call_id: "search-1",
+          name: "tool_search",
+          arguments: '{"query":"product_help"}',
+        },
+        { type: "function_call_output", call_id: "search-1", output: '{"tools":["product_help"]}' },
+      ]),
+    });
+  });
+
   it("does not send an output token cap to the subscription backend", async () => {
     const request = vi.fn<typeof fetch>().mockResolvedValue(new Response("", { status: 400 }));
     vi.stubGlobal("fetch", request);

@@ -16,9 +16,8 @@ export const imageModelOutput = (image: z.infer<typeof imagePreviewSchema>) => (
       text: `imageId=${image.imageId}. Inspecione a imagem antes de entregar.`,
     },
     {
-      type: "file" as const,
-      data: { type: "url" as const, url: new URL(image.url) },
-      mediaType: image.mimeType,
+      type: "image-url" as const,
+      url: image.url,
     },
   ],
 });

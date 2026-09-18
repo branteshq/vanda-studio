@@ -740,9 +740,8 @@ describe("Caetano control plane", () => {
       value: [
         { type: "text", text: expect.stringContaining("imageId=test-image") },
         {
-          type: "file",
-          data: { type: "url", url: new URL("https://example.com/review.png") },
-          mediaType: "image/png",
+          type: "image-url",
+          url: "https://example.com/review.png",
         },
       ],
     };
