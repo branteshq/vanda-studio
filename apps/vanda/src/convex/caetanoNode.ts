@@ -18,6 +18,7 @@ export const askVanda = internalAction({
   args: {
     userId: v.id("users"),
     caetanoThreadId: v.string(),
+    sourcePromptMessageId: v.string(),
     accountId: v.optional(v.id("accounts")),
     threadId: v.optional(v.string()),
     request: v.string(),
@@ -26,6 +27,8 @@ export const askVanda = internalAction({
     const input = {
       userId: args.userId,
       request: args.request,
+      caetanoThreadId: args.caetanoThreadId,
+      sourcePromptMessageId: args.sourcePromptMessageId,
     };
 
     if (args.accountId) Object.assign(input, { accountId: args.accountId });

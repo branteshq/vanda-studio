@@ -2,8 +2,10 @@
 import agentComponent from "@convex-dev/agent/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it, vi } from "vitest";
-import { api, internal } from "./_generated/api";
+import { api, components, internal } from "./_generated/api";
 import { caetano } from "./caetanoAgent";
+import { vanda } from "./vanda";
+import { capabilityResult } from "./resourceRefs";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -199,6 +201,7 @@ describe("Caetano control plane", () => {
                 provider: connected ? "openai.responses" : expect.stringContaining("openrouter"),
               }),
               promptMessageId: "test-prompt",
+              system: expect.stringContaining("Café da Ana"),
             }),
             { saveStreamDeltas: true },
           );
@@ -333,5 +336,303 @@ describe("Caetano control plane", () => {
         imageIds: [foreignImageId],
       }),
     ).rejects.toThrow("image not found");
+  });
+
+  it("preserves the exact request and only its attachments through delegation", async () => {
+    const { t, userId, accountId, foreignUserId } = await setup();
+    const owner = t.withIdentity({ subject: "ana" });
+    const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["product-photo"])));
+
+    const { imageId } = await owner.mutation(api.imageUploads.addImage, {
+      accountId,
+      storageId,
+      mimeType: "image/png",
+      width: 800,
+      height: 600,
+    });
+
+    const original = "Troque SÓ o fundo. Preserve o rótulo ‘Café 42’, sem desconto e sem publicar.";
+
+    const sent = await owner.mutation(api.caetano.sendMessage, {
+      prompt: original,
+      imageIds: [imageId],
+    });
+
+    const next = await owner.mutation(api.caetano.sendMessage, { prompt: "Explique os planos" });
+
+    const delegated = await t.mutation(internal.caetanoData.prepareVandaTurn, {
+      userId,
+      request: "Melhore a foto",
+      caetanoThreadId: sent.threadId,
+      sourcePromptMessageId: sent.messageId,
+    });
+
+    const [message] = await t.run((ctx) =>
+      ctx.runQuery(components.agent.messages.getMessagesByIds, {
+        messageIds: [delegated.promptMessageId],
+      }),
+    );
+
+    expect(message?.text).toContain(original);
+    expect(message?.text).toContain(`imageId=${imageId}`);
+    expect(message?.text).toContain("Melhore a foto");
+    expect(message?.message?.content).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "image",
+          image: await t.run((ctx) => ctx.storage.getUrl(storageId)),
+        }),
+      ]),
+    );
+
+    const textOnly = await t.mutation(internal.caetanoData.prepareVandaTurn, {
+      userId,
+      request: "Planos",
+      caetanoThreadId: next.threadId,
+      sourcePromptMessageId: next.messageId,
+    });
+
+    const [plain] = await t.run((ctx) =>
+      ctx.runQuery(components.agent.messages.getMessagesByIds, {
+        messageIds: [textOnly.promptMessageId],
+      }),
+    );
+
+    expect(plain?.text).toContain("Explique os planos");
+    expect(plain?.text).not.toContain(imageId);
+    expect(plain?.message?.content).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "image" })]),
+    );
+
+    await expect(
+      t.mutation(internal.caetanoData.prepareVandaTurn, {
+        userId: foreignUserId,
+        request: "Use a foto",
+        caetanoThreadId: sent.threadId,
+        sourcePromptMessageId: sent.messageId,
+        accountId: (await t.query(internal.caetanoData.listAccounts, { userId: foreignUserId }))[0]!
+          .accountId,
+      }),
+    ).rejects.toThrow("mensagem de origem");
+
+    const otherAccount = await t.run((ctx) =>
+      ctx.db.insert("accounts", {
+        ownerUserId: userId,
+        name: "Outro negócio",
+        onboardedAt: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    );
+
+    await expect(
+      t.mutation(internal.caetanoData.prepareVandaTurn, {
+        userId,
+        accountId: otherAccount,
+        request: "Use a foto",
+        caetanoThreadId: sent.threadId,
+        sourcePromptMessageId: sent.messageId,
+      }),
+    ).rejects.toThrow("image not found");
+  });
+
+  it("includes brand facts, kit and preferences but not foreign data or the media archive", async () => {
+    const { t, userId, accountId, foreignAccountId } = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("brandCanon", {
+        accountId,
+        kind: "restriction",
+        text: "Não anunciar bebidas alcoólicas",
+        confirmedByOwner: true,
+        createdAt: 1,
+      });
+      await ctx.db.insert("brandCanon", {
+        accountId,
+        kind: "offer",
+        text: "Hipótese ainda não confirmada",
+        confirmedByOwner: false,
+        createdAt: 1,
+      });
+    });
+    await t.mutation(internal.workspaceData.write, {
+      accountId,
+      path: "/brand/notes.md",
+      content: "Somente café de origem local",
+    });
+    await t.mutation(internal.workspaceData.write, {
+      accountId,
+      path: "/brand/kit.json",
+      content: JSON.stringify({
+        colors: [{ hex: "#123456", name: "azul" }],
+        fonts: [],
+        tagline: "Café com calma",
+      }),
+    });
+    await t.mutation(internal.workspaceData.write, {
+      accountId,
+      path: "/memory/preferencias.md",
+      content: "Nunca prometa entrega grátis",
+    });
+    await t.mutation(internal.workspaceData.write, {
+      accountId: foreignAccountId,
+      path: "/memory/segredo.md",
+      content: "informação exclusiva da Bia",
+    });
+    await t.run((ctx) =>
+      ctx.db.insert("images", {
+        accountId,
+        origin: "uploaded",
+        purpose: "reference",
+        externalUrl: "https://example.com/not-in-context.png",
+        createdAt: 1,
+      }),
+    );
+    const context = await t.query(internal.brandContext.conversation, { userId });
+
+    for (const value of [
+      "Café da Ana",
+      "cafedaana",
+      "Somente café de origem local",
+      "#123456",
+      "Café com calma",
+      "Nunca prometa entrega grátis",
+      "Não anunciar bebidas alcoólicas",
+    ])
+      expect(context).toContain(value);
+    expect(context).not.toContain("Hipótese ainda não confirmada");
+    expect(context).not.toContain("informação exclusiva da Bia");
+    expect(context).not.toContain("not-in-context.png");
+    await expect(
+      t.query(internal.brandContext.conversation, { userId, accountId: foreignAccountId }),
+    ).rejects.toThrow("conta não encontrada");
+    await t.mutation(internal.workspaceData.write, {
+      accountId,
+      path: "/brand/notes.md",
+      content: "Agora servimos chá também",
+    });
+    const refreshed = await t.query(internal.brandContext.conversation, { userId });
+    expect(refreshed).toContain("Agora servimos chá também");
+    expect(refreshed).not.toContain("Somente café de origem local");
+    await t.run((ctx) => ctx.db.patch(userId, { activeAccountId: undefined }));
+    expect(await t.query(internal.brandContext.conversation, { userId })).toContain(
+      "Nenhum negócio ativo",
+    );
+  });
+
+  it("passes brand context into a Vanda turn without model-driven retrieval", async () => {
+    const { t, userId, accountId } = await setup();
+
+    const sent = await t.withIdentity({ subject: "ana" }).mutation(api.caetano.sendMessage, {
+      prompt: "Faça um post sem falar de desconto",
+    });
+
+    type VandaStreamResult = Awaited<ReturnType<typeof vanda.streamText>>;
+
+    const result: Pick<VandaStreamResult, "consumeStream" | "text"> = {
+      consumeStream: async () => {},
+      text: Promise.resolve("Rascunho pronto"),
+    };
+
+    // SAFETY: generateResponse only consumes the stream and reads its text in this test.
+    const stream = vi.spyOn(vanda, "streamText").mockResolvedValue(result as VandaStreamResult);
+
+    try {
+      const result = await t.action(internal.caetanoNode.askVanda, {
+        userId,
+        caetanoThreadId: sent.threadId,
+        sourcePromptMessageId: sent.messageId,
+        request: "Faça um post",
+      });
+
+      expect(result.response).toBe("Rascunho pronto");
+      expect(stream.mock.calls[0]?.[0]).toMatchObject({ accountId });
+      expect(stream.mock.calls[0]?.[2].system).toContain("Café da Ana");
+
+      const [message] = await t.run((ctx) =>
+        ctx.runQuery(components.agent.messages.getMessagesByIds, {
+          messageIds: [stream.mock.calls[0]![2].promptMessageId!],
+        }),
+      );
+
+      expect(message?.text).toContain("Faça um post sem falar de desconto");
+    } finally {
+      stream.mockRestore();
+    }
+  });
+
+  it("lets Caetano inspect owned images and rejects foreign images and accounts", async () => {
+    const { t, userId, accountId, foreignAccountId } = await setup();
+
+    const imageId = await t.run((ctx) =>
+      ctx.db.insert("images", {
+        accountId,
+        origin: "generated",
+        purpose: "post",
+        externalUrl: "https://example.com/result.png",
+        mimeType: "image/png",
+        createdAt: 1,
+      }),
+    );
+
+    expect(await t.query(internal.caetanoData.inspectImage, { userId, imageId })).toEqual({
+      imageId,
+      url: "https://example.com/result.png",
+      mimeType: "image/png",
+    });
+    await expect(
+      t.query(internal.caetanoData.inspectImage, {
+        userId,
+        accountId: foreignAccountId,
+        imageId,
+      }),
+    ).rejects.toThrow("conta não encontrada");
+
+    const foreignImage = await t.run((ctx) =>
+      ctx.db.insert("images", {
+        accountId: foreignAccountId,
+        origin: "uploaded",
+        purpose: "post",
+        externalUrl: "https://example.com/foreign.png",
+        createdAt: 1,
+      }),
+    );
+
+    await expect(
+      t.query(internal.caetanoData.inspectImage, { userId, imageId: foreignImage }),
+    ).rejects.toThrow("image not found");
+  });
+
+  it("returns image pixels to both agents instead of only JSON metadata", async () => {
+    const image = {
+      imageId: "test-image",
+      url: "https://example.com/review.png",
+      mimeType: "image/png",
+    };
+
+    const paint = Object.assign({}, vanda.options.tools!.paint, { ctx: {} });
+    const inspect = Object.assign({}, caetano.options.tools!.inspect_image, { ctx: {} });
+
+    const expected = {
+      type: "content",
+      value: [
+        { type: "text", text: expect.stringContaining("imageId=test-image") },
+        {
+          type: "file",
+          data: { type: "url", url: new URL("https://example.com/review.png") },
+          mediaType: "image/png",
+        },
+      ],
+    };
+
+    expect(
+      await paint.toModelOutput({
+        toolCallId: "paint",
+        input: {},
+        output: capabilityResult(image),
+      }),
+    ).toEqual(expected);
+    expect(
+      await inspect.toModelOutput({ toolCallId: "inspect", input: {}, output: image }),
+    ).toEqual(expected);
   });
 });

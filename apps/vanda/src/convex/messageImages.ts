@@ -1,8 +1,52 @@
+import { z } from "zod";
 import type { Id } from "./_generated/dataModel";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
+
+export const imagePreviewSchema = z.object({
+  imageId: z.string(),
+  url: z.string().url(),
+  mimeType: z.string(),
+});
+
+export const imageModelOutput = (image: z.infer<typeof imagePreviewSchema>) => ({
+  type: "content" as const,
+  value: [
+    {
+      type: "text" as const,
+      text: `imageId=${image.imageId}. Inspecione a imagem antes de entregar.`,
+    },
+    {
+      type: "file" as const,
+      data: { type: "url" as const, url: new URL(image.url) },
+      mediaType: image.mimeType,
+    },
+  ],
+});
+
+export const messageWithImages = (
+  text: string,
+  images: ReadonlyArray<z.infer<typeof imagePreviewSchema>>,
+) => [
+  {
+    type: "text" as const,
+    text: [
+      text,
+      ...(images.length
+        ? [
+            `<vanda_attachment_context>Imagens anexadas pelo usuário, já pertencentes a esta conta: ${images.map((image) => `imageId=${image.imageId}`).join(", ")}. Use esses IDs nas ferramentas; para editar, passe o ID em editOfImageId.</vanda_attachment_context>`,
+          ]
+        : []),
+    ].join("\n\n"),
+  },
+  ...images.map((image) => ({
+    type: "image" as const,
+    image: image.url,
+    mediaType: image.mimeType,
+  })),
+];
 
 export async function resolveMessageImages(
-  ctx: MutationCtx,
+  ctx: MutationCtx | QueryCtx,
   accountId: Id<"accounts">,
   imageIds: ReadonlyArray<Id<"images">>,
 ) {

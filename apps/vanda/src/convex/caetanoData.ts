@@ -23,6 +23,7 @@ import {
 import { isConnectedSubscriber } from "./openaiSub";
 import { budgetOf } from "./usage";
 import { publicError } from "../errors";
+import { messageWithImages, resolveMessageImages } from "./messageImages";
 
 const accountThreadKey = (accountId: Id<"accounts">): string => String(accountId);
 
@@ -96,6 +97,23 @@ export const accountStatus = internalQuery({
         profile: "/perfil",
       },
     };
+  },
+});
+
+export const inspectImage = internalQuery({
+  args: {
+    userId: v.id("users"),
+    accountId: v.optional(v.id("accounts")),
+    imageId: v.id("images"),
+  },
+  handler: async (ctx, { userId, accountId, imageId }) => {
+    const user = await ctx.db.get(userId);
+
+    if (!user) throw new Error("user not found");
+    const account = await ownedAccount(ctx, user, accountId);
+    const [image] = await resolveMessageImages(ctx, account._id, [imageId]);
+
+    return image!;
   },
 });
 
@@ -241,8 +259,13 @@ export const prepareVandaTurn = internalMutation({
     accountId: v.optional(v.id("accounts")),
     threadId: v.optional(v.string()),
     request: v.string(),
+    sourcePromptMessageId: v.optional(v.string()),
+    caetanoThreadId: v.optional(v.string()),
   },
-  handler: async (ctx, { userId, accountId, threadId, request }): Promise<PreparedVandaTurn> => {
+  handler: async (
+    ctx,
+    { userId, accountId, threadId, request, sourcePromptMessageId, caetanoThreadId },
+  ): Promise<PreparedVandaTurn> => {
     const user = await ctx.db.get(userId);
 
     if (!user) throw new Error("user not found");
@@ -252,6 +275,46 @@ export const prepareVandaTurn = internalMutation({
     const account = await ownedAccount(ctx, user, accountId);
 
     if (account.onboardedAt === undefined) throw new Error("conta ainda não concluiu o onboarding");
+
+    let originalText = "";
+    let images: Awaited<ReturnType<typeof resolveMessageImages>> = [];
+
+    if (sourcePromptMessageId) {
+      if (!caetanoThreadId) throw new Error("conversa de origem não informada");
+
+      const sourceThread = await getThreadMetadata(ctx, components.agent, {
+        threadId: caetanoThreadId,
+      });
+
+      const [source] = await ctx.runQuery(components.agent.messages.getMessagesByIds, {
+        messageIds: [sourcePromptMessageId],
+      });
+
+      if (
+        sourceThread.userId !== `caetano:${userId}` ||
+        source?.threadId !== caetanoThreadId ||
+        source.message?.role !== "user"
+      )
+        throw new Error("mensagem de origem não encontrada");
+      originalText = source.text ?? "";
+
+      const attachments = await ctx.db
+        .query("threadResourceManifests")
+        .withIndex("by_thread_tool", (q) =>
+          q
+            .eq("threadId", caetanoThreadId)
+            .eq("toolCallId", `attachments:${sourcePromptMessageId}`),
+        )
+        .unique();
+
+      images = await resolveMessageImages(
+        ctx,
+        account._id,
+        (attachments?.resources ?? []).flatMap((resource) =>
+          resource.kind === "image" ? [resource.imageId] : [],
+        ),
+      );
+    }
 
     let target = threadId ?? account.caetanoVandaThreadId;
 
@@ -275,14 +338,17 @@ export const prepareVandaTurn = internalMutation({
       await ctx.db.patch(account._id, { caetanoVandaThreadId: target, updatedAt: Date.now() });
     }
 
-    const prompt =
-      `Pedido recebido do dono através do Caetano:\n\n${request.trim()}\n\n` +
-      `Execute o pedido completamente usando o workspace e as ferramentas disponíveis. ` +
-      `Ao terminar, explique objetivamente o que fez e onde está o resultado.`;
+    const prompt = [
+      ...(sourcePromptMessageId
+        ? [`Mensagem original do dono (preservada pelo sistema):\n${originalText}`]
+        : []),
+      `Pedido e contexto adicional do Caetano:\n${request.trim()}`,
+      "Preserve as restrições do pedido original. Crie rascunhos; não agende nem publique sem pedido explícito do dono. Revise o resultado antes de entregar e explique o estado final.",
+    ].join("\n\n");
 
     const { messageId } = await saveMessage(ctx, components.agent, {
       threadId: target,
-      message: { role: "user", content: prompt },
+      message: { role: "user", content: messageWithImages(prompt, images) },
     });
 
     const activityId = await ctx.db.insert("chatThreadActivity", {

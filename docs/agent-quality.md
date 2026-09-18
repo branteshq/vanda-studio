@@ -3,6 +3,42 @@
 Working notes from the September 18, 2026 discussion with Davi. This is a living
 document for continued investigation and implementation, not a finished design.
 
+## Confirmed scope and first implementation
+
+- Brand context must always be included. Previous conversations and media should
+  be discoverable rather than requiring the user to repeat information.
+- "Make a post" means create a draft. Do not automatically schedule or publish;
+  require an explicit user request. Standing publication permission is not part of
+  the current scope.
+- Vanda and Caetano must both be able and instructed to review their own work,
+  inspect images, and correct concrete problems. Do not add a separate reviewer
+  agent. Start with at most two correction rounds and evaluate that limit.
+- Work with GPT models through Davi's connected ChatGPT subscription for the initial
+  live comparisons. This does not require removing other existing model support or
+  changing unrelated users' preferences. No live model comparisons have run yet.
+
+The first local implementation supplies brand facts, the visual kit, brand notes,
+and durable memory at the start of both agents' turns. Account selection returns
+updated brand context. Caetano's handoff preserves the original current message
+and attachment IDs/pixels using stored message and attachment references, with
+ownership checks. Older conversations and media discovery remain future work;
+the new attachment record applies to messages submitted after this change.
+
+Vanda's paint result now carries image pixels for inspection. Caetano has an
+ownership-checked `inspect_image` tool and can request specific corrections in the
+same Vanda conversation. Python-generated images remain inspectable through Vanda's
+existing `read` tool. Both agents are instructed to self-review and deliver drafts
+unless the user explicitly asks to schedule or publish.
+
+The scheduling restriction is currently agent guidance and tool descriptions, not
+a new server-side approval mechanism. Existing post creation still creates drafts;
+the scheduling operation remains separately callable. Automated tests cover context
+and media transfer, account isolation, image tool outputs, and draft creation, not
+real-model compliance or aesthetic quality. Those need the GPT comparisons.
+
+Tool discovery, product-help retrieval, and fictional-brand taste evaluations are
+still to build. Nothing in this first implementation deploys or changes shared data.
+
 ## What we want
 
 Vanda should feel like it just works. The customer should not have to repeat brand
@@ -34,7 +70,10 @@ that there is no model gap also needs testing. Neither is established yet.
 There are no users yet and not enough real customer examples to depend on.
 Mining Convex is optional supporting work, not a prerequisite for evaluation.
 
-## Findings in the current application
+## Findings before the first implementation
+
+The observations below record the initial investigation. The implementation status
+above supersedes them where a gap has since been addressed.
 
 ### Caetano and direct Vanda chat do not pass the same information
 
@@ -103,10 +142,10 @@ The helper `reviewGeneratedAsset` exists but had no callers in the inspected sou
 Its criteria reject text and logos because it reviews visual assets, not complete
 marketing posts. Enabling it unchanged would not solve final-post review.
 
-Proposed change: return a review-sized preview to the creating agent, have it check
-the actual artifact against the request and brand, and allow a bounded correction.
-A separate reviewer model is a later experiment, not a required extra agent on
-every request. Seeing pixels alone does not guarantee sound judgment.
+Chosen direction: return image pixels to the creating agent, have it check the
+actual artifact against the request and brand, and allow a bounded correction.
+Both Vanda and Caetano should self-review; a separate reviewer is out of the current
+scope. Seeing pixels alone does not guarantee sound judgment.
 
 Sources: [vanda.ts](../apps/vanda/src/convex/vanda.ts), `paint` and `readFile`;
 [images.ts](../apps/vanda/src/convex/images.ts);
@@ -138,11 +177,10 @@ Sources: [vanda.ts](../apps/vanda/src/convex/vanda.ts), `systemPrompt`;
 
 ### Some instructions need product decisions
 
-- The prompt favors scheduling soon when immediate publication is ambiguous.
-  Initiative can become unwanted publication. Proposed default: independently do
-  reversible creative work, but derive publication authority from the request or
-  an explicit standing policy. This is a proposed policy change, not an agreed
-  implementation yet.
+- The original prompt favored scheduling soon when immediate publication was
+  ambiguous. Davi decided that creating a post must mean creating a draft, with
+  scheduling or publication requiring explicit user input. The first implementation
+  removes those automatic-scheduling instructions.
 - The always-on `unslop` skill contains general writing restrictions, including
   neutral descriptions. They may help assistant replies but conflict with some
   brands' advertising. Separate the assistant's voice from the customer's brand
@@ -358,16 +396,16 @@ business performance will require evidence after launch.
 6. Compare prompts and orchestrator models on the stable examples. Change one
    uncertain thing at a time, repeat important cases, and retain regressions.
 
-The suggested first application implementation is context preservation plus minimal
-tool discovery, verified with representative tasks. This is a recommendation, not
-a claim that implementation has started. No wholesale rewrite or additional group
-of agents is required to begin.
+Implementation has started with context preservation, always-on brand information,
+draft-only guidance, and self-review capabilities. Minimal tool discovery is the
+next foundation. No wholesale rewrite or additional group of agents is required.
 
 ## Review decisions and questions to investigate
 
-Brand context is settled: always include it. Previous thread history and media
-should ideally be discoverable. The other questions below remain open; they are
-work for investigation and experiments, not choices Davi needs to make upfront.
+Brand context, draft-only creation, self-review by both agents, and GPT-only initial
+comparisons are settled. Previous thread history and media should ideally be
+discoverable. The remaining implementation choices are work for investigation and
+experiments, not choices Davi needs to make upfront.
 
 - **Which tools are visible immediately?** We do not know yet. Decide which tools
   the agent needs often enough to show on every turn, and which it should find
@@ -378,24 +416,22 @@ work for investigation and experiments, not choices Davi needs to make upfront.
   is whether we need an Amp-like JavaScript execution tool at all. This is an
   implementation choice, not a request to remove Vanda's existing Python tool.
   Account ownership and permissions must still be checked on every operation.
-- **When may Vanda schedule or publish?** For example, does "make a post" mean
-  create a draft, or also put it on the calendar? Can a standing instruction allow
-  automatic publication? The current prompt favors scheduling when immediate
-  publication is ambiguous. We have not agreed to keep or change that policy.
+- **When may Vanda schedule or publish?** Only when the user explicitly requests
+  it. "Make a post" always creates a draft, even if the creative brief mentions a
+  date. Approval of the artwork alone is not permission to publish.
 - **How should Vanda make the artwork?** "Production method" means generating
   the whole post with an image model, generating a background and adding text/logo
   with Python, or using an approved template. Compare the results to learn which
   works best for each task; there is no selected winner yet.
-- **Who checks the finished image, and when should it try again?** A "separate
-  reviewer" means another model call or a subagent that sees the image and brief
-  and looks for problems. It need not use a different model. The simpler starting
-  point is for the creating agent to inspect its own result. Test whether a second
-  reviewer improves quality enough to justify its extra time and cost; adding one
-  is not a requirement. Also test when a correction helps rather than making the
-  result worse.
+- **Who checks the finished image, and when should it try again?** The working
+  agent does it. Both Vanda and Caetano should inspect their results and correct
+  concrete defects. No separate reviewer or reviewer subagent. We still need to
+  evaluate when another attempt helps and whether the initial two-round limit is
+  appropriate.
 - **Which model and prompt work best?** We have to find out through the fictional
   tasks and taste-based comparisons above, including consistency, cost, and wait
-  time. Do not choose a winner from assumptions or one impressive output.
+  time. Limit initial live work to GPT models using Davi's connected subscription.
+  Do not choose a winner from assumptions or one impressive output.
 
 As work proceeds, add the experiment, what changed, the observed result, and the
 decision here. Keep hypotheses distinct from measured or directly observed facts.

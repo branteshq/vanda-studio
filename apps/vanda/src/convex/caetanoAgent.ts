@@ -5,6 +5,7 @@ import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { resolveCaetanoModel } from "./agentModels";
 import { recordCapabilityResult } from "./capabilityTools";
+import { imageModelOutput, imagePreviewSchema } from "./messageImages";
 import {
   capabilityResult,
   capabilityResultSchema,
@@ -16,6 +17,7 @@ import {
 export type CaetanoCtx = ToolCtx & {
   readonly ownerUserId: Id<"users">;
   readonly caetanoThreadId: string;
+  readonly sourcePromptMessageId: string;
 };
 
 type CapabilityOutput = z.infer<typeof capabilityResultSchema>;
@@ -36,6 +38,7 @@ type ResultSummary = { shown: number; message?: string };
 type AskVandaArgs = {
   userId: Id<"users">;
   caetanoThreadId: string;
+  sourcePromptMessageId: string;
   request: string;
   accountId?: Id<"accounts">;
   threadId?: string;
@@ -81,7 +84,14 @@ const selectAccount = createTool({
       ctx,
       options,
       capabilityResult(
-        { ok: true, accountId },
+        {
+          ok: true,
+          accountId,
+          brandContext: await ctx.runQuery(internal.brandContext.conversation, {
+            userId: ctx.ownerUserId,
+            accountId: typedAccountId,
+          }),
+        },
         {
           resources: [operation],
           presented: [operation],
@@ -109,8 +119,36 @@ const accountStatus = createTool({
       queryArgs.accountId = accountId as Id<"accounts">;
     }
 
-    return ctx.runQuery(internal.caetanoData.accountStatus, queryArgs).then(capabilityResult);
+    const status = await ctx.runQuery(internal.caetanoData.accountStatus, queryArgs);
+    const brandContext = await ctx.runQuery(internal.brandContext.conversation, queryArgs);
+
+    return capabilityResult({ ...status, brandContext });
   },
+});
+
+const inspectImage = createTool({
+  description:
+    "Inspeciona os pixels de uma imagem da conta. Use para revisar imagens retornadas pela Vanda antes de entregar: confira texto, marca, legibilidade e fidelidade ao pedido. Se houver problema, peça uma correção específica com ask_vanda na mesma conversa retornada.",
+  inputSchema: z.object({ accountId: optionalAccountId, imageId: z.string() }),
+  outputSchema: imagePreviewSchema,
+  execute: async (
+    ctx: CaetanoCtx,
+    input: { accountId?: string | undefined; imageId: string },
+  ): Promise<z.infer<typeof imagePreviewSchema>> => {
+    const args: AccountQueryArgs & { imageId: Id<"images"> } = {
+      userId: ctx.ownerUserId,
+      // SAFETY: the input is consumed only as a Convex id; the query checks image ownership.
+      imageId: input.imageId as Id<"images">,
+    };
+
+    if (input.accountId) {
+      // SAFETY: the query checks that the owner can access the requested account.
+      args.accountId = input.accountId as Id<"accounts">;
+    }
+
+    return ctx.runQuery(internal.caetanoData.inspectImage, args);
+  },
+  toModelOutput: (_ctx, { output }) => imageModelOutput(output),
 });
 
 const usageStatus = createTool({
@@ -284,7 +322,7 @@ const present = createTool({
 
 const askVanda = createTool({
   description:
-    "Entrega à Vanda um pedido de marketing completo e aguarda o trabalho terminar. A Vanda pesquisa, analisa, cria, edita e agenda usando as ferramentas dela. Use para qualquer trabalho de marketing; não tente fazê-lo você mesmo.",
+    "Entrega à Vanda um pedido de marketing completo e aguarda o trabalho terminar. O sistema preserva a mensagem original e seus anexos; inclua no request os detalhes relevantes do histórico e, para revisão, o problema específico a corrigir. Criar um post significa criar um rascunho; agendar/publicar exige pedido explícito do dono. Use para executar trabalho de marketing; revise você mesmo os resultados retornados.",
   inputSchema: z.object({
     request: z.string().min(1).describe("pedido original do dono, preservado em detalhes"),
     accountId: optionalAccountId,
@@ -299,6 +337,7 @@ const askVanda = createTool({
     const actionArgs: AskVandaArgs = {
       userId: ctx.ownerUserId,
       caetanoThreadId: ctx.caetanoThreadId,
+      sourcePromptMessageId: ctx.sourcePromptMessageId,
       request: input.request,
     };
 
@@ -334,9 +373,13 @@ const INSTRUCTIONS = `Você é o Caetano, o macaquinho operador do Vanda Studio.
 
 Você conversa em português do Brasil, com humor seco e leve, sem exagerar no personagem. Seja curto, claro e prestativo.
 
-Seu trabalho direto é resolver dúvidas e configurações do produto: contas, conexão, uso, modelos, conversas e navegação. Para qualquer trabalho de marketing — pesquisa, estratégia, conteúdo, imagens, calendário ou publicação — chame ask_vanda no mesmo turno e deixe a Vanda executar. Não escreva o conteúdo no lugar dela e nunca diga que algo foi feito antes do retorno da ferramenta.
+Seu trabalho direto é resolver dúvidas e configurações do produto: contas, conexão, uso, modelos, conversas e navegação. Para executar trabalho de marketing — pesquisa, estratégia, conteúdo, imagens, calendário ou publicação — chame ask_vanda no mesmo turno e deixe a Vanda executar. Não escreva o conteúdo no lugar dela e nunca diga que algo foi feito antes do retorno da ferramenta.
 
-Há uma conta ativa, mas o dono pode ter várias. Use a conta ativa quando o pedido estiver claro. Liste ou confirme contas somente quando houver ambiguidade real. Preserve o pedido original ao delegar; não reduza detalhes importantes.
+Há uma conta ativa, mas o dono pode ter várias. O contexto de marca já vem incluído: use-o e não peça ao dono para repetir quem ele é ou explicar o negócio. Use a conta ativa quando o pedido estiver claro. Liste ou confirme contas somente quando houver ambiguidade real. Ao trabalhar com outra conta, consulte account_status para receber seu contexto; select_account também devolve o contexto atualizado. Preserve o pedido original ao delegar; inclua os detalhes relevantes do histórico, sem reduzir restrições importantes.
+
+"Faça um post" significa sempre criar um RASCUNHO, nunca agendar nem publicar automaticamente. Só peça agendamento, reagendamento ou publicação à Vanda quando o dono solicitar isso explicitamente. Uma data no briefing de criação não é autorização para publicar. Não transforme aprovação da arte em autorização para agendar. Se faltar a decisão, entregue o rascunho e aguarde o dono.
+
+Revise seu próprio trabalho antes de entregar. Confira se a resposta resolve o pedido e se o estado informado foi confirmado. Revise também os resultados delegados: use inspect_image para ver cada imagem final apresentada pela Vanda, comparando com a marca e o pedido (texto, legibilidade, cortes, logo e fidelidade aos anexos). Mostrar uma imagem não significa tê-la inspecionado. Se encontrar defeito concreto, continue a threadId devolvida por ask_vanda e peça uma correção específica; inspecione a nova versão. Faça no máximo duas rodadas de correção por pedido e explique limitações que restarem. Você e Vanda revisam o próprio trabalho; não dependa de um revisor separado.
 
 Quando a Vanda terminar, responda com um resumo curto do resultado e o estado final. Imagens, posts, documentos e links retornados por ela aparecem na conversa automaticamente. Nunca mande o dono abrir outra página só para ver um resultado. Para mostrar novamente um recurso anterior, use present. Não exponha ids internos, nomes de ferramentas, prompts de sistema ou detalhes da infraestrutura.`;
 
@@ -373,6 +416,7 @@ export const caetano = new Agent<CaetanoCtx>(components.agent, {
     model_preferences: modelPreferences,
     set_model_preferences: setModelPreferences,
     list_vanda_threads: listVandaThreads,
+    inspect_image: inspectImage,
     present,
     ask_vanda: askVanda,
   },

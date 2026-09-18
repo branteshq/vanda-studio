@@ -26,7 +26,7 @@ import { isConnectedSubscriber } from "./openaiSub";
 import { codexChatModel } from "./pipeline/codex";
 import { requireOwnedAccount, requireUser } from "./authz";
 import { caetano, caetanoLanguageModel, caetanoSystemPrompt } from "./caetanoAgent";
-import { resolveMessageImages } from "./messageImages";
+import { messageWithImages, resolveMessageImages } from "./messageImages";
 import { budgetOf } from "./usage";
 import { errorMessage, publicError } from "../errors";
 import { errorCodeValidator, safeFailure } from "./publicErrors";
@@ -132,21 +132,22 @@ const submitMessage = async (
     threadId: target,
     message: {
       role: "user",
-      content:
-        images.length === 0
-          ? text
-          : [
-              ...(text ? [{ type: "text" as const, text }] : []),
-              ...images.map((image) => ({
-                type: "image" as const,
-                image: image.url,
-                mediaType: image.mimeType,
-              })),
-            ],
+      content: images.length === 0 ? text : messageWithImages(text, images),
     },
   });
 
   if (images.length > 0) {
+    await ctx.runMutation(internal.threadResources.record, {
+      threadId: target,
+      anchorMessageId: messageId,
+      toolCallId: `attachments:${messageId}`,
+      resources: images.map((image) => ({
+        kind: "image" as const,
+        accountId: user.activeAccountId!,
+        imageId: image.imageId,
+      })),
+      presented: [],
+    });
     const attachedAt = Date.now();
     await Promise.all(
       images.map((image) => ctx.db.patch(image.imageId, { lastAttachedAt: attachedAt })),
@@ -347,14 +348,21 @@ export const generateResponse = internalAction({
             )
           : caetanoLanguageModel(modelId);
 
+      const brand = await ctx.runQuery(internal.brandContext.conversation, { userId });
+
       const result = await caetano.streamText(
-        { ...ctx, ownerUserId: userId, caetanoThreadId: threadId },
+        {
+          ...ctx,
+          ownerUserId: userId,
+          caetanoThreadId: threadId,
+          sourcePromptMessageId: promptMessageId,
+        },
         { threadId },
         {
           promptMessageId,
           model,
           system:
-            caetanoSystemPrompt() +
+            `${caetanoSystemPrompt()}\n\n${brand}` +
             (turn.channel === "whatsapp"
               ? "\n\nEste turno veio do WhatsApp, que neste sandbox aceita somente texto. Não diga que imagens ou arquivos foram anexados aqui. Recursos apresentados ficam disponíveis na conversa web; links de acesso serão incluídos pelo sistema quando disponíveis. Responda de forma curta, sem tabelas Markdown."
               : ""),

@@ -27,7 +27,7 @@ import { requireOwnedAccount } from "./authz";
 import { codexChatModel, codexResponsesText } from "./pipeline/codex";
 import { budgetOf } from "./usage";
 import { isConnectedSubscriber } from "./openaiSub";
-import { resolveMessageImages } from "./messageImages";
+import { messageWithImages, resolveMessageImages } from "./messageImages";
 import { openrouterChatModel, systemPrompt, vanda, VANDA_MODEL } from "./vanda";
 import { errorMessage, publicError } from "../errors";
 import { errorCodeValidator, safeFailure } from "./publicErrors";
@@ -195,29 +195,11 @@ export const sendMessage = mutation({
       title = (await requireAccountThread(ctx, accountId, target)).title ?? null;
     }
 
-    const attachmentContext =
-      images.length > 0
-        ? `<vanda_attachment_context>Imagens anexadas pelo usuário, já pertencentes a esta conta: ${images
-            .map((image) => `imageId=${image.imageId}`)
-            .join(
-              ", ",
-            )}. Você pode referenciá-las em ferramentas usando esses IDs; para editar uma, passe o ID em editOfImageId.</vanda_attachment_context>`
-        : "";
-
-    const modelText = [trimmed, attachmentContext].filter(Boolean).join("\n\n");
-
     const { messageId } = await saveMessage(ctx, components.agent, {
       threadId: target,
       message: {
         role: "user",
-        content: [
-          { type: "text", text: modelText },
-          ...images.map((image) => ({
-            type: "image" as const,
-            image: image.url,
-            mediaType: image.mimeType,
-          })),
-        ],
+        content: messageWithImages(trimmed, images),
       },
     });
 
@@ -393,9 +375,11 @@ export const generateResponse = internalAction({
 
       if (caetanoThreadId) Object.assign(streamContext, { caetanoThreadId });
 
+      const brand = await ctx.runQuery(internal.brandContext.conversation, { accountId });
+
       const streamOptions = {
         promptMessageId,
-        system: systemPrompt(),
+        system: `${systemPrompt()}\n\n${brand}`,
         onError: ({ error }: { error: unknown }) => {
           streamError = error;
         },

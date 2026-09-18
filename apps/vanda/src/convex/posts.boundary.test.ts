@@ -49,6 +49,7 @@ describe("posts.createPostInternal — the light post path", () => {
 
     const post = (await t.run((ctx) => ctx.db.get(postId)))!;
     expect(post).toMatchObject({ status: "draft", type: "image", platform: "instagram" });
+    expect(await t.run((ctx) => ctx.db.query("scheduledPosts").collect())).toEqual([]);
 
     await expect(
       t.mutation(internal.posts.createPostInternal, { accountId, imageIds: [], caption: "x" }),
