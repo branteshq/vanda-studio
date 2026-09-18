@@ -7,6 +7,7 @@ const runPublish = (request: { caption: string; imageUrls: ReadonlyArray<string>
   Effect.runPromise(
     Effect.gen(function* () {
       const publisher = yield* Publisher;
+
       return yield* publisher.publish(request);
     }).pipe(Effect.provide(publisherLive({ username: "acc1" }))),
   );
@@ -15,9 +16,32 @@ const flipPublish = (request: { caption: string; imageUrls: ReadonlyArray<string
   Effect.runPromise(
     Effect.gen(function* () {
       const publisher = yield* Publisher;
+
       return yield* publisher.publish(request).pipe(Effect.flip);
     }).pipe(Effect.provide(publisherLive({ username: "acc1" }))),
   );
+
+const stubFetch = (uploadResponse: () => Response) => {
+  const uploads: Array<FormData> = [];
+  vi.stubGlobal("fetch", async (url: string | URL | Request, init?: RequestInit) => {
+    const href = String(url instanceof Request ? url.url : url);
+
+    if (href.includes("/upload_photos")) {
+      if (!(init?.body instanceof FormData)) throw new Error("expected multipart request body");
+      uploads.push(init.body);
+
+      return uploadResponse();
+    }
+
+    // Image fetches resolve to bytes.
+    return new Response(new Uint8Array([1, 2, 3]), {
+      status: 200,
+      headers: { "content-type": "image/jpeg" },
+    });
+  });
+
+  return uploads;
+};
 
 describe("publisherLive (fetch-mocked Upload-Post adapter)", () => {
   beforeEach(() => {
@@ -27,23 +51,6 @@ describe("publisherLive (fetch-mocked Upload-Post adapter)", () => {
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
   });
-
-  const stubFetch = (uploadResponse: () => Response) => {
-    const uploads: Array<FormData> = [];
-    vi.stubGlobal("fetch", async (url: string | URL | Request, init?: RequestInit) => {
-      const href = String(url instanceof Request ? url.url : url);
-      if (href.includes("/upload_photos")) {
-        uploads.push(init?.body as FormData);
-        return uploadResponse();
-      }
-      // Image fetches resolve to bytes.
-      return new Response(new Uint8Array([1, 2, 3]), {
-        status: 200,
-        headers: { "content-type": "image/jpeg" },
-      });
-    });
-    return uploads;
-  };
 
   it("publishes photos as one multipart call and returns the receipt", async () => {
     const uploads = stubFetch(
@@ -57,7 +64,11 @@ describe("publisherLive (fetch-mocked Upload-Post adapter)", () => {
         ),
     );
 
-    const receipt = await runPublish({ caption: "hi", imageUrls: ["https://img/1", "https://img/2"] });
+    const receipt = await runPublish({
+      caption: "hi",
+      imageUrls: ["https://img/1", "https://img/2"],
+    });
+
     expect(receipt).toEqual({ externalPostId: "18001", url: "https://ig/p/x" });
     expect(uploads).toHaveLength(1);
     const form = uploads[0]!;

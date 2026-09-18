@@ -11,29 +11,35 @@ const modules = import.meta.glob("./**/*.ts");
 const setup = async () => {
   const t = convexTest(schema, modules);
   agentTest.register(t);
+
   const ids = await t.run(async (ctx) => {
     const now = Date.now();
+
     const ownerUserId = await ctx.db.insert("users", {
       name: "Ana",
       email: "ana@example.com",
       clerkId: "owner",
     });
+
     const foreignUserId = await ctx.db.insert("users", {
       name: "Outra pessoa",
       email: "outra@example.com",
       clerkId: "foreign",
     });
+
     const accountId = await ctx.db.insert("accounts", {
       ownerUserId,
       name: "Café da Ana",
       createdAt: now,
       updatedAt: now,
     });
+
     const foreignAccountId = await ctx.db.insert("accounts", {
       ownerUserId: foreignUserId,
       createdAt: now,
       updatedAt: now,
     });
+
     await ctx.db.insert("brandCanon", {
       accountId,
       kind: "voice",
@@ -41,6 +47,7 @@ const setup = async () => {
       confirmedByOwner: true,
       createdAt: now,
     });
+
     const galleryImageId = await ctx.db.insert("images", {
       accountId,
       origin: "generated",
@@ -54,6 +61,7 @@ const setup = async () => {
       model: "python/pillow",
       createdAt: now,
     });
+
     const foreignImageId = await ctx.db.insert("images", {
       accountId: foreignAccountId,
       origin: "generated",
@@ -61,8 +69,10 @@ const setup = async () => {
       name: "segredo alheio",
       createdAt: now,
     });
+
     return { accountId, foreignAccountId, galleryImageId, foreignImageId };
   });
+
   return { t, ...ids };
 };
 
@@ -71,6 +81,7 @@ describe("workspace navigation", () => {
     const { t, accountId } = await setup();
     const result = await t.query(internal.workspaceData.list, { accountId, path: "/" });
     expect(result.ok).toBe(true);
+
     if (result.ok) {
       expect(result.entries.map((entry) => entry.name)).toEqual([
         "brand",
@@ -88,11 +99,14 @@ describe("workspace navigation", () => {
 
   it("lists installed skills and reads their standard SKILL.md package", async () => {
     const { t, accountId } = await setup();
+
     const listing = await t.query(internal.workspaceData.list, {
       accountId,
       path: "/skills",
     });
+
     expect(listing.ok).toBe(true);
+
     if (listing.ok) {
       expect(listing.entries).toEqual(
         expect.arrayContaining([
@@ -106,7 +120,9 @@ describe("workspace navigation", () => {
       accountId,
       path: "/skills/unslop/SKILL.md",
     });
+
     expect(instructions.ok).toBe(true);
+
     if (instructions.ok && instructions.file.kind === "text") {
       expect(instructions.file.text).toContain("name: unslop");
       expect(instructions.file.text).toContain("# Unslop");
@@ -116,7 +132,9 @@ describe("workspace navigation", () => {
       accountId,
       path: "/skills/unslop/LICENSE",
     });
+
     expect(license.ok).toBe(true);
+
     if (license.ok && license.file.kind === "text") {
       expect(license.file.text).toContain("MIT License");
     }
@@ -124,11 +142,14 @@ describe("workspace navigation", () => {
 
   it("answers a miss with the nearest listing, never a bare not-found", async () => {
     const { t, accountId } = await setup();
+
     const result = await t.query(internal.workspaceData.read, {
       accountId,
       path: "/images/nao-existe-xxxxxx.jpg",
     });
+
     expect(result.ok).toBe(false);
+
     if (!result.ok) {
       expect(result.nearest).toBe("/images");
       expect(result.entries.some((entry) => entry.name.startsWith("promo-agosto-"))).toBe(true);
@@ -139,6 +160,7 @@ describe("workspace navigation", () => {
     const { t, accountId } = await setup();
     const result = await t.query(internal.workspaceData.read, { accountId, path: "/brand" });
     expect(result.ok).toBe(false);
+
     if (!result.ok) {
       expect(result.entries.map((entry) => entry.name)).toContain("memory.md");
     }
@@ -166,11 +188,14 @@ describe("installed skills public query", () => {
 describe("workspace renders", () => {
   it("renders brand memory with confirmed facts", async () => {
     const { t, accountId } = await setup();
+
     const result = await t.query(internal.workspaceData.read, {
       accountId,
       path: "/brand/memory.md",
     });
+
     expect(result.ok).toBe(true);
+
     if (result.ok && result.file.kind === "text") {
       expect(result.file.text).toContain("Café da Ana");
       expect(result.file.text).toContain("**voice**: tom caloroso e direto");
@@ -181,6 +206,7 @@ describe("workspace renders", () => {
     const { t, accountId, galleryImageId } = await setup();
     const result = await t.query(internal.workspaceData.list, { accountId, path: "/images" });
     expect(result.ok).toBe(true);
+
     if (result.ok) {
       const entry = result.entries[0]!;
       expect(entry.name).toBe(`promo-agosto-${entitySuffix(galleryImageId)}.jpg`);
@@ -191,11 +217,14 @@ describe("workspace renders", () => {
 
   it("reads a gallery image as header + url", async () => {
     const { t, accountId, galleryImageId } = await setup();
+
     const result = await t.query(internal.workspaceData.read, {
       accountId,
       path: `/images/promo-agosto-${entitySuffix(galleryImageId)}.jpg`,
     });
+
     expect(result.ok).toBe(true);
+
     if (result.ok && result.file.kind === "image") {
       expect(result.file.url).toBe("https://images.example/promo.jpg");
       expect(result.file.header).toContain(galleryImageId);
@@ -205,13 +234,16 @@ describe("workspace renders", () => {
 
   it("paginates text reads with a range note", async () => {
     const { t, accountId } = await setup();
+
     const result = await t.query(internal.workspaceData.read, {
       accountId,
       path: "/brand/memory.md",
       offset: 1,
       limit: 1,
     });
+
     expect(result.ok).toBe(true);
+
     if (result.ok && result.file.kind === "text") {
       expect(result.file.text).toContain("# Memória de marca");
       expect(result.file.text).toContain("[linhas 1–1 de");
@@ -223,6 +255,7 @@ describe("workspace path stability", () => {
   it("resolves entities by stale slugs and bare suffixes", async () => {
     const { t, accountId, galleryImageId } = await setup();
     const suffix = entitySuffix(galleryImageId);
+
     for (const name of [
       `promo-agosto-${suffix}.jpg`,
       `nome-antigo-${suffix}.jpg`,
@@ -232,7 +265,9 @@ describe("workspace path stability", () => {
         accountId,
         path: `/images/${name}`,
       });
+
       expect(result.ok).toBe(true);
+
       if (result.ok && result.file.kind === "image") {
         expect(result.file.header).toContain(galleryImageId);
       }
@@ -245,13 +280,16 @@ describe("workspace identity boundary", () => {
     const { t, accountId, foreignImageId } = await setup();
     const listing = await t.query(internal.workspaceData.list, { accountId, path: "/images" });
     expect(listing.ok).toBe(true);
+
     if (listing.ok) {
       expect(listing.entries.some((entry) => entry.summary?.includes(foreignImageId))).toBe(false);
     }
+
     const result = await t.query(internal.workspaceData.read, {
       accountId,
       path: `/images/segredo-alheio-${entitySuffix(foreignImageId)}.jpg`,
     });
+
     expect(result.ok).toBe(false);
   });
 });

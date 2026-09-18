@@ -15,6 +15,7 @@ export const UnitInterval = Schema.Finite.check(Schema.isBetween({ minimum: 0, m
 
 /** The owner-confirmed canon kinds (single source: constants). */
 export const BrandCanonKind = Schema.Literals(brandCanonKinds);
+
 export type BrandCanonKind = typeof BrandCanonKind.Type;
 
 /**
@@ -27,6 +28,7 @@ export const BrandText = Schema.Struct({
   evidence: Schema.String,
   confidence: UnitInterval,
 });
+
 export type BrandText = typeof BrandText.Type;
 
 /**
@@ -39,6 +41,7 @@ export const BrandGroup = Schema.Struct({
   evidence: Schema.String,
   confidence: UnitInterval,
 });
+
 export type BrandGroup = typeof BrandGroup.Type;
 
 /**
@@ -47,6 +50,7 @@ export type BrandGroup = typeof BrandGroup.Type;
  * or flips it; it sets `accounts.kind` and shapes how create generates.
  */
 export const BrandKind = Schema.Literals(brandKinds);
+
 export type BrandKind = typeof BrandKind.Type;
 
 export const BrandKindCard = Schema.Struct({
@@ -54,6 +58,7 @@ export const BrandKindCard = Schema.Struct({
   evidence: Schema.String,
   confidence: UnitInterval,
 });
+
 export type BrandKindCard = typeof BrandKindCard.Type;
 
 /**
@@ -72,6 +77,7 @@ export const BrandAnalysis = Schema.Struct({
   restrictions: BrandGroup,
   opportunities: BrandGroup,
 });
+
 export type BrandAnalysis = typeof BrandAnalysis.Type;
 
 /** The Instagram profile facts that anchor the analysis (all best-effort). */

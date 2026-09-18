@@ -6,8 +6,11 @@ import { defineApp } from "convex/server";
 // agent: Vanda's conversation substrate (threads, messages, tool calls,
 // streaming, approvals). workflow: durable multi-step jobs. autumn: billing.
 const app = defineApp();
+
 app.use(agent);
+
 app.use(autumn);
+
 app.use(workflow);
 
 export default app;

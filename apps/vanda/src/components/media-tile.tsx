@@ -77,7 +77,10 @@ export function MediaTileMedia({
   children: ReactNode;
 }) {
   return (
-    <div style={aspectRatio ? { aspectRatio } : undefined} className={cn("w-full bg-muted", className)}>
+    <div
+      style={aspectRatio ? { aspectRatio } : undefined}
+      className={cn("w-full bg-muted", className)}
+    >
       <div className="size-full overflow-hidden rounded-xl transition-transform duration-500 ease-[var(--ease-out)] group-hover/tile:scale-[1.04] group-data-[selected]/tile:scale-[0.96] motion-reduce:transition-none motion-reduce:group-hover/tile:scale-100">
         {children}
       </div>
@@ -199,11 +202,9 @@ export function MediaTileCaption({ children }: { children: ReactNode }) {
  * move, a short `done` beat for the success mark, then back to rest. Re-entry
  * is ignored while anything is in flight.
  */
-export function useMediaAction(action: () => Promise<void>): {
-  state: "idle" | "busy" | "done";
-  run: () => void;
-} {
+export function useMediaAction(action: () => Promise<void>) {
   const [state, setState] = useState<"idle" | "busy" | "done">("idle");
+
   const run = () => {
     if (state !== "idle") return;
     setState("busy");
@@ -214,6 +215,7 @@ export function useMediaAction(action: () => Promise<void>): {
       })
       .catch(() => setState("idle"));
   };
+
   return { state, run };
 }
 
@@ -226,7 +228,9 @@ export function ActionStateIcon({
   icon: ReactNode;
 }) {
   if (state === "busy") return <Spinner />;
+
   if (state === "done") return <Check className="text-green" />;
+
   return icon;
 }
 
@@ -256,6 +260,7 @@ export async function copyImageToClipboard(url: string): Promise<void> {
     canvas.height = bitmap.height;
     canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
     bitmap.close();
+
     return await new Promise<Blob>((resolve, reject) =>
       canvas.toBlob(
         (blob) => (blob ? resolve(blob) : reject(new Error("falha ao codificar imagem"))),
@@ -263,5 +268,6 @@ export async function copyImageToClipboard(url: string): Promise<void> {
       ),
     );
   })();
+
   await navigator.clipboard.write([new ClipboardItem({ "image/png": pngBlob })]);
 }

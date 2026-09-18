@@ -1,4 +1,5 @@
 import { slugify } from "../workspace/types";
+import { z } from "zod";
 
 export type InstagramOperation =
   | "search_profiles"
@@ -7,6 +8,26 @@ export type InstagramOperation =
   | "post"
   | "comments"
   | "insights";
+
+type JsonPrimitive = string | number | boolean | null;
+
+type JsonInput =
+  | JsonPrimitive
+  | undefined
+  | ReadonlyArray<JsonInput>
+  | { readonly [key: string]: JsonInput };
+
+const jsonInputSchema: z.ZodType<JsonInput> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.undefined(),
+    z.array(jsonInputSchema),
+    z.record(z.string(), jsonInputSchema),
+  ]),
+);
 
 const TTL_MS: Record<InstagramOperation, number> = {
   search_profiles: 6 * 60 * 60_000,
@@ -17,26 +38,30 @@ const TTL_MS: Record<InstagramOperation, number> = {
   insights: 45 * 60_000,
 };
 
-const stable = (value: unknown): unknown => {
+const stable = (value: JsonInput): JsonInput => {
   if (Array.isArray(value)) return value.map(stable);
-  if (value && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>).filter(
-      ([, item]) => item !== undefined,
-    );
-    const ordered = entries.reduce<Array<[string, unknown]>>((result, entry) => {
+
+  if (value !== null && value !== undefined && !Array.isArray(value)) {
+    const entries = Object.entries(value).filter(([, item]) => item !== undefined);
+
+    const ordered = entries.reduce<Array<[string, JsonInput]>>((result, entry) => {
       const index = result.findIndex(([key]) => key.localeCompare(entry[0]) > 0);
+
       if (index < 0) result.push(entry);
       else result.splice(index, 0, entry);
+
       return result;
     }, []);
+
     return Object.fromEntries(ordered.map(([key, item]) => [key, stable(item)]));
   }
+
   return value;
 };
 
 /** Stable cache identity without putting provider credentials into the key. */
-export const instagramRequestKey = (operation: InstagramOperation, input: unknown): string =>
-  `${operation}:${JSON.stringify(stable(input))}`;
+export const instagramRequestKey = <Input>(operation: InstagramOperation, input: Input): string =>
+  `${operation}:${JSON.stringify(stable(jsonInputSchema.parse(input)))}`;
 
 export const instagramExpiresAt = (operation: InstagramOperation, observedAt: number): number =>
   observedAt + TTL_MS[operation];
@@ -52,6 +77,7 @@ export const instagramWorkspacePath = (input: {
   if (input.operation === "search_profiles") {
     return `/instagram/searches/${slugify(input.query ?? "search")}.json`;
   }
+
   if (
     input.operation === "post" ||
     input.operation === "comments" ||
@@ -60,10 +86,13 @@ export const instagramWorkspacePath = (input: {
     const shortcode = input.postUrl?.match(/\/(?:p|reel|reels|tv)\/([^/?#]+)/i)?.[1];
     const postName = slugify(shortcode ?? input.postId ?? "post");
     const filename = input.operation === "post" ? "post" : input.operation;
+
     return `/instagram/posts/${postName}/${filename}.json`;
   }
+
   if (input.scope === "connected") {
     return `/instagram/self/${input.operation}.json`;
   }
+
   return `/instagram/public/${slugify(input.handle ?? "profile")}/${input.operation}.json`;
 };

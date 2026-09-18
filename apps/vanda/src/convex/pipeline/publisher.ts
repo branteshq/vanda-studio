@@ -41,12 +41,12 @@ export class UnsupportedFormat extends Data.TaggedError("UnsupportedFormat")<{
 /** Everything `publishPost` can fail with. */
 export type PublishError = PublisherRequestFailed | InvalidPost | UnsupportedFormat;
 
-export interface PublisherShape {
+export interface PublisherService {
   readonly publish: (
     request: PublishRequest,
   ) => Effect.Effect<PublishReceipt, PublisherRequestFailed>;
 }
 
-export class Publisher extends Context.Service<Publisher, PublisherShape>()(
+export class Publisher extends Context.Service<Publisher, PublisherService>()(
   "@vanda/pipeline/Publisher",
 ) {}

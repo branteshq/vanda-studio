@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  type ReactNode,
+} from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 
 /**
@@ -32,22 +40,32 @@ export function ModeNavProvider({ children }: { children: ReactNode }) {
   const lastChatSearch = useRef<ChatSearch>({});
   useEffect(() => {
     if (location.pathname.startsWith("/conversa")) {
+      // SAFETY: TanStack's route search value is validated by the chat route schema.
       const search = location.search as ChatSearch;
       lastChatSearch.current = search.t ? { t: search.t } : {};
     }
   }, [location]);
 
-  const value: ModeNavValue = {
-    galleryActive,
-    toChat: () => void navigate({ to: "/conversa", search: lastChatSearch.current }),
-    toGallery: () => void navigate({ to: "/galeria", search: {} }),
-  };
+  const toChat = useCallback(() => {
+    void navigate({ to: "/conversa", search: lastChatSearch.current });
+  }, [navigate]);
+
+  const toGallery = useCallback(() => {
+    void navigate({ to: "/galeria", search: {} });
+  }, [navigate]);
+
+  const value = useMemo(
+    () => ({ galleryActive, toChat, toGallery }),
+    [galleryActive, toChat, toGallery],
+  );
 
   return <ModeNavContext.Provider value={value}>{children}</ModeNavContext.Provider>;
 }
 
 export function useModeNav(): ModeNavValue {
   const value = useContext(ModeNavContext);
+
   if (!value) throw new Error("useModeNav must be used within ModeNavProvider");
+
   return value;
 }

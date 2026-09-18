@@ -18,7 +18,7 @@ catalog:
   "@vitejs/plugin-react": ^6.0.0
   astro: ^5.16.4
   oxfmt: ^0.40.0
-  oxlint: ^1.55.0
+  oxlint: 1.70.0
   react: ^19.0.0
   react-dom: ^19.0.0
   turbo: ^2.3.3

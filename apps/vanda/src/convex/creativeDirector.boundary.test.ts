@@ -1,10 +1,18 @@
 // @vitest-environment edge-runtime
 import { convexTest } from "convex-test";
+import { Match } from "effect";
 import { describe, expect, it } from "vitest";
 import { internal } from "./_generated/api";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
+
+const narrativeRole = (position: number): "hook" | "cta" | "body" =>
+  Match.value(position).pipe(
+    Match.when(1, (): "hook" => "hook"),
+    Match.when(3, (): "cta" => "cta"),
+    Match.orElse((): "body" => "body"),
+  );
 
 const analysis = {
   sourceSummary: "Uma lista curta de erros",
@@ -71,7 +79,7 @@ const brief = {
   hook: "Três critérios antes de decidir",
   narrativeBeats: [1, 2, 3].map((position) => ({
     position,
-    role: position === 1 ? "hook" : position === 3 ? "cta" : "body",
+    role: narrativeRole(position),
     intent: "orientar",
     keyMessage: `Mensagem ${position}`,
     visualInstruction: `Visual ${position}`,
@@ -98,10 +106,12 @@ const brief = {
 const seedQualifiedOpportunity = async (t: ReturnType<typeof convexTest>) =>
   t.run(async (ctx) => {
     const now = Date.now();
+
     const accountId = await ctx.db.insert("accounts", {
       createdAt: now,
       updatedAt: now,
     });
+
     const creatorId = await ctx.db.insert("marketCreators", {
       accountId,
       handle: "criador",
@@ -114,6 +124,7 @@ const seedQualifiedOpportunity = async (t: ReturnType<typeof convexTest>) =>
       discoveredAt: now,
       updatedAt: now,
     });
+
     const postId = await ctx.db.insert("marketPosts", {
       accountId,
       creatorId,
@@ -124,6 +135,7 @@ const seedQualifiedOpportunity = async (t: ReturnType<typeof convexTest>) =>
       firstObservedAt: now,
       lastObservedAt: now,
     });
+
     const dossierId = await ctx.db.insert("sourceDossiers", {
       accountId,
       marketPostId: postId,
@@ -138,6 +150,7 @@ const seedQualifiedOpportunity = async (t: ReturnType<typeof convexTest>) =>
       createdAt: now,
       updatedAt: now,
     });
+
     const opportunityId = await ctx.db.insert("opportunities", {
       accountId,
       marketPostId: postId,
@@ -150,6 +163,7 @@ const seedQualifiedOpportunity = async (t: ReturnType<typeof convexTest>) =>
       createdAt: now,
       updatedAt: now,
     });
+
     return { accountId, opportunityId };
   });
 
@@ -157,12 +171,14 @@ describe("creative director persistence", () => {
   it("persists the complete reviewed decision chain", async () => {
     const t = convexTest(schema, modules);
     const { opportunityId } = await seedQualifiedOpportunity(t);
+
     const analysisId = await t.mutation(internal.market.saveCreativeAnalysis, {
       opportunityId,
       model: "test",
       promptVersion: "test-v1",
       ...analysis,
     });
+
     const directionIds = await t.mutation(internal.market.saveCreativeDirections, {
       opportunityId,
       analysisId,
@@ -170,6 +186,7 @@ describe("creative director persistence", () => {
       promptVersion: "test-v1",
       directions: [direction("Prático"), direction("Narrativo"), direction("Contraste")],
     });
+
     const briefId = await t.mutation(internal.market.saveCreativeBrief, {
       opportunityId,
       analysisId,
@@ -193,12 +210,14 @@ describe("creative director persistence", () => {
       reviewIssues: [],
       reviewConfidence: 0.9,
     });
+
     const state = await t.run(async (ctx) => ({
       opportunity: await ctx.db.get(opportunityId),
       analysis: await ctx.db.get(analysisId),
       directions: await Promise.all(directionIds.map((id) => ctx.db.get(id))),
       brief: await ctx.db.get(briefId),
     }));
+
     expect(state.opportunity?.status).toBe("ready_for_production");
     expect(state.opportunity?.creativeBriefId).toBe(briefId);
     expect(state.analysis?.status).toBe("accepted");

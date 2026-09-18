@@ -12,6 +12,14 @@ const STEPS: { key: OnboardingStep; label: string }[] = [
   { key: "confirmar", label: "Confirmar" },
 ];
 
+const stepTextColor = (state: "done" | "active" | "pending") => {
+  if (state === "active") return "text-text-2";
+
+  if (state === "done") return "text-text-3";
+
+  return "text-text-5";
+};
+
 /** The Vanda lockup: orchid mark + wordmark, shared across every onboarding frame. */
 export function OnboardingHeader() {
   return (
@@ -28,27 +36,18 @@ export function OnboardingHeader() {
 /** Conectar · Conhecer · Confirmar, with rings: done / active / pending. */
 export function StepIndicator({ current }: { current: OnboardingStep }) {
   const currentIndex = STEPS.findIndex((step) => step.key === current);
+
   return (
     <div className="hidden items-center gap-2 sm:flex">
       {STEPS.map((step, index) => {
         const state = index < currentIndex ? "done" : index === currentIndex ? "active" : "pending";
+
         return (
           <div key={step.key} className="flex items-center gap-2">
             {index > 0 ? <span className="h-px w-5 bg-border" /> : null}
             <span className="flex items-center gap-1.5">
               <StatusRing state={state} />
-              <span
-                className={cn(
-                  "text-[12px]",
-                  state === "active"
-                    ? "text-text-2"
-                    : state === "done"
-                      ? "text-text-3"
-                      : "text-text-5",
-                )}
-              >
-                {step.label}
-              </span>
+              <span className={cn("text-[12px]", stepTextColor(state))}>{step.label}</span>
             </span>
           </div>
         );
@@ -90,9 +89,7 @@ export function OnboardingSplit({
         </div>
         <div className="absolute right-8 bottom-8 text-right">
           <p className="text-[12.5px] text-text-4">{aperture.caption}</p>
-          {aperture.sub ? (
-            <p className="mt-1 text-[11.5px] text-text-5">{aperture.sub}</p>
-          ) : null}
+          {aperture.sub ? <p className="mt-1 text-[11.5px] text-text-5">{aperture.sub}</p> : null}
         </div>
       </div>
     </div>

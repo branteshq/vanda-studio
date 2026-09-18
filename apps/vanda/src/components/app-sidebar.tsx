@@ -74,10 +74,13 @@ function ProfileDock() {
 
   const handleSelect = (account: NonNullable<typeof accounts>[number]) => {
     if (account.id === active?.id) return;
+
     if (account.onboardedAt === null) {
       void navigate({ to: "/onboarding", search: { accountId: account.id } });
+
       return;
     }
+
     // Optimistic: the switcher highlights and the workspace swaps this frame.
     selectAccount(account.id);
     setOpenMobile(false);
@@ -86,17 +89,22 @@ function ProfileDock() {
 
   const handleRemoveCurrent = async () => {
     if (!active || removing) return;
+
     const confirmed = window.confirm(
       `Remover ${name}? A Vanda vai apagar os dados desse negócio neste app e desconectar o Instagram salvo.`,
     );
+
     if (!confirmed) return;
 
     setRemoving(true);
+
     try {
       await removeAccount({ accountId: active.id });
+
       const hasRemainingBusiness = accounts?.some(
         (account) => account.id !== active.id && account.onboardedAt !== null,
       );
+
       if (!hasRemainingBusiness) await navigate({ to: "/onboarding" });
     } finally {
       setRemoving(false);
@@ -116,6 +124,7 @@ function ProfileDock() {
         ) : (
           readyAccounts.slice(0, 3).map((account) => {
             const selected = account.id === active?.id;
+
             return (
               <ActionTooltip key={account.id} label={account.name} side="top">
                 <button
@@ -266,6 +275,7 @@ function ThreadTitle({ title }: { title: string | null }) {
       setReveal(true);
     }
   }, [title]);
+
   if (title === null) {
     return (
       <span className="flex h-full items-center" role="status" aria-label="Gerando título">
@@ -276,6 +286,7 @@ function ThreadTitle({ title }: { title: string | null }) {
       </span>
     );
   }
+
   return <span className={cn("block truncate", reveal && "animate-title-in")}>{title}</span>;
 }
 
@@ -285,18 +296,21 @@ function sectionThreads(threads: ThreadItem[]): ThreadSection[] {
   const todayAt = today.getTime();
   const yesterdayAt = todayAt - 86_400_000;
   const weekAt = todayAt - 7 * 86_400_000;
+
   const groups: ThreadSection[] = [
     { label: "Hoje", threads: [] },
     { label: "Ontem", threads: [] },
     { label: "7 dias", threads: [] },
     { label: "Anteriores", threads: [] },
   ];
+
   for (const thread of threads) {
     if (thread.createdAt >= todayAt) groups[0]!.threads.push(thread);
     else if (thread.createdAt >= yesterdayAt) groups[1]!.threads.push(thread);
     else if (thread.createdAt >= weekAt) groups[2]!.threads.push(thread);
     else groups[3]!.threads.push(thread);
   }
+
   return groups.filter((group) => group.threads.length > 0);
 }
 
@@ -305,23 +319,32 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
   const navigate = useNavigate();
   const location = useRouterState({ select: (state) => state.location });
   const threads = useQuery(api.chat.listThreads, { accountId });
+
   // Both mutate the visible list optimistically: the row updates/disappears the
   // frame the user confirms, and the server result reconciles afterwards.
   const renameThread = useMutation(api.chat.renameThread).withOptimisticUpdate((store, args) => {
     const current = store.getQuery(api.chat.listThreads, { accountId: args.accountId });
+
     if (!current) return;
     store.setQuery(
       api.chat.listThreads,
       { accountId: args.accountId },
       current.map((thread) =>
         thread.threadId === args.threadId
-          ? { ...thread, title: args.title.trim().slice(0, 80) }
+          ? {
+              threadId: thread.threadId,
+              title: args.title.trim().slice(0, 80),
+              createdAt: thread.createdAt,
+              processing: thread.processing,
+            }
           : thread,
       ),
     );
   });
+
   const archiveThread = useMutation(api.chat.archiveThread).withOptimisticUpdate((store, args) => {
     const current = store.getQuery(api.chat.listThreads, { accountId: args.accountId });
+
     if (!current) return;
     store.setQuery(
       api.chat.listThreads,
@@ -329,48 +352,54 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
       current.filter((thread) => thread.threadId !== args.threadId),
     );
   });
+
   const [query, setQuery] = useState("");
   const [renaming, setRenaming] = useState<ThreadItem | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
 
   const activeThreadId =
-    location.pathname.startsWith("/conversa") &&
-    typeof (location.search as Record<string, unknown>).t === "string"
-      ? ((location.search as Record<string, unknown>).t as string)
-      : null;
+    location.pathname.startsWith("/conversa") && "t" in location.search ? location.search.t : null;
 
   const filtered = useMemo(() => {
     if (!threads) return [];
     const normalized = query.trim().toLocaleLowerCase("pt-BR");
+
     if (!normalized) return threads;
+
     return threads.filter((thread) =>
       (thread.title ?? "Nova conversa").toLocaleLowerCase("pt-BR").includes(normalized),
     );
   }, [threads, query]);
+
   const sections = sectionThreads(filtered);
 
   const openThread = (threadId: string) => {
     setOpenMobile(false);
     void navigate({ to: "/conversa", search: { t: threadId } });
   };
+
   // Pure navigation — no thread exists until the first message is sent.
   const startThread = () => {
     setOpenMobile(false);
     void navigate({ to: "/conversa", search: {} });
   };
+
   const rename = (thread: ThreadItem) => {
     setRenameTitle(thread.title ?? "");
     setRenaming(thread);
   };
+
   const saveRename = () => {
     const title = renameTitle.trim();
     setRenaming((thread) => {
       if (thread && title && title !== thread.title) {
         void renameThread({ accountId, threadId: thread.threadId, title });
       }
+
       return null;
     });
   };
+
   const archive = (thread: ThreadItem) => {
     void archiveThread({ accountId, threadId: thread.threadId });
   };
@@ -425,6 +454,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                   {section.threads.map((thread) => {
                     const active = thread.threadId === activeThreadId;
                     const editing = thread.threadId === renaming?.threadId;
+
                     return (
                       <div
                         key={thread.threadId}
@@ -537,6 +567,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
 export function CollapsedSidebarControls() {
   const { state, setOpen } = useSidebar();
   const navigate = useNavigate();
+
   const gallery = useRouterState({
     select: (s) => s.location.pathname.startsWith("/galeria"),
   });
@@ -547,6 +578,7 @@ export function CollapsedSidebarControls() {
     setOpen(true);
     requestAnimationFrame(() => document.getElementById("conversation-search")?.focus());
   };
+
   // Pure navigation — the thread is created on first send.
   const startThread = () => {
     void navigate({ to: "/conversa", search: {} });
@@ -581,9 +613,11 @@ export function CollapsedSidebarControls() {
 function CaetanoNav() {
   const navigate = useNavigate();
   const { setOpenMobile } = useSidebar();
+
   const active = useRouterState({
     select: (state) => state.location.pathname.startsWith("/caetano"),
   });
+
   return (
     <SidebarMenu className="px-1 pt-1 pb-2">
       <SidebarMenuItem>

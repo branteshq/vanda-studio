@@ -14,12 +14,15 @@ const modules = import.meta.glob("./**/*.ts");
 describe("schedulePost + calendar", () => {
   it("pins a post to a datetime and lists it within a calendar range", async () => {
     const t = convexTest(schema, modules);
+
     const { accountId, postId } = await t.run(async (ctx) => {
       const now = Date.now();
+
       const account = await ctx.db.insert("accounts", {
         createdAt: now,
         updatedAt: now,
       });
+
       const post = await ctx.db.insert("posts", {
         accountId: account,
         type: "feed",
@@ -29,10 +32,12 @@ describe("schedulePost + calendar", () => {
         status: "ready",
         createdAt: now,
       });
+
       return { accountId: account, postId: post };
     });
 
     const at = Date.now() + 86_400_000;
+
     const scheduledPostId = await t.mutation(internal.publishScheduled.schedulePost, {
       postId,
       scheduledFor: at,
@@ -43,6 +48,7 @@ describe("schedulePost + calendar", () => {
       from: at - 1000,
       to: at + 1000,
     });
+
     expect(inRange).toHaveLength(1);
     expect(inRange[0]!._id).toBe(scheduledPostId);
     expect(inRange[0]!.status).toBe("scheduled");
@@ -52,6 +58,7 @@ describe("schedulePost + calendar", () => {
       from: 0,
       to: 1000,
     });
+
     expect(outOfRange).toHaveLength(0);
   });
 });
@@ -59,12 +66,15 @@ describe("schedulePost + calendar", () => {
 describe("publishDue through the ctx-backed store + fake publisher", () => {
   it("publishes a carousel and records the external id on the row", async () => {
     const t = convexTest(schema, modules);
+
     const scheduledPostId = await t.run(async (ctx) => {
       const now = Date.now();
+
       const accountId = await ctx.db.insert("accounts", {
         createdAt: now,
         updatedAt: now,
       });
+
       const imageIds = [
         await ctx.db.insert("images", {
           accountId,
@@ -79,6 +89,7 @@ describe("publishDue through the ctx-backed store + fake publisher", () => {
           createdAt: now,
         }),
       ];
+
       const postId = await ctx.db.insert("posts", {
         accountId,
         type: "feed",
@@ -88,6 +99,7 @@ describe("publishDue through the ctx-backed store + fake publisher", () => {
         status: "ready",
         createdAt: now,
       });
+
       return ctx.db.insert("scheduledPosts", {
         accountId,
         postId,
@@ -99,6 +111,7 @@ describe("publishDue through the ctx-backed store + fake publisher", () => {
     });
 
     const fake = makeFakePublisher();
+
     const receipt = await t.action(async (ctx) =>
       Effect.runPromise(
         publishDue(scheduledPostId).pipe(

@@ -60,6 +60,7 @@ export const requireAccountOwner = internalQuery({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
     await requireOwnedAccount(ctx, accountId);
+
     return accountId;
   },
 });
@@ -68,19 +69,23 @@ export const loadInput = internalQuery({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
     const account = await ctx.db.get(accountId);
+
     if (!account) return null;
+
     const facts = (
       await ctx.db
         .query("brandCanon")
         .withIndex("by_account", (q) => q.eq("accountId", accountId))
         .collect()
     ).filter((fact) => fact.confirmedByOwner);
+
     const references = (
       await ctx.db
         .query("images")
         .withIndex("by_account", (q) => q.eq("accountId", accountId))
         .collect()
     ).filter((image) => image.purpose === "reference");
+
     return {
       account,
       facts: facts.map((fact) => ({ id: String(fact._id), kind: fact.kind, text: fact.text })),
@@ -100,6 +105,7 @@ export const saveInspection = internalMutation({
   args: { imageId: v.id("images"), ...inspectionArg },
   handler: async (ctx, { imageId, ...inspection }) => {
     const image = await ctx.db.get(imageId);
+
     if (!image) throw new Error("reference image not found");
     await ctx.db.patch(imageId, {
       inspectionStatus: "ready",
@@ -143,6 +149,7 @@ export const saveProfile = internalMutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
+
     const profileId = await ctx.db.insert("brandVisualProfiles", {
       accountId: args.accountId,
       status: "ready",
@@ -163,6 +170,7 @@ export const saveProfile = internalMutation({
       createdAt: now,
       updatedAt: now,
     });
+
     return profileId;
   },
 });
@@ -181,6 +189,7 @@ export const latest = query({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
     await requireOwnedAccount(ctx, accountId);
+
     return ctx.db
       .query("brandVisualProfiles")
       .withIndex("by_account_updated", (q) => q.eq("accountId", accountId))

@@ -38,9 +38,11 @@ describe("plan change billing contract", () => {
   });
   it("pins the API version and uses the documented REST field names", async () => {
     vi.stubEnv("AUTUMN_SECRET_KEY", "test-key");
+
     const fetchMock = vi
       .fn()
       .mockResolvedValue(new Response(JSON.stringify({ total: 0, currency: "brl" })));
+
     vi.stubGlobal("fetch", fetchMock);
     const params = planChangeParams("ana", "conectado", "immediate");
     await billingRequest("preview_attach", params);

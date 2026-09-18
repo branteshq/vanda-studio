@@ -37,7 +37,9 @@ const requireCaetanoThread = async (
   threadId: string,
 ) => {
   const metadata = await getThreadMetadata(ctx, components.agent, { threadId }).catch(() => null);
+
   if (!metadata || metadata.userId !== threadKey(userId)) throw publicError("NOT_FOUND");
+
   return metadata;
 };
 
@@ -46,20 +48,25 @@ export const state = query({
   handler: async (ctx) => {
     const user = await requireUser(ctx);
     let threadId = user.caetanoThreadId ?? null;
+
     if (threadId) {
       const metadata = await getThreadMetadata(ctx, components.agent, { threadId }).catch(
         () => null,
       );
+
       if (!metadata || metadata.userId !== threadKey(user._id)) threadId = null;
     }
+
     const activity = await ctx.db
       .query("caetanoThreadActivity")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .collect();
+
     const queued = await ctx.db
       .query("caetanoInbox")
       .withIndex("by_user_status", (q) => q.eq("userId", user._id).eq("status", "queued"))
       .first();
+
     return {
       threadId,
       processing:
@@ -90,24 +97,29 @@ const submitMessage = async (
   if (!(await budgetOf(ctx, user)).ok) throw publicError("USAGE_LIMIT");
   const text = input.prompt.trim();
   const images = input.images ?? [];
+
   if (!text && images.length === 0) throw publicError("INVALID_INPUT");
 
   const queued = await ctx.db
     .query("caetanoInbox")
     .withIndex("by_user_status", (q) => q.eq("userId", user._id).eq("status", "queued"))
     .take(20);
+
   if (queued.length >= 20) throw new Error("Muitas mensagens na fila. Aguarde uma resposta.");
 
   let target = input.threadId ?? user.caetanoThreadId;
+
   if (target) {
     const metadata = await getThreadMetadata(ctx, components.agent, { threadId: target }).catch(
       () => null,
     );
+
     if (!metadata || metadata.userId !== threadKey(user._id)) {
       if (input.threadId) throw publicError("NOT_FOUND");
       target = undefined;
     }
   }
+
   if (!target) {
     target = await createThread(ctx, components.agent, { userId: threadKey(user._id) });
     await ctx.db.patch(user._id, { caetanoThreadId: target, updatedAt: Date.now() });
@@ -130,22 +142,29 @@ const submitMessage = async (
             ],
     },
   });
+
   if (images.length > 0) {
     const attachedAt = Date.now();
     await Promise.all(
       images.map((image) => ctx.db.patch(image.imageId, { lastAttachedAt: attachedAt })),
     );
   }
-  await ctx.db.insert("caetanoInbox", {
+
+  const inbox = {
     userId: user._id,
     threadId: target,
     promptMessageId: messageId,
     channel: input.connectionId ? "whatsapp" : "web",
     status: "queued",
-    ...(input.connectionId ? { connectionId: input.connectionId } : {}),
-    ...(input.externalMessageId ? { externalMessageId: input.externalMessageId } : {}),
-  });
+  } satisfies Omit<Doc<"caetanoInbox">, "_id" | "_creationTime">;
+
+  if (input.connectionId) Object.assign(inbox, { connectionId: input.connectionId });
+
+  if (input.externalMessageId) Object.assign(inbox, { externalMessageId: input.externalMessageId });
+
+  await ctx.db.insert("caetanoInbox", inbox);
   await ctx.scheduler.runAfter(0, internal.caetano.startNext, { userId: user._id });
+
   return { threadId: target, messageId };
 };
 
@@ -161,11 +180,13 @@ export const sendMessage = mutation({
   ): Promise<{ threadId: string; messageId: string }> => {
     const user = await requireUser(ctx);
     let images: Awaited<ReturnType<typeof resolveMessageImages>> = [];
+
     if (imageIds?.length) {
       if (!user.activeAccountId) throw new Error("nenhuma conta ativa");
       await requireOwnedAccount(ctx, user.activeAccountId);
       images = await resolveMessageImages(ctx, user.activeAccountId, imageIds);
     }
+
     return submitMessage(ctx, user, { ...input, images });
   },
 });
@@ -181,7 +202,9 @@ export const submitMessageForUser = internalMutation({
   },
   handler: async (ctx, { userId, ...input }): Promise<{ threadId: string; messageId: string }> => {
     const user = await ctx.db.get(userId);
+
     if (!user) throw new Error("user not found");
+
     return submitMessage(ctx, user, input);
   },
 });
@@ -193,12 +216,16 @@ export const startNext = internalMutation({
       .query("caetanoThreadActivity")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .first();
+
     if (active) return;
+
     const next = await ctx.db
       .query("caetanoInbox")
       .withIndex("by_user_status", (q) => q.eq("userId", userId).eq("status", "queued"))
       .first();
+
     if (!next) return;
+
     const activityId = await ctx.db.insert("caetanoThreadActivity", {
       userId,
       threadId: next.threadId,
@@ -206,6 +233,7 @@ export const startNext = internalMutation({
       inboxId: next._id,
       startedAt: Date.now(),
     });
+
     await ctx.db.patch(next._id, { status: "running" });
     await ctx.scheduler.runAfter(0, internal.caetano.generateResponse, {
       userId,
@@ -221,6 +249,7 @@ export const expireTurn = internalMutation({
   args: { activityId: v.id("caetanoThreadActivity") },
   handler: async (ctx, { activityId }): Promise<boolean> => {
     const activity = await ctx.db.get(activityId);
+
     if (!activity) return false;
     const message = errorMessage({ kind: "vanda-error", code: "TIMEOUT" });
     await saveMessage(ctx, components.agent, {
@@ -232,6 +261,7 @@ export const expireTurn = internalMutation({
     await deliverForActivity(ctx, activityId, message);
     // Preserve the existing expiry behavior: stop delegated work and queued turns too.
     await stopForUser(ctx, activity.userId, activity.threadId);
+
     return true;
   },
 });
@@ -240,8 +270,10 @@ export const turnIsActive = internalQuery({
   args: { activityId: v.id("caetanoThreadActivity") },
   handler: async (ctx, { activityId }) => {
     const activity = await ctx.db.get(activityId);
+
     if (!activity) return null;
     const inbox = activity.inboxId ? await ctx.db.get(activity.inboxId) : null;
+
     return { channel: inbox?.channel ?? "web" };
   },
 });
@@ -253,16 +285,20 @@ const deliverForActivity = async (
 ) => {
   const activity = await ctx.db.get(activityId);
   const inbox = activity?.inboxId ? await ctx.db.get(activity.inboxId) : null;
+
   if (inbox?.connectionId && inbox.status === "running" && text.trim()) {
     const manifest = await ctx.runQuery(internal.threadResources.forPrompt, {
       threadId: inbox.threadId,
       anchorMessageId: inbox.promptMessageId,
     });
+
     // Explicit channel URL prevents a sandbox response linking to production data.
     const baseUrl = (process.env.KAPSO_APP_URL ?? "").replace(/\/+$/, "");
+
     const links = manifest.presented
       .filter((resource) => resource.kind === "link" && /^https?:\/\//.test(resource.url))
       .map((resource) => (resource.kind === "link" ? `${resource.title}: ${resource.url}` : ""));
+
     if (manifest.presented.some((resource) => resource.kind !== "link") && baseUrl)
       links.push(`Ver resultados no Vanda Studio: ${baseUrl}/caetano`);
     await ctx.runMutation(internal.whatsappData.enqueueReply, {
@@ -287,12 +323,16 @@ export const generateResponse = internalAction({
   },
   handler: async (ctx, { userId, threadId, promptMessageId, activityId }): Promise<string> => {
     let streamError: unknown;
+
     try {
       const turn = await ctx.runQuery(internal.caetano.turnIsActive, { activityId });
+
       if (!turn) return "";
+
       if (!(await ctx.runQuery(internal.usage.budget, { userId })).ok)
         throw publicError("USAGE_LIMIT");
       const preferences = await ctx.runQuery(internal.caetanoData.modelPreferences, { userId });
+
       const result = await caetano.streamText(
         { ...ctx, ownerUserId: userId, caetanoThreadId: threadId },
         { threadId },
@@ -311,20 +351,25 @@ export const generateResponse = internalAction({
         },
         { saveStreamDeltas: true },
       );
+
       await result.consumeStream();
+
       if (streamError !== undefined) throw streamError;
       const text = await result.text;
       await ctx.runMutation(internal.caetano.deliverTurn, { activityId, text });
+
       return text;
     } catch (error) {
       console.error("Caetano generation failed", { threadId, error: streamError ?? error });
       const failure = safeFailure(streamError ?? error);
+
       const recorded = await ctx.runMutation(internal.caetano.recordGenerationFailure, {
         userId,
         threadId,
         activityId,
         code: failure.code,
       });
+
       return recorded ? failure.message : "";
     } finally {
       await ctx.runMutation(internal.caetano.finishActivity, { activityId });
@@ -341,8 +386,10 @@ export const recordGenerationFailure = internalMutation({
   },
   handler: async (ctx, { userId, threadId, activityId, code }): Promise<boolean> => {
     const activity = await ctx.db.get(activityId);
+
     if (!activity || activity.userId !== userId || activity.threadId !== threadId) return false;
     const metadata = await getThreadMetadata(ctx, components.agent, { threadId }).catch(() => null);
+
     if (!metadata || metadata.userId !== threadKey(userId)) return false;
     const message = errorMessage({ kind: "vanda-error", code: code ?? "UNEXPECTED" });
     await saveMessage(ctx, components.agent, {
@@ -353,6 +400,7 @@ export const recordGenerationFailure = internalMutation({
     });
     await deliverForActivity(ctx, activityId, message);
     await ctx.runMutation(internal.caetano.finishActivity, { activityId });
+
     return true;
   },
 });
@@ -361,7 +409,9 @@ export const finishActivity = internalMutation({
   args: { activityId: v.id("caetanoThreadActivity") },
   handler: async (ctx, { activityId }): Promise<void> => {
     const activity = await ctx.db.get(activityId);
+
     if (!activity) return;
+
     if (activity.inboxId) await ctx.db.patch(activity.inboxId, { status: "done" });
     await ctx.db.delete(activityId);
     await ctx.scheduler.runAfter(0, internal.caetano.startNext, { userId: activity.userId });
@@ -376,6 +426,7 @@ const abortThread = async (ctx: MutationCtx, threadId: string, reason: string): 
       .map((stream) => abortStream(ctx, components.agent, { streamId: stream.streamId, reason })),
   );
   const latestOrder = streams.reduce((max, stream) => Math.max(max, stream.order), -1);
+
   if (latestOrder >= 0) {
     await abortStream(ctx, components.agent, { threadId, order: latestOrder, reason });
   }
@@ -383,28 +434,36 @@ const abortThread = async (ctx: MutationCtx, threadId: string, reason: string): 
 
 const stopForUser = async (ctx: MutationCtx, userId: Id<"users">, threadId: string) => {
   await requireCaetanoThread(ctx, userId, threadId);
+
   const activity = await ctx.db
     .query("caetanoThreadActivity")
     .withIndex("by_user", (q) => q.eq("userId", userId))
     .collect();
+
   const relevant = activity.filter((row) => row.threadId === threadId);
   await abortThread(ctx, threadId, "interrompido pelo dono");
+
   for (const row of relevant) {
     if (row.activeVandaThreadId) {
       await abortThread(ctx, row.activeVandaThreadId, "interrompido pelo dono");
+
       const vandaActivity = await ctx.db
         .query("chatThreadActivity")
         .withIndex("by_thread", (q) => q.eq("threadId", row.activeVandaThreadId!))
         .collect();
+
       await Promise.all(vandaActivity.map((item) => ctx.db.delete(item._id)));
     }
+
     if (row.inboxId) await ctx.db.patch(row.inboxId, { status: "stopped" });
     await ctx.db.delete(row._id);
   }
+
   const queued = await ctx.db
     .query("caetanoInbox")
     .withIndex("by_user_status", (q) => q.eq("userId", userId).eq("status", "queued"))
     .collect();
+
   for (const row of queued) await ctx.db.patch(row._id, { status: "stopped" });
 };
 
@@ -417,6 +476,7 @@ export const stopForOwner = internalMutation({
   args: { userId: v.id("users") },
   handler: async (ctx, { userId }) => {
     const user = await ctx.db.get(userId);
+
     if (user?.caetanoThreadId) await stopForUser(ctx, userId, user.caetanoThreadId);
   },
 });
@@ -432,6 +492,7 @@ export const listMessages = query({
     await requireCaetanoThread(ctx, user._id, threadId);
     const paginated = await listUIMessages(ctx, components.agent, { threadId, paginationOpts });
     const streams = await syncStreams(ctx, components.agent, { threadId, streamArgs });
+
     return { ...paginated, streams };
   },
 });

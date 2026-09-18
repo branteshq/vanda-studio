@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import type { Doc } from "./_generated/dataModel";
 import { mutation } from "./_generated/server";
 import { requireOwnedAccount, requireUser } from "./authz";
 
@@ -7,6 +8,7 @@ export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
     await requireUser(ctx);
+
     return ctx.storage.generateUploadUrl();
   },
 });
@@ -22,29 +24,38 @@ export const addImage = mutation({
   },
   handler: async (ctx, { accountId, storageId, mimeType, width, height }) => {
     await requireOwnedAccount(ctx, accountId);
+
     if (!mimeType.startsWith("image/")) throw new Error("only image attachments are supported");
     const url = await ctx.storage.getUrl(storageId);
+
     if (!url) throw new Error("upload not found");
 
     const existing = await ctx.db
       .query("images")
       .withIndex("by_storage", (q) => q.eq("storageId", storageId))
       .first();
+
     if (existing) {
       if (existing.accountId !== accountId) throw new Error("image not found");
+
       return { imageId: existing._id, url };
     }
 
-    const imageId = await ctx.db.insert("images", {
+    const image = {
       accountId,
       origin: "uploaded",
       purpose: "post",
       storageId,
       mimeType,
-      ...(width !== undefined ? { width } : {}),
-      ...(height !== undefined ? { height } : {}),
       createdAt: Date.now(),
-    });
+    } satisfies Omit<Doc<"images">, "_id" | "_creationTime">;
+
+    if (width !== undefined) Object.assign(image, { width });
+
+    if (height !== undefined) Object.assign(image, { height });
+
+    const imageId = await ctx.db.insert("images", image);
+
     return { imageId, url };
   },
 });
@@ -55,6 +66,7 @@ export const removeImage = mutation({
   handler: async (ctx, { accountId, imageId }) => {
     await requireOwnedAccount(ctx, accountId);
     const image = await ctx.db.get(imageId);
+
     if (
       !image ||
       image.accountId !== accountId ||
@@ -64,6 +76,7 @@ export const removeImage = mutation({
     ) {
       throw new Error("image not found");
     }
+
     if (image.storageId) await ctx.storage.delete(image.storageId);
     await ctx.db.delete(imageId);
   },

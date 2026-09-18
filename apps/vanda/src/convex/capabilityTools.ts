@@ -12,6 +12,7 @@ export const recordCapabilityResult = async <Data>(
   result: CapabilityResult<Data>,
 ): Promise<CapabilityResult<Data>> => {
   const anchorMessageId = ctx.promptMessageId ?? ctx.messageId;
+
   if (
     ctx.threadId &&
     anchorMessageId &&
@@ -25,5 +26,6 @@ export const recordCapabilityResult = async <Data>(
       presented: [...result.presented],
     });
   }
+
   return result;
 };

@@ -8,12 +8,16 @@ import { publicError } from "../errors";
  */
 export async function requireUser(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
+
   if (!identity) throw publicError("UNAUTHENTICATED");
+
   const user = await ctx.db
     .query("users")
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
     .unique();
+
   if (!user) throw publicError("NOT_FOUND");
+
   return user;
 }
 
@@ -24,14 +28,19 @@ export async function requireUser(ctx: QueryCtx | MutationCtx) {
  */
 export async function requireOwnedAccount(ctx: QueryCtx | MutationCtx, accountId: Id<"accounts">) {
   const identity = await ctx.auth.getUserIdentity();
+
   if (!identity) throw publicError("UNAUTHENTICATED");
+
   const user = await ctx.db
     .query("users")
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
     .unique();
+
   const account = await ctx.db.get(accountId);
+
   if (!user || account === null || account.ownerUserId !== user._id) {
     throw publicError("NOT_FOUND");
   }
+
   return account;
 }

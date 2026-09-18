@@ -17,7 +17,9 @@ import {
 } from "../publisher/uploadpost";
 
 const MEDIA_LIMIT = 25;
+
 const COMMENT_POST_LIMIT = 10;
+
 const COMMENTS_PER_POST = 10;
 
 export class InstagramReadFailed extends Data.TaggedError("InstagramReadFailed")<{
@@ -25,7 +27,7 @@ export class InstagramReadFailed extends Data.TaggedError("InstagramReadFailed")
   readonly message: string;
 }> {}
 
-export interface InstagramReaderShape {
+export interface InstagramReaderService {
   readonly getProfile: (
     publisherUsername: string,
   ) => Effect.Effect<PublisherProfile | null, InstagramReadFailed>;
@@ -43,7 +45,7 @@ export interface InstagramReaderShape {
   ) => Effect.Effect<InstagramAnalytics, InstagramReadFailed>;
 }
 
-export class InstagramReader extends Context.Service<InstagramReader, InstagramReaderShape>()(
+export class InstagramReader extends Context.Service<InstagramReader, InstagramReaderService>()(
   "@vanda/publisher/InstagramReader",
 ) {}
 
@@ -86,6 +88,7 @@ export const fetchBrandCorpus = (
   Effect.gen(function* () {
     const reader = yield* InstagramReader;
     const mediaPage = yield* reader.getMedia(publisherUsername, MEDIA_LIMIT);
+
     const [profile, analytics] = yield* Effect.all(
       [
         reader.getProfile(publisherUsername).pipe(Effect.orElseSucceed(() => null)),
@@ -103,8 +106,10 @@ export const fetchBrandCorpus = (
         ),
       { concurrency: 4 },
     );
+
     const comments = commentGroups.flat();
     const profileInfo = profile === null ? null : instagramProfileInfoOf(profile);
+
     const captions = mediaPage.media.flatMap((media) =>
       media.caption !== null && media.caption.trim() !== "" ? [media.caption] : [],
     );
@@ -114,16 +119,10 @@ export const fetchBrandCorpus = (
         profile: {
           name: profileInfo?.displayName ?? connectedHandle,
           username: profileInfo?.username ?? connectedHandle,
-          ...(!mediaPage.pagination.hasMore ? { mediaCount: mediaPage.media.length } : {}),
-          ...(analytics?.followers !== null && analytics?.followers !== undefined
-            ? { followers: analytics.followers }
-            : {}),
-          ...(analytics?.reach !== null && analytics?.reach !== undefined
-            ? { reach: analytics.reach }
-            : {}),
-          ...(analytics?.views !== null && analytics?.views !== undefined
-            ? { views: analytics.views }
-            : {}),
+          mediaCount: mediaPage.pagination.hasMore ? undefined : mediaPage.media.length,
+          followers: analytics?.followers ?? undefined,
+          reach: analytics?.reach ?? undefined,
+          views: analytics?.views ?? undefined,
         },
         captions,
         comments: comments.map((comment) => comment.text),

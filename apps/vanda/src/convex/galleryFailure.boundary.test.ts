@@ -8,18 +8,22 @@ const modules = import.meta.glob("./**/*.ts");
 
 const setup = async () => {
   const t = convexTest(schema, modules);
+
   const ids = await t.run(async (ctx) => {
     const now = Date.now();
+
     const userId = await ctx.db.insert("users", {
       clerkId: "gallery-owner",
       name: "Gallery owner",
       email: "gallery@example.com",
     });
+
     const accountId = await ctx.db.insert("accounts", {
       ownerUserId: userId,
       createdAt: now,
       updatedAt: now,
     });
+
     const insertFailure = (fields: {
       generationError?: string;
       generationErrorCode?: "UNAVAILABLE";
@@ -31,29 +35,36 @@ const setup = async () => {
         ...fields,
         createdAt: now,
       });
+
     const codedId = await insertFailure({ generationErrorCode: "UNAVAILABLE" });
     const knownLegacyId = await insertFailure({ generationError: "RECONNECT_REQUIRED" });
+
     const rawLegacyId = await insertFailure({
       generationError: "provider leaked diagnostic: key=secret",
     });
+
     const scheduledId = await ctx.db.insert("images", {
       accountId,
       origin: "generated",
       status: "generating",
       createdAt: now,
     });
+
     return { accountId, codedId, knownLegacyId, rawLegacyId, scheduledId };
   });
+
   return { t, ...ids };
 };
 
 describe("gallery generation failure transport", () => {
   it("returns only catalog codes and maps raw legacy diagnostics to UNEXPECTED", async () => {
     const { t, accountId, codedId, knownLegacyId, rawLegacyId } = await setup();
+
     const result = await t.withIdentity({ subject: "gallery-owner" }).query(api.gallery.list, {
       accountId,
       paginationOpts: { cursor: null, numItems: 10 },
     });
+
     const byId = new Map(result.page.map((item) => [item.id, item]));
 
     expect(byId.get(codedId)?.generationErrorCode).toBe("UNAVAILABLE");

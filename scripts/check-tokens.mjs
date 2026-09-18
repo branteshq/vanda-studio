@@ -35,20 +35,26 @@ const offenders = [];
 
 function walk(dir) {
   let entries;
+
   try {
     entries = readdirSync(dir);
   } catch {
     return;
   }
+
   for (const name of entries) {
     const full = join(dir, name);
+
     if (statSync(full).isDirectory()) {
       walk(full);
     } else if (name.endsWith(".tsx")) {
       const lines = readFileSync(full, "utf8").split("\n");
+
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+
         if (line.includes("token-guard-ignore")) continue;
+
         for (const { re, why } of RULES) {
           if (re.test(line)) {
             offenders.push({
@@ -71,11 +77,14 @@ if (offenders.length > 0) {
   console.error(
     "\n✗ Design-token guard — raw color in markup. Use tokens (docs/design-tokens.md).\n",
   );
+
   for (const o of offenders) {
     console.error(`  ${o.file}:${o.line}  ${o.why}`);
     console.error(`    ${o.text.slice(0, 130)}`);
   }
+
   console.error(`\n${offenders.length} violation(s).\n`);
   process.exit(1);
 }
+
 console.log("✓ Design-token guard — markup composes tokens, no raw color.");

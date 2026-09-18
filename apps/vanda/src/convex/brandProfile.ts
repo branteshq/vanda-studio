@@ -1,6 +1,7 @@
 import { createThread, saveMessage } from "@convex-dev/agent";
 import { v } from "convex/values";
 import { components } from "./_generated/api";
+import type { Doc } from "./_generated/dataModel";
 import { internalQuery, mutation, query } from "./_generated/server";
 import * as Schema from "effect/Schema";
 import { requireOwnedAccount } from "./authz";
@@ -21,17 +22,22 @@ export const resolveOwnedHandle = internalQuery({
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
       .unique();
+
     const account = await ctx.db.get(accountId);
+
     if (!user || account === null || account.ownerUserId !== user._id) {
       throw new Error("account not found");
     }
+
     if (account.handle === undefined) throw new Error("account has no Instagram connection");
+
     return { handle: account.handle };
   },
 });
 
 /** Shapes of the analysis cards `approveBrandProfile` flattens into canon rows. */
 type CanonCard = { readonly text: string; readonly evidence: string; readonly confidence: number };
+
 type CanonGroup = {
   readonly items: ReadonlyArray<string>;
   readonly evidence: string;
@@ -69,6 +75,7 @@ export const approveBrandProfile = mutation({
   },
   handler: async (ctx, args) => {
     const account = await requireOwnedAccount(ctx, args.accountId);
+
     if (account.onboardedAt !== undefined) throw new Error("account already onboarded");
     const { accountId, ...rest } = args;
     // The public mutation's v.number() args don't enforce UnitInterval; decode against
@@ -89,7 +96,9 @@ export const approveBrandProfile = mutation({
       .query("brandCanon")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .collect();
+
     for (const row of existingCanon) await ctx.db.delete(row._id);
+
     for (const item of canon) {
       await ctx.db.insert("brandCanon", {
         accountId,
@@ -104,6 +113,7 @@ export const approveBrandProfile = mutation({
       onboardedAt: now,
       updatedAt: now,
     });
+
     if (account.ownerUserId !== undefined) {
       await ctx.db.patch(account.ownerUserId, { activeAccountId: accountId, updatedAt: now });
     }
@@ -116,11 +126,13 @@ export const approveBrandProfile = mutation({
       userId: String(accountId),
       paginationOpts: { cursor: null, numItems: 1 },
     });
+
     if (existingThreads.page.length === 0) {
       const threadId = await createThread(ctx, components.agent, {
         userId: String(accountId),
         title: "Boas-vindas",
       });
+
       const voice = analysis.voice.items.slice(0, 4).join(", ");
       const themes = analysis.themes.items.slice(0, 4).join(", ");
       await saveMessage(ctx, components.agent, {
@@ -149,21 +161,26 @@ export const completeWithoutAnalysis = mutation({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
     const account = await requireOwnedAccount(ctx, accountId);
+
     if (account.onboardedAt !== undefined) throw new Error("account already onboarded");
     const now = Date.now();
     await ctx.db.patch(accountId, { onboardedAt: now, updatedAt: now });
+
     if (account.ownerUserId !== undefined) {
       await ctx.db.patch(account.ownerUserId, { activeAccountId: accountId, updatedAt: now });
     }
+
     const existingThreads = await ctx.runQuery(components.agent.threads.listThreadsByUserId, {
       userId: String(accountId),
       paginationOpts: { cursor: null, numItems: 1 },
     });
+
     if (existingThreads.page.length === 0) {
       const threadId = await createThread(ctx, components.agent, {
         userId: String(accountId),
         title: "Boas-vindas",
       });
+
       await saveMessage(ctx, components.agent, {
         threadId,
         agentName: "vanda",
@@ -183,6 +200,7 @@ export const getBrandCanon = query({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
     await requireOwnedAccount(ctx, accountId);
+
     return ctx.db
       .query("brandCanon")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
@@ -194,10 +212,12 @@ export const getBrandReadiness = query({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
     await requireOwnedAccount(ctx, accountId);
+
     const canon = await ctx.db
       .query("brandCanon")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .collect();
+
     return assessBrandReadiness({
       confirmedKinds: canon.filter((item) => item.confirmedByOwner).map((item) => item.kind),
     });
@@ -215,11 +235,14 @@ export const saveBrandFact = mutation({
   handler: async (ctx, { accountId, factId, kind, text }) => {
     await requireOwnedAccount(ctx, accountId);
     const normalized = text.trim();
+
     if (!normalized) throw new Error("brand fact cannot be empty");
     const now = Date.now();
     let id = factId;
+
     if (factId) {
       const existing = await ctx.db.get(factId);
+
       if (!existing || existing.accountId !== accountId) throw new Error("brand fact not found");
       await ctx.db.patch(factId, {
         kind,
@@ -239,6 +262,7 @@ export const saveBrandFact = mutation({
         createdAt: now,
       });
     }
+
     return id!;
   },
 });
@@ -247,6 +271,7 @@ export const removeBrandFact = mutation({
   args: { factId: v.id("brandCanon") },
   handler: async (ctx, { factId }) => {
     const fact = await ctx.db.get(factId);
+
     if (!fact) throw new Error("brand fact not found");
     await requireOwnedAccount(ctx, fact.accountId);
     await ctx.db.delete(factId);
@@ -263,7 +288,9 @@ export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
+
     if (!identity) throw new Error("Not authenticated");
+
     return ctx.storage.generateUploadUrl();
   },
 });
@@ -286,23 +313,34 @@ export const addReferencePhoto = mutation({
   },
   handler: async (ctx, { accountId, storageId, width, height, kind }) => {
     await requireOwnedAccount(ctx, accountId);
+
     // getUrl is null for an unknown/expired upload — reject before linking a dead id.
     if ((await ctx.storage.getUrl(storageId)) === null) throw new Error("upload not found");
+
     const existing = await ctx.db
       .query("images")
       .withIndex("by_storage", (q) => q.eq("storageId", storageId))
       .first();
+
     if (existing !== null) return existing._id;
-    return ctx.db.insert("images", {
+
+    const image = {
       accountId,
       origin: "uploaded",
       purpose: "reference",
       storageId,
-      ...(kind !== undefined ? { referenceKind: kind } : {}),
-      ...(width !== undefined ? { width } : {}),
-      ...(height !== undefined ? { height } : {}),
       createdAt: Date.now(),
-    });
+    } satisfies Omit<Doc<"images">, "_id" | "_creationTime">;
+
+    const optional: Pick<Partial<Doc<"images">>, "referenceKind" | "width" | "height"> = {};
+
+    if (kind !== undefined) optional.referenceKind = kind;
+
+    if (width !== undefined) optional.width = width;
+
+    if (height !== undefined) optional.height = height;
+
+    return ctx.db.insert("images", { ...image, ...optional });
   },
 });
 
@@ -318,7 +356,9 @@ export const listAuthorizedReferences = internalQuery({
       .query("images")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .collect();
+
     const references = images.filter((image) => image.purpose === "reference");
+
     return (
       await Promise.all(
         references.map(async (image) => ({
@@ -340,11 +380,14 @@ export const listReferencePhotos = query({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
     await requireOwnedAccount(ctx, accountId);
+
     const images = await ctx.db
       .query("images")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .collect();
+
     const references = images.filter((image) => image.purpose === "reference");
+
     return Promise.all(
       references.map(async (image) => ({
         id: image._id,
@@ -360,16 +403,20 @@ export const removeReferencePhoto = mutation({
   args: { imageId: v.id("images") },
   handler: async (ctx, { imageId }) => {
     const image = await ctx.db.get(imageId);
+
     if (image === null || image.purpose !== "reference") {
       throw new Error("reference photo not found");
     }
+
     await requireOwnedAccount(ctx, image.accountId);
     await ctx.db.delete(imageId);
+
     if (image.storageId !== undefined) {
       const stillLinked = await ctx.db
         .query("images")
         .withIndex("by_storage", (q) => q.eq("storageId", image.storageId))
         .first();
+
       if (stillLinked === null) await ctx.storage.delete(image.storageId);
     }
   },

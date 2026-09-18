@@ -56,8 +56,10 @@ const miss = async (
     const ancestor = segments.slice(0, depth);
     const mount = MOUNTS.find((candidate) => candidate.root === ancestor[0]);
     const entries = await mount?.list(ctx, accountId, ancestor.slice(1));
+
     if (entries) return { ok: false, error, nearest: `/${ancestor.join("/")}`, entries };
   }
+
   return { ok: false, error, nearest: "/", entries: rootListing() };
 };
 
@@ -67,12 +69,15 @@ export const listPath = async (
   path: string,
 ): Promise<ListResult> => {
   const segments = parsePath(path);
+
   if (segments.length === 0) return { ok: true, path: "/", entries: rootListing() };
   const mount = MOUNTS.find((candidate) => candidate.root === segments[0]);
   const entries = mount ? await mount.list(ctx, accountId, segments.slice(1)) : null;
+
   if (!entries) {
     return miss(ctx, accountId, segments, `diretório não encontrado: /${segments.join("/")}`);
   }
+
   return { ok: true, path: `/${segments.join("/")}`, entries };
 };
 
@@ -84,9 +89,11 @@ export const readPath = async (
   const segments = parsePath(path);
   const mount = MOUNTS.find((candidate) => candidate.root === segments[0]);
   const file = mount ? await mount.read(ctx, accountId, segments.slice(1)) : null;
+
   if (!file) {
     // Reading a directory is a common model reflex — answer with its listing.
     const listed = mount ? await mount.list(ctx, accountId, segments.slice(1)) : null;
+
     if (listed || segments.length === 0) {
       return {
         ok: false,
@@ -95,8 +102,10 @@ export const readPath = async (
         entries: listed ?? rootListing(),
       };
     }
+
     return miss(ctx, accountId, segments, `arquivo não encontrado: /${segments.join("/")}`);
   }
+
   return { ok: true, path: `/${segments.join("/")}`, file };
 };
 
@@ -118,11 +127,14 @@ export const writePath = async (
 ): Promise<WorkspaceWriteResult> => {
   const segments = parsePath(path);
   const mount = MOUNTS.find((candidate) => candidate.root === segments[0]);
+
   if (!mount) {
     return { ok: false, error: `não há /${segments[0] ?? ""} no workspace — ${WRITABLE_HELP}` };
   }
+
   if (!mount.write) {
     return { ok: false, error: `/${mount.root} é somente leitura — ${mount.writeHint}` };
   }
+
   return mount.write(ctx, accountId, segments.slice(1), content);
 };

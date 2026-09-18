@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
 import { useMutation } from "convex/react";
 import { useQueries, useQuery } from "convex-helpers/react/cache";
 import type { FunctionReturnType } from "convex/server";
@@ -18,23 +18,46 @@ const ActiveAccountContext = createContext<ActiveAccountValue | null>(null);
 
 export function ActiveAccountProvider({ children }: { children: ReactNode }) {
   const accounts = useQuery(api.accounts.listMine);
+
   // Flip the `active` flag locally the moment the user clicks, so the switcher
   // and every `activeAccount` consumer re-render this frame instead of waiting
   // for the mutation round-trip + query re-push.
   const selectActive = useMutation(api.accounts.selectActive).withOptimisticUpdate(
     (store, { accountId }) => {
       const current = store.getQuery(api.accounts.listMine, {});
+
       if (!current) return;
       store.setQuery(
         api.accounts.listMine,
         {},
-        current.map((account) => ({ ...account, active: account.id === accountId })),
+        current.map((account) => ({
+          id: account.id,
+          name: account.name,
+          handle: account.handle,
+          connected: account.connected,
+          onboardedAt: account.onboardedAt,
+          active: account.id === accountId,
+          createdAt: account.createdAt,
+        })),
       );
     },
   );
+
   const activeAccount =
     accounts?.find((account) => account.active && account.onboardedAt !== null) ??
     accounts?.find((account) => account.onboardedAt !== null);
+
+  const selectAccount = useCallback(
+    (accountId: Id<"accounts">) => {
+      void selectActive({ accountId });
+    },
+    [selectActive],
+  );
+
+  const value = useMemo(
+    () => ({ accounts, activeAccount, selectAccount }),
+    [accounts, activeAccount, selectAccount],
+  );
 
   // Keep every ready account's thread list subscribed (owners have at most a
   // handful). Switching profiles then paints the new sidebar instantly from
@@ -54,23 +77,13 @@ export function ActiveAccountProvider({ children }: { children: ReactNode }) {
     ),
   );
 
-  return (
-    <ActiveAccountContext.Provider
-      value={{
-        accounts,
-        activeAccount,
-        selectAccount: (accountId) => {
-          void selectActive({ accountId });
-        },
-      }}
-    >
-      {children}
-    </ActiveAccountContext.Provider>
-  );
+  return <ActiveAccountContext.Provider value={value}>{children}</ActiveAccountContext.Provider>;
 }
 
 export function useActiveAccount() {
   const value = useContext(ActiveAccountContext);
+
   if (value === null) throw new Error("useActiveAccount must be used inside ActiveAccountProvider");
+
   return value;
 }

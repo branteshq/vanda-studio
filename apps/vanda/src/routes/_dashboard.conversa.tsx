@@ -11,6 +11,7 @@ import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
 import { Check, ChevronDown, X } from "lucide-react";
 import { ThinkingOrb, type OrbState } from "thinking-orbs";
+import { z } from "zod";
 import { Bubble, BubbleContent } from "@vanda-studio/ui/components/bubble";
 import { Markdown } from "@vanda-studio/ui/components/markdown";
 import { Marker, MarkerContent, MarkerIcon } from "@vanda-studio/ui/components/marker";
@@ -41,11 +42,10 @@ import type { ThreadResource } from "../convex/resourceRefs";
 
 export const Route = createFileRoute("/_dashboard/conversa")({
   component: ConversaPage,
-  validateSearch: (search: Record<string, unknown>): { t?: string } =>
-    typeof search.t === "string" && search.t ? { t: search.t } : {},
+  validateSearch: z.object({ t: z.string().min(1).optional() }),
 });
 
-const TOOL_LABEL: Record<string, string> = {
+const TOOL_LABEL = {
   get_brand_memory: "Consultando a memória da marca",
   list_opportunities: "Listando oportunidades",
   get_market_status: "Verificando a varredura de mercado",
@@ -67,7 +67,7 @@ const TOOL_LABEL: Record<string, string> = {
  * reading scans, writing composes, code solves, images take shape,
  * publishing connects.
  */
-const TOOL_ORB_STATE: Record<string, OrbState> = {
+const TOOL_ORB_STATE = {
   list: "searching",
   read: "searching",
   write: "composing",
@@ -76,9 +76,13 @@ const TOOL_ORB_STATE: Record<string, OrbState> = {
   run_code: "solving",
   create_post: "composing",
   schedule_post: "connecting",
-};
+} satisfies Record<string, OrbState>;
 
-const orbStateOf = (name: string): OrbState => TOOL_ORB_STATE[name] ?? "working";
+const orbStateOf = (name: string): OrbState =>
+  Object.entries(TOOL_ORB_STATE).find(([toolName]) => toolName === name)?.[1] ?? "working";
+
+const toolLabelOf = (name: string): string =>
+  Object.entries(TOOL_LABEL).find(([toolName]) => toolName === name)?.[1] ?? name;
 
 /** A 20px-preset orb scaled into the 16px marker-icon slot. */
 function MarkerOrb({ state }: { state: OrbState }) {
@@ -100,11 +104,11 @@ function ThinkingMarker() {
 /** Workspace tools carry the touched path — surface it in the trace row. */
 const toolPathOf = (part: ToolPartView): string | null => {
   const name = toolNameOf(part);
+
   if (name !== "read" && name !== "list" && name !== "write") return null;
-  const input = part.input;
-  if (!input || typeof input !== "object") return null;
-  const path = (input as { path?: unknown }).path;
-  return typeof path === "string" ? path : null;
+  const parsed = z.object({ path: z.string() }).safeParse(part.input);
+
+  return parsed.success ? parsed.data.path : null;
 };
 
 /** The loose view of a tool part — covers `tool-*` and `dynamic-tool` shapes. */
@@ -122,13 +126,12 @@ interface ToolPartView {
 const toolNameOf = (part: ToolPartView): string =>
   part.type === "dynamic-tool" ? (part.toolName ?? "tool") : part.type.slice("tool-".length);
 
-const toolDataOf = (part: ToolPartView): unknown => {
-  const output = part.output;
-  if (output && typeof output === "object" && "data" in output) {
-    return (output as { data: unknown }).data;
-  }
-  return output;
-};
+const toolDataSchema = z.union([
+  z.object({ data: z.json() }).transform(({ data }) => data),
+  z.json(),
+]);
+
+const toolDataOf = (part: ToolPartView) => toolDataSchema.safeParse(part.output);
 
 interface PaintedImageView {
   imageId: string;
@@ -141,58 +144,64 @@ interface PaintedImageView {
 const paintedImageOf = (part: ToolPartView): PaintedImageView | null => {
   if (toolNameOf(part) !== "paint" || part.state !== "output-available") return null;
   const output = toolDataOf(part);
-  if (!output || typeof output !== "object") return null;
-  const value = output as Record<string, unknown>;
-  return typeof value.imageId === "string" &&
-    typeof value.url === "string" &&
-    typeof value.width === "number" &&
-    typeof value.height === "number"
-    ? {
-        imageId: value.imageId,
-        url: value.url,
-        width: value.width,
-        height: value.height,
-      }
-    : null;
+
+  if (!output.success) return null;
+
+  const image = z
+    .object({ imageId: z.string(), url: z.string(), width: z.number(), height: z.number() })
+    .safeParse(output.data);
+
+  return image.success ? image.data : null;
 };
 
 /** Images produced by a completed run_code call (no frozen URL — gallery is live source). */
 const codeImagesOf = (part: ToolPartView): PaintedImageView[] => {
   if (toolNameOf(part) !== "run_code" || part.state !== "output-available") return [];
   const output = toolDataOf(part);
-  if (!output || typeof output !== "object") return [];
-  const images = (output as { images?: unknown }).images;
-  if (!Array.isArray(images)) return [];
-  return images.flatMap((image) => {
-    const value = image as Record<string, unknown>;
-    return typeof value.imageId === "string" &&
-      typeof value.width === "number" &&
-      typeof value.height === "number"
-      ? [{ imageId: value.imageId, width: value.width, height: value.height }]
-      : [];
-  });
+
+  if (!output.success) return [];
+
+  const parsed = z
+    .object({
+      images: z.array(z.object({ imageId: z.string(), width: z.number(), height: z.number() })),
+    })
+    .safeParse(output.data);
+
+  return parsed.success ? parsed.data.images : [];
 };
 
 /** The agent-facing fields of a run_code part, for the expandable code trace. */
 const codeRunViewOf = (part: ToolPartView) => {
-  const input = (part.input ?? {}) as { code?: unknown; description?: unknown };
-  const output = (toolDataOf(part) ?? {}) as {
-    ok?: unknown;
-    stdout?: unknown;
-    stderr?: unknown;
-  };
+  const input = z
+    .object({ code: z.string().optional(), description: z.string().optional() })
+    .catch({})
+    .parse(part.input);
+
+  const data = toolDataOf(part);
+
+  const output = z
+    .object({
+      ok: z.boolean().optional(),
+      stdout: z.string().optional(),
+      stderr: z.string().optional(),
+    })
+    .catch({})
+    .parse(data.success ? data.data : undefined);
+
   return {
-    code: typeof input.code === "string" ? input.code : "",
-    description: typeof input.description === "string" ? input.description : "",
-    ok: typeof output.ok === "boolean" ? output.ok : null,
-    stdout: typeof output.stdout === "string" ? output.stdout : "",
-    stderr: typeof output.stderr === "string" ? output.stderr : "",
+    code: input.code ?? "",
+    description: input.description ?? "",
+    ok: output.ok ?? null,
+    stdout: output.stdout ?? "",
+    stderr: output.stderr ?? "",
   };
 };
 
 function ConversaPage() {
   const { activeAccount } = useActiveAccount();
+
   if (!activeAccount) return null;
+
   return <ConversationShell key={activeAccount.id} accountId={activeAccount.id} />;
 }
 
@@ -225,6 +234,7 @@ function ConversationShell({ accountId }: { accountId: Id<"accounts"> }) {
   // LRU of mounted conversations, most recent first. Render-phase update keeps
   // the active thread visible on the very first frame of a switch.
   const [visited, setVisited] = useState<string[]>(threadId ? [threadId] : []);
+
   if (threadId !== null && visited[0] !== threadId) {
     setVisited(
       [threadId, ...visited.filter((id) => id !== threadId)].slice(0, MAX_WARM_CONVERSATIONS),
@@ -247,13 +257,17 @@ function ConversationShell({ accountId }: { accountId: Id<"accounts"> }) {
   threadsRef.current = threads;
   useEffect(() => {
     if (!t || threads === undefined) return;
+
     if (threads.some((thread) => thread.threadId === t)) return;
+
     const timer = setTimeout(() => {
       const latest = threadsRef.current;
+
       if (latest !== undefined && !latest.some((thread) => thread.threadId === t)) {
         void navigate({ search: {}, replace: true });
       }
     }, 600);
+
     return () => clearTimeout(timer);
   }, [t, threads, navigate]);
 
@@ -326,6 +340,7 @@ function NewConversation({ accountId }: { accountId: Id<"accounts"> }) {
   const sendMessage = useMutation(api.chat.sendMessage);
   const navigate = Route.useNavigate();
   const [draft, setDraft] = useState("");
+
   const [pending, setPending] = useState<{
     text: string;
     attachments: ReadyImageAttachment[];
@@ -333,17 +348,23 @@ function NewConversation({ accountId }: { accountId: Id<"accounts"> }) {
 
   const send = async (text: string, attachments: ReadyImageAttachment[]) => {
     const prompt = text.trim();
+
     if ((!prompt && attachments.length === 0) || pending !== null) return;
     setDraft("");
     setPending({ text: prompt, attachments });
+
     try {
-      const { threadId } = await sendMessage({
+      const request: Parameters<typeof sendMessage>[0] = {
         accountId,
         prompt,
-        ...(attachments.length > 0
-          ? { imageIds: attachments.map((attachment) => attachment.imageId) }
-          : {}),
-      });
+      };
+
+      if (attachments.length > 0) {
+        request.imageIds = attachments.map((attachment) => attachment.imageId);
+      }
+
+      const { threadId } = await sendMessage(request);
+
       firstSendHandoff = { threadId, text: prompt, attachments };
       await navigate({ search: { t: threadId }, replace: true });
     } catch (error) {
@@ -386,16 +407,19 @@ function NewConversation({ accountId }: { accountId: Id<"accounts"> }) {
 /** Hide the canned greeting stored by the pre-empty-state thread model. */
 function isDefaultWelcome(message: UIMessage): boolean {
   if (message.role !== "assistant") return false;
+
   const text = message.parts
     .filter((part) => part.type === "text")
-    .map((part) => (part as { text: string }).text)
+    .map((part) => part.text)
     .join("\n")
     .trim();
+
   return text.startsWith("Oi! Eu sou a Vanda, sua operadora de crescimento no Instagram.");
 }
 
 function NewConversationHero() {
   const { user } = useUser();
+
   const firstName =
     user?.firstName?.trim() ||
     user?.fullName?.trim().split(/\s+/)[0] ||
@@ -427,6 +451,7 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
       prompt: args.prompt,
     });
   });
+
   const [draft, setDraft] = useState("");
 
   const messages = useUIMessages(
@@ -434,6 +459,7 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
     { accountId, threadId },
     { initialNumItems: 60, stream: true },
   );
+
   const resourceManifests = useQuery(api.threadResources.listForVanda, {
     accountId,
     threadId,
@@ -441,17 +467,22 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
 
   const send = async (text: string, attachments: ReadyImageAttachment[]) => {
     const prompt = text.trim();
+
     if (!prompt && attachments.length === 0) return;
     setDraft("");
+
     try {
-      await sendMessage({
+      const request: Parameters<typeof sendMessage>[0] = {
         accountId,
         threadId,
         prompt,
-        ...(attachments.length > 0
-          ? { imageIds: attachments.map((attachment) => attachment.imageId) }
-          : {}),
-      });
+      };
+
+      if (attachments.length > 0) {
+        request.imageIds = attachments.map((attachment) => attachment.imageId);
+      }
+
+      await sendMessage(request);
     } catch (error) {
       setDraft(prompt);
       throw error;
@@ -462,14 +493,17 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
   // The activity row covers the whole turn (tool phases included), while the
   // message status only covers streamed text — the stop affordance needs both.
   const threads = useQuery(api.chat.listThreads, { accountId });
+
   const processing =
     threads?.some((thread) => thread.threadId === threadId && thread.processing) ?? false;
 
   const loading = messages.status === "LoadingFirstPage";
+
   // Seamless first-send: while the fresh thread's history loads, keep showing
   // the message the user just sent instead of flashing a skeleton.
   const handoff =
     firstSendHandoff !== null && firstSendHandoff.threadId === threadId ? firstSendHandoff : null;
+
   useEffect(() => {
     if (!loading && handoff !== null) firstSendHandoff = null;
   }, [loading, handoff]);
@@ -482,6 +516,7 @@ function Conversation({ accountId, threadId }: { accountId: Id<"accounts">; thre
   useEffect(() => {
     if (loading || entranceReady) return;
     const id = requestAnimationFrame(() => setEntranceReady(true));
+
     return () => cancelAnimationFrame(id);
   }, [loading, entranceReady]);
 
@@ -576,17 +611,20 @@ function ChatMessage({
     const text = visibleUserText(
       message.parts
         .filter((part) => part.type === "text")
-        .map((part) => (part as { text: string }).text)
+        .map((part) => part.text)
         .join("\n"),
     );
+
     const attachments = message.parts.flatMap((part) => {
       if (part.type !== "file") return [];
-      const file = part as { mediaType: string; url: string; filename?: string };
-      return file.mediaType.startsWith("image/")
-        ? [{ url: file.url, fileName: file.filename ?? "Imagem anexada" }]
+
+      return part.mediaType.startsWith("image/")
+        ? [{ url: part.url, fileName: part.filename ?? "Imagem anexada" }]
         : [];
     });
+
     if (!text && attachments.length === 0) return null;
+
     return (
       <Message align="end" className={cn(enter && "animate-message-in")}>
         <MessageContent>
@@ -612,17 +650,38 @@ function ChatMessage({
   const paintedImages: PaintedImageView[] = [];
   message.parts.forEach((part, index) => {
     if (part.type === "text") {
-      const text = (part as { text: string }).text;
+      const { text } = part;
+
       if (text.trim()) answers.push({ key: index, text });
+
       return;
     }
+
     if (part.type === "dynamic-tool" || part.type.startsWith("tool-")) {
-      const p = part as unknown as ToolPartView;
+      const p: ToolPartView = {
+        type: part.type,
+        state: "state" in part ? part.state : "output-available",
+      };
+
+      if ("toolName" in part) p.toolName = part.toolName;
+
+      if ("toolCallId" in part) p.toolCallId = part.toolCallId;
+
+      if ("input" in part) p.input = part.input;
+
+      if ("output" in part) p.output = part.output;
+
+      if ("errorText" in part) p.errorText = part.errorText;
+
+      if ("approval" in part) p.approval = part.approval;
+
       toolRows.push(p);
       const painted = paintedImageOf(p);
+
       if (painted && !paintedImages.some((image) => image.imageId === painted.imageId)) {
         paintedImages.push(painted);
       }
+
       for (const codeImage of codeImagesOf(p)) {
         if (!paintedImages.some((image) => image.imageId === codeImage.imageId)) {
           paintedImages.push(codeImage);
@@ -635,8 +694,10 @@ function ChatMessage({
   const anyToolRunning = toolRows.some(
     (p) => p.state === "input-streaming" || p.state === "input-available",
   );
+
   const nothingYet = streaming && answers.length === 0 && toolRows.length === 0;
   const legacyImageIds = new Set(paintedImages.map((image) => image.imageId));
+
   const manifestResources = resources.filter(
     (resource) => resource.kind !== "image" || !legacyImageIds.has(resource.imageId),
   );
@@ -680,6 +741,7 @@ function ChatMessage({
  *  while live, shows full text instantly for completed / historical messages. */
 function StreamingText({ text, streaming }: { text: string; streaming: boolean }) {
   const [visible] = useSmoothText(text, { charsPerSec: 900, startStreaming: streaming });
+
   return <Markdown>{visible}</Markdown>;
 }
 
@@ -691,9 +753,11 @@ function StreamingText({ text, streaming }: { text: string; streaming: boolean }
 function ToolTrace({ parts, running }: { parts: ToolPartView[]; running: boolean }) {
   const [override, setOverride] = useState<boolean | null>(null);
   const open = override ?? running;
+
   const label = running
     ? "Trabalhando…"
     : `Trabalhou · ${parts.length} ${parts.length === 1 ? "ação" : "ações"}`;
+
   return (
     <div className="w-full">
       <Marker variant="separator" asChild>
@@ -713,8 +777,11 @@ function ToolTrace({ parts, running }: { parts: ToolPartView[]; running: boolean
       </Marker>
       {open ? (
         <div className="mt-1.5 space-y-1 pl-1">
-          {parts.map((part, index) => (
-            <ToolRow key={index} part={part} />
+          {parts.map((part) => (
+            <ToolRow
+              key={part.toolCallId ?? `${part.type}-${part.state}-${toolPathOf(part) ?? ""}`}
+              part={part}
+            />
           ))}
         </div>
       ) : null}
@@ -724,10 +791,12 @@ function ToolTrace({ parts, running }: { parts: ToolPartView[]; running: boolean
 
 function ToolRow({ part }: { part: ToolPartView }) {
   const name = toolNameOf(part);
+
   if (name === "run_code") return <CodeRunRow part={part} />;
-  const label = TOOL_LABEL[name] ?? name;
+  const label = toolLabelOf(name);
   const running = part.state === "input-streaming" || part.state === "input-available";
   const failed = part.state === "output-error";
+
   return (
     <Marker role={running ? "status" : undefined}>
       <MarkerIcon>
@@ -762,6 +831,7 @@ function CodeRunRow({ part }: { part: ToolPartView }) {
   const view = codeRunViewOf(part);
   const errored = failed || view.ok === false;
   const label = view.description.trim() || TOOL_LABEL.run_code!;
+
   return (
     <div>
       <Marker role={running ? "status" : undefined}>

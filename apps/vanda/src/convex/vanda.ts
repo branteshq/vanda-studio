@@ -14,7 +14,7 @@ import {
   type ThreadResource,
 } from "./resourceRefs";
 import { formatSkillsForSystemPrompt } from "./skills/catalog";
-import { makeInstagramTools } from "./tools/instagram";
+import * as InstagramToolFactory from "./tools/instagram";
 
 /**
  * Vanda, the conversational operator. Threads are keyed per Instagram account
@@ -34,7 +34,96 @@ type VandaCtx = {
   activityId?: Id<"chatThreadActivity"> | undefined;
   caetanoThreadId?: string | undefined;
 };
+
 type VandaToolCtx = ToolCtx & VandaCtx;
+
+type CapabilityOutput = z.infer<typeof capabilityResultSchema>;
+
+type ReadArgs = { accountId: Id<"accounts">; path: string; offset?: number; limit?: number };
+
+type PresentDocument = { kind: "document"; path: string; title?: string };
+
+type ResultSummary = { shown: number; message?: string };
+
+type CreatePostArgs = {
+  accountId: Id<"accounts">;
+  imageIds: Id<"images">[];
+  caption: string;
+  originThreadId?: string;
+  caetanoThreadId?: string;
+};
+
+type SchedulePostArgs = {
+  accountId: Id<"accounts">;
+  postId: Id<"posts">;
+  scheduledFor?: number;
+  originThreadId?: string;
+  caetanoThreadId?: string;
+};
+
+type PaintArgs = {
+  accountId: Id<"accounts">;
+  prompt: string;
+  name: string;
+  aspectRatio: "1:1" | "4:5" | "9:16" | "16:9";
+  promptAuthor: "vanda";
+  threadId?: string;
+  activityId?: Id<"chatThreadActivity">;
+  resolution?: "1K" | "2K" | "4K";
+  referenceImageIds?: Id<"images">[];
+  editOfImageId?: Id<"images">;
+};
+
+type RunCodeArgs = {
+  accountId: Id<"accounts">;
+  code: string;
+  description: string;
+  threadId?: string;
+  activityId?: Id<"chatThreadActivity">;
+  inputPaths?: string[];
+};
+
+type SearchProfilesArgs = {
+  accountId: Id<"accounts">;
+  query: string;
+  limit?: number;
+};
+
+type ReadProfileArgs = {
+  accountId: Id<"accounts">;
+  scope: "public" | "connected";
+  handle?: string;
+};
+
+type ListPostsArgs = ReadProfileArgs & { limit?: number; cursor?: string };
+
+type ReadPostArgs = {
+  accountId: Id<"accounts">;
+  postUrl: string;
+  includeTranscript?: boolean;
+};
+
+type ListCommentsArgs = {
+  accountId: Id<"accounts">;
+  scope: "public" | "connected";
+  postId?: string;
+  postUrl?: string;
+  limit?: number;
+  cursor?: string;
+};
+
+type ReadMetricsArgs = { accountId: Id<"accounts">; postId?: string };
+
+const instagramToolResultSchema = z.object({
+  data: z.json(),
+  savedTo: z.string(),
+  cached: z.boolean(),
+  source: z.enum(["upload_post", "apify"]),
+  completeness: z.enum(["complete", "partial"]),
+  observedAt: z.number(),
+  costUsd: z.number().optional(),
+  nextCursor: z.string().optional(),
+});
 
 const INSTRUCTIONS = `Você é a Vanda, uma operadora de crescimento de Instagram para pequenos negócios brasileiros. Você conversa em português do Brasil, com tom direto, caloroso e profissional.
 
@@ -68,6 +157,7 @@ Regras de comportamento:
 - A conversa renderiza imagens, posts, documentos, links e operações retornados pelas ferramentas. Nunca diga que este chat só mostra texto. Recursos recém-criados aparecem automaticamente. Para mostrar novamente algo que já existe, use present.`;
 
 const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });
+
 const SKILLS_PROMPT = formatSkillsForSystemPrompt();
 
 /**
@@ -85,6 +175,7 @@ export const openrouterChatModel = (modelId: string) =>
  */
 export const systemPrompt = (): string => {
   const now = new Date();
+
   const stamp = new Intl.DateTimeFormat("pt-BR", {
     timeZone: "America/Sao_Paulo",
     weekday: "long",
@@ -94,24 +185,51 @@ export const systemPrompt = (): string => {
     hour: "2-digit",
     minute: "2-digit",
   }).format(now);
+
   return `${INSTRUCTIONS}\n\n${SKILLS_PROMPT}\n\nAgora: ${stamp} (fuso America/Sao_Paulo, UTC-03:00). Em agendamentos, escreva datas ISO 8601 com o offset -03:00.`;
 };
 
 // --- Tools ------------------------------------------------------------------
 
 type WorkspaceToolEntry = { name: string; kind: "dir" | "file"; summary?: string | undefined };
-type WorkspaceToolResult =
-  | { ok: true; path: string; entries?: WorkspaceToolEntry[]; file?: WorkspaceToolFile }
-  | { ok: false; error: string; nearest: string; entries: WorkspaceToolEntry[] };
-type WorkspaceToolFile =
-  | { kind: "text"; text: string }
-  | {
-      kind: "image";
-      imageId: Id<"images">;
-      header: string;
-      url: string;
-      mimeType: string;
-    };
+
+const workspaceEntrySchema = z.object({
+  name: z.string(),
+  kind: z.enum(["dir", "file"]),
+  summary: z.string().optional(),
+});
+
+const workspaceFileSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("text"), text: z.string() }),
+  z.object({
+    kind: z.literal("image"),
+    imageId: z.string(),
+    header: z.string(),
+    url: z.string().url(),
+    mimeType: z.string(),
+  }),
+]);
+
+const workspaceMissSchema = z.object({
+  ok: z.literal(false),
+  error: z.string(),
+  nearest: z.string(),
+  entries: z.array(workspaceEntrySchema),
+});
+
+const workspaceListResultSchema = z.discriminatedUnion("ok", [
+  z.object({
+    ok: z.literal(true),
+    path: z.string(),
+    entries: z.array(workspaceEntrySchema).optional(),
+  }),
+  workspaceMissSchema,
+]);
+
+const workspaceReadResultSchema = z.discriminatedUnion("ok", [
+  z.object({ ok: z.literal(true), path: z.string(), file: workspaceFileSchema }),
+  workspaceMissSchema,
+]);
 
 const imageResource = (accountId: Id<"accounts">, imageId: Id<"images">): ThreadResource => ({
   kind: "image",
@@ -129,12 +247,13 @@ const documentResource = (
   accountId: Id<"accounts">,
   path: string,
   title?: string,
-): ThreadResource => ({
-  kind: "document",
-  accountId,
-  path,
-  ...(title ? { title } : {}),
-});
+): ThreadResource => {
+  const resource: ThreadResource = { kind: "document", accountId, path };
+
+  if (title) resource.title = title;
+
+  return resource;
+};
 
 const renderEntries = (entries: WorkspaceToolEntry[]): string =>
   entries
@@ -154,13 +273,15 @@ const listFiles = createTool({
     path: z.string().describe('caminho do diretório, ex.: "/", "/images", "/posts"'),
   }),
   outputSchema: capabilityResultSchema,
-  execute: async (ctx: VandaToolCtx, { path }: { path: string }): Promise<unknown> =>
+  execute: async (ctx: VandaToolCtx, { path }: { path: string }): Promise<CapabilityOutput> =>
     capabilityResult(
       await ctx.runQuery(internal.workspaceData.list, { accountId: ctx.accountId, path }),
     ),
   toModelOutput: (_ctx, { output }) => {
-    const result = (output as { data: WorkspaceToolResult }).data;
+    const result = workspaceListResultSchema.parse(output.data);
+
     if (!result.ok) return { type: "text", value: renderMiss(result) };
+
     return { type: "text", value: `${result.path}\n${renderEntries(result.entries ?? [])}` };
   },
 });
@@ -182,25 +303,33 @@ const readFile = createTool({
       limit,
     }: { path: string; offset?: number | undefined; limit?: number | undefined },
     options,
-  ): Promise<unknown> => {
-    const data = await ctx.runQuery(internal.workspaceData.read, {
+  ): Promise<CapabilityOutput> => {
+    const queryArgs: ReadArgs = {
       accountId: ctx.accountId,
       path,
-      ...(offset !== undefined ? { offset } : {}),
-      ...(limit !== undefined ? { limit } : {}),
-    });
+    };
+
+    if (offset !== undefined) queryArgs.offset = offset;
+
+    if (limit !== undefined) queryArgs.limit = limit;
+
+    const data = await ctx.runQuery(internal.workspaceData.read, queryArgs);
+
     const resources: ThreadResource[] =
       data.ok && data.file.kind === "image"
         ? [imageResource(ctx.accountId, data.file.imageId)]
         : data.ok
           ? [documentResource(ctx.accountId, data.path)]
           : [];
+
     return recordCapabilityResult(ctx, options, capabilityResult(data, { resources }));
   },
   toModelOutput: (_ctx, { output }) => {
-    const result = (output as { data: WorkspaceToolResult }).data;
+    const result = workspaceReadResultSchema.parse(output.data);
+
     if (!result.ok) return { type: "text", value: renderMiss(result) };
-    const file = result.file!;
+    const file = result.file;
+
     if (file.kind === "image") {
       return {
         type: "content",
@@ -210,6 +339,7 @@ const readFile = createTool({
         ],
       };
     }
+
     return { type: "text", value: `${result.path}\n---\n${file.text}` };
   },
 });
@@ -226,13 +356,15 @@ const writeFile = createTool({
     ctx: VandaToolCtx,
     { path, content }: { path: string; content: string },
     options,
-  ): Promise<unknown> => {
+  ): Promise<CapabilityOutput> => {
     const data = await ctx.runMutation(internal.workspaceData.write, {
       accountId: ctx.accountId,
       path,
       content,
     });
+
     const resources = data.ok ? [documentResource(ctx.accountId, data.path)] : [];
+
     return recordCapabilityResult(
       ctx,
       options,
@@ -240,9 +372,13 @@ const writeFile = createTool({
     );
   },
   toModelOutput: (_ctx, { output }) => {
-    const result = (output as { data: unknown }).data as
-      | { ok: true; path: string; note: string }
-      | { ok: false; error: string };
+    const writeResultSchema = z.discriminatedUnion("ok", [
+      z.object({ ok: z.literal(true), path: z.string(), note: z.string() }),
+      z.object({ ok: z.literal(false), error: z.string() }),
+    ]);
+
+    const result = writeResultSchema.parse(output.data);
+
     return { type: "text", value: result.ok ? `${result.path} ${result.note}` : result.error };
   },
 });
@@ -259,33 +395,43 @@ const present = createTool({
     ctx: VandaToolCtx,
     input: { resources: PresentableResourceInput[]; message?: string | undefined },
     options,
-  ): Promise<unknown> => {
+  ): Promise<CapabilityOutput> => {
     const resources = await ctx.runQuery(internal.threadResources.resolvePresentable, {
       accountId: ctx.accountId,
       resources: input.resources.map((resource) => {
         if (resource.kind === "image") {
+          // SAFETY: presentableResourceInputSchema identifies this value as an image resource id.
           return { kind: "image" as const, imageId: resource.imageId as Id<"images"> };
         }
+
         if (resource.kind === "post") {
+          // SAFETY: presentableResourceInputSchema identifies this value as a post resource id.
           return { kind: "post" as const, postId: resource.postId as Id<"posts"> };
         }
+
         if (resource.kind === "document") {
-          return {
+          const document: PresentDocument = {
             kind: "document" as const,
             path: resource.path,
-            ...(resource.title ? { title: resource.title } : {}),
           };
+
+          if (resource.title) document.title = resource.title;
+
+          return document;
         }
+
         return resource;
       }),
     });
+
+    const resultData: ResultSummary = { shown: resources.length };
+
+    if (input.message) resultData.message = input.message;
+
     return recordCapabilityResult(
       ctx,
       options,
-      capabilityResult(
-        { shown: resources.length, ...(input.message ? { message: input.message } : {}) },
-        { resources, presented: resources, summary: input.message },
-      ),
+      capabilityResult(resultData, { resources, presented: resources, summary: input.message }),
     );
   },
 });
@@ -304,15 +450,23 @@ const createPost = createTool({
     ctx: VandaToolCtx,
     { imageIds, caption }: { imageIds: string[]; caption: string },
     options,
-  ): Promise<unknown> => {
-    const postId = await ctx.runMutation(internal.posts.createPostInternal, {
+  ): Promise<CapabilityOutput> => {
+    // SAFETY: each id came through the imageIds tool schema and is consumed only as a Convex image id.
+    const typedImageIds = imageIds as Id<"images">[];
+
+    const mutationArgs: CreatePostArgs = {
       accountId: ctx.accountId,
-      imageIds: imageIds as Id<"images">[],
+      imageIds: typedImageIds,
       caption,
-      ...(ctx.threadId ? { originThreadId: ctx.threadId } : {}),
-      ...(ctx.caetanoThreadId ? { caetanoThreadId: ctx.caetanoThreadId } : {}),
-    });
+    };
+
+    if (ctx.threadId) mutationArgs.originThreadId = ctx.threadId;
+
+    if (ctx.caetanoThreadId) mutationArgs.caetanoThreadId = ctx.caetanoThreadId;
+    const postId = await ctx.runMutation(internal.posts.createPostInternal, mutationArgs);
+
     const resource = postResource(ctx.accountId, postId);
+
     return recordCapabilityResult(
       ctx,
       options,
@@ -343,17 +497,28 @@ const schedulePost = createTool({
     ctx: VandaToolCtx,
     { postId, scheduledFor }: { postId: string; scheduledFor?: string | undefined },
     options,
-  ): Promise<unknown> => {
+  ): Promise<CapabilityOutput> => {
     const at = scheduledFor ? Date.parse(scheduledFor) : undefined;
+
     if (scheduledFor && Number.isNaN(at)) throw new Error("data de agendamento inválida");
-    const data = await ctx.runMutation(internal.posts.schedulePostInternal, {
+
+    // SAFETY: postId came through the postId tool schema and is consumed only as a Convex post id.
+    const typedPostId = postId as Id<"posts">;
+
+    const mutationArgs: SchedulePostArgs = {
       accountId: ctx.accountId,
-      postId: postId as Id<"posts">,
-      ...(at !== undefined ? { scheduledFor: at } : {}),
-      ...(ctx.threadId ? { originThreadId: ctx.threadId } : {}),
-      ...(ctx.caetanoThreadId ? { caetanoThreadId: ctx.caetanoThreadId } : {}),
-    });
-    const post = postResource(ctx.accountId, postId as Id<"posts">);
+      postId: typedPostId,
+    };
+
+    if (at !== undefined) mutationArgs.scheduledFor = at;
+
+    if (ctx.threadId) mutationArgs.originThreadId = ctx.threadId;
+
+    if (ctx.caetanoThreadId) mutationArgs.caetanoThreadId = ctx.caetanoThreadId;
+    const data = await ctx.runMutation(internal.posts.schedulePostInternal, mutationArgs);
+
+    const post = postResource(ctx.accountId, typedPostId);
+
     const operation: ThreadResource = {
       kind: "operation",
       operation: "post.schedule",
@@ -362,6 +527,7 @@ const schedulePost = createTool({
       status: "pending",
       label: data.rescheduled ? "Publicação reagendada" : "Publicação agendada",
     };
+
     return recordCapabilityResult(
       ctx,
       options,
@@ -380,12 +546,19 @@ const cancelSchedule = createTool({
     postId: z.string().describe("id do post agendado"),
   }),
   outputSchema: capabilityResultSchema,
-  execute: async (ctx: VandaToolCtx, { postId }: { postId: string }, options): Promise<unknown> => {
+  execute: async (
+    ctx: VandaToolCtx,
+    { postId }: { postId: string },
+    options,
+  ): Promise<CapabilityOutput> => {
+    // SAFETY: postId came through the postId tool schema and is consumed only as a Convex post id.
+    const typedPostId = postId as Id<"posts">;
     await ctx.runMutation(internal.posts.cancelScheduleInternal, {
       accountId: ctx.accountId,
-      postId: postId as Id<"posts">,
+      postId: typedPostId,
     });
-    const post = postResource(ctx.accountId, postId as Id<"posts">);
+    const post = postResource(ctx.accountId, typedPostId);
+
     const operation: ThreadResource = {
       kind: "operation",
       operation: "post.cancel_schedule",
@@ -393,6 +566,7 @@ const cancelSchedule = createTool({
       status: "cancelled",
       label: "Agendamento cancelado",
     };
+
     return recordCapabilityResult(
       ctx,
       options,
@@ -411,11 +585,18 @@ const deletePost = createTool({
     postId: z.string().describe("id do post a apagar"),
   }),
   outputSchema: capabilityResultSchema,
-  execute: async (ctx: VandaToolCtx, { postId }: { postId: string }, options): Promise<unknown> => {
+  execute: async (
+    ctx: VandaToolCtx,
+    { postId }: { postId: string },
+    options,
+  ): Promise<CapabilityOutput> => {
+    // SAFETY: postId came through the postId tool schema and is consumed only as a Convex post id.
+    const typedPostId = postId as Id<"posts">;
     await ctx.runMutation(internal.posts.deletePostInternal, {
       accountId: ctx.accountId,
-      postId: postId as Id<"posts">,
+      postId: typedPostId,
     });
+
     const operation: ThreadResource = {
       kind: "operation",
       operation: "post.delete",
@@ -423,6 +604,7 @@ const deletePost = createTool({
       status: "succeeded",
       label: "Post apagado",
     };
+
     return recordCapabilityResult(
       ctx,
       options,
@@ -463,23 +645,35 @@ const paint = createTool({
       editOfImageId?: string | undefined;
     },
     options,
-  ): Promise<unknown> => {
-    const data = await ctx.runAction(internal.images.paint, {
+  ): Promise<CapabilityOutput> => {
+    const actionArgs: PaintArgs = {
       accountId: ctx.accountId,
       prompt: args.prompt,
       name: args.name,
       aspectRatio: args.aspectRatio,
       promptAuthor: "vanda",
-      // Lets the owner's stop button cancel the generation mid-flight.
-      ...(ctx.threadId ? { threadId: ctx.threadId } : {}),
-      ...(ctx.activityId ? { activityId: ctx.activityId } : {}),
-      ...(args.resolution ? { resolution: args.resolution } : {}),
-      ...(args.referenceImageIds
-        ? { referenceImageIds: args.referenceImageIds as Array<Id<"images">> }
-        : {}),
-      ...(args.editOfImageId ? { editOfImageId: args.editOfImageId as Id<"images"> } : {}),
-    });
+    };
+
+    if (ctx.threadId) actionArgs.threadId = ctx.threadId;
+
+    if (ctx.activityId) actionArgs.activityId = ctx.activityId;
+
+    if (args.resolution) actionArgs.resolution = args.resolution;
+
+    if (args.referenceImageIds) {
+      // SAFETY: referenceImageIds came through the image-id array tool schema.
+      actionArgs.referenceImageIds = args.referenceImageIds as Id<"images">[];
+    }
+
+    if (args.editOfImageId) {
+      // SAFETY: editOfImageId came through the image-id tool schema.
+      actionArgs.editOfImageId = args.editOfImageId as Id<"images">;
+    }
+
+    const data = await ctx.runAction(internal.images.paint, actionArgs);
+
     const resource = imageResource(ctx.accountId, data.imageId);
+
     return recordCapabilityResult(
       ctx,
       options,
@@ -507,22 +701,27 @@ const runCode = createTool({
     ctx: VandaToolCtx,
     args: { code: string; description: string; inputPaths?: string[] | undefined },
     options,
-  ): Promise<unknown> => {
-    const data = await ctx.runAction(internal.codeRuns.run, {
+  ): Promise<CapabilityOutput> => {
+    const actionArgs: RunCodeArgs = {
       accountId: ctx.accountId,
       code: args.code,
       description: args.description,
-      // Lets the owner's stop button cancel the execution mid-flight.
-      ...(ctx.threadId ? { threadId: ctx.threadId } : {}),
-      ...(ctx.activityId ? { activityId: ctx.activityId } : {}),
-      ...(args.inputPaths ? { inputPaths: args.inputPaths } : {}),
-    });
+    };
+
+    if (ctx.threadId) actionArgs.threadId = ctx.threadId;
+
+    if (ctx.activityId) actionArgs.activityId = ctx.activityId;
+
+    if (args.inputPaths) actionArgs.inputPaths = args.inputPaths;
+    const data = await ctx.runAction(internal.codeRuns.run, actionArgs);
+
     const resources: ThreadResource[] = [
       ...data.images.map((image) => imageResource(ctx.accountId, image.imageId)),
       ...data.artifacts.map((artifact) =>
         documentResource(ctx.accountId, artifact.path, artifact.filename),
       ),
     ];
+
     return recordCapabilityResult(
       ctx,
       options,
@@ -531,53 +730,88 @@ const runCode = createTool({
   },
 });
 
-const instagramTools = makeInstagramTools({
-  searchProfiles: (ctx, args): Promise<unknown> =>
-    ctx.runAction(internal.instagramActions.searchProfiles, {
-      accountId: ctx.accountId,
-      query: args.query,
-      ...(args.limit !== undefined ? { limit: args.limit } : {}),
-    }),
-  readProfile: (ctx, args): Promise<unknown> =>
-    ctx.runAction(internal.instagramActions.readProfile, {
-      accountId: ctx.accountId,
-      scope: args.scope,
-      ...(args.handle ? { handle: args.handle } : {}),
-    }),
-  listPosts: (ctx, args): Promise<unknown> =>
-    ctx.runAction(internal.instagramActions.listPosts, {
+const instagramTools = InstagramToolFactory.makeInstagramTools({
+  searchProfiles: async (ctx, args) => {
+    const actionArgs: SearchProfilesArgs = { accountId: ctx.accountId, query: args.query };
+
+    if (args.limit !== undefined) actionArgs.limit = args.limit;
+
+    return instagramToolResultSchema.parse(
+      await ctx.runAction(internal.instagramActions.searchProfiles, actionArgs),
+    );
+  },
+  readProfile: async (ctx, args) => {
+    const actionArgs: ReadProfileArgs = {
       accountId: ctx.accountId,
       scope: args.scope,
-      ...(args.handle ? { handle: args.handle } : {}),
-      ...(args.limit !== undefined ? { limit: args.limit } : {}),
-      ...(args.cursor ? { cursor: args.cursor } : {}),
-    }),
-  readPost: (ctx, args): Promise<unknown> =>
-    ctx.runAction(internal.instagramActions.readPost, {
+    };
+
+    if (args.handle) actionArgs.handle = args.handle;
+
+    return instagramToolResultSchema.parse(
+      await ctx.runAction(internal.instagramActions.readProfile, actionArgs),
+    );
+  },
+  listPosts: async (ctx, args) => {
+    const actionArgs: ListPostsArgs = {
+      accountId: ctx.accountId,
+      scope: args.scope,
+    };
+
+    if (args.handle) actionArgs.handle = args.handle;
+
+    if (args.limit !== undefined) actionArgs.limit = args.limit;
+
+    if (args.cursor) actionArgs.cursor = args.cursor;
+
+    return instagramToolResultSchema.parse(
+      await ctx.runAction(internal.instagramActions.listPosts, actionArgs),
+    );
+  },
+  readPost: async (ctx, args) => {
+    const actionArgs: ReadPostArgs = {
       accountId: ctx.accountId,
       postUrl: args.postUrl,
-      ...(args.includeTranscript !== undefined
-        ? { includeTranscript: args.includeTranscript }
-        : {}),
-    }),
-  listComments: (ctx, args): Promise<unknown> =>
-    ctx.runAction(internal.instagramActions.listComments, {
+    };
+
+    if (args.includeTranscript !== undefined) actionArgs.includeTranscript = args.includeTranscript;
+
+    return instagramToolResultSchema.parse(
+      await ctx.runAction(internal.instagramActions.readPost, actionArgs),
+    );
+  },
+  listComments: async (ctx, args) => {
+    const actionArgs: ListCommentsArgs = {
       accountId: ctx.accountId,
       scope: args.scope,
-      ...(args.postId ? { postId: args.postId } : {}),
-      ...(args.postUrl ? { postUrl: args.postUrl } : {}),
-      ...(args.limit !== undefined ? { limit: args.limit } : {}),
-      ...(args.cursor ? { cursor: args.cursor } : {}),
-    }),
-  readMetrics: (ctx, args): Promise<unknown> =>
-    ctx.runAction(internal.instagramActions.readMetrics, {
-      accountId: ctx.accountId,
-      ...(args.postId ? { postId: args.postId } : {}),
-    }),
+    };
+
+    if (args.postId) actionArgs.postId = args.postId;
+
+    if (args.postUrl) actionArgs.postUrl = args.postUrl;
+
+    if (args.limit !== undefined) actionArgs.limit = args.limit;
+
+    if (args.cursor) actionArgs.cursor = args.cursor;
+
+    return instagramToolResultSchema.parse(
+      await ctx.runAction(internal.instagramActions.listComments, actionArgs),
+    );
+  },
+  readMetrics: async (ctx, args) => {
+    const actionArgs: ReadMetricsArgs = { accountId: ctx.accountId };
+
+    if (args.postId) actionArgs.postId = args.postId;
+
+    return instagramToolResultSchema.parse(
+      await ctx.runAction(internal.instagramActions.readMetrics, actionArgs),
+    );
+  },
 });
 
 /** Fallback pricing when OpenRouter's in-band cost is missing (per token). */
 const CHAT_FALLBACK_USD_PER_INPUT_TOKEN = 2e-6;
+
 const CHAT_FALLBACK_USD_PER_OUTPUT_TOKEN = 8e-6;
 
 export const vanda = new Agent<VandaCtx>(components.agent, {
@@ -589,18 +823,23 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
   // is the account id (threadKey), which charge() resolves to the owner.
   usageHandler: async (ctx, { userId, usage, providerMetadata, model, provider }) => {
     if (!userId) return;
+
     // Conectado plan turns run on the owner's ChatGPT subscription (the
     // openai provider) — their money, not the Vanda meter.
     if (!provider.includes("openrouter")) return;
-    const reported = (providerMetadata?.openrouter as { usage?: { cost?: unknown } } | undefined)
-      ?.usage?.cost;
+
+    const costSchema = z.object({ usage: z.object({ cost: z.number() }).optional() }).optional();
+    const reported = costSchema.safeParse(providerMetadata?.openrouter);
+
     const usd =
-      typeof reported === "number"
-        ? reported
+      reported.success && reported.data?.usage
+        ? reported.data.usage.cost
         : (usage.inputTokens ?? 0) * CHAT_FALLBACK_USD_PER_INPUT_TOKEN +
           (usage.outputTokens ?? 0) * CHAT_FALLBACK_USD_PER_OUTPUT_TOKEN;
+
     if (usd <= 0) return;
     await ctx.runMutation(internal.usage.charge, {
+      // SAFETY: the Agent uses the account id as its opaque userId/thread key.
       accountId: userId as Id<"accounts">,
       kind: "chat",
       usd,

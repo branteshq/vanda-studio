@@ -52,6 +52,7 @@ export function FilterMenu({
     .filter((group) => group.value !== group.defaultValue)
     .map((group) => group.options.find((option) => option.value === group.value)?.label)
     .filter(Boolean);
+
   const active = activeLabels.length > 0;
 
   return (

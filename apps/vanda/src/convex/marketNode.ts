@@ -46,9 +46,13 @@ import {
 import { publicError } from "../errors";
 
 const ACTIVE_WINDOW_MS = 1000 * 60 * 60 * 24 * 30;
+
 const MIN_FOLLOWERS = 50;
+
 const MAX_FOLLOWERS = 1_000;
+
 const MAX_CANDIDATES_FOR_MODEL = 45;
+
 const TARGET_CREATORS = 10;
 
 export interface DiscoveryResult {
@@ -71,23 +75,33 @@ interface ObservationResult {
   readonly opportunityIds: ReadonlyArray<Id<"opportunities">>;
 }
 
+interface SourceAnalysisRequest {
+  video: Blob;
+  caption?: string;
+}
+
 type RankedCandidate = RankedMarketProfile;
 
 const activityScore = (profile: MarketProfile, now: number): number => {
   const recent = profile.latestPosts.filter((post) => now - post.publishedAt <= ACTIVE_WINDOW_MS);
+
   const video = recent.filter(
     (post) =>
       post.mediaType.toLocaleLowerCase() === "video" ||
       post.productType?.toLocaleLowerCase().includes("clip") === true,
   );
+
   return Math.min(1, recent.length / 6) * 0.55 + Math.min(1, video.length / 3) * 0.45;
 };
 
 const eligible = (profile: MarketProfile, ownHandle: string | undefined, now: number): boolean => {
   if (profile.private || profile.followers === undefined) return false;
+
   if (profile.followers < MIN_FOLLOWERS || profile.followers >= MAX_FOLLOWERS) return false;
+
   if (ownHandle && profile.handle.toLocaleLowerCase() === ownHandle.toLocaleLowerCase())
     return false;
+
   return profile.latestPosts.some((post) => now - post.publishedAt <= ACTIVE_WINDOW_MS);
 };
 
@@ -95,51 +109,90 @@ const profileInput = (
   profile: MarketProfile,
   ranking: Pick<RankedCandidate, "relevanceScore" | "relevanceReason"> &
     Partial<Omit<RankedCandidate, "profile" | "relevanceScore" | "relevanceReason">>,
-) => ({
-  handle: profile.handle,
-  profileUrl: profile.profileUrl,
-  private: profile.private,
-  verified: profile.verified,
-  relevanceScore: ranking.relevanceScore,
-  relevanceReason: ranking.relevanceReason,
-  ...(ranking.topicalOverlap !== undefined ? { topicalOverlap: ranking.topicalOverlap } : {}),
-  ...(ranking.audienceOverlap !== undefined ? { audienceOverlap: ranking.audienceOverlap } : {}),
-  ...(ranking.offerOverlap !== undefined ? { offerOverlap: ranking.offerOverlap } : {}),
-  ...(ranking.geographicOverlap !== undefined
-    ? { geographicOverlap: ranking.geographicOverlap }
-    : {}),
-  ...(ranking.languageMatch !== undefined ? { languageMatch: ranking.languageMatch } : {}),
-  ...(ranking.contentActivity !== undefined ? { contentActivity: ranking.contentActivity } : {}),
-  ...(ranking.relevanceConfidence !== undefined
-    ? { relevanceConfidence: ranking.relevanceConfidence }
-    : {}),
-  ...(ranking.relevanceVetoes !== undefined
-    ? { relevanceVetoes: [...ranking.relevanceVetoes] }
-    : {}),
-  ...(profile.externalId !== undefined ? { externalId: profile.externalId } : {}),
-  ...(profile.displayName !== undefined ? { displayName: profile.displayName } : {}),
-  ...(profile.biography !== undefined ? { biography: profile.biography } : {}),
-  ...(profile.profileImageUrl !== undefined ? { profileImageUrl: profile.profileImageUrl } : {}),
-  ...(profile.followers !== undefined ? { followers: profile.followers } : {}),
-  ...(profile.following !== undefined ? { following: profile.following } : {}),
-  ...(profile.postsCount !== undefined ? { postsCount: profile.postsCount } : {}),
-  ...(profile.businessCategory !== undefined ? { businessCategory: profile.businessCategory } : {}),
-  latestPosts: profile.latestPosts.map((post) => ({
-    externalId: post.externalId,
-    permalink: post.permalink,
-    mediaType: post.mediaType,
-    publishedAt: post.publishedAt,
-    ...(post.shortCode !== undefined ? { shortCode: post.shortCode } : {}),
-    ...(post.caption !== undefined ? { caption: post.caption } : {}),
-    ...(post.productType !== undefined ? { productType: post.productType } : {}),
-    ...(post.thumbnailUrl !== undefined ? { thumbnailUrl: post.thumbnailUrl } : {}),
-    ...(post.videoUrl !== undefined ? { videoUrl: post.videoUrl } : {}),
-    ...(post.views !== undefined ? { views: post.views } : {}),
-    ...(post.plays !== undefined ? { plays: post.plays } : {}),
-    ...(post.likes !== undefined ? { likes: post.likes } : {}),
-    ...(post.comments !== undefined ? { comments: post.comments } : {}),
-  })),
-});
+) => {
+  const latestPosts = profile.latestPosts.map((post) => {
+    const row = {
+      externalId: post.externalId,
+      permalink: post.permalink,
+      mediaType: post.mediaType,
+      publishedAt: post.publishedAt,
+    };
+
+    if (post.shortCode !== undefined) Object.assign(row, { shortCode: post.shortCode });
+
+    if (post.caption !== undefined) Object.assign(row, { caption: post.caption });
+
+    if (post.productType !== undefined) Object.assign(row, { productType: post.productType });
+
+    if (post.thumbnailUrl !== undefined) Object.assign(row, { thumbnailUrl: post.thumbnailUrl });
+
+    if (post.videoUrl !== undefined) Object.assign(row, { videoUrl: post.videoUrl });
+
+    if (post.views !== undefined) Object.assign(row, { views: post.views });
+
+    if (post.plays !== undefined) Object.assign(row, { plays: post.plays });
+
+    if (post.likes !== undefined) Object.assign(row, { likes: post.likes });
+
+    if (post.comments !== undefined) Object.assign(row, { comments: post.comments });
+
+    return row;
+  });
+
+  const row = {
+    handle: profile.handle,
+    profileUrl: profile.profileUrl,
+    private: profile.private,
+    verified: profile.verified,
+    relevanceScore: ranking.relevanceScore,
+    relevanceReason: ranking.relevanceReason,
+    latestPosts,
+  };
+
+  if (ranking.topicalOverlap !== undefined)
+    Object.assign(row, { topicalOverlap: ranking.topicalOverlap });
+
+  if (ranking.audienceOverlap !== undefined)
+    Object.assign(row, { audienceOverlap: ranking.audienceOverlap });
+
+  if (ranking.offerOverlap !== undefined)
+    Object.assign(row, { offerOverlap: ranking.offerOverlap });
+
+  if (ranking.geographicOverlap !== undefined)
+    Object.assign(row, { geographicOverlap: ranking.geographicOverlap });
+
+  if (ranking.languageMatch !== undefined)
+    Object.assign(row, { languageMatch: ranking.languageMatch });
+
+  if (ranking.contentActivity !== undefined)
+    Object.assign(row, { contentActivity: ranking.contentActivity });
+
+  if (ranking.relevanceConfidence !== undefined)
+    Object.assign(row, { relevanceConfidence: ranking.relevanceConfidence });
+
+  if (ranking.relevanceVetoes !== undefined)
+    Object.assign(row, { relevanceVetoes: [...ranking.relevanceVetoes] });
+
+  if (profile.externalId !== undefined) Object.assign(row, { externalId: profile.externalId });
+
+  if (profile.displayName !== undefined) Object.assign(row, { displayName: profile.displayName });
+
+  if (profile.biography !== undefined) Object.assign(row, { biography: profile.biography });
+
+  if (profile.profileImageUrl !== undefined)
+    Object.assign(row, { profileImageUrl: profile.profileImageUrl });
+
+  if (profile.followers !== undefined) Object.assign(row, { followers: profile.followers });
+
+  if (profile.following !== undefined) Object.assign(row, { following: profile.following });
+
+  if (profile.postsCount !== undefined) Object.assign(row, { postsCount: profile.postsCount });
+
+  if (profile.businessCategory !== undefined)
+    Object.assign(row, { businessCategory: profile.businessCategory });
+
+  return row;
+};
 
 /** Discover and persist a small, active, relevant market set for one account. */
 export const discoverAccount = internalAction({
@@ -147,15 +200,19 @@ export const discoverAccount = internalAction({
   handler: async (ctx, { accountId, runId }): Promise<DiscoveryResult> => {
     const apifyToken = process.env.APIFY_API_TOKEN;
     const modelKey = process.env.OPENROUTER_API_KEY;
+
     if (!apifyToken) throw new Error("APIFY_API_TOKEN is not set on the Convex deployment");
+
     if (!modelKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
 
     const brand: { readonly ownHandle: string | undefined; readonly context: string } =
       await ctx.runQuery(internal.market.loadBrandContext, { accountId });
+
     if (!brand.context.trim()) throw new Error("brand context is empty");
 
     try {
       await ctx.runMutation(internal.market.updateRun, { runId, stage: "planning_search" });
+
       const plan: MarketSearchPlan = await runTracked(
         ctx,
         {
@@ -188,7 +245,9 @@ export const discoverAccount = internalAction({
           provider.searchProfiles(plan.profileQueries),
         ).pipe(Effect.provide(apifyMarketDataLayer(apifyToken))),
       );
+
       const now = Date.now();
+
       const feedback: ReadonlyArray<{
         handle: string;
         feedback: "relevant" | "irrelevant" | "blocked";
@@ -196,18 +255,20 @@ export const discoverAccount = internalAction({
         accountId,
         handles: profiles.map((profile) => profile.handle),
       });
+
       const excludedHandles = new Set(
-        feedback
-          .filter((item) => item.feedback === "irrelevant" || item.feedback === "blocked")
-          .map((item) => item.handle),
+        feedback.flatMap((item) =>
+          item.feedback === "irrelevant" || item.feedback === "blocked" ? [item.handle] : [],
+        ),
       );
+
       const candidates = profiles
         .filter(
           (profile) =>
             !excludedHandles.has(profile.handle.toLocaleLowerCase()) &&
             eligible(profile, brand.ownHandle, now),
         )
-        .sort((a, b) => activityScore(b, now) - activityScore(a, now))
+        .toSorted((a, b) => activityScore(b, now) - activityScore(a, now))
         .slice(0, MAX_CANDIDATES_FOR_MODEL);
 
       await ctx.runMutation(internal.market.updateRun, {
@@ -238,12 +299,14 @@ export const discoverAccount = internalAction({
             );
 
       const selected = [...ranked]
-        .sort((a, b) => {
+        .toSorted((a, b) => {
           const aScore = a.relevanceScore * 0.7 + activityScore(a.profile, now) * 0.3;
           const bScore = b.relevanceScore * 0.7 + activityScore(b.profile, now) * 0.3;
+
           return bScore - aScore;
         })
         .slice(0, TARGET_CREATORS);
+
       const creatorRows = selected.map(({ profile, ...ranking }) => profileInput(profile, ranking));
 
       await ctx.runMutation(internal.market.saveSelectedCreators, {
@@ -260,6 +323,7 @@ export const discoverAccount = internalAction({
             ? `Vanda selecionou ${selected.length} contas para o radar.`
             : `Vanda encontrou ${selected.length} contas que passaram por todos os filtros.`,
       });
+
       return { plan, found: profiles.length, selected: selected.length };
     } catch (error) {
       await ctx.runMutation(internal.market.updateRun, {
@@ -279,52 +343,69 @@ export const observeAccount = internalAction({
   args: { accountId: v.id("accounts"), runId: v.id("marketRuns") },
   handler: async (ctx, { accountId, runId }): Promise<ObservationResult> => {
     const apifyToken = process.env.APIFY_API_TOKEN;
+
     if (!apifyToken) throw new Error("APIFY_API_TOKEN is not set on the Convex deployment");
+
     const brandSnapshot: Doc<"brandSnapshots"> = await ctx.runMutation(
       internal.market.ensureBrandSnapshot,
       { accountId },
     );
+
     const creators: ReadonlyArray<Doc<"marketCreators">> = await ctx.runQuery(
       internal.market.listActiveCreators,
       { accountId },
     );
+
     if (creators.length === 0)
       return { postsObserved: 0, snapshotsRecorded: 0, opportunityIds: [] };
 
     await ctx.runMutation(internal.market.updateRun, { runId, stage: "observing_reels" });
+
     const profiles = await Effect.runPromise(
       Effect.flatMap(MarketDataProvider, (provider) =>
         provider.getProfiles(creators.map((creator) => creator.handle)),
       ).pipe(Effect.provide(apifyMarketDataLayer(apifyToken))),
     );
+
     const existingByHandle = new Map(creators.map((creator) => [creator.handle, creator]));
+
     const rows = profiles.map((profile) => {
       const existing = existingByHandle.get(profile.handle.toLocaleLowerCase());
-      return profileInput(profile, {
+
+      const ranking = {
         relevanceScore: existing?.relevanceScore ?? 0,
         relevanceReason: existing?.relevanceReason ?? "Conta monitorada pelo radar.",
-        ...(existing?.topicalOverlap !== undefined
-          ? { topicalOverlap: existing.topicalOverlap }
-          : {}),
-        ...(existing?.audienceOverlap !== undefined
-          ? { audienceOverlap: existing.audienceOverlap }
-          : {}),
-        ...(existing?.offerOverlap !== undefined ? { offerOverlap: existing.offerOverlap } : {}),
-        ...(existing?.geographicOverlap !== undefined
-          ? { geographicOverlap: existing.geographicOverlap }
-          : {}),
-        ...(existing?.languageMatch !== undefined ? { languageMatch: existing.languageMatch } : {}),
-        ...(existing?.contentActivity !== undefined
-          ? { contentActivity: existing.contentActivity }
-          : {}),
-        ...(existing?.relevanceConfidence !== undefined
-          ? { relevanceConfidence: existing.relevanceConfidence }
-          : {}),
-        ...(existing?.relevanceVetoes !== undefined
-          ? { relevanceVetoes: existing.relevanceVetoes }
-          : {}),
-      });
+      };
+
+      if (existing?.topicalOverlap !== undefined)
+        Object.assign(ranking, { topicalOverlap: existing.topicalOverlap });
+
+      if (existing?.audienceOverlap !== undefined)
+        Object.assign(ranking, { audienceOverlap: existing.audienceOverlap });
+
+      if (existing?.offerOverlap !== undefined)
+        Object.assign(ranking, { offerOverlap: existing.offerOverlap });
+
+      if (existing?.geographicOverlap !== undefined)
+        Object.assign(ranking, { geographicOverlap: existing.geographicOverlap });
+
+      if (existing?.languageMatch !== undefined)
+        Object.assign(ranking, { languageMatch: existing.languageMatch });
+
+      if (existing?.contentActivity !== undefined)
+        Object.assign(ranking, { contentActivity: existing.contentActivity });
+
+      if (existing?.relevanceConfidence !== undefined)
+        Object.assign(ranking, { relevanceConfidence: existing.relevanceConfidence });
+
+      if (existing?.relevanceVetoes !== undefined)
+        Object.assign(ranking, { relevanceVetoes: existing.relevanceVetoes });
+
+      return profileInput(profile, ranking);
     });
+
+    // SAFETY: recordObservations has the ObservationResult validator contract; generated internal
+    // function references do not preserve that return type through this recursive module boundary.
     return (await ctx.runMutation(internal.market.recordObservations, {
       accountId,
       brandSnapshotId: brandSnapshot._id,
@@ -339,12 +420,17 @@ const downloadSourceAsset = async (
 ): Promise<Blob | undefined> => {
   if (!url) return undefined;
   const response = await fetch(url, { redirect: "follow" });
+
   if (!response.ok) throw new Error(`asset HTTP ${response.status}`);
   const declaredSize = Number(response.headers.get("content-length") ?? "0");
+
   if (declaredSize > maxBytes) throw new Error(`asset exceeds ${maxBytes} bytes`);
   const blob = await response.blob();
+
   if (blob.size === 0) throw new Error("asset is empty");
+
   if (blob.size > maxBytes) throw new Error(`asset exceeds ${maxBytes} bytes`);
+
   return blob;
 };
 
@@ -352,6 +438,7 @@ const likelyTranscriptLanguage = (text: string | undefined): string | undefined 
   if (!text?.trim()) return undefined;
   const words = text.toLocaleLowerCase().match(/[\p{L}]{2,}/gu) ?? [];
   const portuguese = new Set(["a", "as", "com", "como", "de", "do", "e", "em", "para", "que"]);
+
   return words.filter((word) => portuguese.has(word)).length >= 2 ? "pt-BR" : undefined;
 };
 
@@ -361,15 +448,20 @@ export const qualifyOpportunity = internalAction({
   handler: async (ctx, { opportunityId, analyzeAfter }): Promise<boolean> => {
     const apifyToken = process.env.APIFY_API_TOKEN;
     const modelKey = process.env.OPENROUTER_API_KEY;
+
     if (!apifyToken) throw new Error("APIFY_API_TOKEN is not set on the Convex deployment");
+
     if (!modelKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
+
     const source: {
       opportunity: Doc<"opportunities">;
       post: Doc<"marketPosts">;
       creator: Doc<"marketCreators"> | null;
       dossier: Doc<"sourceDossiers"> | null;
     } | null = await ctx.runQuery(internal.market.loadQualificationSource, { opportunityId });
+
     if (!source) throw new Error("opportunity source not found");
+
     if (source.opportunity.status === "rejected") return false;
     await ctx.runMutation(internal.usage.charge, {
       accountId: source.opportunity.accountId,
@@ -377,24 +469,29 @@ export const qualifyOpportunity = internalAction({
       usd: APIFY_QUALIFY_ESTIMATE_USD,
       ref: "qualify",
     });
+
     if (!source.opportunity.brandSnapshotId) {
       const snapshot: Doc<"brandSnapshots"> = await ctx.runMutation(
         internal.market.ensureBrandSnapshot,
         { accountId: source.opportunity.accountId },
       );
+
       await ctx.runMutation(internal.market.attachOpportunityBrandSnapshot, {
         opportunityId,
         brandSnapshotId: snapshot._id,
       });
     }
+
     if (source.dossier?.status === "ready") {
       if (analyzeAfter)
         await ctx.scheduler.runAfter(0, internal.marketNode.directOpportunity, { opportunityId });
+
       return true;
     }
 
     let detail: ReelDetail | undefined;
     let providerError: string | undefined;
+
     try {
       detail = await Effect.runPromise(
         Effect.flatMap(MarketDataProvider, (provider) =>
@@ -409,17 +506,21 @@ export const qualifyOpportunity = internalAction({
     let videoBlob: Blob | undefined;
     let videoStorageId: Id<"_storage"> | undefined;
     let thumbnailStorageId: Id<"_storage"> | undefined;
+
     try {
       videoBlob = await downloadSourceAsset(detail?.videoUrl ?? source.post.videoUrl, 100_000_000);
+
       if (videoBlob) videoStorageId = await ctx.storage.store(videoBlob);
     } catch (error) {
       assetErrors.push(`video: ${error instanceof Error ? error.message : String(error)}`);
     }
+
     try {
       const thumbnail = await downloadSourceAsset(
         detail?.thumbnailUrl ?? source.post.thumbnailUrl,
         10_000_000,
       );
+
       if (thumbnail) thumbnailStorageId = await ctx.storage.store(thumbnail);
     } catch (error) {
       assetErrors.push(`thumbnail: ${error instanceof Error ? error.message : String(error)}`);
@@ -428,6 +529,7 @@ export const qualifyOpportunity = internalAction({
     const providerTranscript = detail?.transcript?.trim() || undefined;
     const caption = detail?.caption?.trim() || source.post.caption?.trim() || undefined;
     let evidence: SourceEvidence | undefined;
+
     if (videoBlob) {
       try {
         evidence = await runTracked(
@@ -441,9 +543,13 @@ export const qualifyOpportunity = internalAction({
           },
           () =>
             Effect.runPromise(
-              Effect.flatMap(SourceUnderstanding, (service) =>
-                service.analyze({ video: videoBlob!, ...(caption ? { caption } : {}) }),
-              ).pipe(Effect.provide(openRouterSourceUnderstandingLayer(modelKey))),
+              Effect.flatMap(SourceUnderstanding, (service) => {
+                const request: SourceAnalysisRequest = { video: videoBlob };
+
+                if (caption) request.caption = caption;
+
+                return service.analyze(request);
+              }).pipe(Effect.provide(openRouterSourceUnderstandingLayer(modelKey))),
             ),
           (result: SourceEvidence) =>
             `${result.contentType}; ${result.frameEvidence.length} momentos`,
@@ -454,42 +560,61 @@ export const qualifyOpportunity = internalAction({
         );
       }
     }
+
     const transcript = isUsableSemanticText(providerTranscript)
       ? providerTranscript
       : evidence?.transcript.trim() || undefined;
+
     const transcriptLanguage = evidence?.language || likelyTranscriptLanguage(transcript);
-    const qualification: {
-      decision: "qualified" | "rejected";
-      dossierId: Id<"sourceDossiers">;
-      qualityScore: number;
-    } = await ctx.runMutation(internal.market.completeSourceQualification, {
+
+    const qualificationInput = {
       opportunityId,
       provider: "apify/instagram-reel-scraper",
       providerFetchedAt: Date.now(),
       frameStorageIds: thumbnailStorageId ? [thumbnailStorageId] : [],
-      ...(caption ? { caption } : {}),
-      ...(transcript ? { transcript } : {}),
-      ...(transcriptLanguage ? { transcriptLanguage } : {}),
-      ...(evidence
-        ? {
-            transcriptConfidence: evidence.transcriptConfidence,
-            visualDescription: evidence.visualDescription,
-            visualConfidence: evidence.visualConfidence,
-            frameEvidence: evidence.frameEvidence.map((frame) => ({
-              timestampMs: frame.timestampMs,
-              description: frame.description,
-              ...(frame.onScreenText ? { onScreenText: frame.onScreenText } : {}),
-            })),
-          }
-        : {}),
-      ...(videoStorageId ? { videoStorageId } : {}),
-      ...(thumbnailStorageId ? { thumbnailStorageId } : {}),
-      ...(providerError || assetErrors.length
-        ? { providerError: [providerError, ...assetErrors].filter(Boolean).join("; ") }
-        : {}),
-    });
+    };
+
+    if (caption) Object.assign(qualificationInput, { caption });
+
+    if (transcript) Object.assign(qualificationInput, { transcript });
+
+    if (transcriptLanguage) Object.assign(qualificationInput, { transcriptLanguage });
+
+    if (evidence) {
+      const frameEvidence = evidence.frameEvidence.map((frame) => {
+        const item = { timestampMs: frame.timestampMs, description: frame.description };
+
+        if (frame.onScreenText) Object.assign(item, { onScreenText: frame.onScreenText });
+
+        return item;
+      });
+
+      Object.assign(qualificationInput, {
+        transcriptConfidence: evidence.transcriptConfidence,
+        visualDescription: evidence.visualDescription,
+        visualConfidence: evidence.visualConfidence,
+        frameEvidence,
+      });
+    }
+
+    if (videoStorageId) Object.assign(qualificationInput, { videoStorageId });
+
+    if (thumbnailStorageId) Object.assign(qualificationInput, { thumbnailStorageId });
+
+    if (providerError || assetErrors.length)
+      Object.assign(qualificationInput, {
+        providerError: [providerError, ...assetErrors].filter(Boolean).join("; "),
+      });
+
+    const qualification: {
+      decision: "qualified" | "rejected";
+      dossierId: Id<"sourceDossiers">;
+      qualityScore: number;
+    } = await ctx.runMutation(internal.market.completeSourceQualification, qualificationInput);
+
     if (qualification.decision === "qualified" && analyzeAfter)
       await ctx.scheduler.runAfter(0, internal.marketNode.directOpportunity, { opportunityId });
+
     return qualification.decision === "qualified";
   },
 });
@@ -499,7 +624,9 @@ export const directOpportunity = internalAction({
   args: { opportunityId: v.id("opportunities") },
   handler: async (ctx, { opportunityId }): Promise<Id<"creativeBriefs"> | null> => {
     const modelKey = process.env.OPENROUTER_API_KEY;
+
     if (!modelKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
+
     const input: {
       opportunity: Doc<"opportunities">;
       post: Doc<"marketPosts">;
@@ -509,29 +636,37 @@ export const directOpportunity = internalAction({
       brandFacts: ReadonlyArray<{ id: string; kind: string; text: string }>;
       authorizedAssets: ReadonlyArray<{ id: string; kind: string }>;
     } | null = await ctx.runQuery(internal.market.loadCreativeDirectorInput, { opportunityId });
+
     if (!input) throw new Error("qualified creative input not found");
+
     if (input.opportunity.creativeBriefId) return input.opportunity.creativeBriefId;
+
     if (input.opportunity.status !== "ready_for_analysis" && input.opportunity.status !== "failed")
       throw new Error("opportunity is not ready for creative direction");
+
     if (input.dossier.status !== "ready") throw new Error("source dossier is not ready");
 
     const source: CreativeDirectorSource = {
       triggerReason: input.opportunity.triggerReason,
       frameEvidence: input.dossier.frameEvidence ?? [],
-      ...(input.creator?.handle ? { creatorHandle: input.creator.handle } : {}),
-      ...((input.dossier.caption ?? input.post.caption)
-        ? { sourceCaption: input.dossier.caption ?? input.post.caption }
-        : {}),
-      ...(input.dossier.transcript ? { transcript: input.dossier.transcript } : {}),
-      ...(input.dossier.visualDescription
-        ? { visualDescription: input.dossier.visualDescription }
-        : {}),
     };
+
+    if (input.creator?.handle) Object.assign(source, { creatorHandle: input.creator.handle });
+    const sourceCaption = input.dossier.caption ?? input.post.caption;
+
+    if (sourceCaption) Object.assign(source, { sourceCaption });
+
+    if (input.dossier.transcript) Object.assign(source, { transcript: input.dossier.transcript });
+
+    if (input.dossier.visualDescription)
+      Object.assign(source, { visualDescription: input.dossier.visualDescription });
+
     const brand: CreativeDirectorBrand = {
       context: input.brandSnapshot.context,
       facts: input.brandFacts,
       authorizedAssets: input.authorizedAssets,
     };
+
     const allowedBrandFactIds = new Set(input.brandFacts.map((fact) => fact.id));
     const allowedAssetIds = new Set(input.authorizedAssets.map((asset) => asset.id));
 
@@ -540,6 +675,7 @@ export const directOpportunity = internalAction({
         opportunityId,
         status: "analyzing",
       });
+
       const analysis: MechanismAnalysis = await runTracked(
         ctx,
         {
@@ -558,6 +694,9 @@ export const directOpportunity = internalAction({
         (result: MechanismAnalysis) =>
           result.adaptable ? `${result.reusableMechanisms.length} mecanismos` : "fonte rejeitada",
       );
+
+      // SAFETY: Convex arguments require mutable arrays, while the validated model result exposes
+      // the same arrays as readonly; the mutation serializes them without mutating the value.
       const analysisId: Id<"creativeAnalyses"> = await ctx.runMutation(
         internal.market.saveCreativeAnalysis,
         {
@@ -567,6 +706,7 @@ export const directOpportunity = internalAction({
           ...(analysis as Mutable<MechanismAnalysis>),
         },
       );
+
       if (!analysis.adaptable) return null;
 
       const directionSet = await runTracked(
@@ -586,18 +726,42 @@ export const directOpportunity = internalAction({
           ),
         (result) => `${result.directions.length} direções`,
       );
+
       const directionIssues = validateDirectionSet(directionSet.directions);
+
       if (directionSet.directions.length !== 3) {
         await ctx.runMutation(internal.market.rejectCreativeDirector, {
           opportunityId,
           reason: directionIssues.join(" · ") || "A diretora não produziu três direções.",
         });
+
         return null;
       }
+
       const scoredDirections = directionSet.directions.map((direction) => ({
-        ...direction,
+        title: direction.title,
+        concept: direction.concept,
+        objective: direction.objective,
+        targetAudience: direction.targetAudience,
+        angle: direction.angle,
+        hook: direction.hook,
+        narrativeArc: direction.narrativeArc,
+        visualDirection: direction.visualDirection,
+        callToAction: direction.callToAction,
+        brandFactIds: direction.brandFactIds,
+        requiredAssets: direction.requiredAssets,
+        retainedMechanisms: direction.retainedMechanisms,
+        avoidedSourceElements: direction.avoidedSourceElements,
+        brandFitScore: direction.brandFitScore,
+        evidenceFitScore: direction.evidenceFitScore,
+        noveltyScore: direction.noveltyScore,
+        feasibilityScore: direction.feasibilityScore,
+        riskScore: direction.riskScore,
         totalScore: scoreCreativeDirection(direction),
       }));
+
+      // SAFETY: Convex serializes the validated direction array and does not mutate it; Mutable only
+      // removes readonly modifiers to match the generated mutation argument contract.
       const directionIds: Array<Id<"creativeDirections">> = await ctx.runMutation(
         internal.market.saveCreativeDirections,
         {
@@ -626,9 +790,11 @@ export const directOpportunity = internalAction({
           ),
         (result: BriefSelection) => `direção ${result.selectedDirectionNumber}`,
       );
+
       const selectedIndex = selection.selectedDirectionNumber - 1;
       const selectedDirection = scoredDirections[selectedIndex];
       const selectedDirectionId = directionIds[selectedIndex];
+
       if (
         !Number.isInteger(selectedIndex) ||
         selectedIndex < 0 ||
@@ -640,6 +806,7 @@ export const directOpportunity = internalAction({
           opportunityId,
           reason: "A seleção retornou uma direção inexistente.",
         });
+
         return null;
       }
 
@@ -647,6 +814,7 @@ export const directOpportunity = internalAction({
         opportunityId,
         status: "reviewing_brief",
       });
+
       const review: BriefReview = await runTracked(
         ctx,
         {
@@ -670,6 +838,7 @@ export const directOpportunity = internalAction({
           ),
         (result: BriefReview) => result.decision,
       );
+
       const validation = validateCreativePackage({
         source,
         directions: scoredDirections,
@@ -678,6 +847,9 @@ export const directOpportunity = internalAction({
         allowedBrandFactIds,
         allowedAssetIds,
       });
+
+      // SAFETY: The model brief was schema-validated and Convex only serializes this value; Mutable
+      // removes readonly modifiers to satisfy the generated mutation argument contract.
       const briefId: Id<"creativeBriefs"> = await ctx.runMutation(
         internal.market.saveCreativeBrief,
         {
@@ -704,6 +876,7 @@ export const directOpportunity = internalAction({
           reviewConfidence: review.confidence,
         },
       );
+
       // The brief is research output: Vanda reads it via /market and produces
       // the post herself (paint + run_code + create_post) — no auto-factory.
       return briefId;
@@ -727,19 +900,25 @@ export const measurePublications = internalAction({
       scheduledPostId: Id<"scheduledPosts">;
       externalPostId: string;
     }> = await ctx.runQuery(internal.market.listPublishedForMeasurement, { accountId });
+
     if (publications.length === 0) return 0;
     // One cached-analytics read covers every published post of the profile;
     // absent posts (fresh publish, snapshot lag) are skipped until next run.
     let analytics: Map<string, { views: number; likes: number; comments: number }>;
+
     try {
       analytics = await getPostAnalytics(String(accountId));
     } catch (error) {
       console.warn(`publisher analytics read failed for ${accountId}`, error);
+
       return 0;
     }
+
     let recorded = 0;
+
     for (const publication of publications) {
       const metrics = analytics.get(publication.externalPostId);
+
       if (metrics === undefined) continue;
       await ctx.runMutation(internal.market.recordPublicationSnapshot, {
         opportunityId: publication.opportunityId,
@@ -750,12 +929,14 @@ export const measurePublications = internalAction({
       });
       recorded += 1;
     }
+
     return recorded;
   },
 });
 
 /** Flat Apify estimates per pass — tuned against the real bill via usageEvents. */
 const APIFY_OBSERVE_ESTIMATE_USD = 0.05;
+
 const APIFY_QUALIFY_ESTIMATE_USD = 0.01;
 
 /** Owner-triggered legacy discover → observe entry point. */
@@ -763,6 +944,7 @@ export const runAccount = internalAction({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<MarketRunResult> => {
     const budget = await ctx.runQuery(internal.usage.budget, { accountId });
+
     if (!budget.ok) throw publicError("USAGE_LIMIT");
     // Charged up front: the Apify fetches happen regardless of what we find.
     await ctx.runMutation(internal.usage.charge, {
@@ -771,35 +953,47 @@ export const runAccount = internalAction({
       usd: APIFY_OBSERVE_ESTIMATE_USD,
       ref: "market-run",
     });
+
     let creators: ReadonlyArray<{
       readonly _id: Id<"marketCreators">;
       readonly relevanceScore: number;
     }> = await ctx.runQuery(internal.market.listActiveCreators, { accountId });
+
     const needsDiscovery = creators.every((creator) => creator.relevanceScore < 0.65);
+
     const runId: Id<"marketRuns"> = await ctx.runMutation(internal.market.startRun, {
       accountId,
       kind: "full_loop",
       stage: needsDiscovery ? "starting_discovery" : "starting_observation",
     });
+
     try {
       let discovery: DiscoveryResult | undefined;
+
       if (needsDiscovery) {
+        // SAFETY: discoverAccount declares DiscoveryResult, but recursive generated action references
+        // lose return-type precision across this module boundary.
         discovery = (await ctx.runAction(internal.marketNode.discoverAccount, {
           accountId,
           runId,
         })) as DiscoveryResult;
         creators = await ctx.runQuery(internal.market.listActiveCreators, { accountId });
       }
+
+      // SAFETY: observeAccount declares ObservationResult, but recursive generated action references
+      // lose return-type precision across this module boundary.
       const observation = (await ctx.runAction(internal.marketNode.observeAccount, {
         accountId,
         runId,
       })) as ObservationResult;
+
       for (const [index, opportunityId] of observation.opportunityIds.entries()) {
         await ctx.scheduler.runAfter(0, internal.marketNode.qualifyOpportunity, {
           opportunityId,
           analyzeAfter: index === 0,
         });
       }
+
       await ctx.runAction(internal.marketNode.measurePublications, { accountId });
       await ctx.runMutation(internal.market.updateRun, {
         runId,
@@ -813,12 +1007,16 @@ export const runAccount = internalAction({
         summary: `${creators.length} contas · ${observation.postsObserved} vídeos · ${observation.opportunityIds.length} oportunidades novas.`,
         complete: true,
       });
-      return {
+
+      const result: MarketRunResult = {
         selected: creators.length,
-        ...(discovery ? { plan: discovery.plan, found: discovery.found } : {}),
         postsObserved: observation.postsObserved,
         opportunitiesDetected: observation.opportunityIds.length,
       };
+
+      if (discovery) Object.assign(result, { plan: discovery.plan, found: discovery.found });
+
+      return result;
     } catch (error) {
       await ctx.runMutation(internal.market.updateRun, {
         runId,

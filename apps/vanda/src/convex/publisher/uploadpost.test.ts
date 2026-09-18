@@ -4,10 +4,15 @@ import {
   getInstagramComments,
   getInstagramMedia,
   getInstagramPostAnalytics,
+  getProfile,
   instagramProfileInfoOf,
 } from "./uploadpost";
 
-const response = (body: unknown) =>
+type JsonPrimitive = string | number | boolean | null;
+
+type JsonValue = JsonPrimitive | ReadonlyArray<JsonValue> | { readonly [key: string]: JsonValue };
+
+const response = (body: JsonValue) =>
   new Response(JSON.stringify(body), {
     status: 200,
     headers: { "content-type": "application/json" },
@@ -22,6 +27,31 @@ describe("Upload-Post Instagram reads", () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     delete process.env.UPLOADPOST_API_KEY;
+  });
+
+  it("keeps disconnected accounts and nullable profile fields valid", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        response({
+          username: "account-1",
+          social_accounts: {
+            instagram: { handle: null, username: "cafe", display_name: null },
+            tiktok: null,
+          },
+        }),
+      ),
+    );
+    const profile = await getProfile("account-1");
+    expect(profile).not.toBeNull();
+    expect(instagramProfileInfoOf(profile!)).toEqual({
+      connected: true,
+      username: "cafe",
+      displayName: "cafe",
+    });
+    expect(
+      instagramProfileInfoOf({ username: "account-1", socialAccounts: { instagram: null } }),
+    ).toEqual({ connected: false, username: null, displayName: null });
   });
 
   it("reads and normalizes connected media", async () => {
@@ -43,6 +73,7 @@ describe("Upload-Post Instagram reads", () => {
         pagination: { limit: 25, next_cursor: "next-page", has_more: true },
       }),
     );
+
     vi.stubGlobal("fetch", fetchMock);
 
     const page = await getInstagramMedia("account id", { limit: 25 });
@@ -82,6 +113,7 @@ describe("Upload-Post Instagram reads", () => {
         pagination: { next_cursor: null, has_next: false },
       }),
     );
+
     vi.stubGlobal("fetch", fetchMock);
 
     const page = await getInstagramComments("account-1", "media/1", { limit: 10 });
@@ -114,6 +146,7 @@ describe("Upload-Post Instagram reads", () => {
         },
       }),
     );
+
     vi.stubGlobal("fetch", fetchMock);
 
     const analytics = await getInstagramAnalytics("account/1");
@@ -154,6 +187,7 @@ describe("Upload-Post Instagram reads", () => {
         },
       }),
     );
+
     vi.stubGlobal("fetch", fetchMock);
 
     const analytics = await getInstagramPostAnalytics("account-1", "media-1");

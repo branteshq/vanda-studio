@@ -11,11 +11,14 @@ export const runNow = action({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<MarketRunResult> => {
     const identity = await ctx.auth.getUserIdentity();
+
     if (!identity) throw new Error("Not authenticated");
     await ctx.runQuery(internal.market.authorize, {
       accountId,
       clerkId: identity.subject,
     });
+
+    // SAFETY: runAccount's generated Convex reference erases its declared MarketRunResult return type.
     return (await ctx.runAction(internal.marketNode.runAccount, {
       accountId,
     })) as MarketRunResult;
@@ -27,18 +30,23 @@ export const adaptNow = action({
   args: { accountId: v.id("accounts"), opportunityId: v.id("opportunities") },
   handler: async (ctx, { accountId, opportunityId }): Promise<Id<"creativeBriefs"> | null> => {
     const identity = await ctx.auth.getUserIdentity();
+
     if (!identity) throw new Error("Not authenticated");
     await ctx.runQuery(internal.market.authorize, {
       accountId,
       clerkId: identity.subject,
     });
+
     const source: {
       opportunity: { status: string };
       dossier: { status: string } | null;
     } | null = await ctx.runQuery(internal.market.loadQualificationSource, { opportunityId });
+
     if (!source) throw new Error("opportunity not found");
+
     if (source.opportunity.status === "rejected" && source.dossier?.status === "ready")
       await ctx.runMutation(internal.market.retryCreativeDirector, { opportunityId });
+
     if (
       source.dossier?.status !== "ready" &&
       (source.opportunity.status === "qualifying" ||
@@ -49,8 +57,11 @@ export const adaptNow = action({
         opportunityId,
         analyzeAfter: false,
       });
+
       if (!qualified) throw new Error("source did not pass the input quality gate");
     }
+
+    // SAFETY: directOpportunity's generated Convex reference erases its declared branded-ID return type.
     return (await ctx.runAction(internal.marketNode.directOpportunity, {
       opportunityId,
     })) as Id<"creativeBriefs"> | null;

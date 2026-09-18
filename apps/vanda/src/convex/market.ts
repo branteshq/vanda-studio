@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
 import { marketRunKinds, marketRunStatuses, opportunityStatuses } from "./pipeline/constants";
@@ -23,8 +23,11 @@ export const authorize = internalQuery({
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
       .unique();
+
     const account = await ctx.db.get(accountId);
+
     if (!user || !account || account.ownerUserId !== user._id) throw new Error("account not found");
+
     return true;
   },
 });
@@ -33,14 +36,18 @@ export const loadBrandContext = internalQuery({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
     const account = await ctx.db.get(accountId);
+
     const canon = await ctx.db
       .query("brandCanon")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .collect();
+
     const confirmed = canon.filter((item) => item.confirmedByOwner);
+
     const readiness = assessBrandReadiness({
       confirmedKinds: confirmed.map((item) => item.kind),
     });
+
     return {
       ownHandle: account?.handle,
       context: confirmed.map((item) => `${item.kind}: ${item.text}`).join("\n"),
@@ -59,16 +66,21 @@ export const ensureBrandSnapshot = internalMutation({
         .withIndex("by_account", (q) => q.eq("accountId", accountId))
         .collect()
     ).filter((item) => item.confirmedByOwner);
+
     const contextLines = canon.map((item) => `${item.kind}: ${item.text}`);
     const hash = brandSnapshotHash(contextLines);
+
     const existing = await ctx.db
       .query("brandSnapshots")
       .withIndex("by_account_hash", (q) => q.eq("accountId", accountId).eq("hash", hash))
       .first();
+
     if (existing) return existing;
+
     const readiness = assessBrandReadiness({
       confirmedKinds: canon.map((item) => item.kind),
     });
+
     const snapshotId = await ctx.db.insert("brandSnapshots", {
       accountId,
       context: contextLines.join("\n"),
@@ -79,6 +91,7 @@ export const ensureBrandSnapshot = internalMutation({
       missingRecommended: [...readiness.missingRecommended],
       createdAt: Date.now(),
     });
+
     return (await ctx.db.get(snapshotId))!;
   },
 });
@@ -125,10 +138,10 @@ export const updateRun = internalMutation({
     complete: v.optional(v.boolean()),
   },
   handler: async (ctx, { runId, complete, ...patch }) => {
-    await ctx.db.patch(runId, {
-      ...patch,
-      ...(complete ? { completedAt: Date.now() } : {}),
-    });
+    const runPatch: Partial<Doc<"marketRuns">> = { ...patch };
+
+    if (complete) runPatch.completedAt = Date.now();
+    await ctx.db.patch(runId, runPatch);
   },
 });
 
@@ -286,13 +299,17 @@ export const saveSelectedCreators = internalMutation({
     const now = Date.now();
     const ids = [];
     const selectedHandles = new Set(creators.map((creator) => creator.handle.toLocaleLowerCase()));
+
     for (const creator of creators) {
       const handle = creator.handle.toLocaleLowerCase();
+
       const existing = await ctx.db
         .query("marketCreators")
         .withIndex("by_account_handle", (q) => q.eq("accountId", accountId).eq("handle", handle))
         .unique();
+
       const { latestPosts: _latestPosts, ...profile } = creator;
+
       if (existing) {
         if (existing.feedback === "blocked" || existing.feedback === "irrelevant") continue;
         await ctx.db.patch(existing._id, {
@@ -315,11 +332,13 @@ export const saveSelectedCreators = internalMutation({
         );
       }
     }
+
     if (selectedHandles.size > 0) {
       const accountCreators = await ctx.db
         .query("marketCreators")
         .withIndex("by_account", (q) => q.eq("accountId", accountId))
         .collect();
+
       for (const creator of accountCreators) {
         if (
           creator.status === "active" &&
@@ -329,6 +348,7 @@ export const saveSelectedCreators = internalMutation({
           await ctx.db.patch(creator._id, { status: "paused", updatedAt: now });
       }
     }
+
     return ids;
   },
 });
@@ -337,14 +357,18 @@ export const listCreatorFeedback = internalQuery({
   args: { accountId: v.id("accounts"), handles: v.array(v.string()) },
   handler: async (ctx, { accountId, handles }) => {
     const rows = [];
+
     for (const rawHandle of handles) {
       const handle = rawHandle.toLocaleLowerCase();
+
       const creator = await ctx.db
         .query("marketCreators")
         .withIndex("by_account_handle", (q) => q.eq("accountId", accountId).eq("handle", handle))
         .unique();
+
       if (creator?.feedback) rows.push({ handle, feedback: creator.feedback });
     }
+
     return rows;
   },
 });
@@ -376,6 +400,7 @@ export const recordObservations = internalMutation({
   },
   handler: async (ctx, { accountId, brandSnapshotId, creators }) => {
     const brandSnapshot = await ctx.db.get(brandSnapshotId);
+
     if (!brandSnapshot || brandSnapshot.accountId !== accountId)
       throw new Error("brand snapshot not found");
     const observedAt = Date.now();
@@ -385,46 +410,61 @@ export const recordObservations = internalMutation({
 
     for (const input of creators) {
       const handle = input.handle.toLocaleLowerCase();
+
       const creator = await ctx.db
         .query("marketCreators")
         .withIndex("by_account_handle", (q) => q.eq("accountId", accountId).eq("handle", handle))
         .unique();
+
       if (!creator || creator.status !== "active") continue;
-      await ctx.db.patch(creator._id, {
-        ...(input.followers !== undefined ? { followers: input.followers } : {}),
-        ...(input.following !== undefined ? { following: input.following } : {}),
-        ...(input.postsCount !== undefined ? { postsCount: input.postsCount } : {}),
-        ...(input.profileImageUrl !== undefined ? { profileImageUrl: input.profileImageUrl } : {}),
+
+      const creatorPatch: Partial<Doc<"marketCreators">> = {
         lastObservedAt: observedAt,
         updatedAt: observedAt,
-      });
+      };
+
+      if (input.followers !== undefined) creatorPatch.followers = input.followers;
+
+      if (input.following !== undefined) creatorPatch.following = input.following;
+
+      if (input.postsCount !== undefined) creatorPatch.postsCount = input.postsCount;
+
+      if (input.profileImageUrl !== undefined) creatorPatch.profileImageUrl = input.profileImageUrl;
+      await ctx.db.patch(creator._id, creatorPatch);
 
       for (const inputPost of input.latestPosts) {
         const isVideo =
           inputPost.mediaType.toLocaleLowerCase() === "video" ||
           inputPost.productType?.toLocaleLowerCase().includes("clip") === true;
+
         if (!isVideo) continue;
         postsObserved += 1;
+
         const existing = await ctx.db
           .query("marketPosts")
           .withIndex("by_creator_external", (q) =>
             q.eq("creatorId", creator._id).eq("externalPostId", inputPost.externalId),
           )
           .unique();
+
         let marketPostId;
+
         if (existing) {
           marketPostId = existing._id;
-          await ctx.db.patch(existing._id, {
+
+          const postPatch: Partial<Doc<"marketPosts">> = {
             permalink: inputPost.permalink,
-            ...(inputPost.caption !== undefined ? { caption: inputPost.caption } : {}),
-            ...(inputPost.thumbnailUrl !== undefined
-              ? { thumbnailUrl: inputPost.thumbnailUrl }
-              : {}),
-            ...(inputPost.videoUrl !== undefined ? { videoUrl: inputPost.videoUrl } : {}),
             lastObservedAt: observedAt,
-          });
+          };
+
+          if (inputPost.caption !== undefined) postPatch.caption = inputPost.caption;
+
+          if (inputPost.thumbnailUrl !== undefined) postPatch.thumbnailUrl = inputPost.thumbnailUrl;
+
+          if (inputPost.videoUrl !== undefined) postPatch.videoUrl = inputPost.videoUrl;
+          await ctx.db.patch(existing._id, postPatch);
         } else {
-          marketPostId = await ctx.db.insert("marketPosts", {
+          const post: Omit<Doc<"marketPosts">, "_id" | "_creationTime"> = {
             accountId,
             creatorId: creator._id,
             externalPostId: inputPost.externalId,
@@ -433,14 +473,18 @@ export const recordObservations = internalMutation({
             publishedAt: inputPost.publishedAt,
             firstObservedAt: observedAt,
             lastObservedAt: observedAt,
-            ...(inputPost.shortCode !== undefined ? { shortCode: inputPost.shortCode } : {}),
-            ...(inputPost.caption !== undefined ? { caption: inputPost.caption } : {}),
-            ...(inputPost.productType !== undefined ? { productType: inputPost.productType } : {}),
-            ...(inputPost.thumbnailUrl !== undefined
-              ? { thumbnailUrl: inputPost.thumbnailUrl }
-              : {}),
-            ...(inputPost.videoUrl !== undefined ? { videoUrl: inputPost.videoUrl } : {}),
-          });
+          };
+
+          if (inputPost.shortCode !== undefined) post.shortCode = inputPost.shortCode;
+
+          if (inputPost.caption !== undefined) post.caption = inputPost.caption;
+
+          if (inputPost.productType !== undefined) post.productType = inputPost.productType;
+
+          if (inputPost.thumbnailUrl !== undefined) post.thumbnailUrl = inputPost.thumbnailUrl;
+
+          if (inputPost.videoUrl !== undefined) post.videoUrl = inputPost.videoUrl;
+          marketPostId = await ctx.db.insert("marketPosts", post);
         }
 
         const previous = await ctx.db
@@ -448,6 +492,7 @@ export const recordObservations = internalMutation({
           .withIndex("by_market_post_observed", (q) => q.eq("marketPostId", marketPostId))
           .order("desc")
           .first();
+
         const current = {
           observedAt,
           followers: input.followers ?? creator.followers,
@@ -456,29 +501,41 @@ export const recordObservations = internalMutation({
           likes: inputPost.likes,
           comments: inputPost.comments,
         };
-        const snapshotId = await ctx.db.insert("metricSnapshots", {
+
+        const snapshot: Omit<Doc<"metricSnapshots">, "_id" | "_creationTime"> = {
           accountId,
           subjectType: "source_post",
           marketPostId,
           observedAt,
-          ...(current.followers !== undefined ? { followers: current.followers } : {}),
-          ...(current.views !== undefined ? { views: current.views } : {}),
-          ...(current.plays !== undefined ? { plays: current.plays } : {}),
-          ...(current.likes !== undefined ? { likes: current.likes } : {}),
-          ...(current.comments !== undefined ? { comments: current.comments } : {}),
-        });
+        };
+
+        if (current.followers !== undefined) snapshot.followers = current.followers;
+
+        if (current.views !== undefined) snapshot.views = current.views;
+
+        if (current.plays !== undefined) snapshot.plays = current.plays;
+
+        if (current.likes !== undefined) snapshot.likes = current.likes;
+
+        if (current.comments !== undefined) snapshot.comments = current.comments;
+        const snapshotId = await ctx.db.insert("metricSnapshots", snapshot);
+
         snapshotsRecorded += 1;
 
         const alreadyFlagged = await ctx.db
           .query("opportunities")
           .withIndex("by_market_post", (q) => q.eq("marketPostId", marketPostId))
           .first();
+
         if (alreadyFlagged) continue;
+
         const decision = detectBreakout(current, previous ?? undefined, {
           now: observedAt,
           publishedAt: inputPost.publishedAt,
         });
+
         if (!decision) continue;
+
         const assessment = assessPreflightInput({
           now: observedAt,
           publishedAt: inputPost.publishedAt,
@@ -489,6 +546,7 @@ export const recordObservations = internalMutation({
           creatorBlocked: creator.feedback === "blocked" || creator.feedback === "irrelevant",
           brandReady: brandSnapshot.missingRequired.length === 0,
         });
+
         const assessmentId = await ctx.db.insert("inputAssessments", {
           accountId,
           marketPostId,
@@ -503,7 +561,8 @@ export const recordObservations = internalMutation({
           snapshotIds: previous ? [previous._id, snapshotId] : [snapshotId],
           evaluatedAt: observedAt,
         });
-        const opportunityId = await ctx.db.insert("opportunities", {
+
+        const opportunity: Omit<Doc<"opportunities">, "_id" | "_creationTime"> = {
           accountId,
           marketPostId,
           status: assessment.decision === "qualified" ? "qualifying" : "rejected",
@@ -516,13 +575,16 @@ export const recordObservations = internalMutation({
           postAgeAtDetection: Math.max(0, observedAt - inputPost.publishedAt),
           brandSnapshotId,
           inputAssessmentId: assessmentId,
-          ...(assessment.rejectionCodes.length > 0
-            ? { rejectionCodes: [...assessment.rejectionCodes] }
-            : {}),
           createdAt: observedAt,
           updatedAt: observedAt,
-        });
+        };
+
+        if (assessment.rejectionCodes.length > 0)
+          opportunity.rejectionCodes = [...assessment.rejectionCodes];
+        const opportunityId = await ctx.db.insert("opportunities", opportunity);
+
         await ctx.db.patch(assessmentId, { opportunityId });
+
         if (assessment.decision === "qualified") opportunityIds.push(opportunityId);
       }
     }
@@ -535,14 +597,18 @@ export const loadQualificationSource = internalQuery({
   args: { opportunityId: v.id("opportunities") },
   handler: async (ctx, { opportunityId }) => {
     const opportunity = await ctx.db.get(opportunityId);
+
     if (!opportunity) return null;
     const post = await ctx.db.get(opportunity.marketPostId);
+
     if (!post) return null;
     const creator = await ctx.db.get(post.creatorId);
+
     const dossier = await ctx.db
       .query("sourceDossiers")
       .withIndex("by_market_post", (q) => q.eq("marketPostId", post._id))
       .first();
+
     return { opportunity, post, creator, dossier };
   },
 });
@@ -555,8 +621,10 @@ export const attachOpportunityBrandSnapshot = internalMutation({
   handler: async (ctx, { opportunityId, brandSnapshotId }) => {
     const opportunity = await ctx.db.get(opportunityId);
     const snapshot = await ctx.db.get(brandSnapshotId);
+
     if (!opportunity || !snapshot || opportunity.accountId !== snapshot.accountId)
       throw new Error("opportunity brand snapshot mismatch");
+
     if (!opportunity.brandSnapshotId)
       await ctx.db.patch(opportunityId, { brandSnapshotId, status: "qualifying" });
   },
@@ -589,20 +657,27 @@ export const completeSourceQualification = internalMutation({
   },
   handler: async (ctx, args) => {
     const opportunity = await ctx.db.get(args.opportunityId);
+
     if (!opportunity) throw new Error("opportunity not found");
     const post = await ctx.db.get(opportunity.marketPostId);
+
     if (!post) throw new Error("market post not found");
     const creator = await ctx.db.get(post.creatorId);
+
     if (!creator) throw new Error("market creator not found");
+
     const brandSnapshot = opportunity.brandSnapshotId
       ? await ctx.db.get(opportunity.brandSnapshotId)
       : null;
+
     if (!brandSnapshot) throw new Error("brand snapshot not found");
+
     const latestSnapshot = await ctx.db
       .query("metricSnapshots")
       .withIndex("by_market_post_observed", (q) => q.eq("marketPostId", post._id))
       .order("desc")
       .first();
+
     if (!latestSnapshot) throw new Error("metric snapshot not found");
 
     const assessment = assessFinalInput({
@@ -621,13 +696,16 @@ export const completeSourceQualification = internalMutation({
       frameCount: args.frameStorageIds.length,
       visualDescription: args.visualDescription,
     });
+
     const hasUsableTranscript = isUsableSemanticText(args.transcript);
     const hasUsableCaption = isUsableSemanticText(args.caption ?? post.caption);
+
     const hasUsableVisualEvidence =
       (args.videoStorageId !== undefined ||
         args.frameStorageIds.length >= 3 ||
         args.thumbnailStorageId !== undefined) &&
       isUsableSemanticText(args.visualDescription);
+
     const contentType: "mixed" | "spoken" | "visual" | "unknown" = hasUsableTranscript
       ? hasUsableVisualEvidence
         ? "mixed"
@@ -635,11 +713,14 @@ export const completeSourceQualification = internalMutation({
       : hasUsableVisualEvidence
         ? "visual"
         : "unknown";
+
     const now = Date.now();
+
     const existingDossier = await ctx.db
       .query("sourceDossiers")
       .withIndex("by_market_post", (q) => q.eq("marketPostId", post._id))
       .first();
+
     const dossierPatch = {
       accountId: opportunity.accountId,
       marketPostId: post._id,
@@ -654,27 +735,39 @@ export const completeSourceQualification = internalMutation({
       hasUsableVisualEvidence,
       qualityScore: assessment.qualityScore,
       rejectionCodes: [...assessment.rejectionCodes],
-      ...(args.caption !== undefined ? { caption: args.caption } : {}),
-      ...(args.transcript !== undefined ? { transcript: args.transcript } : {}),
-      ...(args.transcriptLanguage !== undefined
-        ? { transcriptLanguage: args.transcriptLanguage }
-        : {}),
-      ...(args.transcriptConfidence !== undefined
-        ? { transcriptConfidence: args.transcriptConfidence }
-        : {}),
-      ...(args.videoStorageId !== undefined ? { videoStorageId: args.videoStorageId } : {}),
-      ...(args.thumbnailStorageId !== undefined
-        ? { thumbnailStorageId: args.thumbnailStorageId }
-        : {}),
-      ...(args.frameEvidence !== undefined ? { frameEvidence: args.frameEvidence } : {}),
-      ...(args.visualDescription !== undefined
-        ? { visualDescription: args.visualDescription }
-        : {}),
-      ...(args.visualConfidence !== undefined ? { visualConfidence: args.visualConfidence } : {}),
-      ...(args.providerError !== undefined ? { lastError: args.providerError } : {}),
       updatedAt: now,
     };
+
+    if (args.caption !== undefined) Object.assign(dossierPatch, { caption: args.caption });
+
+    if (args.transcript !== undefined) Object.assign(dossierPatch, { transcript: args.transcript });
+
+    if (args.transcriptLanguage !== undefined)
+      Object.assign(dossierPatch, { transcriptLanguage: args.transcriptLanguage });
+
+    if (args.transcriptConfidence !== undefined)
+      Object.assign(dossierPatch, { transcriptConfidence: args.transcriptConfidence });
+
+    if (args.videoStorageId !== undefined)
+      Object.assign(dossierPatch, { videoStorageId: args.videoStorageId });
+
+    if (args.thumbnailStorageId !== undefined)
+      Object.assign(dossierPatch, { thumbnailStorageId: args.thumbnailStorageId });
+
+    if (args.frameEvidence !== undefined)
+      Object.assign(dossierPatch, { frameEvidence: args.frameEvidence });
+
+    if (args.visualDescription !== undefined)
+      Object.assign(dossierPatch, { visualDescription: args.visualDescription });
+
+    if (args.visualConfidence !== undefined)
+      Object.assign(dossierPatch, { visualConfidence: args.visualConfidence });
+
+    if (args.providerError !== undefined)
+      Object.assign(dossierPatch, { lastError: args.providerError });
+
     let dossierId;
+
     if (existingDossier) {
       dossierId = existingDossier._id;
       await ctx.db.patch(dossierId, dossierPatch);
@@ -684,9 +777,11 @@ export const completeSourceQualification = internalMutation({
         createdAt: now,
       });
     }
+
     const preflight = opportunity.inputAssessmentId
       ? await ctx.db.get(opportunity.inputAssessmentId)
       : null;
+
     const assessmentId = await ctx.db.insert("inputAssessments", {
       accountId: opportunity.accountId,
       marketPostId: post._id,
@@ -706,14 +801,18 @@ export const completeSourceQualification = internalMutation({
       snapshotIds: preflight?.snapshotIds ?? [latestSnapshot._id],
       evaluatedAt: args.providerFetchedAt,
     });
-    await ctx.db.patch(opportunity._id, {
+
+    const opportunityPatch: Partial<Doc<"opportunities">> = {
       status: assessment.decision === "qualified" ? "ready_for_analysis" : "rejected",
       dossierId,
       inputAssessmentId: assessmentId,
       rejectionCodes: [...assessment.rejectionCodes],
-      ...(args.transcript !== undefined ? { sourceTranscript: args.transcript } : {}),
       updatedAt: now,
-    });
+    };
+
+    if (args.transcript !== undefined) opportunityPatch.sourceTranscript = args.transcript;
+    await ctx.db.patch(opportunity._id, opportunityPatch);
+
     return { decision: assessment.decision, dossierId, qualityScore: assessment.qualityScore };
   },
 });
@@ -722,27 +821,35 @@ export const loadCreativeDirectorInput = internalQuery({
   args: { opportunityId: v.id("opportunities") },
   handler: async (ctx, { opportunityId }) => {
     const opportunity = await ctx.db.get(opportunityId);
+
     if (!opportunity) return null;
     const post = await ctx.db.get(opportunity.marketPostId);
+
     if (!post) return null;
     const creator = await ctx.db.get(post.creatorId);
     const dossier = opportunity.dossierId ? await ctx.db.get(opportunity.dossierId) : null;
+
     const brandSnapshot = opportunity.brandSnapshotId
       ? await ctx.db.get(opportunity.brandSnapshotId)
       : null;
+
     if (!dossier || !brandSnapshot) return null;
     const facts = [];
+
     for (const canonId of brandSnapshot.canonIds) {
       const fact = await ctx.db.get(canonId);
+
       if (fact?.confirmedByOwner)
         facts.push({ id: String(fact._id), kind: fact.kind, text: fact.text });
     }
+
     const referenceAssets = (
       await ctx.db
         .query("images")
         .withIndex("by_account", (q) => q.eq("accountId", opportunity.accountId))
         .collect()
     ).filter((image) => image.purpose === "reference");
+
     return {
       opportunity,
       post,
@@ -762,8 +869,10 @@ export const retryCreativeDirector = internalMutation({
   args: { opportunityId: v.id("opportunities") },
   handler: async (ctx, { opportunityId }) => {
     const opportunity = await ctx.db.get(opportunityId);
+
     if (!opportunity?.dossierId) throw new Error("opportunity not found");
     const dossier = await ctx.db.get(opportunity.dossierId);
+
     if (!dossier || dossier.status !== "ready") throw new Error("source dossier is not ready");
     await ctx.db.patch(opportunityId, {
       status: "ready_for_analysis",
@@ -781,6 +890,7 @@ export const rejectCreativeDirector = internalMutation({
   args: { opportunityId: v.id("opportunities"), reason: v.string() },
   handler: async (ctx, { opportunityId, reason }) => {
     const opportunity = await ctx.db.get(opportunityId);
+
     if (!opportunity) throw new Error("opportunity not found");
     await ctx.db.patch(opportunityId, {
       status: "rejected",
@@ -799,8 +909,10 @@ export const saveCreativeAnalysis = internalMutation({
   },
   handler: async (ctx, { opportunityId, ...analysis }) => {
     const opportunity = await ctx.db.get(opportunityId);
+
     if (!opportunity?.dossierId) throw new Error("qualified opportunity not found");
     const now = Date.now();
+
     const analysisId = await ctx.db.insert("creativeAnalyses", {
       accountId: opportunity.accountId,
       opportunityId,
@@ -809,6 +921,7 @@ export const saveCreativeAnalysis = internalMutation({
       ...analysis,
       createdAt: now,
     });
+
     await ctx.db.patch(opportunityId, {
       creativeAnalysisId: analysisId,
       status: analysis.adaptable ? "directing" : "rejected",
@@ -817,6 +930,7 @@ export const saveCreativeAnalysis = internalMutation({
         : { creativeRejectionReason: analysis.rejectionReason || "Fonte sem adaptação honesta." }),
       updatedAt: now,
     });
+
     return analysisId;
   },
 });
@@ -832,11 +946,14 @@ export const saveCreativeDirections = internalMutation({
   handler: async (ctx, { opportunityId, analysisId, model, promptVersion, directions }) => {
     const opportunity = await ctx.db.get(opportunityId);
     const analysis = await ctx.db.get(analysisId);
+
     if (!opportunity || !analysis || analysis.opportunityId !== opportunityId)
       throw new Error("creative analysis mismatch");
+
     if (directions.length !== 3) throw new Error("exactly three directions are required");
     const now = Date.now();
     const ids = [];
+
     for (const [index, direction] of directions.entries())
       ids.push(
         await ctx.db.insert("creativeDirections", {
@@ -855,6 +972,7 @@ export const saveCreativeDirections = internalMutation({
       status: "selecting_direction",
       updatedAt: now,
     });
+
     return ids;
   },
 });
@@ -880,6 +998,7 @@ export const saveCreativeBrief = internalMutation({
     const opportunity = await ctx.db.get(args.opportunityId);
     const analysis = await ctx.db.get(args.analysisId);
     const direction = await ctx.db.get(args.selectedDirectionId);
+
     if (
       !opportunity ||
       !analysis ||
@@ -890,6 +1009,7 @@ export const saveCreativeBrief = internalMutation({
       throw new Error("creative package mismatch");
     const ready = args.reviewDecision === "approved" && args.deterministicIssues.length === 0;
     const now = Date.now();
+
     const briefId = await ctx.db.insert("creativeBriefs", {
       accountId: opportunity.accountId,
       opportunityId: opportunity._id,
@@ -934,6 +1054,7 @@ export const saveCreativeBrief = internalMutation({
       reviewPromptVersion: args.reviewPromptVersion,
       createdAt: now,
     });
+
     const rejectionReason = [
       args.reviewSummary,
       ...args.deterministicIssues,
@@ -943,6 +1064,7 @@ export const saveCreativeBrief = internalMutation({
     ]
       .filter(Boolean)
       .join(" · ");
+
     await ctx.db.patch(opportunity._id, {
       creativeBriefId: briefId,
       status: ready ? "ready_for_production" : "rejected",
@@ -951,6 +1073,7 @@ export const saveCreativeBrief = internalMutation({
         : { creativeRejectionReason: rejectionReason || "Brief reprovado na revisão." }),
       updatedAt: now,
     });
+
     return briefId;
   },
 });
@@ -961,26 +1084,33 @@ export const setOpportunityStatus = internalMutation({
     status: v.union(...opportunityStatuses.map((status) => v.literal(status))),
     lastError: v.optional(v.string()),
   },
-  handler: (ctx, { opportunityId, status, lastError }) =>
-    ctx.db.patch(opportunityId, {
+  handler: (ctx, { opportunityId, status, lastError }) => {
+    const patch: Partial<Doc<"opportunities">> = {
       status,
-      ...(lastError !== undefined ? { lastError } : {}),
       updatedAt: Date.now(),
-    }),
+    };
+
+    if (lastError !== undefined) patch.lastError = lastError;
+
+    return ctx.db.patch(opportunityId, patch);
+  },
 });
 
 export const listPublishedForMeasurement = internalQuery({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
     const rows = [];
+
     for (const status of ["publishing", "published", "measuring"] as const) {
       const opportunities = await ctx.db
         .query("opportunities")
         .withIndex("by_account_status", (q) => q.eq("accountId", accountId).eq("status", status))
         .collect();
+
       for (const opportunity of opportunities) {
         if (!opportunity.scheduledPostId) continue;
         const scheduled = await ctx.db.get(opportunity.scheduledPostId);
+
         if (scheduled?.status === "published" && scheduled.externalPostId)
           rows.push({
             opportunityId: opportunity._id,
@@ -989,6 +1119,7 @@ export const listPublishedForMeasurement = internalQuery({
           });
       }
     }
+
     return rows;
   },
 });
@@ -1003,16 +1134,22 @@ export const recordPublicationSnapshot = internalMutation({
   },
   handler: async (ctx, { opportunityId, scheduledPostId, views, likes, comments }) => {
     const opportunity = await ctx.db.get(opportunityId);
+
     if (!opportunity) return;
-    await ctx.db.insert("metricSnapshots", {
+
+    const snapshot: Omit<Doc<"metricSnapshots">, "_id" | "_creationTime"> = {
       accountId: opportunity.accountId,
       subjectType: "publication",
       scheduledPostId,
       observedAt: Date.now(),
-      ...(views !== undefined ? { views } : {}),
-      ...(likes !== undefined ? { likes } : {}),
-      ...(comments !== undefined ? { comments } : {}),
-    });
+    };
+
+    if (views !== undefined) snapshot.views = views;
+
+    if (likes !== undefined) snapshot.likes = likes;
+
+    if (comments !== undefined) snapshot.comments = comments;
+    await ctx.db.insert("metricSnapshots", snapshot);
     await ctx.db.patch(opportunityId, { status: "measuring", updatedAt: Date.now() });
   },
 });
@@ -1021,48 +1158,60 @@ export const dashboard = query({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
     await requireOwnedAccount(ctx, accountId);
+
     const creators = (
       await ctx.db
         .query("marketCreators")
         .withIndex("by_account", (q) => q.eq("accountId", accountId))
         .collect()
     ).filter((creator) => creator.status === "active");
+
     const posts = await ctx.db
       .query("marketPosts")
       .withIndex("by_account_published", (q) => q.eq("accountId", accountId))
       .order("desc")
       .take(100);
+
     const opportunities = [];
+
     for (const status of opportunityStatuses) {
       const rows = await ctx.db
         .query("opportunities")
         .withIndex("by_account_status", (q) => q.eq("accountId", accountId).eq("status", status))
         .collect();
+
       opportunities.push(...rows);
     }
+
     const runs = await ctx.db
       .query("marketRuns")
       .withIndex("by_account_started", (q) => q.eq("accountId", accountId))
       .order("desc")
       .take(1);
+
     const assessments = await ctx.db
       .query("inputAssessments")
       .withIndex("by_account_evaluated", (q) => q.eq("accountId", accountId))
       .order("desc")
       .take(200);
+
     const latestFinalByPost = new Map<Id<"marketPosts">, (typeof assessments)[number]>();
+
     for (const assessment of assessments) {
       if (assessment.stage === "final" && !latestFinalByPost.has(assessment.marketPostId))
         latestFinalByPost.set(assessment.marketPostId, assessment);
     }
+
     const finalAssessments = [...latestFinalByPost.values()];
     const rejectionReasons: Record<string, number> = {};
+
     for (const assessment of finalAssessments)
       for (const code of assessment.rejectionCodes)
         rejectionReasons[code] = (rejectionReasons[code] ?? 0) + 1;
     const creatorById = new Map(creators.map((creator) => [creator._id, creator]));
     const postById = new Map(posts.map((post) => [post._id, post]));
     const latestPostByCreator = new Map<string, (typeof posts)[number]>();
+
     for (const post of posts) {
       if (!latestPostByCreator.has(post.creatorId)) latestPostByCreator.set(post.creatorId, post);
     }
@@ -1074,29 +1223,37 @@ export const dashboard = query({
             opportunity.status !== "dismissed" &&
             (opportunity.status !== "rejected" || opportunity.creativeAnalysisId !== undefined),
         )
-        .sort((a, b) => b.score - a.score)
+        .toSorted((a, b) => b.score - a.score)
         .map(async (opportunity) => {
           const post =
             postById.get(opportunity.marketPostId) ?? (await ctx.db.get(opportunity.marketPostId));
+
           const creator = post
             ? (creatorById.get(post.creatorId) ?? (await ctx.db.get(post.creatorId)))
             : null;
+
           const scheduled = opportunity.scheduledPostId
             ? await ctx.db.get(opportunity.scheduledPostId)
             : null;
+
           const dossier = opportunity.dossierId ? await ctx.db.get(opportunity.dossierId) : null;
+
           const creativeAnalysis = opportunity.creativeAnalysisId
             ? await ctx.db.get(opportunity.creativeAnalysisId)
             : null;
+
           const creativeDirections = opportunity.creativeDirectionIds
             ? await Promise.all(opportunity.creativeDirectionIds.map((id) => ctx.db.get(id)))
             : [];
+
           const creativeBrief = opportunity.creativeBriefId
             ? await ctx.db.get(opportunity.creativeBriefId)
             : null;
+
           const sourcePreviewUrl = dossier?.thumbnailStorageId
             ? await ctx.storage.getUrl(dossier.thumbnailStorageId)
             : null;
+
           const snapshots = await ctx.db
             .query("metricSnapshots")
             .withIndex("by_market_post_observed", (q) =>
@@ -1104,6 +1261,7 @@ export const dashboard = query({
             )
             .order("desc")
             .take(1);
+
           const publicationSnapshots = opportunity.scheduledPostId
             ? await ctx.db
                 .query("metricSnapshots")
@@ -1113,8 +1271,8 @@ export const dashboard = query({
                 .order("desc")
                 .take(1)
             : [];
-          return {
-            ...opportunity,
+
+          return Object.assign({}, opportunity, {
             post,
             creator,
             metrics: snapshots[0] ?? null,
@@ -1125,9 +1283,19 @@ export const dashboard = query({
             creativeBrief,
             sourcePreviewUrl,
             scheduled,
-          };
+          });
         }),
     );
+
+    const creatorCards = [];
+
+    for (const creator of creators.toSorted((a, b) => b.relevanceScore - a.relevanceScore)) {
+      creatorCards.push(
+        Object.assign({}, creator, {
+          latestPost: latestPostByCreator.get(creator._id) ?? null,
+        }),
+      );
+    }
 
     return {
       latestRun: runs[0] ?? null,
@@ -1141,12 +1309,7 @@ export const dashboard = query({
         rejected: finalAssessments.filter((item) => item.decision === "rejected").length,
         rejectionReasons,
       },
-      creators: [...creators]
-        .sort((a, b) => b.relevanceScore - a.relevanceScore)
-        .map((creator) => ({
-          ...creator,
-          latestPost: latestPostByCreator.get(creator._id) ?? null,
-        })),
+      creators: creatorCards,
       opportunities: opportunityCards,
     };
   },
@@ -1160,15 +1323,19 @@ export const setCreatorFeedback = mutation({
   },
   handler: async (ctx, { creatorId, feedback, reason }) => {
     const creator = await ctx.db.get(creatorId);
+
     if (!creator) throw new Error("creator not found");
     await requireOwnedAccount(ctx, creator.accountId);
-    await ctx.db.patch(creatorId, {
+
+    const patch: Partial<Doc<"marketCreators">> = {
       feedback,
-      ...(reason?.trim() ? { feedbackReason: reason.trim() } : {}),
       feedbackAt: Date.now(),
       status: feedback === "relevant" ? "active" : "rejected",
       updatedAt: Date.now(),
-    });
+    };
+
+    if (reason?.trim()) patch.feedbackReason = reason.trim();
+    await ctx.db.patch(creatorId, patch);
   },
 });
 
@@ -1176,6 +1343,7 @@ export const dismissOpportunity = mutation({
   args: { opportunityId: v.id("opportunities") },
   handler: async (ctx, { opportunityId }) => {
     const opportunity = await ctx.db.get(opportunityId);
+
     if (!opportunity) throw new Error("opportunity not found");
     await requireOwnedAccount(ctx, opportunity.accountId);
     await ctx.db.patch(opportunityId, { status: "dismissed", updatedAt: Date.now() });
@@ -1193,11 +1361,14 @@ export const listOpportunitiesForAgent = internalQuery({
       .query("opportunities")
       .withIndex("by_account_status", (q) => q.eq("accountId", accountId))
       .collect();
-    const recent = opportunities.sort((a, b) => b.createdAt - a.createdAt).slice(0, 20);
+
+    const recent = opportunities.toSorted((a, b) => b.createdAt - a.createdAt).slice(0, 20);
+
     return Promise.all(
       recent.map(async (opportunity) => {
         const marketPost = await ctx.db.get(opportunity.marketPostId);
         const creator = marketPost ? await ctx.db.get(marketPost.creatorId) : null;
+
         return {
           opportunityId: opportunity._id,
           status: opportunity.status,
@@ -1224,7 +1395,9 @@ export const latestRunForAgent = internalQuery({
       .withIndex("by_account_started", (q) => q.eq("accountId", accountId))
       .order("desc")
       .first();
+
     if (!run) return null;
+
     return {
       runId: run._id,
       kind: run.kind,

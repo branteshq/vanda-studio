@@ -1,6 +1,8 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { defaultSettingsMiddleware, wrapLanguageModel, type LanguageModel } from "ai";
 import { publicError } from "../../errors";
+import * as Schema from "effect/Schema";
+import { z } from "zod";
 
 /**
  * Adapters for the ChatGPT subscription backend (the Conectado plan): the
@@ -18,17 +20,27 @@ export interface CodexAuth {
   accountId: string;
 }
 
+interface CodexImagePayload {
+  prompt: string;
+  background: string;
+  model: string;
+  quality: string;
+  size: string;
+  images?: ReadonlyArray<{ readonly image_url: string }>;
+}
+
 /** Callers pass OpenRouter-style ids ("openai/gpt-5.6-terra"); the ChatGPT
  * backend only accepts the bare model name and 400s on the prefixed form. */
 const codexModelId = (modelId: string): string => modelId.replace(/^openai\//, "");
 
-const codexHeaders = (auth: CodexAuth): Record<string, string> => ({
+const codexHeaders = (auth: CodexAuth) => ({
   "chatgpt-account-id": auth.accountId,
   originator: "vanda",
 });
 
 const assertChatGptUrl = (url: string): void => {
   const parsed = new URL(url);
+
   if (parsed.protocol !== "https:" || parsed.hostname !== "chatgpt.com") {
     throw new Error(`Refusing to send ChatGPT credentials to ${parsed.origin}`);
   }
@@ -46,25 +58,31 @@ export const codexChatModel = (auth: CodexAuth, modelId: string): LanguageModel 
     baseURL: CODEX_BASE_URL,
     apiKey: auth.access,
     headers: { ...codexHeaders(auth), "OpenAI-Beta": "responses=experimental" },
-    fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
+    fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input instanceof Request ? input.url : input);
       assertChatGptUrl(url);
       let body = init?.body;
-      if (typeof body === "string") {
-        try {
-          const parsed = JSON.parse(body) as Record<string, unknown>;
-          parsed.store = false;
-          body = JSON.stringify(parsed);
-        } catch {
-          // non-JSON body passes through untouched
-        }
+
+      try {
+        const encodedBody = Schema.decodeUnknownSync(Schema.String)(body);
+
+        const parsed = z.record(z.string(), z.json()).parse(JSON.parse(encodedBody));
+
+        body = JSON.stringify({ ...parsed, store: false });
+      } catch {
+        // non-JSON body passes through untouched
       }
+
       const response = await fetch(url, { ...init, body: body ?? null });
+
       if (response.status === 429) throw publicError("PROVIDER_LIMIT");
+
       if (response.status === 401) throw publicError("RECONNECT_REQUIRED");
+
       return response;
-    }) as typeof fetch,
+    },
   });
+
   return wrapLanguageModel({
     model: provider.responses(codexModelId(modelId)),
     middleware: defaultSettingsMiddleware({
@@ -85,6 +103,7 @@ export const codexResponsesText = async (args: {
 }): Promise<string> => {
   const url = `${CODEX_BASE_URL}/responses`;
   assertChatGptUrl(url);
+
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -112,8 +131,11 @@ export const codexResponsesText = async (args: {
       parallel_tool_calls: true,
     }),
   });
+
   if (response.status === 429) throw publicError("PROVIDER_LIMIT");
+
   if (response.status === 401) throw publicError("RECONNECT_REQUIRED");
+
   if (!response.ok || !response.body) {
     throw new Error(`codex responses HTTP ${response.status}`);
   }
@@ -122,20 +144,27 @@ export const codexResponsesText = async (args: {
   const decoder = new TextDecoder();
   let buffer = "";
   let text = "";
+
   for (;;) {
     const { done, value } = await reader.read();
+
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split("\n");
     buffer = lines.pop() ?? "";
+
     for (const line of lines) {
       if (!line.startsWith("data: ")) continue;
+
       try {
-        const event = JSON.parse(line.slice(6)) as {
-          type?: string;
-          delta?: string;
-        };
-        if (event.type === "response.output_text.delta" && typeof event.delta === "string") {
+        const event = Schema.decodeUnknownSync(
+          Schema.Struct({
+            type: Schema.optional(Schema.String),
+            delta: Schema.optional(Schema.String),
+          }),
+        )(JSON.parse(line.slice(6)));
+
+        if (event.type === "response.output_text.delta" && event.delta !== undefined) {
           text += event.delta;
         }
       } catch {
@@ -143,11 +172,12 @@ export const codexResponsesText = async (args: {
       }
     }
   }
+
   return text.trim();
 };
 
 /** aspectRatio → gpt-image-2 size (multiples of 16, within pixel bounds). */
-export const CODEX_IMAGE_SIZES: Record<string, string> = {
+export const CODEX_IMAGE_SIZES = {
   "1:1": "1024x1024",
   "4:5": "1024x1280",
   "9:16": "864x1536",
@@ -156,14 +186,17 @@ export const CODEX_IMAGE_SIZES: Record<string, string> = {
 
 const dataUrlOf = async (url: string, signal?: AbortSignal): Promise<string> => {
   const response = await fetch(url, signal ? { signal } : {});
+
   if (!response.ok) throw new Error(`reference fetch HTTP ${response.status}`);
   const mimeType = response.headers.get("content-type")?.split(";")[0] ?? "image/png";
   const bytes = new Uint8Array(await response.arrayBuffer());
   let binary = "";
   const chunk = 0x8000;
+
   for (let index = 0; index < bytes.length; index += chunk) {
     binary += String.fromCharCode(...bytes.subarray(index, index + chunk));
   }
+
   return `data:${mimeType};base64,${btoa(binary)}`;
 };
 
@@ -179,13 +212,28 @@ export const codexGenerateImage = async (args: {
   signal?: AbortSignal | undefined;
 }): Promise<{ bytes: Uint8Array; mimeType: string; costUsd: number }> => {
   const references = args.referenceUrls ?? [];
+
   const images = await Promise.all(
     references.slice(0, 5).map(async (url) => ({ image_url: await dataUrlOf(url, args.signal) })),
   );
+
   const path = images.length > 0 ? "images/edits" : "images/generations";
   const url = `${CODEX_BASE_URL}/${path}`;
   assertChatGptUrl(url);
-  const response = await fetch(url, {
+
+  const payload: CodexImagePayload = {
+    prompt: args.prompt,
+    background: "auto",
+    model: "gpt-image-2",
+    quality: "high",
+    size:
+      new Map<string, string>(Object.entries(CODEX_IMAGE_SIZES)).get(args.aspectRatio) ??
+      "1024x1024",
+  };
+
+  if (images.length > 0) payload.images = images;
+
+  const request: RequestInit = {
     method: "POST",
     headers: {
       ...codexHeaders(args.auth),
@@ -193,28 +241,37 @@ export const codexGenerateImage = async (args: {
       "content-type": "application/json",
       accept: "application/json",
     },
-    body: JSON.stringify({
-      prompt: args.prompt,
-      background: "auto",
-      model: "gpt-image-2",
-      quality: "high",
-      size: CODEX_IMAGE_SIZES[args.aspectRatio] ?? "1024x1024",
-      ...(images.length > 0 ? { images } : {}),
-    }),
-    ...(args.signal ? { signal: args.signal } : {}),
-  });
+    body: JSON.stringify(payload),
+  };
+
+  if (args.signal !== undefined) request.signal = args.signal;
+  const response = await fetch(url, request);
+
   if (response.status === 429) throw publicError("PROVIDER_LIMIT");
+
   if (response.status === 401) throw publicError("RECONNECT_REQUIRED");
+
   if (!response.ok) {
     const body = await response.text().catch(() => "");
     throw new Error(`codex image HTTP ${response.status}${body ? `: ${body.slice(0, 200)}` : ""}`);
   }
-  const json = (await response.json()) as { data?: Array<{ b64_json?: string }> };
+
+  const json = Schema.decodeUnknownSync(
+    Schema.Struct({
+      data: Schema.optional(
+        Schema.Array(Schema.Struct({ b64_json: Schema.optional(Schema.String) })),
+      ),
+    }),
+  )(await response.json());
+
   const b64 = json.data?.[0]?.b64_json;
+
   if (!b64) throw new Error("codex image response sem dados");
   const binary = atob(b64);
   const bytes = new Uint8Array(binary.length);
+
   for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+
   // Billed to the user's subscription — zero cost on the Vanda meter.
   return { bytes, mimeType: "image/png", costUsd: 0 };
 };

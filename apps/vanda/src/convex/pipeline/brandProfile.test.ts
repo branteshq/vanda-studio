@@ -24,6 +24,7 @@ describe("proposeBrandProfile", () => {
     const result = await Effect.runPromise(
       proposeBrandProfile(corpus).pipe(Effect.provide(makeStubAnalyst(() => cafeLumiarAnalysis))),
     );
+
     expect(result).toEqual(cafeLumiarAnalysis);
   });
 
@@ -34,6 +35,7 @@ describe("proposeBrandProfile", () => {
         Effect.provide(
           makeStubAnalyst((prompt) => {
             seen = prompt;
+
             return cafeLumiarAnalysis;
           }),
         ),

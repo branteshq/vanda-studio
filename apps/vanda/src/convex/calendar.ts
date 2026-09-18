@@ -14,19 +14,23 @@ export const range = query({
   },
   handler: async (ctx, { accountId, start, end }) => {
     await requireOwnedAccount(ctx, accountId);
+
     const scheduled = await ctx.db
       .query("scheduledPosts")
       .withIndex("by_account_scheduledFor", (q) =>
         q.eq("accountId", accountId).gte("scheduledFor", start).lt("scheduledFor", end),
       )
       .collect();
+
     return Promise.all(
       scheduled.map(async (item) => {
         const post = await ctx.db.get(item.postId);
         const coverImage = post?.imageIds[0] ? await ctx.db.get(post.imageIds[0]) : null;
+
         const coverUrl =
           coverImage?.externalUrl ??
           (coverImage?.storageId ? await ctx.storage.getUrl(coverImage.storageId) : null);
+
         return {
           scheduledPostId: item._id,
           scheduledFor: item.scheduledFor,

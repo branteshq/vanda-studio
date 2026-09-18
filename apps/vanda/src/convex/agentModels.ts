@@ -92,8 +92,12 @@ export const resolveOrchestratorModel = (
   const fallback = options.conectado
     ? DEFAULT_CODEX_ORCHESTRATOR_MODEL
     : DEFAULT_ORCHESTRATOR_MODEL;
+
   const model = orchestratorModel(preferred);
+
   if (!model) return fallback;
+
   if (options.conectado && !model.codexCapable) return fallback;
+
   return model.id;
 };

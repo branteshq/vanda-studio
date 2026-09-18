@@ -8,6 +8,7 @@ import { getConvexClient } from "./convexClient";
 export function getRouter() {
   const convex = getConvexClient();
   const convexQueryClient = new ConvexQueryClient(convex);
+
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -31,6 +32,7 @@ export function getRouter() {
   });
 
   setupRouterSsrQueryIntegration({ router, queryClient });
+
   return router;
 }
 

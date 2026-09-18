@@ -11,6 +11,15 @@ import {
   instagramStateOf,
 } from "./publisher/uploadpost";
 
+type PendingAccountRequest = { clerkId: string; name?: string; email?: string };
+
+type AccountConnectionPatch = {
+  handle?: string;
+  name?: string;
+  publisherConnectedAt: number | undefined;
+  updatedAt: number;
+};
+
 /**
  * Instagram connection through the publisher port (Upload-Post). Each Vanda
  * account owns one publisher profile (username = the account id); customers
@@ -20,9 +29,11 @@ import {
 
 const originOf = (raw: string): string => {
   const parsed = new URL(raw);
+
   if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
     throw new Error("invalid origin");
   }
+
   return parsed.origin;
 };
 
@@ -35,10 +46,12 @@ export const createPendingAccount = internalMutation({
   },
   handler: async (ctx, args): Promise<Id<"accounts">> => {
     const now = Date.now();
+
     let user = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
       .unique();
+
     if (!user) {
       const userId = await ctx.db.insert("users", {
         name: args.name ?? "User",
@@ -47,8 +60,10 @@ export const createPendingAccount = internalMutation({
         createdAt: now,
         updatedAt: now,
       });
+
       user = (await ctx.db.get(userId))!;
     }
+
     return ctx.db.insert("accounts", {
       ownerUserId: user._id,
       createdAt: now,
@@ -73,12 +88,16 @@ export const applyConnection = internalMutation({
   },
   handler: async (ctx, { accountId, connected, username }) => {
     const account = await requireOwnedAccount(ctx, accountId);
-    await ctx.db.patch(accountId, {
-      ...(username !== null ? { handle: username } : {}),
-      ...(account.name === undefined && username !== null ? { name: username } : {}),
+
+    const patch: AccountConnectionPatch = {
       publisherConnectedAt: connected ? (account.publisherConnectedAt ?? Date.now()) : undefined,
       updatedAt: Date.now(),
-    });
+    };
+
+    if (username !== null) patch.handle = username;
+
+    if (account.name === undefined && username !== null) patch.name = username;
+    await ctx.db.patch(accountId, patch);
   },
 });
 
@@ -96,25 +115,37 @@ export const startConnect = action({
   },
   handler: async (ctx, args): Promise<{ accountId: Id<"accounts">; url: string }> => {
     const identity = await ctx.auth.getUserIdentity();
+
     if (!identity) throw new Error("Not authenticated");
     let accountId = args.accountId;
+
     if (accountId) {
       await ctx.runMutation(internal.publisherConnect.assertOwned, { accountId });
     } else {
-      accountId = await ctx.runMutation(internal.publisherConnect.createPendingAccount, {
+      const pendingAccount: PendingAccountRequest = {
         clerkId: identity.subject,
-        ...(typeof identity.name === "string" ? { name: identity.name } : {}),
-        ...(typeof identity.email === "string" ? { email: identity.email } : {}),
-      });
+      };
+
+      if (identity.name) pendingAccount.name = identity.name;
+
+      if (identity.email) pendingAccount.email = identity.email;
+      accountId = await ctx.runMutation(
+        internal.publisherConnect.createPendingAccount,
+        pendingAccount,
+      );
     }
+
     const username = String(accountId);
     await ensureProfile(username);
     const origin = originOf(args.origin);
+
     const redirectUrl =
       args.returnTo === "perfil"
         ? `${origin}/perfil`
         : `${origin}/onboarding?accountId=${username}`;
+
     const url = await generateConnectUrl({ username, redirectUrl });
+
     return { accountId, url };
   },
 });
@@ -122,19 +153,17 @@ export const startConnect = action({
 /** Pull the publisher profile and cache the Instagram connection state. */
 export const syncConnection = action({
   args: { accountId: v.id("accounts") },
-  handler: async (
-    ctx,
-    { accountId },
-  ): Promise<{ connected: boolean; handle: string | null }> => {
+  handler: async (ctx, { accountId }): Promise<{ connected: boolean; handle: string | null }> => {
     const profile = await getProfile(String(accountId));
-    const state = profile
-      ? instagramStateOf(profile)
-      : { connected: false, username: null };
+
+    const state = profile ? instagramStateOf(profile) : { connected: false, username: null };
+
     await ctx.runMutation(internal.publisherConnect.applyConnection, {
       accountId,
       connected: state.connected,
       username: state.username,
     });
+
     return { connected: state.connected, handle: state.username };
   },
 });
@@ -144,6 +173,7 @@ export const connectionStatus = query({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
     const account = await requireOwnedAccount(ctx, accountId);
+
     return {
       connected: account.publisherConnectedAt !== undefined,
       handle: account.handle ?? null,

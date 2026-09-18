@@ -6,8 +6,8 @@ import {
   InstagramService,
   PublicInstagramProvider,
   instagramServiceLayer,
-  type ConnectedInstagramProviderShape,
-  type PublicInstagramProviderShape,
+  type ConnectedInstagramProviderService,
+  type PublicInstagramProviderService,
 } from "./service";
 
 const connectedTarget = {
@@ -16,7 +16,7 @@ const connectedTarget = {
   handle: "cafelumiar",
 };
 
-const connected: ConnectedInstagramProviderShape = {
+const connected: ConnectedInstagramProviderService = {
   readProfile: (target) =>
     Effect.succeed({
       data: { handle: target.handle, name: "Café Lumiar" },
@@ -36,7 +36,7 @@ const connected: ConnectedInstagramProviderShape = {
     }),
 };
 
-const publicProvider: PublicInstagramProviderShape = {
+const publicProvider: PublicInstagramProviderService = {
   searchProfiles: (query) =>
     Effect.succeed({
       data: [{ handle: query.replaceAll(" ", "_") }],
@@ -80,6 +80,7 @@ describe("InstagramService", () => {
         const instagram = yield* InstagramService;
         const search = yield* instagram.searchProfiles("cafe sp", 10);
         const profile = yield* instagram.readProfile({ scope: "public", handle: "externo" });
+
         return { search, profile };
       }).pipe(Effect.provide(testLayer)),
     );

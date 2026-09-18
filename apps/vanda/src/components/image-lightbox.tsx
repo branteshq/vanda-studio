@@ -65,6 +65,8 @@ export function ImageLightbox({
   onNext,
   onRename,
   onDelete,
+  copyImage = copyImageToClipboard,
+  downloadImage = downloadImageFile,
 }: {
   open: boolean;
   onClose: () => void;
@@ -75,6 +77,8 @@ export function ImageLightbox({
   onNext?: (() => void) | undefined;
   onRename?: ((name: string) => void) | undefined;
   onDelete?: (() => void) | undefined;
+  copyImage?: typeof copyImageToClipboard;
+  downloadImage?: typeof downloadImageFile;
 }) {
   return (
     <Lightbox open={open} onOpenChange={(next) => !next && onClose()}>
@@ -101,6 +105,8 @@ export function ImageLightbox({
                 loading={loading}
                 onRename={onRename}
                 onDelete={onDelete}
+                copyImage={copyImage}
+                downloadImage={downloadImage}
               />
             ) : (
               <div className="flex flex-1 items-center justify-center p-8">
@@ -119,11 +125,15 @@ function ImageDetails({
   loading,
   onRename,
   onDelete,
+  copyImage,
+  downloadImage,
 }: {
   image: ImageLightboxData;
   loading: boolean;
   onRename?: ((name: string) => void) | undefined;
   onDelete?: (() => void) | undefined;
+  copyImage: typeof copyImageToClipboard;
+  downloadImage: typeof downloadImageFile;
 }) {
   const uploaded = image.origin === "uploaded";
   const generated = !uploaded;
@@ -140,8 +150,10 @@ function ImageDetails({
           </h2>
         )}
         <div className="flex shrink-0 items-center gap-0.5">
-          {image.url && <CopyAction url={image.url} />}
-          {image.url && <DownloadAction url={image.url} name={image.name} />}
+          {image.url && <CopyAction url={image.url} copyImage={copyImage} />}
+          {image.url && (
+            <DownloadAction url={image.url} name={image.name} downloadImage={downloadImage} />
+          )}
           {onDelete && (
             <PanelAction label="Excluir" onClick={onDelete} className="hover:text-destructive">
               <Trash2 />
@@ -226,12 +238,14 @@ function ImageDetails({
 
 function NameInput({ name, onRename }: { name: string | null; onRename: (name: string) => void }) {
   const [draft, setDraft] = useState(name ?? "");
+
   return (
     <input
       value={draft}
       onChange={(event) => setDraft(event.target.value)}
       onBlur={() => {
         const trimmed = draft.trim();
+
         if (trimmed && trimmed !== name) onRename(trimmed);
       }}
       onKeyDown={(event) => {
@@ -245,8 +259,9 @@ function NameInput({ name, onRename }: { name: string | null; onRename: (name: s
   );
 }
 
-function CopyAction({ url }: { url: string }) {
-  const copy = useMediaAction(() => copyImageToClipboard(url));
+function CopyAction({ url, copyImage }: { url: string; copyImage: typeof copyImageToClipboard }) {
+  const copy = useMediaAction(() => copyImage(url));
+
   return (
     <PanelAction label="Copiar imagem" onClick={copy.run}>
       <ActionStateIcon state={copy.state} icon={<Copy />} />
@@ -254,8 +269,17 @@ function CopyAction({ url }: { url: string }) {
   );
 }
 
-function DownloadAction({ url, name }: { url: string; name: string | null }) {
-  const download = useMediaAction(() => downloadImageFile(url, name));
+function DownloadAction({
+  url,
+  name,
+  downloadImage,
+}: {
+  url: string;
+  name: string | null;
+  downloadImage: typeof downloadImageFile;
+}) {
+  const download = useMediaAction(() => downloadImage(url, name));
+
   return (
     <PanelAction label="Baixar" onClick={download.run}>
       <ActionStateIcon state={download.state} icon={<Download />} />
@@ -311,9 +335,12 @@ function closestAspect(ratio: number): string {
     ["4:3", 4 / 3],
     ["21:9", 21 / 9],
   ];
+
   let best = options[0]!;
+
   for (const option of options) {
     if (Math.abs(option[1] - ratio) < Math.abs(best[1] - ratio)) best = option;
   }
+
   return best[0];
 }

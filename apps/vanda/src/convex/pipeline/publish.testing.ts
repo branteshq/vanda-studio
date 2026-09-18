@@ -4,7 +4,7 @@ import {
   type PublishJob,
   PublishJobNotFound,
   PublishStore,
-  type PublishStoreShape,
+  type PublishStoreService,
 } from "./publish";
 import {
   Publisher,
@@ -22,9 +22,7 @@ export interface FakePublisher {
  * In-memory publisher: records publish requests and returns sequential media
  * ids, or fails every call when `fail` is set.
  */
-export const makeFakePublisher = (
-  options: { readonly fail?: boolean } = {},
-): FakePublisher => {
+export const makeFakePublisher = (options: { readonly fail?: boolean } = {}): FakePublisher => {
   const published: Array<PublishRequest> = [];
   let seq = 0;
 
@@ -33,11 +31,15 @@ export const makeFakePublisher = (
       publish: (request) =>
         options.fail
           ? Effect.fail(
-              new PublisherRequestFailed({ operation: "publish", message: "fake transport failure" }),
+              new PublisherRequestFailed({
+                operation: "publish",
+                message: "fake transport failure",
+              }),
             )
           : Effect.sync((): PublishReceipt => {
               published.push(request);
               seq += 1;
+
               return { externalPostId: `media_${seq}`, url: `https://instagram.com/p/fake_${seq}` };
             }),
     }),
@@ -58,25 +60,23 @@ export const makeInMemoryPublishStore = (
     Object.keys(jobs).map((id) => [id, { status: "scheduled" }]),
   );
 
-  const shape: PublishStoreShape = {
+  const service: PublishStoreService = {
     loadJob: (scheduledPostId) => {
       const job = jobs[scheduledPostId];
+
       return job === undefined
         ? Effect.fail(new PublishJobNotFound({ scheduledPostId }))
         : Effect.succeed(job);
     },
     markPublishing: (id) => Effect.sync(() => void state.set(id, { status: "publishing" })),
     markPublished: (id, receipt) =>
-      Effect.sync(
-        () =>
-          void state.set(id, {
-            status: "published",
-            ...(receipt.externalPostId !== null ? { externalPostId: receipt.externalPostId } : {}),
-          }),
-      ),
+      Effect.sync(() => {
+        if (receipt.externalPostId === null) state.set(id, { status: "published" });
+        else state.set(id, { status: "published", externalPostId: receipt.externalPostId });
+      }),
     markFailed: (id, reason) =>
       Effect.sync(() => void state.set(id, { status: "failed", lastError: reason })),
   };
 
-  return { layer: Layer.succeed(PublishStore, shape), state };
+  return { layer: Layer.succeed(PublishStore, service), state };
 };

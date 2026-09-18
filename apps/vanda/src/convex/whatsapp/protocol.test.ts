@@ -6,6 +6,7 @@ import {
   replyParts,
   serviceWindowOpen,
   verifySignature,
+  webhookSchema,
 } from "./protocol";
 
 const payload = {
@@ -21,6 +22,31 @@ const payload = {
 };
 
 describe("Kapso protocol", () => {
+  it("rejects malformed and oversized webhook bodies at the boundary", () => {
+    expect(webhookSchema.safeParse({ message: { id: "missing-number" } }).success).toBe(false);
+    expect(webhookSchema.safeParse({ batch: true, data: [null] }).success).toBe(false);
+    expect(
+      webhookSchema.safeParse({ batch: true, data: Array.from({ length: 101 }, () => payload) })
+        .success,
+    ).toBe(false);
+  });
+
+  it("omits unavailable phone and callback fields", () => {
+    const body = webhookSchema.parse({
+      phone_number_id: "sandbox",
+      message: {
+        id: "bsuid-only",
+        from_user_id: "BR.123",
+        timestamp: "1730092800",
+        kapso: { direction: "inbound" },
+      },
+    });
+
+    const event = parseWebhook(body, "whatsapp.message.received", "sandbox")[0];
+    expect(event).not.toHaveProperty("phone");
+    expect(event).not.toHaveProperty("callbackId");
+  });
+
   it("normalizes single and buffered v2 events", () => {
     const single = parseWebhook(payload, "whatsapp.message.received", "sandbox");
     expect(
@@ -48,6 +74,7 @@ describe("Kapso protocol", () => {
         "sandbox",
       )[0],
     ).toMatchObject({ sender: "US.123", recipientKind: "bsuid" });
+
     for (const kapso of [
       { direction: "outbound" },
       { direction: "inbound", origin: "history_sync" },
@@ -63,6 +90,7 @@ describe("Kapso protocol", () => {
   });
   it("verifies the exact signed bytes and safely rejects malformed signatures", async () => {
     const raw = JSON.stringify(payload);
+
     const key = await crypto.subtle.importKey(
       "raw",
       new TextEncoder().encode("secret"),
@@ -70,10 +98,12 @@ describe("Kapso protocol", () => {
       false,
       ["sign"],
     );
+
     const sig = Array.from(
       new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(raw))),
       (b) => b.toString(16).padStart(2, "0"),
     ).join("");
+
     expect(await verifySignature(raw, sig, "secret")).toBe(true);
     expect(await verifySignature(`${raw} `, sig, "secret")).toBe(false);
     expect(await verifySignature(raw, null, "secret")).toBe(false);

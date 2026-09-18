@@ -1,30 +1,30 @@
 // @vitest-environment happy-dom
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { getFunctionName } from "convex/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ThreadResource } from "../convex/resourceRefs";
 import { ThreadResourceList } from "./thread-resources";
-import { ThreadImage } from "./thread-images";
+import { ThreadImage, ThreadImageRuntimeProvider } from "./thread-images";
 
-const mocks = vi.hoisted(() => ({
+const mocks = {
   query: vi.fn(),
   rename: vi.fn().mockResolvedValue(null),
   remove: vi.fn().mockResolvedValue(null),
   copy: vi.fn().mockResolvedValue(undefined),
   download: vi.fn().mockResolvedValue(undefined),
-}));
-vi.mock("convex-helpers/react/cache", () => ({ useQuery: mocks.query }));
-vi.mock("convex/react", () => ({
-  useMutation: (ref: Parameters<typeof getFunctionName>[0]) =>
-    getFunctionName(ref) === "gallery:rename" ? mocks.rename : mocks.remove,
-}));
-vi.mock("./media-tile", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./media-tile")>()),
-  copyImageToClipboard: mocks.copy,
-  downloadImageFile: mocks.download,
-}));
-vi.mock("thinking-orbs", () => ({ ThinkingOrb: () => null }));
+};
+
+const runtime = {
+  useImage: (_accountId: string, imageId: string | null) =>
+    mocks.query(undefined, imageId === null ? "skip" : { imageId }),
+  useImageActions: () => ({ rename: mocks.rename, remove: mocks.remove }),
+  copyImage: mocks.copy,
+  downloadImage: mocks.download,
+  loadingIndicator: null,
+};
+
+const withRuntime = (child: ReturnType<typeof createElement>) =>
+  createElement(ThreadImageRuntimeProvider, { runtime }, child);
 
 const image = {
   id: "image-a",
@@ -41,23 +41,31 @@ const image = {
   edited: false,
   promptAuthor: "vanda",
 };
+
+// SAFETY: branded IDs are represented by strings at the Convex client boundary.
 const resource = { kind: "image", accountId: "account-a", imageId: "image-a" } as Extract<
   ThreadResource,
   { kind: "image" }
 >;
+
 let root: Root;
+
 let container: HTMLDivElement;
 
 const button = (label: string, scope: ParentNode = document) => {
   const result = scope.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+
   if (!result) throw new Error(`button not found: ${label}`);
+
   return result;
 };
+
 const click = async (target: HTMLElement) => {
   await act(async () => target.click());
 };
+
 const render = async (resources: ThreadResource[] = [resource]) => {
-  await act(async () => root.render(createElement(ThreadResourceList, { resources })));
+  await act(async () => root.render(withRuntime(createElement(ThreadResourceList, { resources }))));
 };
 
 beforeEach(() => {
@@ -68,6 +76,7 @@ beforeEach(() => {
   document.body.append(container);
   root = createRoot(container);
 });
+
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
@@ -87,11 +96,13 @@ describe("thread image presentation", () => {
     );
     await act(async () =>
       root.render(
-        createElement(ThreadImage, {
-          accountId: resource.accountId,
-          image: { imageId: resource.imageId, width: 1024, height: 1024 },
-          onOpen: vi.fn(),
-        }),
+        withRuntime(
+          createElement(ThreadImage, {
+            accountId: resource.accountId,
+            image: { imageId: resource.imageId, width: 1024, height: 1024 },
+            onOpen: vi.fn(),
+          }),
+        ),
       ),
     );
     // Both paths use MediaTile rather than a separate linked thumbnail.
@@ -137,12 +148,16 @@ describe("thread image presentation", () => {
   });
 
   it("navigates presented images without using a different account's IDs", async () => {
+    // SAFETY: branded IDs are represented by strings at the Convex client boundary.
     const second = { ...resource, imageId: "image-b" as typeof resource.imageId };
+
+    // SAFETY: branded IDs are represented by strings at the Convex client boundary.
     const foreign = {
       ...resource,
       accountId: "account-b" as typeof resource.accountId,
       imageId: "image-c" as typeof resource.imageId,
     };
+
     mocks.query.mockImplementation((_ref, args) =>
       args === "skip" ? undefined : { ...image, id: args.imageId, name: args.imageId },
     );

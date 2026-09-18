@@ -1,21 +1,19 @@
 import { components } from "./_generated/api";
+import type { ActionCtx } from "./_generated/server";
 import { Autumn } from "@useautumn/convex";
 
-const autumnComponent = (components as { autumn?: unknown }).autumn;
-if (!autumnComponent) {
-  throw new Error("Autumn component not configured in convex.config.ts");
-}
-
-export const autumn = new Autumn(autumnComponent as never, {
+export const autumn = new Autumn(components.autumn, {
   secretKey: process.env.AUTUMN_SECRET_KEY ?? "",
-  identify: async (ctx: any) => {
+  identify: async (ctx: ActionCtx) => {
     const identity = await ctx.auth.getUserIdentity();
+
     if (!identity) return null;
+
     return {
       customerId: identity.subject,
       customerData: {
-        name: typeof identity.name === "string" ? identity.name : undefined,
-        email: typeof identity.email === "string" ? identity.email : undefined,
+        name: identity.name,
+        email: identity.email,
       },
     };
   },

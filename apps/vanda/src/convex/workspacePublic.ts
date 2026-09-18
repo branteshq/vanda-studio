@@ -14,6 +14,7 @@ export const browse = query({
   args: { accountId: v.id("accounts"), path: v.string() },
   handler: async (ctx, { accountId, path }): Promise<ListResult> => {
     await requireOwnedAccount(ctx, accountId);
+
     return listPath(ctx, accountId, path);
   },
 });
@@ -22,6 +23,7 @@ export const file = query({
   args: { accountId: v.id("accounts"), path: v.string() },
   handler: async (ctx, { accountId, path }): Promise<ReadResult> => {
     await requireOwnedAccount(ctx, accountId);
+
     return readPath(ctx, accountId, path);
   },
 });
@@ -31,6 +33,7 @@ export const installedSkills = query({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
     await requireOwnedAccount(ctx, accountId);
+
     return installedSkillSummaries();
   },
 });

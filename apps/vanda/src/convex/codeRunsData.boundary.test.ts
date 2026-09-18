@@ -12,15 +12,18 @@ const modules = import.meta.glob("./**/*.ts");
 const setup = async () => {
   const t = convexTest(schema, modules);
   agentTest.register(t);
+
   const ids = await t.run(async (ctx) => {
     const accountId = await ctx.db.insert("accounts", {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
+
     const foreignAccountId = await ctx.db.insert("accounts", {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
+
     const ownedImageId = await ctx.db.insert("images", {
       accountId,
       origin: "uploaded",
@@ -31,24 +34,29 @@ const setup = async () => {
       mimeType: "image/jpeg",
       createdAt: Date.now(),
     });
+
     const foreignImageId = await ctx.db.insert("images", {
       accountId: foreignAccountId,
       origin: "uploaded",
       externalUrl: "https://images.example/foreign.jpg",
       createdAt: Date.now(),
     });
+
     return { accountId, ownedImageId, foreignImageId };
   });
+
   return { t, ...ids };
 };
 
 describe("run_code identity boundary", () => {
   it("resolves a bare imageId with its canonical sandbox mirror path", async () => {
     const { t, accountId, ownedImageId } = await setup();
+
     const resolved = await t.query(internal.codeRunsData.resolveCodeRunInput, {
       accountId,
       inputs: [ownedImageId],
     });
+
     expect(resolved).toMatchObject([
       {
         imageId: ownedImageId,
@@ -63,10 +71,12 @@ describe("run_code identity boundary", () => {
   it("resolves a workspace path and mirrors it under /home/user", async () => {
     const { t, accountId, ownedImageId } = await setup();
     const workspacePath = `/images/foto-propria-${entitySuffix(ownedImageId)}.jpg`;
+
     const resolved = await t.query(internal.codeRunsData.resolveCodeRunInput, {
       accountId,
       inputs: [workspacePath],
     });
+
     expect(resolved).toMatchObject([
       { imageId: ownedImageId, sandboxPath: `/home/user${workspacePath}` },
     ]);
@@ -88,10 +98,12 @@ describe("run_code identity boundary", () => {
         expiresAt: 200,
       }),
     );
+
     const resolved = await t.query(internal.codeRunsData.resolveCodeRunInput, {
       accountId,
       inputs: ["/instagram/self/profile.json"],
     });
+
     expect(resolved).toMatchObject([
       {
         kind: "text",
@@ -122,11 +134,13 @@ describe("run_code identity boundary", () => {
 describe("run_code rate limit and run log", () => {
   it("opens and closes a run row", async () => {
     const { t, accountId } = await setup();
+
     const codeRunId = await t.mutation(internal.codeRunsData.beginCodeRun, {
       accountId,
       code: "print('oi')",
       description: "teste",
     });
+
     await t.mutation(internal.codeRunsData.finishCodeRun, {
       codeRunId,
       status: "ok",
@@ -139,11 +153,13 @@ describe("run_code rate limit and run log", () => {
 
   it("only patches rows still running", async () => {
     const { t, accountId } = await setup();
+
     const codeRunId = await t.mutation(internal.codeRunsData.beginCodeRun, {
       accountId,
       code: "x",
       description: "d",
     });
+
     await t.mutation(internal.codeRunsData.finishCodeRun, { codeRunId, status: "failed" });
     await t.mutation(internal.codeRunsData.finishCodeRun, { codeRunId, status: "ok" });
     const run = await t.run((ctx) => ctx.db.get(codeRunId));
@@ -152,6 +168,7 @@ describe("run_code rate limit and run log", () => {
 
   it("enforces the per-account rate limit", async () => {
     const { t, accountId } = await setup();
+
     for (let i = 0; i < CODE_RUN_RATE_LIMIT; i++) {
       await t.mutation(internal.codeRunsData.beginCodeRun, {
         accountId,
@@ -159,6 +176,7 @@ describe("run_code rate limit and run log", () => {
         description: "loop",
       });
     }
+
     await expect(
       t.mutation(internal.codeRunsData.beginCodeRun, {
         accountId,
@@ -170,11 +188,13 @@ describe("run_code rate limit and run log", () => {
 
   it("stores structured artifacts under the run workspace", async () => {
     const { t, accountId } = await setup();
+
     const codeRunId = await t.mutation(internal.codeRunsData.beginCodeRun, {
       accountId,
       code: "x",
       description: "comparar perfis",
     });
+
     await t.mutation(internal.codeRunsData.saveCodeRunArtifact, {
       codeRunId,
       filename: "ranking.json",
@@ -182,15 +202,19 @@ describe("run_code rate limit and run log", () => {
       content: '{"winner":"cafelumiar"}',
     });
     const runName = entityName("comparar perfis", codeRunId);
+
     const listing = await t.query(internal.workspaceData.list, {
       accountId,
       path: `/runs/${runName}/outputs`,
     });
+
     expect(listing.ok && listing.entries.map((entry) => entry.name)).toEqual(["ranking.json"]);
+
     const artifact = await t.query(internal.workspaceData.read, {
       accountId,
       path: `/runs/${runName}/outputs/ranking.json`,
     });
+
     expect(artifact.ok && artifact.file.kind === "text" && artifact.file.text).toContain(
       "cafelumiar",
     );
@@ -198,12 +222,15 @@ describe("run_code rate limit and run log", () => {
 
   it("records a code-produced image linked to its run", async () => {
     const { t, accountId } = await setup();
+
     const codeRunId = await t.mutation(internal.codeRunsData.beginCodeRun, {
       accountId,
       code: "x",
       description: "d",
     });
+
     const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["image"])));
+
     const imageId = await t.mutation(internal.imagesData.savePaintedImage, {
       accountId,
       storageId,
@@ -215,6 +242,7 @@ describe("run_code rate limit and run log", () => {
       promptAuthor: "vanda",
       codeRunId,
     });
+
     const image = await t.run((ctx) => ctx.db.get(imageId));
     expect(image).toMatchObject({ origin: "generated", model: "python/pillow", codeRunId });
   });

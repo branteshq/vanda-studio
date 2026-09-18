@@ -33,9 +33,11 @@ export const formatSkillsForSystemPrompt = (
 ): string => {
   const alwaysOn = skills.filter((skill) => skill.alwaysApply);
   const available = skills.filter((skill) => !skill.alwaysApply && !skill.disableModelInvocation);
+
   if (alwaysOn.length === 0 && available.length === 0) return "";
 
   const sections: string[] = [];
+
   if (alwaysOn.length > 0) {
     const lines = [
       "As habilidades abaixo estão sempre ativas. Siga as instruções delas em toda resposta.",
@@ -43,6 +45,7 @@ export const formatSkillsForSystemPrompt = (
       "",
       "<active_skills>",
     ];
+
     for (const skill of alwaysOn) {
       lines.push(
         `  <skill name="${escapeXml(skill.name)}" location="${escapeXml(skill.location)}">`,
@@ -50,6 +53,7 @@ export const formatSkillsForSystemPrompt = (
       lines.push(skill.body);
       lines.push("  </skill>");
     }
+
     lines.push("</active_skills>");
     sections.push(lines.join("\n"));
   }
@@ -62,6 +66,7 @@ export const formatSkillsForSystemPrompt = (
       "",
       "<available_skills>",
     ];
+
     for (const skill of available) {
       lines.push("  <skill>");
       lines.push(`    <name>${escapeXml(skill.name)}</name>`);
@@ -69,6 +74,7 @@ export const formatSkillsForSystemPrompt = (
       lines.push(`    <location>${escapeXml(skill.location)}</location>`);
       lines.push("  </skill>");
     }
+
     lines.push("</available_skills>");
     sections.push(lines.join("\n"));
   }

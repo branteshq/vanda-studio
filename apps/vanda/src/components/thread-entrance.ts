@@ -5,5 +5,6 @@ export const EntranceReadyContext = createContext(false);
 
 export function useEntranceOnMount(): boolean {
   const ready = useContext(EntranceReadyContext);
+
   return useState(ready)[0];
 }

@@ -24,14 +24,19 @@ export const analyzeAccount = action({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<{ analysis: BrandAnalysis; stats: CorpusStats }> => {
     const identity = await ctx.auth.getUserIdentity();
+
     if (!identity) throw new Error("Not authenticated");
+
     const { handle } = await ctx.runQuery(internal.brandProfile.resolveOwnedHandle, {
       accountId,
       clerkId: identity.subject,
     });
+
     const apiKey = process.env.OPENROUTER_API_KEY;
+
     if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
     const publisherUsername = String(accountId);
+
     return runTracked(
       ctx,
       {
@@ -46,6 +51,7 @@ export const analyzeAccount = action({
           Effect.gen(function* () {
             const { corpus, stats } = yield* fetchBrandCorpus(publisherUsername, handle);
             const analysis = yield* proposeBrandProfile(corpus);
+
             return { analysis, stats };
           }).pipe(
             Effect.provide(

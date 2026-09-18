@@ -87,10 +87,12 @@ export const slugify = (text: string): string =>
  */
 export const entitySuffix = (id: string): string => {
   let hash = 0x811c9dc5;
+
   for (let index = 0; index < id.length; index++) {
     hash ^= id.charCodeAt(index);
     hash = Math.imul(hash, 0x01000193);
   }
+
   return (hash >>> 0).toString(16).padStart(8, "0").slice(-ID_SUFFIX_LENGTH);
 };
 
@@ -109,17 +111,23 @@ export const resolveByName = <T extends { _id: string }>(
 ): T | null => {
   const base = segment.replace(/\.[a-z0-9]+$/i, "");
   const full = entities.find((entity) => entity._id === base);
+
   if (full) return full;
   const suffix = base.split("-").at(-1) ?? base;
+
   if (suffix.length !== ID_SUFFIX_LENGTH) return null;
   const matches = entities.filter((entity) => entitySuffix(entity._id) === suffix);
+
   return matches.length === 1 ? (matches[0] ?? null) : null;
 };
 
 /** Extension + mime for image files projected into the namespace. */
-export const imageFileParts = (
-  mimeType: string | undefined,
-): { extension: string; mimeType: string } => {
+export interface ImageFileParts {
+  readonly extension: string;
+  readonly mimeType: string;
+}
+
+export const imageFileParts = (mimeType: string | undefined): ImageFileParts => {
   switch (mimeType) {
     case "image/png":
       return { extension: "png", mimeType };
@@ -138,12 +146,14 @@ export const imageUrl = async (
   image: { externalUrl?: string | undefined; storageId?: Id<"_storage"> | undefined },
 ): Promise<string | null> => {
   if (image.externalUrl) return image.externalUrl;
+
   if (image.storageId) return ctx.storage.getUrl(image.storageId);
+
   return null;
 };
 
 /** Deterministic pretty JSON for .json views. */
-export const jsonFile = (value: unknown): WorkspaceFile => ({
+export const jsonFile = (value: Parameters<typeof JSON.stringify>[0]): WorkspaceFile => ({
   kind: "text",
   text: JSON.stringify(value, null, 2),
 });

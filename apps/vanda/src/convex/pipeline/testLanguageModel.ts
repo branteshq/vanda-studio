@@ -13,14 +13,17 @@ import * as LanguageModel from "effect/unstable/ai/LanguageModel";
  * generic `Service` signature — unavoidable for a double of a generic provider
  * interface, confined to test helpers.
  */
-export const makeStubLanguageModel = (respond: (prompt: string) => unknown) =>
-  Layer.succeed(LanguageModel.LanguageModel, {
-    generateObject: (options: { readonly prompt: unknown }) =>
-      Effect.sync(() => {
-        const prompt =
-          typeof options.prompt === "string" ? options.prompt : JSON.stringify(options.prompt);
-        return new LanguageModel.GenerateObjectResponse(respond(prompt), []);
-      }),
-    generateText: () => Effect.die("stub LanguageModel: generateText is not supported"),
-    streamText: () => Stream.die("stub LanguageModel: streamText is not supported"),
-  } as unknown as LanguageModel.Service);
+export const stubLanguageModelLayer = (respond: (prompt: string) => object) =>
+  Layer.effect(
+    LanguageModel.LanguageModel,
+    LanguageModel.make({
+      generateText: (options) =>
+        Effect.succeed([
+          {
+            type: "text",
+            text: JSON.stringify(respond(JSON.stringify(options.prompt))),
+          },
+        ]),
+      streamText: () => Stream.die("stub LanguageModel: streamText is not supported"),
+    }),
+  );

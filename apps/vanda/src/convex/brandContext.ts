@@ -6,16 +6,19 @@ export const load = internalQuery({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<BrandContextSnapshot> => {
     const account = await ctx.db.get(accountId);
+
     const canon = await ctx.db
       .query("brandCanon")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .collect();
+
     const references = (
       await ctx.db
         .query("images")
         .withIndex("by_account", (q) => q.eq("accountId", accountId))
         .collect()
     ).filter((image) => image.purpose === "reference");
+
     const referenceImageUrls = (
       await Promise.all(
         references.map(

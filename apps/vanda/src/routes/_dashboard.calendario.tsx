@@ -13,22 +13,21 @@ export const Route = createFileRoute("/_dashboard/calendario")({
   component: CalendarioPage,
 });
 
-const STATUS_META: Record<
-  string,
-  { label: string; tone: "scheduled" | "done" | "needs" | "creating" }
-> = {
+const STATUS_META = {
   scheduled: { label: "Agendado", tone: "scheduled" },
   publishing: { label: "Publicando", tone: "creating" },
   published: { label: "Publicado", tone: "done" },
   failed: { label: "Falhou", tone: "needs" },
-};
+} satisfies Record<string, { label: string; tone: "scheduled" | "done" | "needs" | "creating" }>;
 
 const WEEKDAYS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 
 function CalendarioPage() {
   const { activeAccount } = useActiveAccount();
+
   const [cursor, setCursor] = useState(() => {
     const now = new Date();
+
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
 
@@ -45,22 +44,27 @@ function CalendarioPage() {
     const daysInMonth = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
     const leading = first.getDay();
     const cells: Array<{ date: Date | null; key: string }> = [];
+
     for (let i = 0; i < leading; i++) cells.push({ date: null, key: `lead-${i}` });
+
     for (let day = 1; day <= daysInMonth; day++) {
       cells.push({
         date: new Date(cursor.getFullYear(), cursor.getMonth(), day),
         key: `day-${day}`,
       });
     }
+
     return cells;
   }, [cursor]);
 
   const itemsByDay = useMemo(() => {
     const map = new Map<number, NonNullable<typeof items>>();
+
     for (const item of items ?? []) {
       const day = new Date(item.scheduledFor).getDate();
       map.set(day, [...(map.get(day) ?? []), item]);
     }
+
     return map;
   }, [items]);
 
@@ -68,6 +72,7 @@ function CalendarioPage() {
 
   const monthLabel = cursor.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
   const today = new Date();
+
   const isToday = (date: Date) =>
     date.getDate() === today.getDate() &&
     date.getMonth() === today.getMonth() &&
@@ -149,6 +154,7 @@ function CalendarioPage() {
                       <div className="mt-1 space-y-1">
                         {(itemsByDay.get(date.getDate()) ?? []).map((item) => {
                           const status = STATUS_META[item.status];
+
                           return (
                             <div
                               key={item.scheduledPostId}

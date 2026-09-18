@@ -22,6 +22,7 @@ describe("model defaults", () => {
 
   it("replaces GPT Image 2 with both 2.5 variants in the shared picker catalog", () => {
     expect(isKnownImageModel("openai/gpt-image-2")).toBe(false);
+
     for (const id of ["openai/gpt-image-2.5-flare", "openai/gpt-image-2.5-sunburst"]) {
       expect(isKnownImageModel(id)).toBe(true);
       expect(IMAGE_MODELS.find((model) => model.id === id)?.label).toContain("GPT Image 2.5");

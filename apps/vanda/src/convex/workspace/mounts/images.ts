@@ -21,6 +21,7 @@ const loadGallery = async (ctx: QueryCtx, accountId: Id<"accounts">): Promise<Do
     .withIndex("by_account_created", (q) => q.eq("accountId", accountId))
     .order("desc")
     .take(LISTING_CAP * 2);
+
   // Same membership rule as the gallery UI: references live under /brand,
   // in-flight placeholders are not files yet.
   return images
@@ -41,6 +42,7 @@ export const imagesMount: WorkspaceMount = {
   list: async (ctx, accountId, segments): Promise<WorkspaceEntry[] | null> => {
     if (segments.length !== 0) return null;
     const images = await loadGallery(ctx, accountId);
+
     const entries: WorkspaceEntry[] = images.map((image) => ({
       name: `${entityName(imageTitle(image), image._id)}.${imageFileParts(image.mimeType).extension}`,
       kind: "file",
@@ -54,6 +56,7 @@ export const imagesMount: WorkspaceMount = {
           .filter(Boolean)
           .join(" · ") + ` · id ${image._id}`,
     }));
+
     if (images.length === LISTING_CAP) {
       entries.push({
         name: "…",
@@ -61,15 +64,19 @@ export const imagesMount: WorkspaceMount = {
         summary: `listagem limitada às ${LISTING_CAP} imagens mais recentes`,
       });
     }
+
     return entries;
   },
   read: async (ctx, accountId, segments): Promise<WorkspaceFile | null> => {
     if (segments.length !== 1) return null;
     const images = await loadGallery(ctx, accountId);
     const image = resolveByName(segments[0]!, images);
+
     if (!image) return null;
     const url = await imageUrl(ctx, image);
+
     if (!url) return null;
+
     const header = [
       `${imageTitle(image)} · ${originLabel(image)} · imageId ${image._id}`,
       image.width && image.height ? `${image.width}×${image.height}` : null,
@@ -80,6 +87,7 @@ export const imagesMount: WorkspaceMount = {
     ]
       .filter(Boolean)
       .join("\n");
+
     return {
       kind: "image",
       imageId: image._id,

@@ -90,10 +90,17 @@ export interface CapabilityResult<Data = unknown> {
   readonly summary?: string | undefined;
 }
 
+interface MutableCapabilityResult<Data> {
+  data: Data;
+  resources: readonly ThreadResource[];
+  presented: readonly ThreadResource[];
+  summary?: string;
+}
+
 export const capabilityResultSchema = z.object({
   data: z.unknown(),
-  resources: z.array(threadResourceSchema),
-  presented: z.array(threadResourceSchema),
+  resources: z.array(threadResourceSchema).readonly(),
+  presented: z.array(threadResourceSchema).readonly(),
   summary: z.string().optional(),
 });
 
@@ -104,12 +111,17 @@ export const capabilityResult = <Data>(
     readonly presented?: readonly ThreadResource[];
     readonly summary?: string | undefined;
   } = {},
-): CapabilityResult<Data> => ({
-  data,
-  resources: options.resources ?? [],
-  presented: options.presented ?? [],
-  ...(options.summary ? { summary: options.summary } : {}),
-});
+): CapabilityResult<Data> => {
+  const result: MutableCapabilityResult<Data> = {
+    data,
+    resources: options.resources ?? [],
+    presented: options.presented ?? [],
+  };
+
+  if (options.summary) result.summary = options.summary;
+
+  return result;
+};
 
 export const resourceKey = (resource: ThreadResource): string => {
   switch (resource.kind) {
@@ -128,10 +140,13 @@ export const resourceKey = (resource: ThreadResource): string => {
 
 export const dedupeResources = (resources: readonly ThreadResource[]): ThreadResource[] => {
   const seen = new Set<string>();
+
   return resources.filter((resource) => {
     const key = resourceKey(resource);
+
     if (seen.has(key)) return false;
     seen.add(key);
+
     return true;
   });
 };

@@ -37,12 +37,12 @@ export const Route = createFileRoute("/_dashboard/caetano")({ component: Caetano
 
 interface ToolPart {
   type: string;
-  toolName?: string;
-  toolCallId?: string;
+  toolName?: string | undefined;
+  toolCallId?: string | undefined;
   state: string;
 }
 
-const TOOL_LABELS: Record<string, string> = {
+const TOOL_LABELS = {
   list_accounts: "Conferindo seus negócios",
   select_account: "Trocando o negócio ativo",
   account_status: "Conferindo a conta",
@@ -60,6 +60,9 @@ const toolName = (part: ToolPart): string =>
 const runningTool = (part: ToolPart): boolean =>
   part.state === "input-streaming" || part.state === "input-available";
 
+const toolLabel = (name: string): string =>
+  Object.entries(TOOL_LABELS).find(([toolName]) => toolName === name)?.[1] ?? "Trabalhando";
+
 function CaetanoPage() {
   const state = useQuery(api.caetano.state, {});
   const sendMessage = useMutation(api.caetano.sendMessage);
@@ -69,18 +72,24 @@ function CaetanoPage() {
 
   const send = async (text: string, attachments: ReadyImageAttachment[]) => {
     const prompt = text.trim();
+
     if ((!prompt && attachments.length === 0) || state?.processing) return;
     setDraft("");
     setPending(prompt);
     setError(null);
+
     try {
-      await sendMessage({
-        ...(state?.threadId ? { threadId: state.threadId } : {}),
+      const request: Parameters<typeof sendMessage>[0] = {
         prompt,
-        ...(attachments.length > 0
-          ? { imageIds: attachments.map((attachment) => attachment.imageId) }
-          : {}),
-      });
+      };
+
+      if (state?.threadId) request.threadId = state.threadId;
+
+      if (attachments.length > 0) {
+        request.imageIds = attachments.map((attachment) => attachment.imageId);
+      }
+
+      await sendMessage(request);
     } catch (cause) {
       setDraft(prompt);
       setError(errorMessage(cause));
@@ -91,6 +100,7 @@ function CaetanoPage() {
   };
 
   if (state === undefined) return <CaetanoSkeleton />;
+
   if (!state.threadId) {
     return (
       <CaetanoFrame>
@@ -117,6 +127,7 @@ function CaetanoPage() {
       </CaetanoFrame>
     );
   }
+
   return (
     <CaetanoConversation
       accountId={state.activeAccountId}
@@ -142,31 +153,39 @@ function CaetanoConversation({
       prompt: args.prompt,
     });
   });
+
   const stop = useMutation(api.caetano.stopGeneration);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
+
   const messages = useUIMessages(
     api.caetano.listMessages,
     { threadId },
     { initialNumItems: 80, stream: true },
   );
+
   const resourceManifests = useQuery(api.threadResources.listForCaetano, { threadId });
   const loading = messages.status === "LoadingFirstPage";
   const streaming = messages.results.at(-1)?.status === "streaming";
 
   const send = async (text: string, attachments: ReadyImageAttachment[]) => {
     const prompt = text.trim();
+
     if ((!prompt && attachments.length === 0) || processing || streaming) return;
     setDraft("");
     setError(null);
+
     try {
-      await sendMessage({
+      const request: Parameters<typeof sendMessage>[0] = {
         threadId,
         prompt,
-        ...(attachments.length > 0
-          ? { imageIds: attachments.map((attachment) => attachment.imageId) }
-          : {}),
-      });
+      };
+
+      if (attachments.length > 0) {
+        request.imageIds = attachments.map((attachment) => attachment.imageId);
+      }
+
+      await sendMessage(request);
     } catch (cause) {
       setDraft(prompt);
       setError(errorMessage(cause));
@@ -294,19 +313,20 @@ function CaetanoMessage({
   resources: Parameters<typeof ThreadResourceList>[0]["resources"];
 }) {
   const textParts = message.parts.flatMap((part) =>
-    part.type === "text" && (part as { text: string }).text.trim()
-      ? [(part as { text: string }).text]
-      : [],
+    part.type === "text" && part.text.trim() ? [part.text] : [],
   );
+
   if (message.role === "user") {
     const attachments = message.parts.flatMap((part) => {
       if (part.type !== "file") return [];
-      const file = part as { mediaType: string; url: string; filename?: string };
-      return file.mediaType.startsWith("image/")
-        ? [{ url: file.url, fileName: file.filename ?? "Imagem anexada" }]
+
+      return part.mediaType.startsWith("image/")
+        ? [{ url: part.url, fileName: part.filename ?? "Imagem anexada" }]
         : [];
     });
+
     if (textParts.length === 0 && attachments.length === 0) return null;
+
     return (
       <Message align="end" className="animate-message-in">
         <MessageContent>
@@ -321,11 +341,22 @@ function CaetanoMessage({
     );
   }
 
-  const tools = message.parts.filter(
-    (part) => part.type === "dynamic-tool" || part.type.startsWith("tool-"),
-  ) as unknown as ToolPart[];
+  const tools: ToolPart[] = message.parts.flatMap((part) =>
+    part.type === "dynamic-tool" || part.type.startsWith("tool-")
+      ? [
+          {
+            type: part.type,
+            toolName: "toolName" in part ? part.toolName : undefined,
+            toolCallId: "toolCallId" in part ? part.toolCallId : undefined,
+            state: "state" in part ? part.state : "output-available",
+          },
+        ]
+      : [],
+  );
+
   const streaming = message.status === "streaming";
   const nothingYet = streaming && textParts.length === 0 && tools.length === 0;
+
   return (
     <Message align="start" className="animate-message-in">
       <MessageContent>
@@ -333,6 +364,7 @@ function CaetanoMessage({
           <div className="space-y-1.5 py-1 text-xs text-text-3">
             {tools.map((part) => {
               const name = toolName(part);
+
               return (
                 <div
                   key={part.toolCallId ?? `${name}-${part.state}`}
@@ -345,7 +377,7 @@ function CaetanoMessage({
                       ✓
                     </span>
                   )}
-                  <span>{TOOL_LABELS[name] ?? "Trabalhando"}</span>
+                  <span>{toolLabel(name)}</span>
                 </div>
               );
             })}
@@ -372,6 +404,7 @@ function CaetanoMessage({
 
 function CaetanoStreamingText({ text, streaming }: { text: string; streaming: boolean }) {
   const [visible] = useSmoothText(text, { charsPerSec: 900, startStreaming: streaming });
+
   return <Markdown>{visible}</Markdown>;
 }
 

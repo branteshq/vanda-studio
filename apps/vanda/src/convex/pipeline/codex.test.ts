@@ -17,6 +17,7 @@ describe("ChatGPT public errors", () => {
         vi.fn().mockResolvedValue(new Response("private provider diagnostic", { status })),
       );
       let error: unknown;
+
       const result = streamText({
         model: codexChatModel(
           { access: "test-only", accountId: "test-only" },
@@ -28,6 +29,7 @@ describe("ChatGPT public errors", () => {
           error = event.error;
         },
       });
+
       await result.consumeStream();
       expect(errorCode(error)).toBe(code);
       expect(errorMessage(error)).not.toContain("private provider diagnostic");

@@ -13,6 +13,7 @@ type ToolResult = Extract<
   Extract<ModelMessage, { role: "tool" }>["content"][number],
   { type: "tool-result" }
 >;
+
 type JsonValue = Extract<ToolResult["output"], { type: "json" }>["value"];
 
 const observation = <Data>(data: Data, cached = false) => ({
@@ -92,6 +93,7 @@ describe("Instagram tool summaries", () => {
     "insights",
   ])("bounds %s previews even with escaped long text and oversized arrays", (operation) => {
     const huge = "\u0000".repeat(100_000);
+
     const item = {
       id: "id",
       handle: "cafe",
@@ -115,15 +117,19 @@ describe("Instagram tool summaries", () => {
       demographics: { unknown: huge },
       unexpected: huge,
     };
+
     const list = ["search_profiles", "posts", "comments"].includes(operation);
+
     const summary = summarizeInstagramResult(
       operation,
       observation(list ? Array.from({ length: 100 }, () => ({ ...item })) : item),
     );
+
     expect(JSON.stringify(summary.data).length).toBeLessThanOrEqual(INSTAGRAM_PREVIEW_MAX_CHARS);
     expect(JSON.stringify(summary)).not.toContain('"unexpected"');
     expect(JSON.stringify(summary)).not.toContain('"mediaUrl"');
     expect(summary.preview.notice).toContain("savedTo");
+
     if (list) expect(summary.preview.omittedItems).toBeGreaterThan(0);
   });
 
@@ -139,6 +145,7 @@ describe("Instagram tool summaries", () => {
         privateInsights: { saves: 10, reach: 800 },
       }),
     );
+
     expect(summary.data).toMatchObject({
       id: "media-123",
       url: "https://instagram.com/p/abc",
@@ -160,15 +167,18 @@ describe("Instagram tool summaries", () => {
 describe("legacy Instagram history", () => {
   it.each([false, true])("compacts old results without mutating history, wrapped=%s", (wrapped) => {
     const full = observation(profiles());
+
     const value = wrapped
       ? { data: full, resources: [{ kind: "document", path: full.savedTo }], presented: [] }
       : full;
+
     const history = [toolMessage(value)];
     const before = JSON.stringify(history);
     const compacted = compactInstagramHistory(history);
     expect(JSON.stringify(compacted).length).toBeLessThan(5_000);
     expect(JSON.stringify(compacted)).toContain("search-1");
     expect(JSON.stringify(compacted)).toContain(full.savedTo);
+
     if (wrapped) expect(JSON.stringify(compacted)).toContain('"resources"');
     expect(JSON.stringify(history)).toBe(before);
     expect(compactInstagramHistory(compacted)).toEqual(compacted);
@@ -200,6 +210,7 @@ describe("legacy Instagram history", () => {
         ],
       },
     ];
+
     expect(compactInstagramHistory(messages)).toEqual(messages);
   });
 });

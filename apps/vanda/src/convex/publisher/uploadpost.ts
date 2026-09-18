@@ -5,33 +5,43 @@
  * social accounts through a white-label OAuth page we mint per profile.
  * Their tokens live inside Upload-Post — nothing sensitive is stored here.
  */
+import { z } from "zod";
 
 const BASE_URL = "https://api.upload-post.com/api";
 
 const apiKey = (): string => {
   const key = process.env.UPLOADPOST_API_KEY;
+
   if (!key) throw new Error("UPLOADPOST_API_KEY não configurada");
+
   return key;
 };
 
 const upFetch = async (path: string, init?: RequestInit): Promise<Response> => {
   const headers = new Headers(init?.headers);
   headers.set("Authorization", `Apikey ${apiKey()}`);
+
   return fetch(`${BASE_URL}${path}`, { ...init, headers });
 };
 
-const upJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
+const upJson = async <T>(path: string, schema: z.ZodType<T>, init?: RequestInit): Promise<T> => {
   const response = await upFetch(path, init);
+
   if (!response.ok) {
     const body = await response.text().catch(() => "");
     throw new Error(
       `upload-post ${path} HTTP ${response.status}${body ? `: ${body.slice(0, 300)}` : ""}`,
     );
   }
-  return response.json() as Promise<T>;
+
+  return schema.parse(await response.json());
 };
 
-const jsonInit = (body: unknown): RequestInit => ({
+type JsonPrimitive = string | number | boolean | null;
+
+type JsonValue = JsonPrimitive | ReadonlyArray<JsonValue> | { readonly [key: string]: JsonValue };
+
+const jsonInit = (body: JsonValue): RequestInit => ({
   method: "POST",
   headers: { "content-type": "application/json" },
   body: JSON.stringify(body),
@@ -40,18 +50,36 @@ const jsonInit = (body: unknown): RequestInit => ({
 export interface PublisherProfile {
   username: string;
   /** Platform → connection info; a non-empty value means connected. */
-  socialAccounts: Record<string, unknown>;
+  socialAccounts: Record<string, SocialAccount>;
 }
 
-interface RawProfileResponse {
-  profile?: { username?: string; social_accounts?: Record<string, unknown> };
-  // GET /users/{username} responses have been observed both wrapped and flat.
-  username?: string;
-  social_accounts?: Record<string, unknown>;
-}
+const socialAccountFieldsSchema = z.object({
+  handle: z.string().optional().catch(undefined),
+  display_name: z.string().optional().catch(undefined),
+  username: z.string().optional().catch(undefined),
+  name: z.string().optional().catch(undefined),
+});
 
-const parseProfile = (raw: RawProfileResponse): PublisherProfile => {
+const socialAccountSchema = z.union([z.string(), socialAccountFieldsSchema]).nullable().catch(null);
+
+type SocialAccount = z.infer<typeof socialAccountSchema>;
+
+const socialAccountsSchema = z.record(z.string(), socialAccountSchema);
+
+const profileFieldsSchema = z.object({
+  username: z.string().optional(),
+  social_accounts: socialAccountsSchema.optional(),
+});
+
+const profileResponseSchema = profileFieldsSchema.extend({
+  profile: profileFieldsSchema.optional(),
+});
+
+type ProfileResponse = z.infer<typeof profileResponseSchema>;
+
+const parseProfile = (raw: ProfileResponse): PublisherProfile => {
   const inner = raw.profile ?? raw;
+
   return {
     username: inner.username ?? "",
     socialAccounts: inner.social_accounts ?? {},
@@ -70,31 +98,34 @@ export interface InstagramProfileInfo extends InstagramState {
 }
 
 /** A usable @username — non-empty and not a bare numeric platform id. */
-const usernameOrNull = (value: unknown): string | null =>
-  typeof value === "string" && value.trim() !== "" && !/^\d+$/.test(value.trim())
-    ? value.trim()
-    : null;
+const usernameOrNull = (value: string | undefined): string | null =>
+  value !== undefined && value.trim() !== "" && !/^\d+$/.test(value.trim()) ? value.trim() : null;
 
 /** Instagram connection state of a profile. The entry is a rich object on the
  * list/get endpoints but can be a flat string (sometimes the numeric account
  * id) right after connecting — a numeric id counts as connected, handle-less. */
 export const instagramStateOf = (profile: PublisherProfile): InstagramState => {
   const entry = profile.socialAccounts["instagram"];
-  if (typeof entry === "string") {
-    return entry.trim() === ""
+  const stringEntry = z.string().safeParse(entry);
+
+  if (stringEntry.success) {
+    return stringEntry.data.trim() === ""
       ? { connected: false, username: null }
-      : { connected: true, username: usernameOrNull(entry) };
+      : { connected: true, username: usernameOrNull(stringEntry.data) };
   }
-  if (entry && typeof entry === "object") {
-    const fields = entry as { handle?: unknown; display_name?: unknown; username?: unknown };
+
+  const fields = socialAccountFieldsSchema.safeParse(entry);
+
+  if (fields.success) {
     return {
       connected: true,
       username:
-        usernameOrNull(fields.handle) ??
-        usernameOrNull(fields.username) ??
-        usernameOrNull(fields.display_name),
+        usernameOrNull(fields.data.handle) ??
+        usernameOrNull(fields.data.username) ??
+        usernameOrNull(fields.data.display_name),
     };
   }
+
   return { connected: false, username: null };
 };
 
@@ -102,22 +133,29 @@ export const instagramStateOf = (profile: PublisherProfile): InstagramState => {
 export const instagramProfileInfoOf = (profile: PublisherProfile): InstagramProfileInfo => {
   const state = instagramStateOf(profile);
   const entry = profile.socialAccounts["instagram"];
-  if (!entry || typeof entry !== "object") return { ...state, displayName: state.username };
-  const fields = entry as { display_name?: unknown; name?: unknown };
+
+  const fields = socialAccountFieldsSchema.safeParse(entry);
+
+  if (!fields.success) return { ...state, displayName: state.username };
+
   return {
     ...state,
     displayName:
-      usernameOrNull(fields.display_name) ?? usernameOrNull(fields.name) ?? state.username,
+      usernameOrNull(fields.data.display_name) ??
+      usernameOrNull(fields.data.name) ??
+      state.username,
   };
 };
 
 /** Create the profile if it doesn't exist yet (idempotent). */
 export const ensureProfile = async (username: string): Promise<void> => {
   const response = await upFetch("/uploadposts/users", jsonInit({ username }));
+
   if (response.ok) return;
   // "Already exists" is success for our purposes — 409, or the message
   // wording ("Username already in use" / "already exists").
   const body = await response.text().catch(() => "");
+
   if (response.status === 409 || /already in use|exist/i.test(body)) return;
   throw new Error(
     `upload-post create profile HTTP ${response.status}${body ? `: ${body.slice(0, 300)}` : ""}`,
@@ -126,14 +164,17 @@ export const ensureProfile = async (username: string): Promise<void> => {
 
 export const getProfile = async (username: string): Promise<PublisherProfile | null> => {
   const response = await upFetch(`/uploadposts/users/${encodeURIComponent(username)}`);
+
   if (response.status === 404) return null;
+
   if (!response.ok) {
     const body = await response.text().catch(() => "");
     throw new Error(
       `upload-post get profile HTTP ${response.status}${body ? `: ${body.slice(0, 300)}` : ""}`,
     );
   }
-  return parseProfile((await response.json()) as RawProfileResponse);
+
+  return parseProfile(profileResponseSchema.parse(await response.json()));
 };
 
 /** Best-effort profile removal (used when a Vanda account is deleted). */
@@ -203,17 +244,109 @@ export interface InstagramPostAnalytics {
   readonly shares: number | null;
 }
 
-const stringOf = (value: unknown): string | null =>
-  typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+const nullableStringSchema = z
+  .string()
+  .transform((value) => value.trim() || null)
+  .catch(null);
 
-const finiteNumberOf = (value: unknown): number | null =>
-  typeof value === "number" && Number.isFinite(value) ? value : null;
+const nullableNumberSchema = z.number().finite().nullable().catch(null);
+
+const mediaResponseSchema = z.object({
+  media: z
+    .array(
+      z.object({
+        id: nullableStringSchema,
+        caption: nullableStringSchema,
+        media_type: nullableStringSchema,
+        media_url: nullableStringSchema,
+        permalink: nullableStringSchema,
+        timestamp: nullableStringSchema,
+        thumbnail_url: nullableStringSchema,
+      }),
+    )
+    .default([]),
+  pagination: z
+    .object({
+      limit: nullableNumberSchema,
+      next_cursor: nullableStringSchema,
+      has_more: z.boolean().catch(false),
+    })
+    .default({ limit: null, next_cursor: null, has_more: false }),
+});
+
+const commentsResponseSchema = z.object({
+  comments: z
+    .array(
+      z.object({
+        id: nullableStringSchema,
+        text: nullableStringSchema,
+        timestamp: nullableStringSchema,
+        user: z.object({ username: nullableStringSchema }).default({ username: null }),
+      }),
+    )
+    .default([]),
+  pagination: z
+    .object({
+      next_cursor: nullableStringSchema,
+      has_next: z.boolean().catch(false),
+    })
+    .default({ next_cursor: null, has_next: false }),
+});
+
+const analyticsMetricsSchema = z.object({
+  followers: nullableNumberSchema,
+  reach: nullableNumberSchema,
+  views: nullableNumberSchema,
+  impressions: nullableNumberSchema,
+  profileViews: nullableNumberSchema,
+  likes: nullableNumberSchema,
+  comments: nullableNumberSchema,
+  shares: nullableNumberSchema,
+  saves: nullableNumberSchema,
+  follower_demographics: z.json().nullable().catch(null),
+  engaged_audience_demographics: z.json().nullable().catch(null),
+});
+
+const EMPTY_ANALYTICS = {
+  followers: null,
+  reach: null,
+  views: null,
+  impressions: null,
+  profileViews: null,
+  likes: null,
+  comments: null,
+  shares: null,
+  saves: null,
+  follower_demographics: null,
+  engaged_audience_demographics: null,
+};
+
+const analyticsResponseSchema = z.object({
+  instagram: analyticsMetricsSchema.default(EMPTY_ANALYTICS),
+});
+
+const postAnalyticsResponseSchema = z.object({
+  platforms: z
+    .object({
+      instagram: z
+        .object({
+          platform_post_id: nullableStringSchema,
+          post_metrics: analyticsMetricsSchema.default(EMPTY_ANALYTICS),
+        })
+        .default({ platform_post_id: null, post_metrics: EMPTY_ANALYTICS }),
+    })
+    .default({
+      instagram: { platform_post_id: null, post_metrics: EMPTY_ANALYTICS },
+    }),
+});
 
 const queryPath = (path: string, values: Record<string, string | number | undefined>): string => {
   const query = new URLSearchParams();
+
   for (const [key, value] of Object.entries(values)) {
     if (value !== undefined) query.set(key, String(value));
   }
+
   return `${path}?${query.toString()}`;
 };
 
@@ -222,39 +355,38 @@ export const getInstagramMedia = async (
   username: string,
   options: { readonly limit?: number; readonly cursor?: string } = {},
 ): Promise<InstagramMediaPage> => {
-  const raw = await upJson<{
-    media?: ReadonlyArray<Record<string, unknown>>;
-    pagination?: Record<string, unknown>;
-  }>(
+  const raw = await upJson(
     queryPath("/uploadposts/media", {
       platform: "instagram",
       user: username,
       limit: options.limit,
       cursor: options.cursor,
     }),
+    mediaResponseSchema,
   );
-  const media = (Array.isArray(raw.media) ? raw.media : []).flatMap((item) => {
-    const id = stringOf(item["id"]);
-    if (id === null) return [];
+
+  const media = raw.media.flatMap((item) => {
+    if (item.id === null) return [];
+
     return [
       {
-        id,
-        caption: stringOf(item["caption"]),
-        mediaType: stringOf(item["media_type"]),
-        mediaUrl: stringOf(item["media_url"]),
-        permalink: stringOf(item["permalink"]),
-        timestamp: stringOf(item["timestamp"]),
-        thumbnailUrl: stringOf(item["thumbnail_url"]),
+        id: item.id,
+        caption: item.caption,
+        mediaType: item.media_type,
+        mediaUrl: item.media_url,
+        permalink: item.permalink,
+        timestamp: item.timestamp,
+        thumbnailUrl: item.thumbnail_url,
       },
     ];
   });
-  const pagination = raw.pagination ?? {};
+
   return {
     media,
     pagination: {
-      limit: finiteNumberOf(pagination["limit"]) ?? options.limit ?? 25,
-      nextCursor: stringOf(pagination["next_cursor"]),
-      hasMore: pagination["has_more"] === true,
+      limit: raw.pagination.limit ?? options.limit ?? 25,
+      nextCursor: raw.pagination.next_cursor,
+      hasMore: raw.pagination.has_more,
     },
   };
 };
@@ -265,10 +397,7 @@ export const getInstagramComments = async (
   postId: string,
   options: { readonly limit?: number; readonly after?: string } = {},
 ): Promise<InstagramCommentsPage> => {
-  const raw = await upJson<{
-    comments?: ReadonlyArray<Record<string, unknown>>;
-    pagination?: Record<string, unknown>;
-  }>(
+  const raw = await upJson(
     queryPath("/uploadposts/comments", {
       platform: "instagram",
       user: username,
@@ -276,54 +405,51 @@ export const getInstagramComments = async (
       limit: options.limit,
       after: options.after,
     }),
+    commentsResponseSchema,
   );
-  const comments = (Array.isArray(raw.comments) ? raw.comments : []).flatMap((item) => {
-    const id = stringOf(item["id"]);
-    const text = stringOf(item["text"]);
-    if (id === null || text === null) return [];
-    const user = item["user"];
+
+  const comments = raw.comments.flatMap((item) => {
+    if (item.id === null || item.text === null) return [];
+
     return [
       {
-        id,
-        text,
-        timestamp: stringOf(item["timestamp"]),
-        username:
-          user && typeof user === "object"
-            ? stringOf((user as Record<string, unknown>)["username"])
-            : null,
+        id: item.id,
+        text: item.text,
+        timestamp: item.timestamp,
+        username: item.user.username,
       },
     ];
   });
-  const pagination = raw.pagination ?? {};
+
   return {
     comments,
     pagination: {
-      nextCursor: stringOf(pagination["next_cursor"]),
-      hasNext: pagination["has_next"] === true,
+      nextCursor: raw.pagination.next_cursor,
+      hasNext: raw.pagination.has_next,
     },
   };
 };
 
 /** Read current account-level Instagram analytics. */
 export const getInstagramAnalytics = async (username: string): Promise<InstagramAnalytics> => {
-  const raw = await upJson<Record<string, unknown>>(
+  const raw = await upJson(
     queryPath(`/analytics/${encodeURIComponent(username)}`, { platforms: "instagram" }),
+    analyticsResponseSchema,
   );
-  const instagram =
-    raw["instagram"] && typeof raw["instagram"] === "object"
-      ? (raw["instagram"] as Record<string, unknown>)
-      : {};
+
+  const instagram = raw.instagram;
+
   return {
-    followers: finiteNumberOf(instagram["followers"]),
-    reach: finiteNumberOf(instagram["reach"]),
-    views: finiteNumberOf(instagram["views"] ?? instagram["impressions"]),
-    profileViews: finiteNumberOf(instagram["profileViews"]),
-    likes: finiteNumberOf(instagram["likes"]),
-    comments: finiteNumberOf(instagram["comments"]),
-    shares: finiteNumberOf(instagram["shares"]),
-    saves: finiteNumberOf(instagram["saves"]),
-    followerDemographics: instagram["follower_demographics"] ?? null,
-    engagedAudienceDemographics: instagram["engaged_audience_demographics"] ?? null,
+    followers: instagram.followers,
+    reach: instagram.reach,
+    views: instagram.views ?? instagram.impressions,
+    profileViews: instagram.profileViews,
+    likes: instagram.likes,
+    comments: instagram.comments,
+    shares: instagram.shares,
+    saves: instagram.saves,
+    followerDemographics: instagram.follower_demographics,
+    engagedAudienceDemographics: instagram.engaged_audience_demographics,
   };
 };
 
@@ -332,34 +458,27 @@ export const getInstagramPostAnalytics = async (
   username: string,
   postId: string,
 ): Promise<InstagramPostAnalytics> => {
-  const raw = await upJson<Record<string, unknown>>(
+  const raw = await upJson(
     queryPath("/uploadposts/post-analytics", {
       platform_post_id: postId,
       platform: "instagram",
       user: username,
     }),
+    postAnalyticsResponseSchema,
   );
-  const platforms =
-    raw["platforms"] && typeof raw["platforms"] === "object"
-      ? (raw["platforms"] as Record<string, unknown>)
-      : {};
-  const instagram =
-    platforms["instagram"] && typeof platforms["instagram"] === "object"
-      ? (platforms["instagram"] as Record<string, unknown>)
-      : {};
-  const metrics =
-    instagram["post_metrics"] && typeof instagram["post_metrics"] === "object"
-      ? (instagram["post_metrics"] as Record<string, unknown>)
-      : {};
+
+  const instagram = raw.platforms.instagram;
+  const metrics = instagram.post_metrics;
+
   return {
-    postId: stringOf(instagram["platform_post_id"]) ?? postId,
-    likes: finiteNumberOf(metrics["likes"]),
-    comments: finiteNumberOf(metrics["comments"]),
-    views: finiteNumberOf(metrics["views"]),
-    reach: finiteNumberOf(metrics["reach"]),
-    impressions: finiteNumberOf(metrics["impressions"]),
-    saves: finiteNumberOf(metrics["saves"]),
-    shares: finiteNumberOf(metrics["shares"]),
+    postId: instagram.platform_post_id ?? postId,
+    likes: metrics.likes,
+    comments: metrics.comments,
+    views: metrics.views,
+    reach: metrics.reach,
+    impressions: metrics.impressions,
+    saves: metrics.saves,
+    shares: metrics.shares,
   };
 };
 
@@ -368,8 +487,9 @@ export const generateConnectUrl = async (args: {
   username: string;
   redirectUrl: string;
 }): Promise<string> => {
-  const body = await upJson<{ access_url?: string }>(
+  const body = await upJson(
     "/uploadposts/users/generate-jwt",
+    z.object({ access_url: z.string().optional() }),
     jsonInit({
       username: args.username,
       platforms: ["instagram"],
@@ -381,7 +501,9 @@ export const generateConnectUrl = async (args: {
       show_calendar: false,
     }),
   );
+
   if (!body.access_url) throw new Error("upload-post generate-jwt sem access_url");
+
   return body.access_url;
 };
 
@@ -397,20 +519,32 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /** Recover the receipt of a just-completed async upload from the history feed. */
 const receiptFromHistory = async (username: string): Promise<PublishPhotosResult> => {
   const response = await upFetch("/uploadposts/history");
+
   if (!response.ok) return { externalPostId: null, url: null };
-  const body = (await response.json().catch(() => null)) as {
-    history?: Array<{
-      profile_username?: string;
-      platform?: string;
-      success?: boolean;
-      platform_post_id?: string | null;
-      post_url?: string | null;
-    }>;
-  } | null;
+
+  const body = z
+    .object({
+      history: z
+        .array(
+          z.object({
+            profile_username: z.string().optional(),
+            platform: z.string().optional(),
+            success: z.boolean().optional(),
+            platform_post_id: z.string().nullable().optional(),
+            post_url: z.string().nullable().optional(),
+          }),
+        )
+        .default([]),
+    })
+    .nullable()
+    .catch(null)
+    .parse(await response.json().catch(() => null));
+
   const item = (body?.history ?? []).find(
     (entry) =>
       entry.profile_username === username && entry.platform === "instagram" && entry.success,
   );
+
   return { externalPostId: item?.platform_post_id ?? null, url: item?.post_url ?? null };
 };
 
@@ -420,24 +554,43 @@ const awaitAsyncUpload = async (
   requestId: string,
 ): Promise<PublishPhotosResult> => {
   const deadline = Date.now() + 4 * 60_000;
+
   for (;;) {
     await sleep(5_000);
+
     const response = await upFetch(
       `/uploadposts/status?request_id=${encodeURIComponent(requestId)}`,
     );
-    const body = (await response.json().catch(() => null)) as {
-      status?: string;
-      results?: Array<{ platform?: string; success?: boolean; message?: string }>;
-    } | null;
+
+    const body = z
+      .object({
+        status: z.string().optional(),
+        results: z
+          .array(
+            z.object({
+              platform: z.string().optional(),
+              success: z.boolean().optional(),
+              message: z.string().optional(),
+            }),
+          )
+          .optional(),
+      })
+      .nullable()
+      .catch(null)
+      .parse(await response.json().catch(() => null));
+
     // Result rows exist as placeholders while the job runs — only judge
     // success/failure once the aggregated status settles.
     if (body?.status === "completed") {
       const result = body.results?.find((entry) => entry.platform === "instagram");
+
       if (result !== undefined && result.success !== true) {
         throw new Error(result.message ?? "upload-post: publicação assíncrona falhou");
       }
+
       return receiptFromHistory(username);
     }
+
     if (Date.now() > deadline) {
       throw new Error("upload-post: publicação assíncrona não concluiu a tempo");
     }
@@ -459,27 +612,49 @@ export const publishPhotos = async (args: {
   form.append("user", args.username);
   form.append("platform[]", "instagram");
   form.append("title", args.caption);
+
   for (const [index, url] of args.imageUrls.entries()) {
     const media = await fetch(url);
+
     if (!media.ok) throw new Error(`mídia inacessível (HTTP ${media.status})`);
     const blob = await media.blob();
     form.append("photos[]", blob, `slide-${index + 1}.jpg`);
   }
-  const body = await upJson<{
-    success?: boolean;
-    request_id?: string;
-    results?: Record<string, { success?: boolean; post_id?: string; url?: string; error?: string }>;
-  }>("/upload_photos", { method: "POST", body: form });
+
+  const body = await upJson(
+    "/upload_photos",
+    z.object({
+      success: z.boolean().optional(),
+      request_id: z.string().optional(),
+      results: z
+        .record(
+          z.string(),
+          z.object({
+            success: z.boolean().optional(),
+            post_id: z.string().optional(),
+            url: z.string().optional(),
+            error: z.string().optional(),
+          }),
+        )
+        .optional(),
+    }),
+    { method: "POST", body: form },
+  );
+
   const result = body.results?.["instagram"];
+
   if (result !== undefined) {
     if (!result.success) {
       throw new Error(result.error ?? "upload-post: publicação no Instagram falhou");
     }
+
     return { externalPostId: result.post_id ?? null, url: result.url ?? null };
   }
+
   if (body.request_id !== undefined) {
     return awaitAsyncUpload(args.username, body.request_id);
   }
+
   throw new Error("upload-post: resposta sem resultado nem request_id");
 };
 
@@ -488,8 +663,6 @@ export interface PostMetrics {
   likes: number;
   comments: number;
 }
-
-const numberOf = (value: unknown): number => (typeof value === "number" ? value : 0);
 
 /**
  * Cached per-post analytics for a profile, keyed by external post id.
@@ -500,19 +673,53 @@ export const getPostAnalytics = async (username: string): Promise<Map<string, Po
   const response = await upFetch(
     `/uploadposts/post-analytics/cached?user=${encodeURIComponent(username)}&platform=instagram`,
   );
+
   if (!response.ok) return new Map();
-  const body = (await response.json().catch(() => null)) as {
-    posts?: Array<{ post_id?: string; metrics?: Record<string, unknown> }>;
-  } | null;
+
+  const body = z
+    .object({
+      posts: z
+        .array(
+          z.object({
+            post_id: z.string().optional(),
+            metrics: z
+              .object({
+                views: z.number().catch(0),
+                plays: z.number().catch(0),
+                impressions: z.number().catch(0),
+                likes: z.number().catch(0),
+                like_count: z.number().catch(0),
+                comments: z.number().catch(0),
+                comments_count: z.number().catch(0),
+              })
+              .default({
+                views: 0,
+                plays: 0,
+                impressions: 0,
+                likes: 0,
+                like_count: 0,
+                comments: 0,
+                comments_count: 0,
+              }),
+          }),
+        )
+        .default([]),
+    })
+    .nullable()
+    .catch(null)
+    .parse(await response.json().catch(() => null));
+
   const map = new Map<string, PostMetrics>();
+
   for (const post of body?.posts ?? []) {
     if (!post.post_id) continue;
-    const metrics = post.metrics ?? {};
+    const metrics = post.metrics;
     map.set(post.post_id, {
-      views: numberOf(metrics["views"] ?? metrics["plays"] ?? metrics["impressions"]),
-      likes: numberOf(metrics["likes"] ?? metrics["like_count"]),
-      comments: numberOf(metrics["comments"] ?? metrics["comments_count"]),
+      views: metrics.views || metrics.plays || metrics.impressions,
+      likes: metrics.likes || metrics.like_count,
+      comments: metrics.comments || metrics.comments_count,
     });
   }
+
   return map;
 };

@@ -4,7 +4,8 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import * as LanguageModel from "effect/unstable/ai/LanguageModel";
-import { makeApifyPublicInstagramProvider } from "../instagram/providers/apify";
+import { apifyPublicInstagramProviderLayer } from "../instagram/providers/apify";
+import { PublicInstagramProvider } from "../instagram/service";
 import type { InstagramPost, InstagramProfile } from "../instagram/types";
 import { BREAKOUT_DETECTOR_VERSION, MAX_SOURCE_AGE_MS } from "./inputQuality";
 
@@ -50,7 +51,7 @@ export class MarketProviderFailed extends Data.TaggedError("MarketProviderFailed
   readonly message: string;
 }> {}
 
-export interface MarketDataProviderShape {
+export interface MarketDataProviderService {
   readonly searchProfiles: (
     queries: ReadonlyArray<string>,
   ) => Effect.Effect<ReadonlyArray<MarketProfile>, MarketProviderFailed>;
@@ -62,55 +63,56 @@ export interface MarketDataProviderShape {
 
 export class MarketDataProvider extends Context.Service<
   MarketDataProvider,
-  MarketDataProviderShape
+  MarketDataProviderService
 >()("@vanda/market/MarketDataProvider") {}
 
 export const parseProviderTimestamp = (value: string | null | undefined): number | undefined => {
   const parsed = value ? Date.parse(value) : Number.NaN;
+
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
 const marketPostOf = (post: InstagramPost): MarketPost | undefined => {
   if (post.publishedAt === undefined) return undefined;
+
   return {
     externalId: post.id,
     permalink: post.url,
     mediaType: post.mediaType,
     publishedAt: post.publishedAt,
-    ...(post.shortcode !== undefined ? { shortCode: post.shortcode } : {}),
-    ...(post.caption !== undefined ? { caption: post.caption } : {}),
-    ...(post.thumbnailUrl !== undefined ? { thumbnailUrl: post.thumbnailUrl } : {}),
-    ...(post.mediaUrl !== undefined && post.mediaType === "video"
-      ? { videoUrl: post.mediaUrl }
-      : {}),
-    ...(post.publicEngagement.views !== undefined ? { views: post.publicEngagement.views } : {}),
-    ...(post.publicEngagement.plays !== undefined ? { plays: post.publicEngagement.plays } : {}),
-    ...(post.publicEngagement.likes !== undefined ? { likes: post.publicEngagement.likes } : {}),
-    ...(post.publicEngagement.comments !== undefined
-      ? { comments: post.publicEngagement.comments }
-      : {}),
-    ...(post.ownerHandle !== undefined ? { ownerHandle: post.ownerHandle } : {}),
+    shortCode: post.shortcode,
+    caption: post.caption,
+    thumbnailUrl: post.thumbnailUrl,
+    videoUrl: post.mediaType === "video" ? post.mediaUrl : undefined,
+    views: post.publicEngagement.views,
+    plays: post.publicEngagement.plays,
+    likes: post.publicEngagement.likes,
+    comments: post.publicEngagement.comments,
+    ownerHandle: post.ownerHandle,
   };
 };
 
-const marketProfileOf = (profile: InstagramProfile): MarketProfile => ({
-  handle: profile.handle,
-  profileUrl: `https://www.instagram.com/${profile.handle}/`,
-  private: profile.private ?? false,
-  verified: profile.verified ?? false,
-  latestPosts: (profile.latestPosts ?? []).flatMap((post) => {
-    const normalized = marketPostOf(post);
-    return normalized ? [normalized] : [];
-  }),
-  ...(profile.id !== undefined ? { externalId: profile.id } : {}),
-  ...(profile.name !== undefined ? { displayName: profile.name } : {}),
-  ...(profile.biography !== undefined ? { biography: profile.biography } : {}),
-  ...(profile.profileImageUrl !== undefined ? { profileImageUrl: profile.profileImageUrl } : {}),
-  ...(profile.followers !== undefined ? { followers: profile.followers } : {}),
-  ...(profile.following !== undefined ? { following: profile.following } : {}),
-  ...(profile.postsCount !== undefined ? { postsCount: profile.postsCount } : {}),
-  ...(profile.category !== undefined ? { businessCategory: profile.category } : {}),
-});
+const marketProfileOf = (profile: InstagramProfile): MarketProfile => {
+  return {
+    handle: profile.handle,
+    profileUrl: `https://www.instagram.com/${profile.handle}/`,
+    private: profile.private ?? false,
+    verified: profile.verified ?? false,
+    latestPosts: (profile.latestPosts ?? []).flatMap((post) => {
+      const normalized = marketPostOf(post);
+
+      return normalized ? [normalized] : [];
+    }),
+    externalId: profile.id,
+    displayName: profile.name,
+    biography: profile.biography,
+    profileImageUrl: profile.profileImageUrl,
+    followers: profile.followers,
+    following: profile.following,
+    postsCount: profile.postsCount,
+    businessCategory: profile.category,
+  };
+};
 
 const marketProviderError = (operation: string) =>
   Effect.mapError(
@@ -120,54 +122,62 @@ const marketProviderError = (operation: string) =>
 
 /** Legacy scheduled radar adapted over the same primitive public reader Vanda uses. */
 export const apifyMarketDataLayer = (token: string): Layer.Layer<MarketDataProvider> => {
-  const instagram = makeApifyPublicInstagramProvider(token);
-  return Layer.succeed(MarketDataProvider, {
-    searchProfiles: (queries) =>
-      Effect.forEach(
-        queries.slice(0, 5),
-        (query) =>
-          instagram.searchProfiles(query, 20).pipe(
-            Effect.map((result) => result.data.map(marketProfileOf)),
-            marketProviderError(`profile_search:${query}`),
-          ),
-        { concurrency: 5 },
-      ).pipe(
-        Effect.map((groups) => {
-          const byHandle = new Map<string, MarketProfile>();
-          for (const profile of groups.flat()) {
-            byHandle.set(profile.handle.toLocaleLowerCase(), profile);
-          }
-          return [...byHandle.values()];
-        }),
-      ),
-    getProfiles: (handles) =>
-      Effect.forEach(
-        handles,
-        (handle) =>
-          instagram.readProfile(handle).pipe(
-            Effect.map((result) => marketProfileOf(result.data)),
-            marketProviderError(`profile:${handle}`),
-          ),
-        { concurrency: 5 },
-      ),
-    getReel: (permalink) =>
-      instagram.readPost(permalink, true).pipe(
-        marketProviderError("reel"),
-        Effect.flatMap((result) => {
-          const post = marketPostOf(result.data);
-          if (!post) {
-            return new MarketProviderFailed({
-              operation: "reel",
-              message: "missing reel timestamp",
-            });
-          }
-          return Effect.succeed({
-            ...post,
-            ...(result.data.transcript !== undefined ? { transcript: result.data.transcript } : {}),
-          });
-        }),
-      ),
+  const service = Effect.gen(function* () {
+    const instagram = yield* PublicInstagramProvider;
+
+    return {
+      searchProfiles: (queries) =>
+        Effect.forEach(
+          queries.slice(0, 5),
+          (query) =>
+            instagram.searchProfiles(query, 20).pipe(
+              Effect.map((result) => result.data.map(marketProfileOf)),
+              marketProviderError(`profile_search:${query}`),
+            ),
+          { concurrency: 5 },
+        ).pipe(
+          Effect.map((groups) => {
+            const byHandle = new Map<string, MarketProfile>();
+
+            for (const profile of groups.flat()) {
+              byHandle.set(profile.handle.toLocaleLowerCase(), profile);
+            }
+
+            return [...byHandle.values()];
+          }),
+        ),
+      getProfiles: (handles) =>
+        Effect.forEach(
+          handles,
+          (handle) =>
+            instagram.readProfile(handle).pipe(
+              Effect.map((result) => marketProfileOf(result.data)),
+              marketProviderError(`profile:${handle}`),
+            ),
+          { concurrency: 5 },
+        ),
+      getReel: (permalink) =>
+        instagram.readPost(permalink, true).pipe(
+          marketProviderError("reel"),
+          Effect.flatMap((result) => {
+            const post = marketPostOf(result.data);
+
+            if (!post) {
+              return new MarketProviderFailed({
+                operation: "reel",
+                message: "missing reel timestamp",
+              });
+            }
+
+            return Effect.succeed({ ...post, transcript: result.data.transcript });
+          }),
+        ),
+    } satisfies MarketDataProviderService;
   });
+
+  return Layer.effect(MarketDataProvider, service).pipe(
+    Layer.provide(apifyPublicInstagramProviderLayer(token)),
+  );
 };
 
 export const MarketSearchPlan = Schema.Struct({
@@ -176,6 +186,7 @@ export const MarketSearchPlan = Schema.Struct({
   language: Schema.String,
   profileQueries: Schema.Array(Schema.String),
 });
+
 export type MarketSearchPlan = typeof MarketSearchPlan.Type;
 
 export const CandidateRanking = Schema.Struct({
@@ -282,9 +293,11 @@ const candidatePrompt = (
         .slice(0, 3)
         .flatMap((post) => (post.caption ? [post.caption.slice(0, 180)] : []))
         .join(" | ");
+
       return `- @${profile.handle}; nome=${profile.displayName ?? "?"}; seguidores=${profile.followers ?? "?"}; categoria=${profile.businessCategory ?? "?"}; bio=${profile.biography ?? "?"}; posts=${captions || "?"}`;
     })
     .join("\n");
+
   return (
     `Você seleciona contas pequenas e relevantes para um radar competitivo. Avalie cada perfil ` +
     `somente pelo material fornecido. Dê notas independentes de 0 a 1 para sobreposição temática, ` +
@@ -312,8 +325,10 @@ export const rankCandidates = (
           candidate,
         ]),
       );
+
       return profiles.flatMap((profile): ReadonlyArray<RankedMarketProfile> => {
         const ranking = byHandle.get(profile.handle.toLocaleLowerCase());
+
         if (!ranking) return [];
         const topicalOverlap = clampUnit(ranking.topicalOverlap);
         const audienceOverlap = clampUnit(ranking.audienceOverlap);
@@ -322,6 +337,7 @@ export const rankCandidates = (
         const languageMatch = clampUnit(ranking.languageMatch);
         const contentActivity = clampUnit(ranking.contentActivity);
         const relevanceConfidence = clampUnit(ranking.confidence);
+
         const dimensions = {
           topicalOverlap,
           audienceOverlap,
@@ -332,8 +348,11 @@ export const rankCandidates = (
           confidence: relevanceConfidence,
           vetoes: ranking.vetoes,
         };
+
         const relevanceScore = scoreCandidateRelevance(dimensions);
+
         if (!candidatePassesRelevanceGate(dimensions)) return [];
+
         return [
           {
             profile,
@@ -366,6 +385,7 @@ export const OpportunityAdaptation = Schema.Struct({
   adaptedCaption: Schema.String,
   transformationNotes: Schema.String,
 });
+
 export type OpportunityAdaptation = typeof OpportunityAdaptation.Type;
 
 export const adaptMarketOpportunity = (input: {
@@ -375,6 +395,7 @@ export const adaptMarketOpportunity = (input: {
   readonly brandContext: string;
 }) => {
   const source = input.transcript?.trim() || input.caption?.trim() || "(sem transcrição)";
+
   const prompt =
     `Você é uma estrategista e redatora transformando uma oportunidade de conteúdo para uma ` +
     `marca. Analise o mecanismo criativo da fonte e crie uma versão nova em formato carrossel ` +
@@ -384,10 +405,20 @@ export const adaptMarketOpportunity = (input: {
     `em português do Brasil e respeitar o contexto confirmado.\n\n` +
     `Evidência de tração: ${input.triggerReason}\n\nConteúdo fonte:\n${source.slice(0, 12_000)}\n\n` +
     `Contexto confirmado da marca:\n${input.brandContext}`;
+
   return LanguageModel.generateObject({ prompt, schema: OpportunityAdaptation }).pipe(
     Effect.map((response) => ({
-      ...response.value,
+      coreIdea: response.value.coreIdea,
+      hook: response.value.hook,
+      structure: response.value.structure,
+      pacing: response.value.pacing,
+      visualConcept: response.value.visualConcept,
+      whyItWorks: response.value.whyItWorks,
+      creatorSpecificElements: response.value.creatorSpecificElements,
+      adaptedHook: response.value.adaptedHook,
       adaptedSlides: response.value.adaptedSlides.slice(0, 5),
+      adaptedCaption: response.value.adaptedCaption,
+      transformationNotes: response.value.transformationNotes,
     })),
   );
 };
@@ -423,18 +454,23 @@ export const detectBreakout = (
 ): BreakoutDecision | undefined => {
   if (context) {
     const age = context.now - context.publishedAt;
+
     if (!Number.isFinite(context.publishedAt) || age < -3_600_000 || age > MAX_SOURCE_AGE_MS)
       return undefined;
   }
+
   const followers = current.followers;
   const views = current.views ?? current.plays;
+
   if (views === undefined) return undefined;
 
   if (previous) {
     const previousViews = previous.views ?? previous.plays;
     const elapsedHours = (current.observedAt - previous.observedAt) / 3_600_000;
+
     if (previousViews !== undefined && elapsedHours > 0) {
       const velocity = (views - previousViews) / elapsedHours;
+
       if (velocity >= 500) {
         return {
           score: Math.min(100, 70 + velocity / 100),
@@ -448,6 +484,7 @@ export const detectBreakout = (
 
   if (followers !== undefined && followers > 0 && views >= 1_000) {
     const ratio = views / followers;
+
     if (ratio >= 3) {
       return {
         score: Math.min(100, 60 + ratio * 4),

@@ -8,24 +8,41 @@ import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
 
-const setup = async (userPatch: Record<string, unknown>) => {
+interface SubscriberPatch {
+  planId?: string;
+  openaiAccountId?: string;
+  openaiAccessCiphertext?: string;
+  openaiAccessIv?: string;
+  openaiAccessAuthTag?: string;
+  openaiRefreshCiphertext?: string;
+  openaiRefreshIv?: string;
+  openaiRefreshAuthTag?: string;
+  openaiConnectedAt?: number;
+}
+
+const setup = async (userPatch: SubscriberPatch) => {
   const t = convexTest(schema, modules);
+
   const ids = await t.run(async (ctx) => {
     const now = Date.now();
+
     const userId = await ctx.db.insert("users", {
       name: "Ana",
       email: "ana@e.com",
       clerkId: "ana",
       ...userPatch,
     });
+
     const accountId = await ctx.db.insert("accounts", {
       ownerUserId: userId,
       name: "Café da Ana",
       createdAt: now,
       updatedAt: now,
     });
+
     return { userId, accountId };
   });
+
   return { t, ...ids };
 };
 
@@ -45,9 +62,11 @@ describe("conectado plan", () => {
       openaiAccessIv: "y",
       openaiAccessAuthTag: "z",
     });
+
     const state = await connected.t.query(internal.openaiSub.subscriberState, {
       accountId: connected.accountId,
     });
+
     expect(state.active).toBe(true);
     expect(state.userId).toBe(connected.userId);
   });
@@ -68,6 +87,7 @@ describe("conectado plan", () => {
       openaiAccessIv: "y",
       openaiAccessAuthTag: "z",
     });
+
     expect(
       (
         await tokensWrongPlan.t.query(internal.openaiSub.subscriberState, {
@@ -89,6 +109,7 @@ describe("conectado plan", () => {
       openaiRefreshAuthTag: "ra",
       openaiConnectedAt: 1,
     });
+
     const asAna = t.withIdentity({ subject: "ana" });
     const before = await asAna.query(api.openaiSub.connectionStatus, {});
     expect(before?.connected).toBe(true);

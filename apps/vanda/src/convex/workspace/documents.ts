@@ -40,9 +40,13 @@ export const listDocuments = async (
   const files = await ctx.db
     .query("workspaceFiles")
     .withIndex("by_account_path", (q) =>
-      q.eq("accountId", accountId).gte("path", prefix).lt("path", prefix + "\uffff"),
+      q
+        .eq("accountId", accountId)
+        .gte("path", prefix)
+        .lt("path", prefix + "\uffff"),
     )
     .collect();
+
   return files.map((file) => ({
     name: file.path.slice(prefix.length),
     kind: "file",
@@ -56,6 +60,7 @@ export const readDocument = async (
   path: string,
 ): Promise<WorkspaceFile | null> => {
   const document = await getDocument(ctx, accountId, path);
+
   return document ? { kind: "text", text: document.content } : null;
 };
 
@@ -72,8 +77,10 @@ export const saveDocument = async (
       error: `conteúdo grande demais (${content.length} caracteres; máximo ${MAX_DOCUMENT_CHARS}) — divida em arquivos menores`,
     };
   }
+
   const now = Date.now();
   const existing = await getDocument(ctx, accountId, path);
+
   if (existing) {
     await ctx.db.patch(existing._id, { content, updatedAt: now, updatedBy: "vanda" });
   } else {
@@ -85,6 +92,7 @@ export const saveDocument = async (
       updatedBy: "vanda",
     });
   }
+
   await ctx.db.insert("workspaceFileRevisions", {
     accountId,
     path,
@@ -92,6 +100,7 @@ export const saveDocument = async (
     savedAt: now,
     savedBy: "vanda",
   });
+
   return { ok: true, path, note: existing ? "atualizado" : "criado" };
 };
 
@@ -102,6 +111,7 @@ export const documentMount = (config: {
   extension: string;
 }): WorkspaceMount => {
   const prefix = `/${config.root}/`;
+
   return {
     root: config.root,
     summary: config.summary,
@@ -112,15 +122,18 @@ export const documentMount = (config: {
       segments.length === 1 ? readDocument(ctx, accountId, prefix + segments[0]!) : null,
     write: async (ctx, accountId, segments, content) => {
       const name = segments[0];
+
       if (segments.length !== 1 || !name) {
         return { ok: false, error: `escreva direto em ${prefix}<nome>${config.extension}` };
       }
+
       if (!validName(name, config.extension)) {
         return {
           ok: false,
           error: `nome inválido: ${name} — use minúsculas, números, hífens e a extensão ${config.extension} (ex.: ${prefix}plano-agosto${config.extension})`,
         };
       }
+
       return saveDocument(ctx, accountId, prefix + name, content);
     },
   };

@@ -26,7 +26,7 @@ export type InstagramReadError = InstagramProviderFailed | InstagramRequestInval
 
 type ConnectedTarget = Extract<InstagramTarget, { scope: "connected" }>;
 
-export interface ConnectedInstagramProviderShape {
+export interface ConnectedInstagramProviderService {
   readonly readProfile: (
     target: ConnectedTarget,
   ) => Effect.Effect<ProviderResult<InstagramProfile>, InstagramProviderFailed>;
@@ -50,10 +50,10 @@ export interface ConnectedInstagramProviderShape {
 
 export class ConnectedInstagramProvider extends Context.Service<
   ConnectedInstagramProvider,
-  ConnectedInstagramProviderShape
+  ConnectedInstagramProviderService
 >()("@vanda/instagram/ConnectedInstagramProvider") {}
 
-export interface PublicInstagramProviderShape {
+export interface PublicInstagramProviderService {
   readonly searchProfiles: (
     query: string,
     limit: number,
@@ -77,10 +77,10 @@ export interface PublicInstagramProviderShape {
 
 export class PublicInstagramProvider extends Context.Service<
   PublicInstagramProvider,
-  PublicInstagramProviderShape
+  PublicInstagramProviderService
 >()("@vanda/instagram/PublicInstagramProvider") {}
 
-export interface InstagramServiceShape {
+export interface InstagramServiceApi {
   readonly searchProfiles: (
     query: string,
     limit: number,
@@ -109,20 +109,39 @@ export interface InstagramServiceShape {
   ) => Effect.Effect<InstagramObservation<InstagramInsights>, InstagramReadError>;
 }
 
-export class InstagramService extends Context.Service<InstagramService, InstagramServiceShape>()(
+export class InstagramService extends Context.Service<InstagramService, InstagramServiceApi>()(
   "@vanda/instagram/InstagramService",
 ) {}
+
+interface MutableObservation<A> {
+  data: A;
+  source: InstagramObservation<A>["source"];
+  observedAt: number;
+  completeness: InstagramObservation<A>["completeness"];
+  nextCursor?: string;
+}
+
+interface ConnectedCommentsRequest {
+  postId: string;
+  limit: number;
+  cursor?: string;
+}
 
 const observation = <A>(
   source: InstagramObservation<A>["source"],
   result: ProviderResult<A>,
-): InstagramObservation<A> => ({
-  data: result.data,
-  source,
-  observedAt: Date.now(),
-  completeness: result.completeness,
-  ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
-});
+): InstagramObservation<A> => {
+  const value: MutableObservation<A> = {
+    data: result.data,
+    source,
+    observedAt: Date.now(),
+    completeness: result.completeness,
+  };
+
+  if (result.nextCursor) value.nextCursor = result.nextCursor;
+
+  return value;
+};
 
 export const instagramServiceLayer: Layer.Layer<
   InstagramService,
@@ -133,6 +152,7 @@ export const instagramServiceLayer: Layer.Layer<
   Effect.gen(function* () {
     const connected = yield* ConnectedInstagramProvider;
     const publicProvider = yield* PublicInstagramProvider;
+
     return InstagramService.of({
       searchProfiles: (query, limit) =>
         publicProvider
@@ -165,19 +185,25 @@ export const instagramServiceLayer: Layer.Layer<
               message: "postId is required for connected comments",
             });
           }
+
+          const request: ConnectedCommentsRequest = {
+            postId: input.postId,
+            limit: input.limit,
+          };
+
+          if (input.cursor) request.cursor = input.cursor;
+
           return connected
-            .listComments(input.target, {
-              postId: input.postId,
-              limit: input.limit,
-              ...(input.cursor ? { cursor: input.cursor } : {}),
-            })
+            .listComments(input.target, request)
             .pipe(Effect.map((result) => observation("upload_post", result)));
         }
+
         if (!input.postUrl) {
           return new InstagramRequestInvalid({
             message: "postUrl is required for public comments",
           });
         }
+
         return publicProvider
           .listComments(input.postUrl, input.limit)
           .pipe(Effect.map((result) => observation("apify", result)));

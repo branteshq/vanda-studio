@@ -33,6 +33,7 @@ function StatusRing({
       </svg>
     );
   }
+
   if (state === "active") {
     return (
       <svg
@@ -47,6 +48,7 @@ function StatusRing({
       </svg>
     );
   }
+
   return (
     <svg
       viewBox="0 0 14 14"

@@ -8,6 +8,7 @@ import { entityName, imageFileParts } from "./workspace/types";
 
 /** Max run_code executions per account inside the rate window. */
 export const CODE_RUN_RATE_LIMIT = 20;
+
 export const CODE_RUN_RATE_WINDOW_MS = 5 * 60_000;
 
 /** Where the workspace mirrors into the sandbox: /images/x.jpg → /home/user/images/x.jpg. */
@@ -17,6 +18,7 @@ const SANDBOX_HOME = "/home/user";
 const canonicalPath = (image: Doc<"images">): string => {
   const extension = imageFileParts(image.mimeType).extension;
   const name = `${entityName(image.name ?? image.prompt?.split(/\s+/).slice(0, 4).join(" ") ?? "imagem", image._id)}.${extension}`;
+
   return image.purpose === "reference" ? `/brand/references/${name}` : `/images/${name}`;
 };
 
@@ -33,13 +35,16 @@ export const resolveCodeRunInput = internalQuery({
   },
   handler: async (ctx, { accountId, inputs }) => {
     if (!(await ctx.db.get(accountId))) throw new Error("account not found");
+
     return Promise.all(
       inputs.map(async (input) => {
         if (input.startsWith("/")) {
           const sandboxPath = `${SANDBOX_HOME}/${input.split("/").filter(Boolean).join("/")}`;
           const image = await resolveImagePath(ctx, accountId, input);
+
           if (image) {
             if (image.accountId !== accountId) throw new Error("image not found");
+
             return {
               kind: "image" as const,
               sandboxPath,
@@ -52,13 +57,17 @@ export const resolveCodeRunInput = internalQuery({
               storageId: image.storageId ?? null,
             };
           }
+
           const resolved = await readPath(ctx, accountId, input);
+
           if (!resolved.ok || resolved.file.kind !== "text") {
             throw new Error(`arquivo de entrada não encontrado no workspace: ${input}`);
           }
+
           if (resolved.file.text.length > 2 * 1024 * 1024) {
             throw new Error(`arquivo de entrada maior que 2MB: ${input}`);
           }
+
           return {
             kind: "text" as const,
             sandboxPath,
@@ -75,8 +84,10 @@ export const resolveCodeRunInput = internalQuery({
 
         const imageId = ctx.db.normalizeId("images", input);
         const image: Doc<"images"> | null = imageId ? await ctx.db.get(imageId) : null;
+
         if (!image || image.accountId !== accountId)
           throw new Error(`imagem não encontrada: ${input}`);
+
         return {
           kind: "image" as const,
           sandboxPath: `${SANDBOX_HOME}${canonicalPath(image)}`,
@@ -104,23 +115,29 @@ export const beginCodeRun = internalMutation({
   handler: async (ctx, args): Promise<Id<"codeRuns">> => {
     if (!(await ctx.db.get(args.accountId))) throw new Error("account not found");
     const windowStart = Date.now() - CODE_RUN_RATE_WINDOW_MS;
+
     const recent = await ctx.db
       .query("codeRuns")
       .withIndex("by_account_created", (q) =>
         q.eq("accountId", args.accountId).gte("createdAt", windowStart),
       )
       .collect();
+
     if (recent.length >= CODE_RUN_RATE_LIMIT) {
       throw new Error("muitas execuções de código em sequência — aguarde alguns minutos");
     }
-    return ctx.db.insert("codeRuns", {
+
+    const run = {
       accountId: args.accountId,
       code: args.code,
       description: args.description,
       status: "running",
-      ...(args.threadId ? { threadId: args.threadId } : {}),
       createdAt: Date.now(),
-    });
+    } satisfies Omit<Doc<"codeRuns">, "_id" | "_creationTime">;
+
+    if (args.threadId) Object.assign(run, { threadId: args.threadId });
+
+    return ctx.db.insert("codeRuns", run);
   },
 });
 
@@ -134,15 +151,21 @@ export const saveCodeRunArtifact = internalMutation({
   },
   handler: async (ctx, args) => {
     const run = await ctx.db.get(args.codeRunId);
+
     if (!run) throw new Error("code run not found");
+
     if (args.activityId) {
       const activity = await ctx.db.get(args.activityId);
+
       if (!activity || activity.accountId !== run.accountId) throw new Error("activity expired");
     }
+
     if (args.content.length > 1024 * 1024) throw new Error("artifact larger than 1MB");
+
     if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(args.filename)) {
       throw new Error("invalid artifact filename");
     }
+
     return ctx.db.insert("codeRunArtifacts", {
       accountId: run.accountId,
       codeRunId: run._id,
@@ -169,12 +192,17 @@ export const finishCodeRun = internalMutation({
   },
   handler: async (ctx, { codeRunId, activityId, ...outcome }) => {
     const run = await ctx.db.get(codeRunId);
+
     if (!run || run.status !== "running") return;
+
     if (activityId) {
       const activity = await ctx.db.get(activityId);
+
       if (!activity || activity.accountId !== run.accountId) throw new Error("activity expired");
     }
+
     await ctx.db.patch(codeRunId, outcome);
+
     if (outcome.costUsd) {
       await chargeUsage(ctx, {
         accountId: run.accountId,

@@ -18,32 +18,39 @@ describe("tool output activity identity", () => {
     vi.stubEnv("OPENROUTER_API_KEY", "test-only");
     vi.spyOn(console, "error").mockImplementation(() => {});
     const t = convexTest(schema, modules);
+
     const setup = await t.run(async (ctx) => {
       const now = Date.now();
       const accountId = await ctx.db.insert("accounts", { createdAt: now, updatedAt: now });
+
       const activityA = await ctx.db.insert("chatThreadActivity", {
         accountId,
         threadId: "same",
         promptMessageId: "a",
         startedAt: now,
       });
+
       const activityB = await ctx.db.insert("chatThreadActivity", {
         accountId,
         threadId: "same",
         promptMessageId: "b",
         startedAt: now,
       });
+
       return { accountId, activityA, activityB };
     });
+
     let started!: () => void;
+
     const requestStarted = new Promise<void>((resolve) => {
       started = resolve;
     });
+
     let aborted = false;
     vi.stubGlobal(
       "fetch",
       vi.fn(
-        (_url: unknown, init: RequestInit) =>
+        (_url: RequestInfo | URL, init: RequestInit) =>
           new Promise((_resolve, reject) => {
             init.signal!.addEventListener("abort", () => {
               aborted = true;
@@ -53,6 +60,7 @@ describe("tool output activity identity", () => {
           }),
       ),
     );
+
     const paint = t.action(internal.images.paint, {
       accountId: setup.accountId,
       activityId: setup.activityA,
@@ -60,6 +68,7 @@ describe("tool output activity identity", () => {
       prompt: "test",
       aspectRatio: "1:1",
     });
+
     const rejected = expect(paint).rejects.toThrow("geração interrompida");
     await Promise.race([
       requestStarted,
@@ -76,25 +85,30 @@ describe("tool output activity identity", () => {
 
   it("rejects expired turn A even while turn B on the same thread is active", async () => {
     const t = convexTest(schema, modules);
+
     const setup = await t.run(async (ctx) => {
       const now = Date.now();
       const accountId = await ctx.db.insert("accounts", { createdAt: now, updatedAt: now });
       const threadId = "same-thread";
+
       const activityA = await ctx.db.insert("chatThreadActivity", {
         accountId,
         threadId,
         promptMessageId: "prompt-a",
         startedAt: now,
       });
+
       const activityB = await ctx.db.insert("chatThreadActivity", {
         accountId,
         threadId,
         promptMessageId: "prompt-b",
         startedAt: now + 1,
       });
+
       await ctx.db.delete(activityA);
       const storageA = await ctx.storage.store(new Blob(["a"]));
       const storageB = await ctx.storage.store(new Blob(["b"]));
+
       return { accountId, activityA, activityB, storageA, storageB };
     });
 
@@ -105,6 +119,7 @@ describe("tool output activity identity", () => {
       width: 1,
       height: 1,
     };
+
     await expect(
       t.mutation(internal.imagesData.savePaintedImage, {
         ...imageArgs,
@@ -112,11 +127,13 @@ describe("tool output activity identity", () => {
         activityId: setup.activityA,
       }),
     ).rejects.toThrow("activity expired");
+
     const imageB = await t.mutation(internal.imagesData.savePaintedImage, {
       ...imageArgs,
       storageId: setup.storageB,
       activityId: setup.activityB,
     });
+
     expect(await t.run((ctx) => ctx.db.get(imageB))).not.toBeNull();
 
     const runA = await t.mutation(internal.codeRunsData.beginCodeRun, {
@@ -124,16 +141,19 @@ describe("tool output activity identity", () => {
       code: "print('a')",
       description: "A",
     });
+
     const runB = await t.mutation(internal.codeRunsData.beginCodeRun, {
       accountId: setup.accountId,
       code: "print('b')",
       description: "B",
     });
+
     const artifactArgs = {
       filename: "result.txt",
       mimeType: "text/plain",
       content: "result",
     };
+
     await expect(
       t.mutation(internal.codeRunsData.saveCodeRunArtifact, {
         ...artifactArgs,
@@ -141,11 +161,13 @@ describe("tool output activity identity", () => {
         activityId: setup.activityA,
       }),
     ).rejects.toThrow("activity expired");
+
     const artifactB = await t.mutation(internal.codeRunsData.saveCodeRunArtifact, {
       ...artifactArgs,
       codeRunId: runB,
       activityId: setup.activityB,
     });
+
     expect((await t.run((ctx) => ctx.db.get(artifactB)))?.content).toBe("result");
     await expect(
       t.mutation(internal.codeRunsData.finishCodeRun, {

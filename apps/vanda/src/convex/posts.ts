@@ -11,6 +11,7 @@ import { requireOwnedAccount } from "./authz";
  */
 
 const MAX_POST_IMAGES = 10;
+
 export const MAX_CAPTION_CHARS = 2200;
 
 /** Create a draft post from account-owned gallery images. */
@@ -31,27 +32,36 @@ export const createPostInternal = internalMutation({
         `um post precisa de 1 a ${MAX_POST_IMAGES} imagens (recebi ${imageIds.length})`,
       );
     }
+
     if (caption.trim() === "") throw new Error("a legenda não pode ser vazia");
+
     if (caption.length > MAX_CAPTION_CHARS) {
       throw new Error(`legenda acima do limite do Instagram (${MAX_CAPTION_CHARS} caracteres)`);
     }
+
     for (const imageId of imageIds) {
       const image = await ctx.db.get(imageId);
+
       if (image === null || image.accountId !== accountId) {
         throw new Error(`imagem ${imageId} não encontrada nesta conta`);
       }
     }
-    return ctx.db.insert("posts", {
+
+    const post: Omit<Doc<"posts">, "_id" | "_creationTime"> = {
       accountId,
-      ...(originThreadId ? { originThreadId } : {}),
-      ...(caetanoThreadId ? { caetanoThreadId } : {}),
       type: imageIds.length > 1 ? "feed" : "image",
       imageIds,
       caption,
       platform: "instagram",
       status: "draft",
       createdAt: Date.now(),
-    });
+    };
+
+    if (originThreadId) post.originThreadId = originThreadId;
+
+    if (caetanoThreadId) post.caetanoThreadId = caetanoThreadId;
+
+    return ctx.db.insert("posts", post);
   },
 });
 
@@ -78,36 +88,48 @@ export const schedulePostInternal = internalMutation({
     rescheduled: boolean;
   }> => {
     const post = await ctx.db.get(postId);
+
     if (post === null || post.accountId !== accountId) throw new Error("post não encontrado");
     const at = scheduledFor ?? Date.now() + 5_000;
     const now = Date.now();
+
     if (originThreadId || caetanoThreadId) {
-      await ctx.db.patch(postId, {
-        ...(originThreadId ? { originThreadId } : {}),
-        ...(caetanoThreadId ? { caetanoThreadId } : {}),
-      });
+      const patch: Pick<Partial<Doc<"posts">>, "originThreadId" | "caetanoThreadId"> = {};
+
+      if (originThreadId) patch.originThreadId = originThreadId;
+
+      if (caetanoThreadId) patch.caetanoThreadId = caetanoThreadId;
+      await ctx.db.patch(postId, patch);
     }
+
     const existing = await ctx.db
       .query("scheduledPosts")
       .withIndex("by_post", (q) => q.eq("postId", postId))
       .first();
+
     if (existing !== null) {
       if (existing.status !== "scheduled") {
         throw new Error(`post já está ${existing.status} — não dá mais para reagendar`);
       }
+
       if (existing.scheduledJobId !== undefined)
         await ctx.scheduler.cancel(existing.scheduledJobId);
+
       const scheduledJobId = await ctx.scheduler.runAt(
         at,
         internal.publishScheduledNode.runScheduledPost,
         { scheduledPostId: existing._id },
       );
+
       await ctx.db.patch(existing._id, { scheduledFor: at, scheduledJobId, updatedAt: now });
+
       return { scheduledPostId: existing._id, scheduledFor: at, rescheduled: true };
     }
+
     if (post.status !== "draft" && post.status !== "ready") {
       throw new Error(`post já está ${post.status}`);
     }
+
     const scheduledPostId = await ctx.db.insert("scheduledPosts", {
       accountId,
       postId,
@@ -116,13 +138,17 @@ export const schedulePostInternal = internalMutation({
       createdAt: now,
       updatedAt: now,
     });
+
     await ctx.db.patch(postId, { status: "scheduled" });
+
     const scheduledJobId = await ctx.scheduler.runAt(
       at,
       internal.publishScheduledNode.runScheduledPost,
       { scheduledPostId },
     );
+
     await ctx.db.patch(scheduledPostId, { scheduledJobId });
+
     return { scheduledPostId, scheduledFor: at, rescheduled: false };
   },
 });
@@ -132,15 +158,20 @@ export const cancelScheduleInternal = internalMutation({
   args: { accountId: v.id("accounts"), postId: v.id("posts") },
   handler: async (ctx, { accountId, postId }): Promise<void> => {
     const post = await ctx.db.get(postId);
+
     if (post === null || post.accountId !== accountId) throw new Error("post não encontrado");
+
     const scheduled = await ctx.db
       .query("scheduledPosts")
       .withIndex("by_post", (q) => q.eq("postId", postId))
       .first();
+
     if (scheduled === null) throw new Error("post não tem agendamento");
+
     if (scheduled.status !== "scheduled") {
       throw new Error(`agendamento já está ${scheduled.status} — não dá para cancelar`);
     }
+
     if (scheduled.scheduledJobId !== undefined)
       await ctx.scheduler.cancel(scheduled.scheduledJobId);
     await ctx.db.delete(scheduled._id);
@@ -155,21 +186,26 @@ const deletePostForAccount = async (
   postId: Id<"posts">,
 ): Promise<void> => {
   const post = await ctx.db.get(postId);
+
   if (post === null || post.accountId !== accountId) throw new Error("post não encontrado");
+
   const scheduled = await ctx.db
     .query("scheduledPosts")
     .withIndex("by_post", (q) => q.eq("postId", postId))
     .first();
+
   if (scheduled !== null) {
     if (scheduled.status !== "scheduled") {
       throw new Error(`post já está ${scheduled.status} — publicações não podem ser apagadas`);
     }
+
     if (scheduled.scheduledJobId !== undefined)
       await ctx.scheduler.cancel(scheduled.scheduledJobId);
     await ctx.db.delete(scheduled._id);
   } else if (post.status === "published") {
     throw new Error("post publicado não pode ser apagado");
   }
+
   // The images stay in the gallery — only the post assembly goes away.
   await ctx.db.delete(postId);
 };
@@ -202,18 +238,24 @@ export const updateCaption = mutation({
   handler: async (ctx, { accountId, postId, caption }): Promise<void> => {
     await requireOwnedAccount(ctx, accountId);
     const post = await ctx.db.get(postId);
+
     if (post === null || post.accountId !== accountId) throw new Error("post não encontrado");
+
     if (caption.length > MAX_CAPTION_CHARS) {
       throw new Error(`legenda acima do limite do Instagram (${MAX_CAPTION_CHARS} caracteres)`);
     }
+
     const scheduled = await ctx.db
       .query("scheduledPosts")
       .withIndex("by_post", (q) => q.eq("postId", postId))
       .first();
+
     const lifecycle = scheduled?.status ?? post.status;
+
     if (lifecycle === "publishing" || lifecycle === "published") {
       throw new Error("post publicado não pode ser editado");
     }
+
     await ctx.db.patch(postId, { caption });
   },
 });
@@ -241,23 +283,28 @@ export const listForRail = query({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<RailPost[]> => {
     await requireOwnedAccount(ctx, accountId);
+
     const posts = await ctx.db
       .query("posts")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .order("desc")
       .take(60);
+
     return Promise.all(
       posts.map(async (post) => {
         const scheduled = await ctx.db
           .query("scheduledPosts")
           .withIndex("by_post", (q) => q.eq("postId", post._id))
           .first();
+
         const first = post.imageIds[0] !== undefined ? await ctx.db.get(post.imageIds[0]) : null;
+
         const thumbnailUrl =
           first === null || first === undefined
             ? null
             : (first.externalUrl ??
               (first.storageId !== undefined ? await ctx.storage.getUrl(first.storageId) : null));
+
         return {
           postId: post._id,
           caption: post.caption,
@@ -280,16 +327,21 @@ export const detail = query({
   handler: async (ctx, { accountId, postId }) => {
     await requireOwnedAccount(ctx, accountId);
     const post = await ctx.db.get(postId);
+
     if (post === null || post.accountId !== accountId) return null;
+
     const scheduled = await ctx.db
       .query("scheduledPosts")
       .withIndex("by_post", (q) => q.eq("postId", postId))
       .first();
+
     const imageUrls = (
       await Promise.all(
         post.imageIds.map(async (imageId) => {
           const image = await ctx.db.get(imageId);
+
           if (image === null) return null;
+
           return (
             image.externalUrl ??
             (image.storageId !== undefined ? await ctx.storage.getUrl(image.storageId) : null)
@@ -297,6 +349,7 @@ export const detail = query({
         }),
       )
     ).filter((url): url is string => url !== null);
+
     return {
       postId: post._id,
       caption: post.caption,

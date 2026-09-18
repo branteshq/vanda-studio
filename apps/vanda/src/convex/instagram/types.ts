@@ -1,4 +1,5 @@
 export type InstagramSource = "upload_post" | "apify";
+
 export type InstagramCompleteness = "complete" | "partial";
 
 export interface InstagramObservation<T> {

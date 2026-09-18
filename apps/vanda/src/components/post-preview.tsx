@@ -113,8 +113,8 @@ function PostPreviewBody({
   const handle = activeAccount?.handle ?? activeAccount?.name ?? "sua_marca";
   const total = post?.imageUrls.length ?? 0;
   const current = Math.min(slide, Math.max(0, total - 1));
-  const editable =
-    post != null && post.status !== "published" && post.status !== "publishing";
+
+  const editable = post != null && post.status !== "published" && post.status !== "publishing";
 
   return (
     <LightboxMedia>
@@ -312,6 +312,7 @@ function CaptionEditor({
 }) {
   const updateCaption = useMutation(api.posts.updateCaption);
   const [draft, setDraft] = useState(caption);
+
   return (
     <textarea
       value={draft}
@@ -330,6 +331,7 @@ function CaptionEditor({
 
 function CopyCaptionAction({ caption }: { caption: string }) {
   const [copied, setCopied] = useState(false);
+
   return (
     <PanelAction
       label="Copiar legenda"

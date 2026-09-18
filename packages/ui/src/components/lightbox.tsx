@@ -119,14 +119,9 @@ function LightboxPanel({ className, children, ...props }: React.ComponentProps<"
 }
 
 /** Edge navigation arrow. Rendered automatically by LightboxContent. */
-function LightboxNav({
-  direction,
-  onClick,
-}: {
-  direction: "prev" | "next";
-  onClick: () => void;
-}) {
+function LightboxNav({ direction, onClick }: { direction: "prev" | "next"; onClick: () => void }) {
   const prev = direction === "prev";
+
   return (
     <button
       type="button"

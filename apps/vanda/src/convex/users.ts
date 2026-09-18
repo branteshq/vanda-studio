@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { z } from "zod";
 import { orchestratorModel, resolveCaetanoModel, resolveOrchestratorModel } from "./agentModels";
 import { DEFAULT_IMAGE_MODEL, isKnownImageModel } from "./imageModels";
 import type { Id } from "./_generated/dataModel";
@@ -6,26 +7,48 @@ import { internalQuery, mutation, query } from "./_generated/server";
 import { requireUser } from "./authz";
 import { isConnectedSubscriber } from "./openaiSub";
 
-function normalizeName(name: unknown, email: unknown): string {
-  if (typeof name === "string" && name.trim()) return name.trim();
-  if (typeof email === "string" && email.includes("@")) return email.split("@")[0]!.trim();
+const identityProfileSchema = z.object({
+  name: z.string().optional(),
+  email: z.string().optional(),
+  pictureUrl: z.string().optional(),
+});
+
+interface UserIdentityPatch {
+  name: string;
+  email: string;
+  updatedAt: number;
+  imageUrl?: string;
+}
+
+interface NewUser extends UserIdentityPatch {
+  clerkId: string;
+  createdAt: number;
+}
+
+function normalizeName(name: string | undefined, email: string | undefined): string {
+  if (name?.trim()) return name.trim();
+
+  if (email?.includes("@")) return email.split("@")[0]!.trim();
+
   return "User";
 }
 
-function normalizeEmail(email: unknown): string {
-  return typeof email === "string" ? email.trim() : "";
+function normalizeEmail(email: string | undefined): string {
+  return email?.trim() ?? "";
 }
 
 export const ensureCurrent = mutation({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
+
     if (!identity) throw new Error("Not authenticated");
 
     const now = Date.now();
-    const name = normalizeName(identity.name, identity.email);
-    const email = normalizeEmail(identity.email);
-    const imageUrl = typeof identity.pictureUrl === "string" ? identity.pictureUrl : undefined;
+    const profile = identityProfileSchema.parse(identity);
+    const name = normalizeName(profile.name, profile.email);
+    const email = normalizeEmail(profile.email);
+    const imageUrl = profile.pictureUrl;
 
     const existing = await ctx.db
       .query("users")
@@ -33,23 +56,29 @@ export const ensureCurrent = mutation({
       .unique();
 
     if (existing) {
-      await ctx.db.patch(existing._id, {
+      const patch: UserIdentityPatch = {
         name,
         email,
-        ...(imageUrl ? { imageUrl } : {}),
         updatedAt: now,
-      });
+      };
+
+      if (imageUrl) patch.imageUrl = imageUrl;
+      await ctx.db.patch(existing._id, patch);
+
       return existing._id;
     }
 
-    return await ctx.db.insert("users", {
+    const user: NewUser = {
       name,
       email,
       clerkId: identity.subject,
-      ...(imageUrl ? { imageUrl } : {}),
       createdAt: now,
       updatedAt: now,
-    });
+    };
+
+    if (imageUrl) user.imageUrl = imageUrl;
+
+    return await ctx.db.insert("users", user);
   },
 });
 
@@ -57,7 +86,9 @@ export const current = query({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
+
     if (!identity) return null;
+
     return await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
@@ -82,13 +113,17 @@ export const modelPreferences = query({
     conectado: boolean;
   } | null> => {
     const identity = await ctx.auth.getUserIdentity();
+
     if (!identity) return null;
+
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .unique();
+
     if (!user) return null;
     const conectado = isConnectedSubscriber(user);
+
     return {
       orchestrator: resolveOrchestratorModel(user.orchestratorModel, { conectado }),
       caetano: resolveCaetanoModel(user.caetanoModel),
@@ -107,12 +142,15 @@ export const setAgentModel = mutation({
   handler: async (ctx, { modelId }): Promise<void> => {
     const user = await requireUser(ctx);
     const model = orchestratorModel(modelId);
+
     if (!model) throw new Error("modelo desconhecido");
+
     if (!model.codexCapable && isConnectedSubscriber(user)) {
       throw new Error(
         "este modelo não roda pela sua assinatura do ChatGPT — escolha um modelo OpenAI ou mude de plano",
       );
     }
+
     await ctx.db.patch(user._id, { orchestratorModel: model.id, updatedAt: Date.now() });
   },
 });
@@ -123,6 +161,7 @@ export const setCaetanoModel = mutation({
   handler: async (ctx, { modelId }): Promise<void> => {
     const user = await requireUser(ctx);
     const model = orchestratorModel(modelId);
+
     if (!model) throw new Error("modelo desconhecido");
     await ctx.db.patch(user._id, { caetanoModel: model.id, updatedAt: Date.now() });
   },
@@ -137,12 +176,15 @@ export const setImageModel = mutation({
   args: { modelId: v.string() },
   handler: async (ctx, { modelId }): Promise<void> => {
     const user = await requireUser(ctx);
+
     if (!isKnownImageModel(modelId)) throw new Error("modelo de imagem desconhecido");
+
     if (isConnectedSubscriber(user)) {
       throw new Error(
         "no plano ChatGPT toda imagem usa o GPT Image 2 pela sua assinatura — não dá para trocar",
       );
     }
+
     await ctx.db.patch(user._id, { imageModel: modelId, updatedAt: Date.now() });
   },
 });
@@ -153,8 +195,10 @@ export const orchestratorModelForAccount = internalQuery({
   handler: async (ctx, { accountId }): Promise<string | undefined> => {
     const account = await ctx.db.get(accountId);
     const ownerId: Id<"users"> | undefined = account?.ownerUserId;
+
     if (!ownerId) return undefined;
     const user = await ctx.db.get(ownerId);
+
     return user?.orchestratorModel;
   },
 });
@@ -168,8 +212,10 @@ export const imageModelForAccount = internalQuery({
   handler: async (ctx, { accountId }): Promise<string> => {
     const account = await ctx.db.get(accountId);
     const ownerId: Id<"users"> | undefined = account?.ownerUserId;
+
     if (!ownerId) return DEFAULT_IMAGE_MODEL;
     const user = await ctx.db.get(ownerId);
+
     return user?.imageModel && isKnownImageModel(user.imageModel)
       ? user.imageModel
       : DEFAULT_IMAGE_MODEL;

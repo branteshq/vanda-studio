@@ -1,7 +1,27 @@
-import { describe, expect, it } from "vitest";
-import { normalizeApifyPost, normalizeApifyProfile } from "./apify";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import * as Effect from "effect/Effect";
+import {
+  makeApifyPublicInstagramProvider,
+  normalizeApifyPost,
+  normalizeApifyProfile,
+} from "./apify";
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("Apify Instagram normalization", () => {
+  it("decodes timestamps exactly once for nested posts and fetched responses", async () => {
+    const post = { id: "post-early", shortCode: "EARLY", timestamp: 1_000 };
+    const profile = normalizeApifyProfile({ username: "cafe", latestPosts: [post] });
+    expect(profile?.latestPosts?.[0]?.publishedAt).toBe(1_000_000);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json([post]));
+
+    const result = await Effect.runPromise(
+      makeApifyPublicInstagramProvider("test-token").listPosts("cafe", 10),
+    );
+
+    expect(result.data[0]?.publishedAt).toBe(1_000_000);
+  });
+
   it("normalizes public profiles without inventing unavailable fields", () => {
     expect(
       normalizeApifyProfile({

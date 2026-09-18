@@ -3,12 +3,7 @@ import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import { postTypes } from "./constants";
-import {
-  InvalidPost,
-  Publisher,
-  type PublishReceipt,
-  UnsupportedFormat,
-} from "./publisher";
+import { InvalidPost, Publisher, type PublishReceipt, UnsupportedFormat } from "./publisher";
 
 export type PostType = (typeof postTypes)[number];
 
@@ -30,13 +25,17 @@ export const publishPost = Effect.fn("pipeline.publishPost")(function* (job: Pub
   if (job.type !== "feed" && job.type !== "image") {
     return yield* new UnsupportedFormat({ type: job.type });
   }
+
   const count = job.imageUrls.length;
+
   if (count < 1 || count > MAX_CAROUSEL_ITEMS) {
     return yield* new InvalidPost({
       reason: `a feed post needs 1-${MAX_CAROUSEL_ITEMS} images, got ${count}`,
     });
   }
+
   const publisher = yield* Publisher;
+
   return yield* publisher.publish({ caption: job.caption, imageUrls: job.imageUrls });
 });
 
@@ -51,7 +50,7 @@ export class PublishJobNotFound extends Data.TaggedError("PublishJobNotFound")<{
  * Persistence boundary for the scheduled-publish flow. Writes are typed fallible
  * (`UnknownError`) rather than infallible, matching the rest of the pipeline.
  */
-export interface PublishStoreShape {
+export interface PublishStoreService {
   readonly loadJob: (
     scheduledPostId: string,
   ) => Effect.Effect<PublishJob, PublishJobNotFound | Cause.UnknownError>;
@@ -66,7 +65,7 @@ export interface PublishStoreShape {
   ) => Effect.Effect<void, Cause.UnknownError>;
 }
 
-export class PublishStore extends Context.Service<PublishStore, PublishStoreShape>()(
+export class PublishStore extends Context.Service<PublishStore, PublishStoreService>()(
   "@vanda/pipeline/PublishStore",
 ) {}
 
@@ -78,6 +77,7 @@ const failureReason = (error: {
   readonly type?: string;
 }): string => {
   const detail = error.message ?? error.reason ?? error.type;
+
   return detail !== undefined ? `${error._tag}: ${detail}`.slice(0, 300) : error._tag;
 };
 
@@ -90,9 +90,12 @@ export const publishDue = Effect.fn("pipeline.publishDue")(function* (scheduledP
   const store = yield* PublishStore;
   const job = yield* store.loadJob(scheduledPostId);
   yield* store.markPublishing(scheduledPostId);
+
   const receipt = yield* publishPost(job).pipe(
     Effect.tapError((error) => store.markFailed(scheduledPostId, failureReason(error))),
   );
+
   yield* store.markPublished(scheduledPostId, receipt);
+
   return receipt;
 });

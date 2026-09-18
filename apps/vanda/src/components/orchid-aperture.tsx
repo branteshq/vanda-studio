@@ -1,18 +1,24 @@
 import { useId } from "react";
 
 const PETAL = "M50 44 C 40 37 40.5 17 50 11 C 59.5 17 60 37 50 44 Z";
+
 const ROTATIONS = [0, 72, 144, 216, 288];
+
 const CENTER = 300;
+
 const RINGS: [number, number][] = [
   [265, 0.12],
   [212, 0.07],
   [150, 0.05],
 ];
+
 const TICK_COUNT = 72;
+
 const ACCENT_TICK = 9;
 
 function polar(radius: number, deg: number): [number, number] {
   const rad = (deg * Math.PI) / 180;
+
   return [CENTER + radius * Math.cos(rad), CENTER + radius * Math.sin(rad)];
 }
 
@@ -24,6 +30,7 @@ export function OrchidAperture() {
   const gradientId = useId();
 
   const ticks = [];
+
   for (let i = 0; i < TICK_COUNT; i++) {
     if (i === ACCENT_TICK) continue;
     const deg = -90 + (i / TICK_COUNT) * 360;
@@ -66,11 +73,12 @@ export function OrchidAperture() {
         />
       ))}
 
-      {ROTATIONS.map((_, k) => {
-        const [x, y] = polar(265, -90 + k * 72);
+      {ROTATIONS.map((deg) => {
+        const [x, y] = polar(265, -90 + deg);
+
         return (
           <line
-            key={k}
+            key={deg}
             x1={CENTER}
             y1={CENTER}
             x2={x}

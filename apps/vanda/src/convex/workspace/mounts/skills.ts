@@ -7,6 +7,7 @@ const listSkillDirectory = (
   segments: readonly string[],
 ): WorkspaceEntry[] | null => {
   const directory = segments.join("/");
+
   if (directory && skill.files[directory] !== undefined) return null;
   const prefix = directory ? `${directory}/` : "";
   const children = new Map<string, WorkspaceEntry>();
@@ -14,9 +15,12 @@ const listSkillDirectory = (
   for (const filePath of Object.keys(skill.files)) {
     if (!filePath.startsWith(prefix)) continue;
     const remainder = filePath.slice(prefix.length);
+
     if (!remainder) continue;
     const [name, ...rest] = remainder.split("/");
+
     if (!name) continue;
+
     if (rest.length > 0) {
       children.set(name, { name, kind: "dir" });
     } else if (!children.has(name)) {
@@ -29,6 +33,7 @@ const listSkillDirectory = (
   }
 
   if (children.size === 0 && directory) return null;
+
   // ES2022 has no toSorted; sorting a fresh array cannot mutate the map.
   // oxlint-disable-next-line unicorn/no-array-sort
   return [...children.values()].sort(
@@ -53,15 +58,19 @@ export const skillsMount: WorkspaceMount = {
         })),
       );
     }
+
     const [name, ...resourceSegments] = segments;
     const skill = name ? findInstalledSkill(name) : undefined;
+
     return Promise.resolve(skill ? listSkillDirectory(skill, resourceSegments) : null);
   },
   read: (_ctx, _accountId, segments) => {
     const [name, ...resourceSegments] = segments;
     const skill = name ? findInstalledSkill(name) : undefined;
+
     if (!skill || resourceSegments.length === 0) return Promise.resolve(null);
     const content = skill.files[resourceSegments.join("/")];
+
     return Promise.resolve(content === undefined ? null : { kind: "text" as const, text: content });
   },
 };

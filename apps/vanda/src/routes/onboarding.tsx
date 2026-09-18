@@ -3,6 +3,7 @@ import { Navigate, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAction, useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
 import { useEffect, useState } from "react";
+import { z } from "zod";
 import { Spinner } from "@vanda-studio/ui/components/spinner";
 import { ConfirmStep } from "../components/onboarding/confirm-step";
 import { ConnectStep } from "../components/onboarding/connect-step";
@@ -16,9 +17,9 @@ import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 
 export const Route = createFileRoute("/onboarding")({
-  validateSearch: (search: Record<string, unknown>): { flow?: "add"; accountId?: string } => ({
-    ...(search.flow === "add" ? { flow: "add" as const } : {}),
-    ...(typeof search.accountId === "string" ? { accountId: search.accountId } : {}),
+  validateSearch: z.object({
+    flow: z.literal("add").optional(),
+    accountId: z.string().optional(),
   }),
   component: OnboardingPage,
 });
@@ -53,9 +54,12 @@ function OnboardingLoading() {
 function OnboardingFlow() {
   const { flow, accountId } = Route.useSearch();
   const accounts = useQuery(api.accounts.listMine);
+
   if (accounts === undefined) return <OnboardingLoading />;
   const requested = accounts.find((account) => account.id === accountId);
+
   if (requested?.onboardedAt != null) return <ActivateAndRedirect accountId={requested.id} />;
+
   if (requested) {
     return requested.connected ? (
       <AnalyzeFlow accountId={requested.id} />
@@ -63,12 +67,17 @@ function OnboardingFlow() {
       <SyncConnection accountId={requested.id} />
     );
   }
+
   if (flow === "add") return <ConnectStep />;
+
   if (accounts.some((account) => account.onboardedAt != null)) {
     return <Navigate to="/conversa" />;
   }
+
   const pending = accounts.find((account) => account.onboardedAt == null);
+
   if (pending === undefined) return <ConnectStep />;
+
   return pending.connected ? (
     <AnalyzeFlow accountId={pending.id} />
   ) : (
@@ -95,6 +104,7 @@ function SyncConnection({ accountId }: { accountId: Id<"accounts"> }) {
       .catch(() => {
         if (!cancelled) setFailed(true);
       });
+
     return () => {
       cancelled = true;
     };
@@ -128,6 +138,7 @@ function AnalyzeFlow({ accountId }: { accountId: Id<"accounts"> }) {
   async function finish(edited: EditableAnalysis) {
     if (busy) return;
     setBusy(true);
+
     try {
       await approve({ accountId, ...edited });
       await navigate({ to: "/conversa" });
@@ -152,6 +163,7 @@ function AnalyzeFlow({ accountId }: { accountId: Id<"accounts"> }) {
       />
     );
   }
+
   if (step === "confirm" && analysis && stats) {
     return (
       <ConfirmStep
@@ -165,5 +177,6 @@ function AnalyzeFlow({ accountId }: { accountId: Id<"accounts"> }) {
       />
     );
   }
+
   return <OnboardingLoading />;
 }

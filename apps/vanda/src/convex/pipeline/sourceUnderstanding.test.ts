@@ -19,6 +19,7 @@ describe("SourceEvidence", () => {
         },
       ],
     });
+
     expect(evidence.contentType).toBe("visual");
     expect(evidence.frameEvidence[0]?.onScreenText).toBe("Antes");
   });

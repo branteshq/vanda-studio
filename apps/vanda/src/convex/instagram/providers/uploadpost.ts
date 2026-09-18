@@ -16,11 +16,35 @@ import type {
   InstagramPublicEngagement,
 } from "../types";
 
-const optional = <K extends string, V>(
-  key: K,
-  value: V | null | undefined,
-): Partial<Record<K, V>> =>
-  value === null || value === undefined ? {} : ({ [key]: value } as Record<K, V>);
+const optional = <K extends string, V>(key: K, value: V | null | undefined) => {
+  const result: Partial<Record<K, V>> = {};
+
+  if (value !== null && value !== undefined) result[key] = value;
+
+  return result;
+};
+
+interface MediaRequest {
+  limit: number;
+  cursor?: string;
+}
+
+interface CommentsRequest {
+  limit: number;
+  after?: string;
+}
+
+interface PostListResult {
+  data: ReadonlyArray<InstagramPost>;
+  completeness: "partial" | "complete";
+  nextCursor?: string;
+}
+
+interface CommentListResult {
+  data: ReadonlyArray<InstagramComment>;
+  completeness: "partial" | "complete";
+  nextCursor?: string;
+}
 
 const mediaTypeOf = (value: string | null): InstagramPost["mediaType"] => {
   switch (value?.toUpperCase()) {
@@ -37,6 +61,7 @@ const mediaTypeOf = (value: string | null): InstagramPost["mediaType"] => {
 
 const timestampOf = (value: string | null): number | undefined => {
   const parsed = value === null ? Number.NaN : Date.parse(value);
+
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
@@ -71,7 +96,9 @@ export const uploadPostInstagramProviderLayer: Layer.Layer<ConnectedInstagramPro
               message: "publisher profile not found",
             });
           }
+
           const info = instagramProfileInfoOf(profile);
+
           return Effect.succeed({
             data: {
               handle: info.username ?? target.handle,
@@ -83,52 +110,65 @@ export const uploadPostInstagramProviderLayer: Layer.Layer<ConnectedInstagramPro
         }),
       ),
     listPosts: (target, options) =>
-      providerCall("media", () =>
-        getInstagramMedia(target.publisherUsername, {
-          limit: options.limit,
-          ...(options.cursor ? { cursor: options.cursor } : {}),
+      providerCall("media", () => {
+        const request: MediaRequest = { limit: options.limit };
+
+        if (options.cursor) request.cursor = options.cursor;
+
+        return getInstagramMedia(target.publisherUsername, request);
+      }).pipe(
+        Effect.map((page) => {
+          const result: PostListResult = {
+            data: page.media.flatMap((media): ReadonlyArray<InstagramPost> => {
+              if (media.permalink === null) return [];
+
+              return [
+                {
+                  id: media.id,
+                  url: media.permalink,
+                  mediaType: mediaTypeOf(media.mediaType),
+                  publicEngagement: {},
+                  ...optional("caption", media.caption),
+                  ...optional("publishedAt", timestampOf(media.timestamp)),
+                  ...optional("mediaUrl", media.mediaUrl),
+                  ...optional("thumbnailUrl", media.thumbnailUrl),
+                  ownerHandle: target.handle,
+                },
+              ];
+            }),
+            completeness: page.pagination.hasMore ? ("partial" as const) : ("complete" as const),
+          };
+
+          if (page.pagination.nextCursor) result.nextCursor = page.pagination.nextCursor;
+
+          return result;
         }),
-      ).pipe(
-        Effect.map((page) => ({
-          data: page.media.flatMap((media): ReadonlyArray<InstagramPost> => {
-            if (media.permalink === null) return [];
-            return [
-              {
-                id: media.id,
-                url: media.permalink,
-                mediaType: mediaTypeOf(media.mediaType),
-                publicEngagement: {},
-                ...optional("caption", media.caption),
-                ...optional("publishedAt", timestampOf(media.timestamp)),
-                ...optional("mediaUrl", media.mediaUrl),
-                ...optional("thumbnailUrl", media.thumbnailUrl),
-                ownerHandle: target.handle,
-              },
-            ];
-          }),
-          completeness: page.pagination.hasMore ? ("partial" as const) : ("complete" as const),
-          ...(page.pagination.nextCursor ? { nextCursor: page.pagination.nextCursor } : {}),
-        })),
       ),
     listComments: (target, input) =>
-      providerCall("comments", () =>
-        getInstagramComments(target.publisherUsername, input.postId, {
-          limit: input.limit,
-          ...(input.cursor ? { after: input.cursor } : {}),
+      providerCall("comments", () => {
+        const request: CommentsRequest = { limit: input.limit };
+
+        if (input.cursor) request.after = input.cursor;
+
+        return getInstagramComments(target.publisherUsername, input.postId, request);
+      }).pipe(
+        Effect.map((page) => {
+          const result: CommentListResult = {
+            data: page.comments.map(
+              (comment): InstagramComment => ({
+                id: comment.id,
+                text: comment.text,
+                ...optional("username", comment.username),
+                ...optional("timestamp", timestampOf(comment.timestamp)),
+              }),
+            ),
+            completeness: page.pagination.hasNext ? ("partial" as const) : ("complete" as const),
+          };
+
+          if (page.pagination.nextCursor) result.nextCursor = page.pagination.nextCursor;
+
+          return result;
         }),
-      ).pipe(
-        Effect.map((page) => ({
-          data: page.comments.map(
-            (comment): InstagramComment => ({
-              id: comment.id,
-              text: comment.text,
-              ...optional("username", comment.username),
-              ...optional("timestamp", timestampOf(comment.timestamp)),
-            }),
-          ),
-          completeness: page.pagination.hasNext ? ("partial" as const) : ("complete" as const),
-          ...(page.pagination.nextCursor ? { nextCursor: page.pagination.nextCursor } : {}),
-        })),
       ),
     readInsights: (target, postId) =>
       postId === undefined
@@ -140,12 +180,14 @@ export const uploadPostInstagramProviderLayer: Layer.Layer<ConnectedInstagramPro
                 ...optional("views", analytics.views),
                 ...optional("shares", analytics.shares),
               };
+
               const privateInsights: InstagramPrivateInsights = {
                 ...optional("reach", analytics.reach),
                 ...optional("impressions", analytics.views),
                 ...optional("saves", analytics.saves),
                 ...optional("accountsEngaged", analytics.profileViews),
               };
+
               return {
                 data: {
                   kind: "account" as const,

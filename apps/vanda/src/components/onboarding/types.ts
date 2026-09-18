@@ -14,16 +14,19 @@ export interface ReadonlyText {
   readonly evidence: string;
   readonly confidence: number;
 }
+
 export interface ReadonlyGroup {
   readonly items: readonly string[];
   readonly evidence: string;
   readonly confidence: number;
 }
+
 export interface ReadonlyKind {
   readonly value: BrandKindValue;
   readonly evidence: string;
   readonly confidence: number;
 }
+
 export interface ReadonlyAnalysis {
   readonly identity: ReadonlyText;
   readonly summary: ReadonlyText;
@@ -48,16 +51,19 @@ export interface EditableText {
   evidence: string;
   confidence: number;
 }
+
 export interface EditableGroup {
   items: string[];
   evidence: string;
   confidence: number;
 }
+
 export interface EditableKind {
   value: BrandKindValue;
   evidence: string;
   confidence: number;
 }
+
 export interface EditableAnalysis {
   identity: EditableText;
   summary: EditableText;

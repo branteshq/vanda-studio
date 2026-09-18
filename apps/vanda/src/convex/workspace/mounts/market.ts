@@ -17,14 +17,17 @@ const loadOpportunities = async (ctx: QueryCtx, accountId: Id<"accounts">) => {
     .query("opportunities")
     .withIndex("by_account_status", (q) => q.eq("accountId", accountId))
     .collect();
+
   const recent = [...opportunities];
   recent.sort((a, b) => b.createdAt - a.createdAt);
+
   return recent.slice(0, LISTING_CAP);
 };
 
 const opportunityContext = async (ctx: QueryCtx, opportunity: Doc<"opportunities">) => {
   const marketPost = await ctx.db.get(opportunity.marketPostId);
   const creator = marketPost ? await ctx.db.get(marketPost.creatorId) : null;
+
   return { marketPost, creator };
 };
 
@@ -43,22 +46,32 @@ const opportunityMarkdown = (
     `Status: ${opportunity.status} · score ${opportunity.score.toFixed(2)} · detectada ${formatDate(opportunity.triggeredAt)}`,
     `Gatilho (${opportunity.triggerType}): ${opportunity.triggerReason}`,
   ];
+
   if (context.creator?.handle) lines.push(`Criador: @${context.creator.handle}`);
+
   if (context.marketPost?.permalink) lines.push(`Post original: ${context.marketPost.permalink}`);
+
   if (context.marketPost?.caption) {
     lines.push("", "## Legenda original (trecho)", "", context.marketPost.caption.slice(0, 400));
   }
+
   if (opportunity.whyItWorks) lines.push("", "## Por que funciona", "", opportunity.whyItWorks);
+
   if (opportunity.adaptedHook) {
     lines.push("", "## Adaptação para a marca", "", `Hook: ${opportunity.adaptedHook}`);
+
     for (const slide of opportunity.adaptedSlides ?? []) lines.push(`- ${slide}`);
   }
+
   if (opportunity.creativeRejectionReason) {
     lines.push("", `Rejeitada: ${opportunity.creativeRejectionReason}`);
   }
+
   lines.push("", "## Ids");
   lines.push(`- opportunityId: ${opportunity._id}`);
+
   if (opportunity.creativeBriefId) lines.push(`- creativeBriefId: ${opportunity.creativeBriefId}`);
+
   return lines.join("\n");
 };
 
@@ -75,11 +88,14 @@ export const marketMount: WorkspaceMount = {
         { name: "last-scan.json", kind: "file", summary: "última varredura: estágio e resultado" },
       ];
     }
+
     if (segments.length === 1 && segments[0] === "opportunities") {
       const opportunities = await loadOpportunities(ctx, accountId);
+
       return Promise.all(
         opportunities.map(async (opportunity) => {
           const { creator } = await opportunityContext(ctx, opportunity);
+
           return {
             name: `${entityName(opportunityTitle(opportunity, creator), opportunity._id)}.md`,
             kind: "file" as const,
@@ -88,6 +104,7 @@ export const marketMount: WorkspaceMount = {
         }),
       );
     }
+
     return null;
   },
   read: async (ctx, accountId, segments): Promise<WorkspaceFile | null> => {
@@ -96,6 +113,7 @@ export const marketMount: WorkspaceMount = {
         .query("marketCreators")
         .withIndex("by_account", (q) => q.eq("accountId", accountId))
         .collect();
+
       return jsonFile(
         creators.map((creator) => ({
           handle: creator.handle,
@@ -104,13 +122,16 @@ export const marketMount: WorkspaceMount = {
         })),
       );
     }
+
     if (segments.length === 1 && segments[0] === "last-scan.json") {
       const run = await ctx.db
         .query("marketRuns")
         .withIndex("by_account_started", (q) => q.eq("accountId", accountId))
         .order("desc")
         .first();
+
       if (!run) return jsonFile({ status: "nunca executada" });
+
       return jsonFile({
         runId: run._id,
         kind: run.kind,
@@ -125,13 +146,17 @@ export const marketMount: WorkspaceMount = {
         error: run.error ?? null,
       });
     }
+
     if (segments.length === 2 && segments[0] === "opportunities") {
       const opportunities = await loadOpportunities(ctx, accountId);
       const opportunity = resolveByName(segments[1]!, opportunities);
+
       if (!opportunity) return null;
       const context = await opportunityContext(ctx, opportunity);
+
       return { kind: "text", text: opportunityMarkdown(opportunity, context) };
     }
+
     return null;
   },
 };

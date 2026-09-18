@@ -1,7 +1,7 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { Button } from "@vanda-studio/ui/components/button";
 import { ErrorNotice, showErrorToast } from "../components/error-feedback";
-import { errorCopy, publicError, type ErrorCode } from "../errors";
+import { errorCodes, errorCopy, publicError } from "../errors";
 import { GalleryFailureMessage } from "./_dashboard.galeria";
 
 export const Route = createFileRoute("/error-preview")({
@@ -40,7 +40,7 @@ function ErrorPreview() {
           ))}
         </section>
         <div className="grid gap-4 md:grid-cols-2">
-          {(Object.keys(errorCopy) as ErrorCode[]).map((code) => (
+          {errorCodes.map((code) => (
             <section
               key={code}
               className="space-y-3 rounded-xl border border-border bg-surface p-4"

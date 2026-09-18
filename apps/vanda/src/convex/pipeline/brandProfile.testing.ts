@@ -1,9 +1,9 @@
 import type { BrandAnalysis } from "./brand";
-import { makeStubLanguageModel } from "./testLanguageModel";
+import { stubLanguageModelLayer } from "./testLanguageModel";
 
 /** Stub `LanguageModel` for the brand stage: `generateObject` returns `analyze(prompt)`. */
 export const makeStubAnalyst = (analyze: (prompt: string) => BrandAnalysis) =>
-  makeStubLanguageModel(analyze);
+  stubLanguageModelLayer(analyze);
 
 /** A representative analysis (the Café Lumiar fixture from the product context). */
 export const cafeLumiarAnalysis: BrandAnalysis = {

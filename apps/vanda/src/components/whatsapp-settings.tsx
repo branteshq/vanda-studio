@@ -5,7 +5,7 @@ import { api } from "../convex/_generated/api";
 import { errorMessage } from "../errors";
 import { showErrorToast } from "./error-feedback";
 
-const statuses: Record<string, string> = {
+const statuses = {
   pending: "Na fila",
   sending: "Enviando",
   sent: "Enviada",
@@ -15,7 +15,7 @@ const statuses: Record<string, string> = {
   unknown: "Entrega não confirmada",
   awaiting_window: "Aguardando uma mensagem sua no WhatsApp",
   cancelled: "Cancelada",
-};
+} satisfies Record<string, string>;
 
 export function WhatsAppSettings() {
   const state = useQuery(api.whatsappData.state);
@@ -24,8 +24,10 @@ export function WhatsAppSettings() {
   const retry = useMutation(api.whatsappData.retryDelivery);
   const [link, setLink] = useState<{ url: string; expiresAt: number } | null>(null);
   const [busy, setBusy] = useState(false);
-  const run = async (work: () => Promise<unknown>) => {
+
+  const run = async <Result,>(work: () => Promise<Result>) => {
     setBusy(true);
+
     try {
       await work();
     } catch (cause) {
@@ -34,6 +36,7 @@ export function WhatsAppSettings() {
       setBusy(false);
     }
   };
+
   return (
     <section className="mt-6 rounded-xl border border-border bg-surface p-5">
       <h3 className="text-body font-semibold">Caetano no WhatsApp</h3>

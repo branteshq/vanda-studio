@@ -17,25 +17,31 @@ const modules = import.meta.glob("./**/*.ts");
 const setup = async () => {
   const t = convexTest(schema, modules);
   agentComponent.register(t);
+
   const ids = await t.run(async (ctx) => {
     const now = Date.now();
+
     const userId = await ctx.db.insert("users", {
       name: "Ana",
       email: "ana@e.com",
       clerkId: "ana",
     });
+
     const accountId = await ctx.db.insert("accounts", {
       ownerUserId: userId,
       name: "Café da Ana",
       createdAt: now,
       updatedAt: now,
     });
+
     const orphanAccountId = await ctx.db.insert("accounts", {
       createdAt: now,
       updatedAt: now,
     });
+
     return { userId, accountId, orphanAccountId };
   });
+
   return { t, ...ids };
 };
 
@@ -60,6 +66,7 @@ describe("usage metering", () => {
         .withIndex("by_user_period", (q) => q.eq("userId", userId).eq("periodKey", "trial"))
         .collect(),
     );
+
     expect(events).toHaveLength(1);
     expect(events[0]!.accountId).toBe(accountId);
   });
@@ -84,12 +91,14 @@ describe("usage metering", () => {
     });
     const budget = await t.query(internal.usage.budget, { accountId: orphanAccountId });
     expect(budget.ok).toBe(true);
+
     const periods = await t.run((ctx) =>
       ctx.db
         .query("usagePeriods")
         .withIndex("by_user_period", (q) => q.eq("userId", userId))
         .collect(),
     );
+
     expect(periods).toHaveLength(0);
   });
 

@@ -18,13 +18,36 @@ export type CaetanoCtx = ToolCtx & {
   readonly caetanoThreadId: string;
 };
 
+type CapabilityOutput = z.infer<typeof capabilityResultSchema>;
+
+type AccountQueryArgs = { userId: Id<"users">; accountId?: Id<"accounts"> };
+
+type ModelPreferenceArgs = {
+  userId: Id<"users">;
+  orchestrator?: string;
+  caetano?: string;
+  image?: string;
+};
+
+type PresentDocument = { kind: "document"; path: string; title?: string };
+
+type ResultSummary = { shown: number; message?: string };
+
+type AskVandaArgs = {
+  userId: Id<"users">;
+  caetanoThreadId: string;
+  request: string;
+  accountId?: Id<"accounts">;
+  threadId?: string;
+};
+
 const optionalAccountId = z.string().optional().describe("id da conta; omita para usar a ativa");
 
 const listAccounts = createTool({
   description: "Lista os negócios do dono e indica qual está ativo.",
   inputSchema: z.object({}),
   outputSchema: capabilityResultSchema,
-  execute: async (ctx: CaetanoCtx): Promise<unknown> =>
+  execute: async (ctx: CaetanoCtx): Promise<CapabilityOutput> =>
     capabilityResult(
       await ctx.runQuery(internal.caetanoData.listAccounts, { userId: ctx.ownerUserId }),
     ),
@@ -38,18 +61,22 @@ const selectAccount = createTool({
     ctx: CaetanoCtx,
     { accountId }: { accountId: string },
     options,
-  ): Promise<unknown> => {
+  ): Promise<CapabilityOutput> => {
+    // SAFETY: Convex tool inputSchema validated accountId as a non-empty account identifier string.
+    const typedAccountId = accountId as Id<"accounts">;
     await ctx.runMutation(internal.caetanoData.selectAccount, {
       userId: ctx.ownerUserId,
-      accountId: accountId as Id<"accounts">,
+      accountId: typedAccountId,
     });
+
     const operation: ThreadResource = {
       kind: "operation",
       operation: "account.select",
-      accountId: accountId as Id<"accounts">,
+      accountId: typedAccountId,
       status: "succeeded",
       label: "Negócio ativo atualizado",
     };
+
     return recordCapabilityResult(
       ctx,
       options,
@@ -72,20 +99,25 @@ const accountStatus = createTool({
   execute: async (
     ctx: CaetanoCtx,
     { accountId }: { accountId?: string | undefined },
-  ): Promise<unknown> =>
-    capabilityResult(
-      await ctx.runQuery(internal.caetanoData.accountStatus, {
-        userId: ctx.ownerUserId,
-        ...(accountId ? { accountId: accountId as Id<"accounts"> } : {}),
-      }),
-    ),
+  ): Promise<CapabilityOutput> => {
+    const queryArgs: AccountQueryArgs = {
+      userId: ctx.ownerUserId,
+    };
+
+    if (accountId) {
+      // SAFETY: Convex tool inputSchema validated accountId as an account identifier string.
+      queryArgs.accountId = accountId as Id<"accounts">;
+    }
+
+    return ctx.runQuery(internal.caetanoData.accountStatus, queryArgs).then(capabilityResult);
+  },
 });
 
 const usageStatus = createTool({
   description: "Consulta o plano, percentual de uso e eventual bloqueio do dono.",
   inputSchema: z.object({}),
   outputSchema: capabilityResultSchema,
-  execute: async (ctx: CaetanoCtx): Promise<unknown> =>
+  execute: async (ctx: CaetanoCtx): Promise<CapabilityOutput> =>
     capabilityResult(
       await ctx.runQuery(internal.caetanoData.usageStatus, { userId: ctx.ownerUserId }),
     ),
@@ -95,7 +127,7 @@ const modelPreferences = createTool({
   description: "Consulta os modelos atuais da Vanda, do Caetano e de imagem do dono.",
   inputSchema: z.object({}),
   outputSchema: capabilityResultSchema,
-  execute: async (ctx: CaetanoCtx): Promise<unknown> =>
+  execute: async (ctx: CaetanoCtx): Promise<CapabilityOutput> =>
     capabilityResult(
       await ctx.runQuery(internal.caetanoData.modelPreferences, { userId: ctx.ownerUserId }),
     ),
@@ -128,19 +160,23 @@ const setModelPreferences = createTool({
       image?: string | undefined;
     },
     options,
-  ): Promise<unknown> => {
-    await ctx.runMutation(internal.caetanoData.setModelPreferences, {
-      userId: ctx.ownerUserId,
-      ...(input.orchestrator ? { orchestrator: input.orchestrator } : {}),
-      ...(input.caetano ? { caetano: input.caetano } : {}),
-      ...(input.image ? { image: input.image } : {}),
-    });
+  ): Promise<CapabilityOutput> => {
+    const mutationArgs: ModelPreferenceArgs = { userId: ctx.ownerUserId };
+
+    if (input.orchestrator) mutationArgs.orchestrator = input.orchestrator;
+
+    if (input.caetano) mutationArgs.caetano = input.caetano;
+
+    if (input.image) mutationArgs.image = input.image;
+    await ctx.runMutation(internal.caetanoData.setModelPreferences, mutationArgs);
+
     const operation: ThreadResource = {
       kind: "operation",
       operation: "models.update",
       status: "succeeded",
       label: "Modelos atualizados",
     };
+
     return recordCapabilityResult(
       ctx,
       options,
@@ -163,13 +199,18 @@ const listVandaThreads = createTool({
   execute: async (
     ctx: CaetanoCtx,
     { accountId }: { accountId?: string | undefined },
-  ): Promise<unknown> =>
-    capabilityResult(
-      await ctx.runQuery(internal.caetanoData.listVandaThreads, {
-        userId: ctx.ownerUserId,
-        ...(accountId ? { accountId: accountId as Id<"accounts"> } : {}),
-      }),
-    ),
+  ): Promise<CapabilityOutput> => {
+    const queryArgs: AccountQueryArgs = {
+      userId: ctx.ownerUserId,
+    };
+
+    if (accountId) {
+      // SAFETY: Convex tool inputSchema validated accountId as an account identifier string.
+      queryArgs.accountId = accountId as Id<"accounts">;
+    }
+
+    return ctx.runQuery(internal.caetanoData.listVandaThreads, queryArgs).then(capabilityResult);
+  },
 });
 
 const present = createTool({
@@ -189,37 +230,54 @@ const present = createTool({
       message?: string | undefined;
     },
     options,
-  ): Promise<unknown> => {
-    const account = await ctx.runQuery(internal.caetanoData.accountStatus, {
+  ): Promise<CapabilityOutput> => {
+    const statusArgs: AccountQueryArgs = {
       userId: ctx.ownerUserId,
-      ...(input.accountId ? { accountId: input.accountId as Id<"accounts"> } : {}),
-    });
+    };
+
+    if (input.accountId) {
+      // SAFETY: Convex tool inputSchema validated accountId as an account identifier string.
+      statusArgs.accountId = input.accountId as Id<"accounts">;
+    }
+
+    const account = await ctx.runQuery(internal.caetanoData.accountStatus, statusArgs);
+
     const resources = await ctx.runQuery(internal.threadResources.resolvePresentable, {
       accountId: account.accountId,
       resources: input.resources.map((resource) => {
         if (resource.kind === "image") {
+          // SAFETY: presentableResourceInputSchema identifies this value as an image resource id.
           return { kind: "image" as const, imageId: resource.imageId as Id<"images"> };
         }
+
         if (resource.kind === "post") {
+          // SAFETY: presentableResourceInputSchema identifies this value as a post resource id.
           return { kind: "post" as const, postId: resource.postId as Id<"posts"> };
         }
+
         if (resource.kind === "document") {
-          return {
+          const document: PresentDocument = {
             kind: "document" as const,
             path: resource.path,
-            ...(resource.title ? { title: resource.title } : {}),
           };
+
+          if (resource.title) document.title = resource.title;
+
+          return document;
         }
+
         return resource;
       }),
     });
+
+    const resultData: ResultSummary = { shown: resources.length };
+
+    if (input.message) resultData.message = input.message;
+
     return recordCapabilityResult(
       ctx,
       options,
-      capabilityResult(
-        { shown: resources.length, ...(input.message ? { message: input.message } : {}) },
-        { resources, presented: resources, summary: input.message },
-      ),
+      capabilityResult(resultData, { resources, presented: resources, summary: input.message }),
     );
   },
 });
@@ -237,14 +295,21 @@ const askVanda = createTool({
     ctx: CaetanoCtx,
     input: { request: string; accountId?: string | undefined; threadId?: string | undefined },
     options,
-  ): Promise<unknown> => {
-    const data = await ctx.runAction(internal.caetanoNode.askVanda, {
+  ): Promise<CapabilityOutput> => {
+    const actionArgs: AskVandaArgs = {
       userId: ctx.ownerUserId,
       caetanoThreadId: ctx.caetanoThreadId,
       request: input.request,
-      ...(input.accountId ? { accountId: input.accountId as Id<"accounts"> } : {}),
-      ...(input.threadId ? { threadId: input.threadId } : {}),
-    });
+    };
+
+    if (input.accountId) {
+      // SAFETY: Convex tool inputSchema validated accountId as an account identifier string.
+      actionArgs.accountId = input.accountId as Id<"accounts">;
+    }
+
+    if (input.threadId) actionArgs.threadId = input.threadId;
+    const data = await ctx.runAction(internal.caetanoNode.askVanda, actionArgs);
+
     return recordCapabilityResult(
       ctx,
       options,
@@ -257,10 +322,12 @@ const askVanda = createTool({
 });
 
 const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });
+
 export const caetanoLanguageModel = (preferred?: string | null) =>
   openrouter.chat(resolveCaetanoModel(preferred), { usage: { include: true } });
 
 const FALLBACK_INPUT_USD = 2e-6;
+
 const FALLBACK_OUTPUT_USD = 8e-6;
 
 const INSTRUCTIONS = `Você é o Caetano, o macaquinho operador do Vanda Studio. Você é o ponto de entrada do dono para o produto inteiro.
@@ -278,14 +345,17 @@ export const caetano = new Agent<CaetanoCtx>(components.agent, {
   languageModel: caetanoLanguageModel(),
   usageHandler: async (ctx, { userId, usage, providerMetadata, model, provider }) => {
     if (!userId?.startsWith("caetano:") || !provider.includes("openrouter")) return;
+    // SAFETY: startsWith above establishes that slicing removes only the routing prefix from a Convex user id.
     const ownerUserId = userId.slice("caetano:".length) as Id<"users">;
-    const reported = (providerMetadata?.openrouter as { usage?: { cost?: unknown } } | undefined)
-      ?.usage?.cost;
+    const costSchema = z.object({ usage: z.object({ cost: z.number() }).optional() }).optional();
+    const reported = costSchema.safeParse(providerMetadata?.openrouter);
+
     const usd =
-      typeof reported === "number"
-        ? reported
+      reported.success && reported.data?.usage
+        ? reported.data.usage.cost
         : (usage.inputTokens ?? 0) * FALLBACK_INPUT_USD +
           (usage.outputTokens ?? 0) * FALLBACK_OUTPUT_USD;
+
     if (usd <= 0) return;
     await ctx.runMutation(internal.usage.charge, {
       userId: ownerUserId,

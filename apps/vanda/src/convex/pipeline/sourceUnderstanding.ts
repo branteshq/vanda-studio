@@ -6,7 +6,9 @@ import * as Schema from "effect/Schema";
 import { decodeUnknownEffect } from "effect/Schema";
 
 export const SOURCE_UNDERSTANDING_MODEL = "google/gemini-2.5-flash";
+
 export const SOURCE_UNDERSTANDING_VERSION = "source-evidence-v1";
+
 const MAX_MODEL_VIDEO_BYTES = 25_000_000;
 
 export const FrameEvidence = Schema.Struct({
@@ -14,6 +16,7 @@ export const FrameEvidence = Schema.Struct({
   description: Schema.String,
   onScreenText: Schema.optional(Schema.String),
 });
+
 export type FrameEvidence = typeof FrameEvidence.Type;
 
 export const SourceEvidence = Schema.Struct({
@@ -25,6 +28,7 @@ export const SourceEvidence = Schema.Struct({
   visualConfidence: Schema.Number,
   frameEvidence: Schema.Array(FrameEvidence),
 });
+
 export type SourceEvidence = typeof SourceEvidence.Type;
 
 export class SourceUnderstandingFailed extends Data.TaggedError("SourceUnderstandingFailed")<{
@@ -32,7 +36,7 @@ export class SourceUnderstandingFailed extends Data.TaggedError("SourceUnderstan
   readonly message: string;
 }> {}
 
-export interface SourceUnderstandingShape {
+export interface SourceUnderstandingService {
   readonly analyze: (input: {
     readonly video: Blob;
     readonly caption?: string | undefined;
@@ -41,7 +45,7 @@ export interface SourceUnderstandingShape {
 
 export class SourceUnderstanding extends Context.Service<
   SourceUnderstanding,
-  SourceUnderstandingShape
+  SourceUnderstandingService
 >()("@vanda/market/SourceUnderstanding") {}
 
 const responseJsonSchema = {
@@ -91,16 +95,9 @@ const sourcePrompt = (caption: string | undefined): string =>
   `e da leitura visual. A legenda fornecida é contexto e não deve ser copiada para transcript.\n\n` +
   `Legenda: ${caption?.trim() || "(indisponível)"}`;
 
-const parseResponseContent = (value: unknown): unknown => {
-  if (typeof value !== "object" || value === null) throw new Error("invalid OpenRouter response");
-  const choices = (value as { choices?: unknown }).choices;
-  if (!Array.isArray(choices) || choices.length === 0) throw new Error("empty OpenRouter response");
-  const message = (choices[0] as { message?: unknown }).message;
-  if (typeof message !== "object" || message === null) throw new Error("missing response message");
-  const content = (message as { content?: unknown }).content;
-  if (typeof content !== "string") throw new Error("response content is not JSON text");
-  return JSON.parse(content) as unknown;
-};
+const OpenRouterResponse = Schema.Struct({
+  choices: Schema.Array(Schema.Struct({ message: Schema.Struct({ content: Schema.String }) })),
+});
 
 export const openRouterSourceUnderstandingLayer = (
   apiKey: string,
@@ -113,6 +110,7 @@ export const openRouterSourceUnderstandingLayer = (
           operation: "analyze",
           message: `video exceeds ${MAX_MODEL_VIDEO_BYTES} byte understanding limit`,
         });
+
       return Effect.tryPromise({
         try: async () => {
           const mime = ["video/mp4", "video/mpeg", "video/quicktime", "video/webm"].includes(
@@ -120,7 +118,9 @@ export const openRouterSourceUnderstandingLayer = (
           )
             ? video.type
             : "video/mp4";
+
           const encoded = Buffer.from(await video.arrayBuffer()).toString("base64");
+
           const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -151,9 +151,16 @@ export const openRouterSourceUnderstandingLayer = (
               },
             }),
           });
+
           if (!response.ok)
             throw new Error(`OpenRouter HTTP ${response.status}: ${await response.text()}`);
-          return parseResponseContent(await response.json());
+
+          const envelope = Schema.decodeUnknownSync(OpenRouterResponse)(await response.json());
+          const content = envelope.choices[0]?.message.content;
+
+          if (content === undefined) throw new Error("empty OpenRouter response");
+
+          return Schema.decodeUnknownSync(SourceEvidence)(JSON.parse(content));
         },
         catch: (error) =>
           new SourceUnderstandingFailed({

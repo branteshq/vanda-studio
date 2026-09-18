@@ -9,9 +9,11 @@
 import { Template, defaultBuildLogger, waitForPort } from "e2b";
 
 const apiKey = process.env.E2B_API_KEY;
+
 if (!apiKey) throw new Error("E2B_API_KEY is required");
 
 const FONTS_BASE = "https://raw.githubusercontent.com/google/fonts/main/ofl";
+
 const FONTS = [
   ["Poppins-Regular.ttf", "poppins/Poppins-Regular.ttf"],
   ["Poppins-Medium.ttf", "poppins/Poppins-Medium.ttf"],
@@ -43,4 +45,5 @@ const info = await Template.build(template, "vanda-imaging", {
   memoryMB: 2048,
   onBuildLogs: defaultBuildLogger(),
 });
+
 console.log("built:", info);

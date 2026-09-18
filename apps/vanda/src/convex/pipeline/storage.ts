@@ -30,6 +30,7 @@ const brandTextArg = v.object({
   evidence: v.string(),
   confidence: v.number(),
 });
+
 const brandGroupArg = v.object({
   items: v.array(v.string()),
   evidence: v.string(),

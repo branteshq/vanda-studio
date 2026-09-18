@@ -22,15 +22,28 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@vanda-studio/ui/compon
 import { PanelLeftIcon } from "lucide-react";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
+
 const SIDEBAR_WIDTH_COOKIE_NAME = "sidebar_width";
+
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
+
 const SIDEBAR_WIDTH = 256;
+
 const SIDEBAR_MIN_WIDTH = 224;
+
 const SIDEBAR_MAX_WIDTH = 480;
+
 const SIDEBAR_RESIZE_STEP = 16;
+
 const SIDEBAR_WIDTH_MOBILE = "18rem";
+
 const SIDEBAR_WIDTH_ICON = "3rem";
+
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
+
+type CustomProperties = React.CSSProperties & Record<`--${string}`, string | number>;
+
+const customStyle = (style: CustomProperties): React.CSSProperties => style;
 
 const clampSidebarWidth = (value: number) =>
   Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(value)));
@@ -54,6 +67,7 @@ const SidebarContext = React.createContext<SidebarContextProps | null>(null);
 
 function useSidebar() {
   const context = React.useContext(SidebarContext);
+
   if (!context) {
     throw new Error("useSidebar must be used within a SidebarProvider.");
   }
@@ -88,15 +102,15 @@ function SidebarProvider({
   const [openMobile, setOpenMobile] = React.useState(false);
   const [width, _setWidth] = React.useState(defaultWidth);
   const [resizing, setResizing] = React.useState(false);
+
   const widthCookieName =
     cookieName === SIDEBAR_COOKIE_NAME ? SIDEBAR_WIDTH_COOKIE_NAME : `${cookieName}_width`;
 
   // The persisted width is applied after mount, not read during render: the
   // server has no cookie access, so reading it inline would desync hydration.
   React.useEffect(() => {
-    const stored = document.cookie.match(
-      new RegExp(`(?:^|;\\s*)${widthCookieName}=(\\d+)`),
-    )?.[1];
+    const stored = document.cookie.match(new RegExp(`(?:^|;\\s*)${widthCookieName}=(\\d+)`))?.[1];
+
     if (stored) _setWidth(clampSidebarWidth(Number(stored)));
   }, [widthCookieName]);
 
@@ -115,9 +129,11 @@ function SidebarProvider({
   // We use openProp and setOpenProp for control from outside the component.
   const [_open, _setOpen] = React.useState(defaultOpen);
   const open = openProp ?? _open;
+
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
-      const openState = typeof value === "function" ? value(open) : value;
+      const openState = value === true || value === false ? value : value(open);
+
       if (setOpenProp) {
         setOpenProp(openState);
       } else {
@@ -138,6 +154,7 @@ function SidebarProvider({
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
     if (keyboardShortcut === null) return;
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === keyboardShortcut && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
@@ -146,6 +163,7 @@ function SidebarProvider({
     };
 
     window.addEventListener("keydown", handleKeyDown);
+
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [toggleSidebar, keyboardShortcut]);
 
@@ -187,14 +205,12 @@ function SidebarProvider({
     <SidebarContext.Provider value={contextValue}>
       <div
         data-slot="sidebar-wrapper"
-        style={
-          {
-            "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
-            ...style,
-            // Provider-owned: the drag handle writes it, so it wins over `style`.
-            "--sidebar-width": `${width}px`,
-          } as React.CSSProperties
-        }
+        style={customStyle({
+          "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
+          ...style,
+          // Provider-owned: the drag handle writes it, so it wins over `style`.
+          "--sidebar-width": `${width}px`,
+        })}
         className={cn(
           "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
           className,
@@ -250,11 +266,9 @@ function Sidebar({
           data-slot="sidebar"
           data-mobile="true"
           className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground"
-          style={
-            {
-              "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
-            } as React.CSSProperties
-          }
+          style={customStyle({
+            "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
+          })}
           side={side}
         >
           <SheetHeader className="sr-only">
@@ -355,6 +369,7 @@ function SidebarResizeHandle({
     const move = (moveEvent: PointerEvent) => {
       setWidth(originWidth + (moveEvent.clientX - originX) * direction);
     };
+
     const stop = () => {
       setResizing(false);
       document.body.style.cursor = previousCursor;
@@ -370,13 +385,14 @@ function SidebarResizeHandle({
   };
 
   const nudge = (event: React.KeyboardEvent<HTMLButtonElement>) => {
-    const step =
-      event.key === "ArrowLeft"
-        ? -SIDEBAR_RESIZE_STEP
-        : event.key === "ArrowRight"
-          ? SIDEBAR_RESIZE_STEP
-          : 0;
+    let step = 0;
+
+    if (event.key === "ArrowLeft") step = -SIDEBAR_RESIZE_STEP;
+
+    if (event.key === "ArrowRight") step = SIDEBAR_RESIZE_STEP;
+
     if (step === 0) return;
+
     event.preventDefault();
     setWidth(width + step * direction);
   };
@@ -646,6 +662,11 @@ const sidebarMenuButtonVariants = cva(
   },
 );
 
+type SidebarTooltip = string | React.ComponentProps<typeof TooltipContent>;
+
+const isTooltipText = (tooltip: SidebarTooltip): tooltip is string =>
+  Object.prototype.toString.call(tooltip) === "[object String]";
+
 function SidebarMenuButton({
   render,
   isActive = false,
@@ -657,9 +678,10 @@ function SidebarMenuButton({
 }: useRender.ComponentProps<"button"> &
   React.ComponentProps<"button"> & {
     isActive?: boolean;
-    tooltip?: string | React.ComponentProps<typeof TooltipContent>;
+    tooltip?: SidebarTooltip;
   } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const { isMobile, state } = useSidebar();
+
   const comp = useRender({
     defaultTagName: "button",
     props: mergeProps<"button">(
@@ -681,7 +703,7 @@ function SidebarMenuButton({
     return comp;
   }
 
-  if (typeof tooltip === "string") {
+  if (isTooltipText(tooltip)) {
     tooltip = {
       children: tooltip,
     };
@@ -767,11 +789,9 @@ function SidebarMenuSkeleton({
       <Skeleton
         className="h-4 max-w-(--skeleton-width) flex-1"
         data-sidebar="menu-skeleton-text"
-        style={
-          {
-            "--skeleton-width": width,
-          } as React.CSSProperties
-        }
+        style={customStyle({
+          "--skeleton-width": width,
+        })}
       />
     </div>
   );

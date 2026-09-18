@@ -9,12 +9,15 @@ const modules = import.meta.glob("./**/*.ts");
 describe("runScheduledPost credential phase", () => {
   it("marks the row failed when the account has no connection", async () => {
     const t = convexTest(schema, modules);
+
     const scheduledPostId = await t.run(async (ctx) => {
       const now = Date.now();
+
       const accountId = await ctx.db.insert("accounts", {
         createdAt: now,
         updatedAt: now,
       });
+
       const postId = await ctx.db.insert("posts", {
         accountId,
         type: "feed",
@@ -24,6 +27,7 @@ describe("runScheduledPost credential phase", () => {
         status: "ready",
         createdAt: now,
       });
+
       return ctx.db.insert("scheduledPosts", {
         accountId,
         postId,
@@ -45,14 +49,17 @@ describe("runScheduledPost credential phase", () => {
 describe("getPublishProfile", () => {
   it("resolves the publisher profile for a connected account", async () => {
     const t = convexTest(schema, modules);
+
     const { scheduledPostId, accountId } = await t.run(async (ctx) => {
       const now = Date.now();
+
       const accountId = await ctx.db.insert("accounts", {
         handle: "cafelumiar",
         publisherConnectedAt: now,
         createdAt: now,
         updatedAt: now,
       });
+
       const postId = await ctx.db.insert("posts", {
         accountId,
         type: "feed",
@@ -62,6 +69,7 @@ describe("getPublishProfile", () => {
         status: "ready",
         createdAt: now,
       });
+
       const scheduledPostId = await ctx.db.insert("scheduledPosts", {
         accountId,
         postId,
@@ -70,24 +78,29 @@ describe("getPublishProfile", () => {
         createdAt: now,
         updatedAt: now,
       });
+
       return { scheduledPostId, accountId };
     });
 
     const profile = await t.query(internal.publishScheduled.getPublishProfile, {
       scheduledPostId,
     });
+
     // The publisher profile username is the account id by construction.
     expect(profile).toEqual({ username: String(accountId) });
   });
 
   it("returns null for an account that never connected", async () => {
     const t = convexTest(schema, modules);
+
     const scheduledPostId = await t.run(async (ctx) => {
       const now = Date.now();
+
       const accountId = await ctx.db.insert("accounts", {
         createdAt: now,
         updatedAt: now,
       });
+
       const postId = await ctx.db.insert("posts", {
         accountId,
         type: "feed",
@@ -97,6 +110,7 @@ describe("getPublishProfile", () => {
         status: "ready",
         createdAt: now,
       });
+
       return ctx.db.insert("scheduledPosts", {
         accountId,
         postId,

@@ -4,49 +4,60 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { internal } from "./_generated/api";
 import schema from "./schema";
+import { parseBrandKit } from "./workspace/brandKit";
 
 const modules = import.meta.glob("./**/*.ts");
 
 const setup = async () => {
   const t = convexTest(schema, modules);
   agentTest.register(t);
+
   const ids = await t.run(async (ctx) => {
     const now = Date.now();
+
     const accountId = await ctx.db.insert("accounts", {
       name: "Café da Ana",
       createdAt: now,
       updatedAt: now,
     });
+
     const foreignAccountId = await ctx.db.insert("accounts", {
       createdAt: now,
       updatedAt: now,
     });
+
     return { accountId, foreignAccountId };
   });
+
   return { t, ...ids };
 };
 
 describe("workspace writes", () => {
   it("round-trips a memory note through write, read and list", async () => {
     const { t, accountId } = await setup();
+
     const written = await t.mutation(internal.workspaceData.write, {
       accountId,
       path: "/memory/preferencias.md",
       content: "# Preferências\n\n- nunca usar vermelho",
     });
+
     expect(written).toEqual({ ok: true, path: "/memory/preferencias.md", note: "criado" });
 
     const read = await t.query(internal.workspaceData.read, {
       accountId,
       path: "/memory/preferencias.md",
     });
+
     expect(read.ok).toBe(true);
+
     if (read.ok && read.file.kind === "text") {
       expect(read.file.text).toContain("nunca usar vermelho");
     }
 
     const listing = await t.query(internal.workspaceData.list, { accountId, path: "/memory" });
     expect(listing.ok).toBe(true);
+
     if (listing.ok) {
       expect(listing.entries.map((entry) => entry.name)).toEqual(["preferencias.md"]);
     }
@@ -56,14 +67,17 @@ describe("workspace writes", () => {
     const { t, accountId } = await setup();
     const path = "/memory/plano.md";
     await t.mutation(internal.workspaceData.write, { accountId, path, content: "v1" });
+
     const second = await t.mutation(internal.workspaceData.write, {
       accountId,
       path,
       content: "v2",
     });
+
     expect(second).toEqual({ ok: true, path, note: "atualizado" });
 
     const read = await t.query(internal.workspaceData.read, { accountId, path });
+
     if (read.ok && read.file.kind === "text") expect(read.file.text).toBe("v2");
 
     const revisions = await t.run((ctx) =>
@@ -72,21 +86,26 @@ describe("workspace writes", () => {
         .withIndex("by_account_path", (q) => q.eq("accountId", accountId).eq("path", path))
         .collect(),
     );
+
     expect(revisions.map((revision) => revision.content)).toEqual(["v1", "v2"]);
   });
 
   it("writes brand notes and gates only them behind approval", async () => {
     const { t, accountId } = await setup();
+
     const written = await t.mutation(internal.workspaceData.write, {
       accountId,
       path: "/brand/notes.md",
       content: "assinar sempre como Café da Ana",
     });
+
     expect(written.ok).toBe(true);
+
     const read = await t.query(internal.workspaceData.read, {
       accountId,
       path: "/brand/notes.md",
     });
+
     if (read.ok && read.file.kind === "text") {
       expect(read.file.text).toContain("assinar sempre");
     }
@@ -94,6 +113,7 @@ describe("workspace writes", () => {
 
   it("validates and normalizes brand kit writes", async () => {
     const { t, accountId } = await setup();
+
     const written = await t.mutation(internal.workspaceData.write, {
       accountId,
       path: "/brand/kit.json",
@@ -103,20 +123,21 @@ describe("workspace writes", () => {
         tagline: "café com afeto",
       }),
     });
+
     expect(written.ok).toBe(true);
 
     const read = await t.query(internal.workspaceData.read, {
       accountId,
       path: "/brand/kit.json",
     });
+
     expect(read.ok).toBe(true);
+
     if (read.ok && read.file.kind === "text") {
-      const kit = JSON.parse(read.file.text) as {
-        colors: Array<{ hex: string }>;
-        tagline: string;
-      };
-      expect(kit.colors[0]!.hex).toBe("#d81b60");
-      expect(kit.tagline).toBe("café com afeto");
+      const kit = parseBrandKit(read.file.text);
+
+      expect(kit?.colors[0]?.hex).toBe("#d81b60");
+      expect(kit?.tagline).toBe("café com afeto");
     }
 
     const cases: Array<[string, string]> = [
@@ -124,19 +145,23 @@ describe("workspace writes", () => {
       [JSON.stringify({ colors: [{ hex: "rosa" }] }), "hex"],
       [JSON.stringify({ palette: [] }), "campo desconhecido"],
     ];
+
     for (const [content, hint] of cases) {
       const result = await t.mutation(internal.workspaceData.write, {
         accountId,
         path: "/brand/kit.json",
         content,
       });
+
       expect(result.ok).toBe(false);
+
       if (!result.ok) expect(result.error).toContain(hint);
     }
   });
 
   it("refuses projection writes with the verb that changes them", async () => {
     const { t, accountId } = await setup();
+
     const cases: Array<[string, string]> = [
       ["/images/promo.jpg", "paint"],
       ["/market/last-scan.json", "ferramentas Instagram"],
@@ -144,19 +169,23 @@ describe("workspace writes", () => {
       ["/brand/memory.md", "notes.md"],
       ["/nao-existe/x.md", "/memory"],
     ];
+
     for (const [path, hint] of cases) {
       const result = await t.mutation(internal.workspaceData.write, {
         accountId,
         path,
         content: "x",
       });
+
       expect(result.ok).toBe(false);
+
       if (!result.ok) expect(result.error).toContain(hint);
     }
   });
 
   it("rejects invalid names and oversized content", async () => {
     const { t, accountId } = await setup();
+
     for (const path of [
       "/memory/Nota Final.md",
       "/memory/nota.txt",
@@ -168,14 +197,18 @@ describe("workspace writes", () => {
         path,
         content: "x",
       });
+
       expect(result.ok).toBe(false);
     }
+
     const oversized = await t.mutation(internal.workspaceData.write, {
       accountId,
       path: "/memory/grande.md",
       content: "x".repeat(64_001),
     });
+
     expect(oversized.ok).toBe(false);
+
     if (!oversized.ok) expect(oversized.error).toContain("grande demais");
   });
 
@@ -186,16 +219,21 @@ describe("workspace writes", () => {
       path: "/memory/segredo.md",
       content: "receita secreta",
     });
+
     const listing = await t.query(internal.workspaceData.list, {
       accountId: foreignAccountId,
       path: "/memory",
     });
+
     expect(listing.ok).toBe(true);
+
     if (listing.ok) expect(listing.entries).toEqual([]);
+
     const read = await t.query(internal.workspaceData.read, {
       accountId: foreignAccountId,
       path: "/memory/segredo.md",
     });
+
     expect(read.ok).toBe(false);
   });
 });

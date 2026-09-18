@@ -31,6 +31,18 @@ import { resolveMessageImages } from "./messageImages";
 import { openrouterChatModel, systemPrompt, vanda, VANDA_MODEL } from "./vanda";
 import { errorMessage, publicError } from "../errors";
 import { errorCodeValidator, safeFailure } from "./publicErrors";
+import * as Schema from "effect/Schema";
+
+const TitleResponse = Schema.Struct({
+  choices: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        message: Schema.optional(Schema.Struct({ content: Schema.optional(Schema.String) })),
+      }),
+    ),
+  ),
+  usage: Schema.optional(Schema.Struct({ cost: Schema.optional(Schema.Number) })),
+});
 
 /**
  * The account's Vanda conversations. Multi-thread: the agent component owns
@@ -55,7 +67,9 @@ async function requireAccountThread(
   threadId: string,
 ) {
   const meta = await getThreadMetadata(ctx, components.agent, { threadId }).catch(() => null);
+
   if (!meta || meta.userId !== threadKey(accountId)) throw publicError("NOT_FOUND");
+
   return meta;
 }
 
@@ -85,6 +99,7 @@ export const listThreads = query({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<ThreadSummary[]> => {
     await requireOwnedAccount(ctx, accountId);
+
     const [threads, activity] = await Promise.all([
       ctx.runQuery(components.agent.threads.listThreadsByUserId, {
         userId: threadKey(accountId),
@@ -96,7 +111,9 @@ export const listThreads = query({
         .withIndex("by_account", (q) => q.eq("accountId", accountId))
         .collect(),
     ]);
+
     const processing = new Set(activity.map((row) => row.threadId));
+
     return threads.page
       .filter((thread) => thread.status === "active")
       .map((thread) => ({
@@ -114,6 +131,7 @@ export const renameThread = mutation({
     await requireOwnedAccount(ctx, accountId);
     await requireAccountThread(ctx, accountId, threadId);
     const trimmed = title.trim();
+
     if (!trimmed) throw publicError("INVALID_INPUT");
     await updateThreadMetadata(ctx, components.agent, {
       threadId,
@@ -152,20 +170,25 @@ export const sendMessage = mutation({
     { accountId, threadId, prompt, imageIds },
   ): Promise<{ threadId: string; messageId: string }> => {
     const account = await requireOwnedAccount(ctx, accountId);
+
     // The budget gate lives before any model work is scheduled: over the
     // limit, nothing is generated (a generated apology would itself cost).
     if (account.ownerUserId) {
       const owner = await ctx.db.get(account.ownerUserId);
+
       if (owner && !isConnectedSubscriber(owner) && !(await budgetOf(ctx, owner)).ok) {
         throw publicError("USAGE_LIMIT");
       }
     }
+
     const trimmed = prompt.trim();
     const images = await resolveMessageImages(ctx, accountId, imageIds ?? []);
+
     if (!trimmed && images.length === 0) throw publicError("INVALID_INPUT");
 
     let title: string | null = null;
     let target = threadId;
+
     if (target === undefined) {
       target = await createThread(ctx, components.agent, { userId: threadKey(accountId) });
     } else {
@@ -180,7 +203,9 @@ export const sendMessage = mutation({
               ", ",
             )}. Você pode referenciá-las em ferramentas usando esses IDs; para editar uma, passe o ID em editOfImageId.</vanda_attachment_context>`
         : "";
+
     const modelText = [trimmed, attachmentContext].filter(Boolean).join("\n\n");
+
     const { messageId } = await saveMessage(ctx, components.agent, {
       threadId: target,
       message: {
@@ -195,10 +220,12 @@ export const sendMessage = mutation({
         ],
       },
     });
+
     const attachedAt = Date.now();
     await Promise.all(
       images.map((image) => ctx.db.patch(image.imageId, { lastAttachedAt: attachedAt })),
     );
+
     // The titling model names the conversation from its first message; until
     // the title lands, the sidebar shows a placeholder (title === null).
     if (!title) {
@@ -208,6 +235,7 @@ export const sendMessage = mutation({
         prompt: trimmed || "Imagem anexada",
       });
     }
+
     const activityId = await startThreadActivity(ctx, accountId, target, messageId);
     await ctx.scheduler.runAfter(0, internal.chat.generateResponse, {
       accountId,
@@ -215,6 +243,7 @@ export const sendMessage = mutation({
       promptMessageId: messageId,
       activityId,
     });
+
     return { threadId: target, messageId };
   },
 });
@@ -236,21 +265,27 @@ export const generateTitle = internalAction({
   },
   handler: async (ctx, { accountId, threadId, prompt }): Promise<void> => {
     const fallback = prompt.length > 60 ? `${prompt.slice(0, 57)}…` : prompt;
+
     const system =
       "Você nomeia conversas de um estúdio de marketing para Instagram. Responda APENAS " +
       "com um título curto (3 a 6 palavras) em português do Brasil que resuma o pedido " +
       "do usuário. Sem aspas, sem ponto final, sem emojis, sem explicações.";
+
     let title = fallback;
+
     try {
       const sub = accountId
         ? await ctx.runQuery(internal.openaiSub.subscriberState, { accountId })
         : { active: false as const, userId: null };
+
       let raw: string;
+
       if (sub.active && sub.userId) {
         // Conectado plan: luna through the owner's ChatGPT subscription.
         const auth = await ctx.runAction(internal.openaiSubNode.getAccess, {
           userId: sub.userId,
         });
+
         raw = await codexResponsesText({
           auth,
           model: VANDA_TITLE_MODEL,
@@ -259,7 +294,9 @@ export const generateTitle = internalAction({
         });
       } else {
         const apiKey = process.env.OPENROUTER_API_KEY;
+
         if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set");
+
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
@@ -273,12 +310,12 @@ export const generateTitle = internalAction({
             max_tokens: 100,
           }),
         });
+
         if (!response.ok) throw new Error(`OpenRouter HTTP ${response.status}`);
-        const json = (await response.json()) as {
-          choices?: ReadonlyArray<{ message?: { content?: string } }>;
-          usage?: { cost?: number };
-        };
-        if (accountId && typeof json.usage?.cost === "number" && json.usage.cost > 0) {
+
+        const json = Schema.decodeUnknownSync(TitleResponse)(await response.json());
+
+        if (accountId && json.usage?.cost !== undefined && json.usage.cost > 0) {
           await ctx.runMutation(internal.usage.charge, {
             accountId,
             kind: "title",
@@ -286,18 +323,23 @@ export const generateTitle = internalAction({
             ref: VANDA_TITLE_MODEL,
           });
         }
+
         raw = json.choices?.[0]?.message?.content ?? "";
       }
+
       const cleaned = raw
         .trim()
         .replace(/^["'“”]+|["'“”]+$/g, "")
         .replace(/\.+$/, "")
         .trim();
+
       if (cleaned) title = cleaned.slice(0, 80);
     } catch {
       // fallback title stands
     }
+
     const meta = await getThreadMetadata(ctx, components.agent, { threadId }).catch(() => null);
+
     if (!meta || meta.title) return;
     await updateThreadMetadata(ctx, components.agent, { threadId, patch: { title } });
   },
@@ -319,16 +361,20 @@ export const generateResponse = internalAction({
     { accountId, threadId, promptMessageId, activityId, caetanoThreadId },
   ): Promise<string> => {
     let streamError: unknown;
+
     try {
       if (activityId && !(await ctx.runQuery(internal.chat.activityExists, { activityId })))
         return "";
       // Which model thinks as Vanda this turn: the owner's pick, resolved
       // against the transport (Conectado can only carry OpenAI models).
       const sub = await ctx.runQuery(internal.openaiSub.subscriberState, { accountId });
+
       const preferred = await ctx.runQuery(internal.users.orchestratorModelForAccount, {
         accountId,
       });
+
       const modelId = resolveOrchestratorModel(preferred, { conectado: sub.active });
+
       const model =
         sub.active && sub.userId
           ? // Conectado plan: the chosen model, billed to the owner's ChatGPT
@@ -340,39 +386,51 @@ export const generateResponse = internalAction({
           : modelId === VANDA_MODEL
             ? undefined // the agent's configured default — no override needed
             : openrouterChatModel(modelId);
-      const result = await vanda.streamText(
-        {
-          ...ctx,
-          accountId,
-          ...(activityId ? { activityId } : {}),
-          ...(caetanoThreadId ? { caetanoThreadId } : {}),
+
+      const streamContext = { ...ctx, accountId };
+
+      if (activityId) Object.assign(streamContext, { activityId });
+
+      if (caetanoThreadId) Object.assign(streamContext, { caetanoThreadId });
+
+      const streamOptions = {
+        promptMessageId,
+        system: systemPrompt(),
+        maxOutputTokens: AGENT_MAX_OUTPUT_TOKENS,
+        onError: ({ error }: { error: unknown }) => {
+          streamError = error;
         },
+      };
+
+      if (model) Object.assign(streamOptions, { model });
+
+      const result = await vanda.streamText(
+        streamContext,
         { threadId },
         // The live-clock system prompt replaces the agent's static
         // instructions so relative dates ("amanhã às 8") resolve correctly.
-        {
-          promptMessageId,
-          system: systemPrompt(),
-          maxOutputTokens: AGENT_MAX_OUTPUT_TOKENS,
-          onError: ({ error }) => {
-            streamError = error;
-          },
-          ...(model ? { model } : {}),
-        },
+        streamOptions,
         { saveStreamDeltas: true },
       );
+
       await result.consumeStream();
+
       if (streamError !== undefined) throw streamError;
+
       return await result.text;
     } catch (error) {
       console.error("Vanda generation failed", { threadId, error: streamError ?? error });
       const failure = safeFailure(streamError ?? error);
-      const recorded = await ctx.runMutation(internal.chat.recordGenerationFailure, {
+
+      const failureArgs = {
         accountId,
         threadId,
-        ...(activityId ? { activityId } : {}),
         code: failure.code,
-      });
+      };
+
+      if (activityId) Object.assign(failureArgs, { activityId });
+      const recorded = await ctx.runMutation(internal.chat.recordGenerationFailure, failureArgs);
+
       return recorded ? failure.message : "";
     } finally {
       if (activityId) await ctx.runMutation(internal.chat.finishThreadActivity, { activityId });
@@ -389,26 +447,41 @@ export const recordGenerationFailure = internalMutation({
   },
   handler: async (ctx, { accountId, threadId, activityId, code }): Promise<boolean> => {
     let promptMessageId: string | undefined;
+
     if (activityId) {
       const activity = await ctx.db.get(activityId);
+
       if (!activity || activity.accountId !== accountId || activity.threadId !== threadId) {
         // The stop action deletes the activity before aborting the stream.
         return false;
       }
+
       promptMessageId = activity.promptMessageId;
     }
+
     const metadata = await getThreadMetadata(ctx, components.agent, { threadId }).catch(() => null);
+
     if (!metadata || metadata.userId !== threadKey(accountId)) return false;
-    await saveMessage(ctx, components.agent, {
-      threadId,
-      ...(promptMessageId ? { promptMessageId } : {}),
-      agentName: "vanda",
-      message: {
-        role: "assistant",
-        content: errorMessage({ kind: "vanda-error", code: code ?? "UNEXPECTED" }),
-      },
-    });
+
+    const content = errorMessage({ kind: "vanda-error", code: code ?? "UNEXPECTED" });
+
+    if (promptMessageId) {
+      await saveMessage(ctx, components.agent, {
+        threadId,
+        promptMessageId,
+        agentName: "vanda",
+        message: { role: "assistant", content },
+      });
+    } else {
+      await saveMessage(ctx, components.agent, {
+        threadId,
+        agentName: "vanda",
+        message: { role: "assistant", content },
+      });
+    }
+
     if (activityId && (await ctx.db.get(activityId))) await ctx.db.delete(activityId);
+
     return true;
   },
 });
@@ -417,13 +490,17 @@ export const expireThreadActivity = internalMutation({
   args: { activityId: v.id("chatThreadActivity") },
   handler: async (ctx, { activityId }): Promise<boolean> => {
     const activity = await ctx.db.get(activityId);
+
     if (!activity) return false;
+
     const [prompt] = await ctx.runQuery(components.agent.messages.getMessagesByIds, {
       messageIds: [activity.promptMessageId],
     });
+
     const thread = await getThreadMetadata(ctx, components.agent, {
       threadId: activity.threadId,
     }).catch(() => null);
+
     if (
       !prompt ||
       prompt.threadId !== activity.threadId ||
@@ -432,14 +509,17 @@ export const expireThreadActivity = internalMutation({
     ) {
       // Broken references must not poison the sweep or write into another account's thread.
       await ctx.db.delete(activityId);
+
       return true;
     }
+
     // Abort by the prompt's order, not by whichever stream happens to be newest.
     await abortStream(ctx, components.agent, {
       threadId: activity.threadId,
       order: prompt.order,
       reason: "timeout",
     });
+
     return ctx.runMutation(internal.chat.recordGenerationFailure, {
       accountId: activity.accountId,
       threadId: activity.threadId,
@@ -457,6 +537,7 @@ export const expireStaleActivities = internalMutation({
       .query("chatThreadActivity")
       .withIndex("by_started", (q) => q.lte("startedAt", Date.now() - 15 * 60_000))
       .take(100);
+
     for (const activity of stale) {
       await ctx.runMutation(internal.chat.expireThreadActivity, { activityId: activity._id });
     }
@@ -487,6 +568,7 @@ export const threadHasActivity = internalQuery({
       .query("chatThreadActivity")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .collect();
+
     return rows.some((row) => row.threadId === threadId);
   },
 });
@@ -514,6 +596,7 @@ export const stopGeneration = mutation({
       ),
     );
     const latestOrder = streams.reduce((max, stream) => Math.max(max, stream.order), -1);
+
     if (latestOrder >= 0) {
       await abortStream(ctx, components.agent, {
         threadId,
@@ -526,6 +609,7 @@ export const stopGeneration = mutation({
       .query("chatThreadActivity")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .collect();
+
     await Promise.all(
       activity.filter((row) => row.threadId === threadId).map((row) => ctx.db.delete(row._id)),
     );
@@ -544,6 +628,7 @@ export const listMessages = query({
     await requireAccountThread(ctx, accountId, threadId);
     const paginated = await listUIMessages(ctx, components.agent, { threadId, paginationOpts });
     const streams = await syncStreams(ctx, components.agent, { threadId, streamArgs });
+
     return { ...paginated, streams };
   },
 });
@@ -562,20 +647,25 @@ export const postAssistantNote = internalMutation({
   },
   handler: async (ctx, { accountId, threadId, text }): Promise<void> => {
     let target: string | null = threadId ?? null;
+
     if (target) {
       const meta = await getThreadMetadata(ctx, components.agent, { threadId: target }).catch(
         () => null,
       );
+
       if (!meta || meta.userId !== threadKey(accountId) || meta.status !== "active") target = null;
     }
+
     if (!target) {
       const threads = await ctx.runQuery(components.agent.threads.listThreadsByUserId, {
         userId: threadKey(accountId),
         order: "desc",
         paginationOpts: { cursor: null, numItems: 20 },
       });
+
       target = threads.page.find((thread) => thread.status === "active")?._id ?? null;
     }
+
     if (!target) return;
     await saveMessage(ctx, components.agent, {
       threadId: target,
@@ -595,10 +685,13 @@ export const migrateThreadKeys = internalMutation({
   handler: async (ctx): Promise<{ migrated: number }> => {
     let migrated = 0;
     const accounts = await ctx.db.query("accounts").collect();
+
     for (const account of accounts) {
       const threadId = account.vandaThreadId;
+
       if (!threadId) continue;
       const meta = await getThreadMetadata(ctx, components.agent, { threadId }).catch(() => null);
+
       if (!meta || meta.userId === threadKey(account._id)) continue;
       await updateThreadMetadata(ctx, components.agent, {
         threadId,
@@ -606,6 +699,7 @@ export const migrateThreadKeys = internalMutation({
       });
       migrated += 1;
     }
+
     return { migrated };
   },
 });

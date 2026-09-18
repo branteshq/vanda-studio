@@ -18,9 +18,12 @@ import { entityName } from "./workspace/types";
 
 /** Sandbox output above this is rejected: nothing legitimate composes >32MP. */
 const MAX_OUTPUT_PIXELS = 32_000_000;
+
 const MAX_TEXT_ARTIFACT_BYTES = 1024 * 1024;
+
 /** Agent-visible text budget for stdout/stderr; the tail carries the traceback. */
 const MAX_LOG_CHARS = 8 * 1024;
+
 /** 2 vCPU + 2 GiB at E2B per-second rates — recorded, not billed to the user. */
 const SANDBOX_USD_PER_MS = 3.7e-8;
 
@@ -39,27 +42,90 @@ type ResolvedSource = {
   readonly storageId: Id<"_storage"> | null;
 };
 
+type SandboxMetadata =
+  | { path: string; kind: "text"; mimeType: string }
+  | {
+      path: string;
+      kind: "image";
+      imageId: Id<"images">;
+      name: string | null;
+      width: number | null;
+      height: number | null;
+      mimeType: string | null;
+    };
+
+interface BeginCodeRunInput {
+  accountId: Id<"accounts">;
+  code: string;
+  description: string;
+  threadId?: string;
+}
+
+interface SaveCodeImageInput {
+  accountId: Id<"accounts">;
+  storageId: Id<"_storage">;
+  prompt: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  model: string;
+  generationMs: number;
+  costUsd: number;
+  name: string;
+  promptAuthor: "vanda";
+  codeRunId: Id<"codeRuns">;
+  activityId?: Id<"chatThreadActivity">;
+}
+
+interface SaveArtifactInput {
+  codeRunId: Id<"codeRuns">;
+  filename: string;
+  mimeType: string;
+  content: string;
+  activityId?: Id<"chatThreadActivity">;
+}
+
+interface FinishCodeRunInput {
+  codeRunId: Id<"codeRuns">;
+  status: "ok" | "failed";
+  stdout: string;
+  stderr: string;
+  durationMs: number;
+  costUsd: number;
+  imageIds: Id<"images">[];
+  activityId?: Id<"chatThreadActivity">;
+}
+
 const resolveSourceUrl = async (ctx: ActionCtx, source: ResolvedSource): Promise<string> => {
   if (source.externalUrl) return source.externalUrl;
+
   if (source.storageId) {
     const url = await ctx.storage.getUrl(source.storageId);
+
     if (url) return url;
   }
+
   throw new Error("image has no resolvable URL");
 };
 
 const bytesBlob = (bytes: Uint8Array, mimeType: string): Blob => {
   const copy = new Uint8Array(bytes.byteLength);
   copy.set(bytes);
+
   return new Blob([copy.buffer], { type: mimeType });
 };
 
 const artifactMimeType = (filename: string): string | null => {
   const lower = filename.toLowerCase();
+
   if (lower.endsWith(".json")) return "application/json";
+
   if (lower.endsWith(".csv")) return "text/csv";
+
   if (lower.endsWith(".md")) return "text/markdown";
+
   if (lower.endsWith(".txt")) return "text/plain";
+
   return null;
 };
 
@@ -99,10 +165,13 @@ export const run = internalAction({
     }>;
   }> => {
     const budget = await ctx.runQuery(internal.usage.budget, { accountId });
+
     if (!budget.ok) throw publicError("USAGE_LIMIT");
     const trimmedCode = code.trim();
+
     if (!trimmedCode) throw new Error("código vazio");
     const apiKey = process.env.E2B_API_KEY;
+
     if (!apiKey) throw new Error("E2B_API_KEY is not set on the Convex deployment");
 
     // Identity wall + rate limit before any bytes move.
@@ -110,12 +179,15 @@ export const run = internalAction({
       accountId,
       inputs: inputPaths ?? [],
     });
-    const codeRunId = await ctx.runMutation(internal.codeRunsData.beginCodeRun, {
+
+    const beginInput: BeginCodeRunInput = {
       accountId,
       code: trimmedCode,
       description,
-      ...(threadId ? { threadId } : {}),
-    });
+    };
+
+    if (threadId) beginInput.threadId = threadId;
+    const codeRunId = await ctx.runMutation(internal.codeRunsData.beginCodeRun, beginInput);
 
     const fail = async (error: string): Promise<never> => {
       await ctx.runMutation(internal.codeRunsData.finishCodeRun, {
@@ -129,15 +201,18 @@ export const run = internalAction({
     // Materialize inputs at their workspace mirror path — the path the agent
     // read in conversation is the path its Python opens. meta.json lists them.
     const files: SandboxInputFile[] = [];
-    const meta: Array<Record<string, unknown>> = [];
+    const meta: SandboxMetadata[] = [];
+
     for (const input of inputs) {
       if (input.kind === "text") {
         files.push({ path: input.sandboxPath, data: input.content });
         meta.push({ path: input.sandboxPath, kind: "text", mimeType: input.mimeType });
         continue;
       }
+
       const url = await resolveSourceUrl(ctx, input);
       const response = await fetch(url);
+
       if (!response.ok) return fail(`falha ao carregar imagem de entrada (${response.status})`);
       const bytes = new Uint8Array(await response.arrayBuffer());
       const sniffed = sniffImage(bytes);
@@ -152,12 +227,14 @@ export const run = internalAction({
         mimeType: sniffed?.mimeType ?? input.mimeType ?? "image/jpeg",
       });
     }
+
     files.push({ path: "/home/user/meta.json", data: JSON.stringify(meta, null, 2) });
 
     // Cooperative stop, same shape as paint: the owner's stop button deletes
     // the thread's activity row; a watcher polls it and kills the sandbox.
     let cancelled = false;
     let killSandbox: (() => Promise<void>) | null = null;
+
     const watcher =
       activityId || threadId
         ? setInterval(() => {
@@ -178,6 +255,7 @@ export const run = internalAction({
 
     const startedAt = Date.now();
     let result: SandboxRunResult;
+
     try {
       result = await Effect.runPromise(
         Effect.flatMap(CodeSandbox, (sandbox) =>
@@ -196,12 +274,14 @@ export const run = internalAction({
       );
     } catch (error) {
       if (cancelled) return fail("execução interrompida pelo dono");
+
       return fail(
         `falha na execução do sandbox: ${error instanceof Error ? error.message : String(error)}`,
       );
     } finally {
       if (watcher) clearInterval(watcher);
     }
+
     // The run may have finished in the polling gap — never save results the
     // owner already walked away from.
     if (
@@ -213,6 +293,7 @@ export const run = internalAction({
     ) {
       return fail("execução interrompida pelo dono");
     }
+
     try {
       const durationMs = Date.now() - startedAt;
       const costUsd = durationMs * SANDBOX_USD_PER_MS;
@@ -220,24 +301,31 @@ export const run = internalAction({
       // Sandbox output is untrusted: images are sniffed; structured text is
       // UTF-8 decoded and capped before it enters the workspace.
       const skipped = [...result.skipped];
+
       const images: Array<{ imageId: Id<"images">; name: string; width: number; height: number }> =
         [];
+
       const artifacts: Array<{
         artifactId: Id<"codeRunArtifacts">;
         filename: string;
         mimeType: string;
         path: string;
       }> = [];
+
       const runName = entityName(description, codeRunId);
+
       for (const output of result.outputs) {
         const sniffed = sniffImage(output.bytes);
+
         if (sniffed) {
           if (sniffed.width * sniffed.height > MAX_OUTPUT_PIXELS) {
             skipped.push(`${output.filename}: maior que ${MAX_OUTPUT_PIXELS / 1_000_000}MP`);
             continue;
           }
+
           const storageId = await ctx.storage.store(bytesBlob(output.bytes, sniffed.mimeType));
-          const imageId = await ctx.runMutation(internal.imagesData.savePaintedImage, {
+
+          const saveImageInput: SaveCodeImageInput = {
             accountId,
             storageId,
             prompt: description,
@@ -250,8 +338,15 @@ export const run = internalAction({
             name: filenameToName(output.filename),
             promptAuthor: "vanda",
             codeRunId,
-            ...(activityId ? { activityId } : {}),
-          });
+          };
+
+          if (activityId) saveImageInput.activityId = activityId;
+
+          const imageId = await ctx.runMutation(
+            internal.imagesData.savePaintedImage,
+            saveImageInput,
+          );
+
           images.push({
             imageId,
             name: filenameToName(output.filename),
@@ -262,21 +357,26 @@ export const run = internalAction({
         }
 
         const mimeType = artifactMimeType(output.filename);
+
         if (!mimeType) {
           skipped.push(`${output.filename}: extensão de saída não permitida`);
           continue;
         }
+
         if (output.bytes.byteLength > MAX_TEXT_ARTIFACT_BYTES) {
           skipped.push(`${output.filename}: maior que 1MB`);
           continue;
         }
+
         let content: string;
+
         try {
           content = new TextDecoder("utf-8", { fatal: true }).decode(output.bytes);
         } catch {
           skipped.push(`${output.filename}: texto não é UTF-8 válido`);
           continue;
         }
+
         if (mimeType === "application/json") {
           try {
             JSON.parse(content);
@@ -285,13 +385,21 @@ export const run = internalAction({
             continue;
           }
         }
-        const artifactId = await ctx.runMutation(internal.codeRunsData.saveCodeRunArtifact, {
+
+        const artifactInput: SaveArtifactInput = {
           codeRunId,
           filename: output.filename,
           mimeType,
           content,
-          ...(activityId ? { activityId } : {}),
-        });
+        };
+
+        if (activityId) artifactInput.activityId = activityId;
+
+        const artifactId = await ctx.runMutation(
+          internal.codeRunsData.saveCodeRunArtifact,
+          artifactInput,
+        );
+
         artifacts.push({
           artifactId,
           filename: output.filename,
@@ -301,12 +409,14 @@ export const run = internalAction({
       }
 
       const stdout = truncateKeepTail(result.stdout);
+
       const stderr = truncateKeepTail(
         [result.stderr, ...skipped.map((note) => `arquivo ignorado — ${note}`)]
           .filter(Boolean)
           .join("\n"),
       );
-      await ctx.runMutation(internal.codeRunsData.finishCodeRun, {
+
+      const finishInput: FinishCodeRunInput = {
         codeRunId,
         status: result.ok ? "ok" : "failed",
         stdout,
@@ -314,11 +424,15 @@ export const run = internalAction({
         durationMs,
         costUsd,
         imageIds: images.map((image) => image.imageId),
-        ...(activityId ? { activityId } : {}),
-      });
+      };
+
+      if (activityId) finishInput.activityId = activityId;
+      await ctx.runMutation(internal.codeRunsData.finishCodeRun, finishInput);
+
       return { ok: result.ok, stdout, stderr, images, artifacts };
     } catch (error) {
       console.error("Code run output persistence failed", { codeRunId, error });
+
       return fail("Não foi possível salvar o resultado desta execução.");
     }
   },

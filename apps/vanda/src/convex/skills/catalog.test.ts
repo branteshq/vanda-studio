@@ -36,6 +36,7 @@ describe("skill catalog", () => {
     const prompt = formatSkillsForSystemPrompt([
       skill({ name: "always", body: "Apply this to every answer.", alwaysApply: true }),
     ]);
+
     expect(prompt).toContain('<skill name="always"');
     expect(prompt).toContain("Apply this to every answer.");
     expect(prompt).not.toContain("<available_skills>");
@@ -45,6 +46,7 @@ describe("skill catalog", () => {
     const prompt = formatSkillsForSystemPrompt([
       skill({ description: 'Use for <examples> & "tests".', body: "SECRET BODY" }),
     ]);
+
     expect(prompt).toContain("<available_skills>");
     expect(prompt).toContain("Use for &lt;examples&gt; &amp; &quot;tests&quot;.");
     expect(prompt).toContain("/skills/example/SKILL.md");

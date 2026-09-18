@@ -20,6 +20,7 @@ import {
 } from "../convex/imageModels";
 
 const ASPECT_RATIOS = ["1:1", "4:5", "9:16", "16:9"] as const;
+
 type AspectRatio = (typeof ASPECT_RATIOS)[number];
 
 // Mini-rectangle geometry (px) per ratio, drawn as an icon so orientation reads
@@ -59,6 +60,7 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
   const [aspect, setAspect] = useState<AspectRatio>("1:1");
   const [resolution, setResolution] = useState<ImageResolution>("1K");
   const [busy, setBusy] = useState(false);
+
   // The backend forces gpt-image-2 for Conectado anyway; the picker mirrors it.
   const models = connectedOnly
     ? new Set([CONECTADO_IMAGE_MODEL])
@@ -72,8 +74,10 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
   // best shared one — and springs back to 4K when that model leaves again.
   const allowedResolutions = sharedResolutions(models);
   let effectiveResolution: ImageResolution = "1K";
+
   for (let i = IMAGE_RESOLUTIONS.indexOf(resolution); i >= 0; i -= 1) {
     const tier = IMAGE_RESOLUTIONS[i]!;
+
     if (allowedResolutions.includes(tier)) {
       effectiveResolution = tier;
       break;
@@ -83,17 +87,20 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
   const toggleModel = (id: string) =>
     setSelected(() => {
       const next = new Set(models);
+
       if (next.has(id)) {
         if (next.size > 1) next.delete(id);
       } else {
         next.add(id);
       }
+
       return next;
     });
 
   const run = async () => {
     if (!canGenerate) return;
     setBusy(true);
+
     try {
       await generate({
         accountId,
@@ -128,6 +135,7 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
           <div className="space-y-2">
             {availableModels.map((model) => {
               const active = models.has(model.id);
+
               return (
                 <button
                   key={model.id}
@@ -173,6 +181,7 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
             {ASPECT_RATIOS.map((value) => {
               const active = aspect === value;
               const dims = ASPECT_ICON[value];
+
               return (
                 <button
                   key={value}
@@ -204,10 +213,12 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
             {IMAGE_RESOLUTIONS.map((tier) => {
               const supported = allowedResolutions.includes(tier);
               const active = effectiveResolution === tier;
+
               // Which of the selected models cap this tier out.
               const blockers = IMAGE_MODELS.filter(
                 (model) => models.has(model.id) && !model.resolutions.includes(tier),
               ).map((model) => model.label);
+
               const button = (
                 <button
                   key={tier}
@@ -229,6 +240,7 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
                   <span className="text-note">{tier}</span>
                 </button>
               );
+
               // Kept clickable-looking enough to explain itself: hovering a
               // gated tier names the models that don't support it.
               return supported ? (

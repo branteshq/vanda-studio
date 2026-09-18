@@ -43,6 +43,7 @@ function ChipEditor({
 
   function commit() {
     const next = value.trim();
+
     if (next.length > 0 && !items.includes(next)) onChange([...items, next]);
     setValue("");
     setAdding(false);
@@ -153,16 +154,21 @@ function ReferencePhotos({ accountId }: { accountId: Id<"accounts"> }) {
     if (!files || files.length === 0) return;
     setUploading(true);
     setError(null);
+
     try {
       for (const file of Array.from(files)) {
         const url = await generateUploadUrl();
+
         const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": file.type },
           body: file,
         });
+
         if (!res.ok) throw new Error(`upload failed: ${res.status}`);
+        // SAFETY: Convex's generated upload endpoint returns this documented response contract.
         const { storageId } = (await res.json()) as { storageId?: Id<"_storage"> };
+
         if (!storageId) throw new Error("upload returned no storageId");
         await addReferencePhoto({ accountId, storageId });
       }
@@ -170,6 +176,7 @@ function ReferencePhotos({ accountId }: { accountId: Id<"accounts"> }) {
       setError("Não consegui enviar a foto. Tente de novo.");
     } finally {
       setUploading(false);
+
       if (inputRef.current) inputRef.current.value = "";
     }
   }
@@ -248,8 +255,10 @@ export function ConfirmStep({
 
   const setText = (key: "identity" | "summary", text: string) =>
     setDraft((d) => ({ ...d, [key]: { ...d[key], text } }));
+
   const setGroup = (key: GroupKey, items: string[]) =>
     setDraft((d) => ({ ...d, [key]: { ...d[key], items } }));
+
   const setKind = (value: BrandKindValue) =>
     setDraft((d) => ({ ...d, kind: { ...d.kind, value } }));
 

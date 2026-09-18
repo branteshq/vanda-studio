@@ -71,8 +71,8 @@ const toItem = async (ctx: QueryCtx, image: Doc<"images">): Promise<GalleryItem>
   status: image.status ?? null,
   generationErrorCode:
     image.status === "failed"
-      ? image.generationErrorCode ??
-        (isErrorCode(image.generationError) ? image.generationError : "UNEXPECTED")
+      ? (image.generationErrorCode ??
+        (isErrorCode(image.generationError) ? image.generationError : "UNEXPECTED"))
       : null,
 });
 
@@ -81,14 +81,17 @@ export const list = query({
   args: { accountId: v.id("accounts"), paginationOpts: paginationOptsValidator },
   handler: async (ctx, { accountId, paginationOpts }) => {
     await requireOwnedAccount(ctx, accountId);
+
     const page = await ctx.db
       .query("images")
       .withIndex("by_account_created", (q) => q.eq("accountId", accountId))
       .order("desc")
       .paginate(paginationOpts);
+
     const items = await Promise.all(
       page.page.filter((image) => image.purpose !== "reference").map((image) => toItem(ctx, image)),
     );
+
     return { ...page, page: items };
   },
 });
@@ -99,7 +102,9 @@ export const get = query({
   handler: async (ctx, { accountId, imageId }): Promise<GalleryItemDetail | null> => {
     await requireOwnedAccount(ctx, accountId);
     const image = await ctx.db.get(imageId);
+
     if (!image || image.accountId !== accountId) return null;
+
     return {
       ...(await toItem(ctx, image)),
       prompt: image.prompt ?? null,
@@ -117,6 +122,7 @@ export const rename = mutation({
   handler: async (ctx, { accountId, imageId, name }): Promise<void> => {
     await requireOwnedAccount(ctx, accountId);
     const image = await ctx.db.get(imageId);
+
     if (!image || image.accountId !== accountId) throw new Error("image not found");
     const trimmed = name.trim();
     await ctx.db.patch(imageId, { name: trimmed ? trimmed.slice(0, 120) : undefined });
@@ -130,15 +136,19 @@ async function deleteImage(
   imageId: Id<"images">,
 ): Promise<void> {
   const image = await ctx.db.get(imageId);
+
   if (!image || image.accountId !== accountId) throw new Error("image not found");
+
   if (image.storageId) {
     const stillLinked = await ctx.db
       .query("images")
       .withIndex("by_storage", (q) => q.eq("storageId", image.storageId))
       .filter((q) => q.neq(q.field("_id"), imageId))
       .first();
+
     if (stillLinked === null) await ctx.storage.delete(image.storageId);
   }
+
   await ctx.db.delete(imageId);
 }
 
@@ -159,9 +169,11 @@ export const removeMany = mutation({
   args: { accountId: v.id("accounts"), imageIds: v.array(v.id("images")) },
   handler: async (ctx, { accountId, imageIds }): Promise<void> => {
     await requireOwnedAccount(ctx, accountId);
+
     if (imageIds.length > MAX_BULK_REMOVE) {
       throw new Error(`máximo de ${MAX_BULK_REMOVE} imagens por exclusão`);
     }
+
     for (const imageId of imageIds) {
       await deleteImage(ctx, accountId, imageId);
     }
@@ -204,19 +216,25 @@ export const generate = mutation({
     const owner = account.ownerUserId ? await ctx.db.get(account.ownerUserId) : null;
     const conectado = owner !== null && isConnectedSubscriber(owner);
     const trimmed = prompt.trim();
+
     if (!trimmed) throw new Error("prompt vazio");
+
     const models = modelIds.filter(
       (id) => isKnownImageModel(id) || (conectado && id === CONECTADO_IMAGE_MODEL),
     );
+
     if (models.length === 0) throw new Error("nenhum modelo válido selecionado");
     const perModel = Math.max(1, Math.floor(count));
     const total = models.length * perModel;
+
     if (total > MAX_GENERATION_FANOUT) {
       throw new Error(`máximo de ${MAX_GENERATION_FANOUT} imagens por geração`);
     }
+
     // Placeholder dimensions only drive the skeleton's aspect ratio in the grid;
     // the real dimensions overwrite them when the paint lands.
     const [ratioWidth, ratioHeight] = RATIO_DIMS[aspectRatio];
+
     for (const model of models) {
       for (let i = 0; i < perModel; i += 1) {
         // The grid shows this row as a skeleton immediately; paint fills it in
@@ -233,20 +251,27 @@ export const generate = mutation({
           height: ratioHeight,
           createdAt: Date.now(),
         });
-        await ctx.scheduler.runAfter(0, internal.images.paint, {
+
+        const paintArgs: PaintRequest = {
           accountId,
           prompt: trimmed,
           aspectRatio,
           model,
           promptAuthor: "user",
           placeholderImageId,
-          // paint clamps per model, so a mixed selection degrades gracefully.
-          ...(resolution ? { resolution } : {}),
-          ...(referenceImageIds && referenceImageIds.length > 0 ? { referenceImageIds } : {}),
-          ...(editOfImageId ? { editOfImageId } : {}),
-        });
+        };
+
+        // paint clamps per model, so a mixed selection degrades gracefully.
+        if (resolution) paintArgs.resolution = resolution;
+
+        if (referenceImageIds && referenceImageIds.length > 0)
+          paintArgs.referenceImageIds = referenceImageIds;
+
+        if (editOfImageId) paintArgs.editOfImageId = editOfImageId;
+        await ctx.scheduler.runAfter(0, internal.images.paint, paintArgs);
       }
     }
+
     return { scheduled: total };
   },
 });
@@ -256,4 +281,16 @@ const RATIO_DIMS: Record<"1:1" | "4:5" | "9:16" | "16:9", readonly [number, numb
   "4:5": [1024, 1280],
   "9:16": [720, 1280],
   "16:9": [1280, 720],
+};
+
+type PaintRequest = {
+  accountId: Id<"accounts">;
+  prompt: string;
+  aspectRatio: "1:1" | "4:5" | "9:16" | "16:9";
+  model: string;
+  promptAuthor: "user";
+  placeholderImageId: Id<"images">;
+  resolution?: "1K" | "2K" | "4K";
+  referenceImageIds?: Id<"images">[];
+  editOfImageId?: Id<"images">;
 };

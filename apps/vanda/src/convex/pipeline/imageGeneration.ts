@@ -2,6 +2,7 @@ import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
 
 export interface GeneratedVisual {
   readonly bytes: Uint8Array;
@@ -16,7 +17,7 @@ export class ImageGenerationFailed extends Data.TaggedError("ImageGenerationFail
   readonly message: string;
 }> {}
 
-export interface ImageAssetGeneratorShape {
+export interface ImageAssetGeneratorService {
   readonly generate: (input: {
     readonly prompt: string;
     readonly referenceUrls?: ReadonlyArray<string> | undefined;
@@ -35,16 +36,20 @@ export interface ImageAssetGeneratorShape {
 
 export class ImageAssetGenerator extends Context.Service<
   ImageAssetGenerator,
-  ImageAssetGeneratorShape
+  ImageAssetGeneratorService
 >()("@vanda/studio/ImageAssetGenerator") {}
 
-interface OpenRouterImageResponse {
-  readonly usage?: { readonly cost?: number };
-  readonly data?: ReadonlyArray<{
-    readonly b64_json?: string;
-    readonly media_type?: string;
-  }>;
-}
+const OpenRouterImageResponse = Schema.Struct({
+  usage: Schema.optional(Schema.Struct({ cost: Schema.optional(Schema.Number) })),
+  data: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        b64_json: Schema.optional(Schema.String),
+        media_type: Schema.optional(Schema.String),
+      }),
+    ),
+  ),
+});
 
 export interface GeneratedAssetReview {
   readonly approved: boolean;
@@ -56,6 +61,27 @@ export interface GeneratedAssetReview {
   readonly summary: string;
   readonly confidence: number;
 }
+
+const GeneratedAssetReviewSchema = Schema.Struct({
+  approved: Schema.Boolean,
+  containsText: Schema.Boolean,
+  containsLogo: Schema.Boolean,
+  containsPerson: Schema.Boolean,
+  prohibitedSubjects: Schema.Array(Schema.String),
+  qualityIssues: Schema.Array(Schema.String),
+  summary: Schema.String,
+  confidence: Schema.Number,
+});
+
+const AssetReviewEnvelope = Schema.Struct({
+  choices: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        message: Schema.optional(Schema.Struct({ content: Schema.optional(Schema.String) })),
+      }),
+    ),
+  ),
+});
 
 const assetReviewSchema = {
   type: "object",
@@ -97,6 +123,7 @@ export const reviewGeneratedAsset = async (input: {
   const encoded = Buffer.from(input.visual.bytes).toString("base64");
   const identityRefs = input.identityReferenceUrls ?? [];
   const allowPerson = identityRefs.length > 0;
+
   const personCriteria = allowPerson
     ? `A primeira imagem é a gerada; as demais são fotos de referência AUTORIZADAS da pessoa que ` +
       `representa a marca. A imagem gerada PODE (e deve, quando o contexto pedir) conter essa ` +
@@ -104,6 +131,7 @@ export const reviewGeneratedAsset = async (input: {
       `rosto estiver distorcido ou pouco fiel, ou se houver outra pessoa identificável além dela.`
     : `Reprove qualquer pessoa identificável, paciente, profissional de saúde, procedimento ou ` +
       `imagem clínica.`;
+
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -146,14 +174,17 @@ export const reviewGeneratedAsset = async (input: {
       },
     }),
   });
+
   if (!response.ok)
     throw new Error(`asset review HTTP ${response.status}: ${await response.text()}`);
-  const json = (await response.json()) as {
-    choices?: ReadonlyArray<{ message?: { content?: string } }>;
-  };
+
+  const json = Schema.decodeUnknownSync(AssetReviewEnvelope)(await response.json());
+
   const content = json.choices?.[0]?.message?.content;
+
   if (!content) throw new Error("asset review response is empty");
-  const review = JSON.parse(content) as GeneratedAssetReview;
+  const review = Schema.decodeUnknownSync(GeneratedAssetReviewSchema)(JSON.parse(content));
+
   if (
     review.approved &&
     !review.containsText &&
@@ -163,6 +194,7 @@ export const reviewGeneratedAsset = async (input: {
     review.qualityIssues.length === 0
   )
     return review;
+
   return { ...review, approved: false };
 };
 
@@ -174,42 +206,44 @@ export const openRouterImageGeneratorLayer = (input: {
     generate: ({ prompt, referenceUrls, aspectRatio, resolution, signal }) =>
       Effect.tryPromise({
         try: async () => {
-          const response = await fetch("https://openrouter.ai/api/v1/images", {
+          const payload = {
+            model: input.model,
+            prompt,
+            n: 1,
+            aspect_ratio: aspectRatio ?? "4:5",
+            resolution,
+            quality: "high",
+            output_format: "jpeg",
+            output_compression: 90,
+            background: "opaque",
+            input_references:
+              referenceUrls && referenceUrls.length > 0
+                ? referenceUrls.slice(0, 3).map((url) => ({
+                    type: "image_url",
+                    image_url: { url },
+                  }))
+                : undefined,
+          };
+
+          const request: RequestInit = {
             method: "POST",
-            ...(signal ? { signal } : {}),
             headers: {
               authorization: `Bearer ${input.apiKey}`,
               "content-type": "application/json",
             },
-            body: JSON.stringify({
-              model: input.model,
-              prompt,
-              n: 1,
-              // Ratio + tier, never explicit pixels: an explicit size is
-              // authoritative and 400s when combined with tier params.
-              aspect_ratio: aspectRatio ?? "4:5",
-              ...(resolution ? { resolution } : {}),
-              quality: "high",
-              output_format: "jpeg",
-              output_compression: 90,
-              background: "opaque",
-              // OpenRouter's /images endpoint expects reference images as objects,
-              // not raw URL strings ("expected object, received string" otherwise).
-              ...(referenceUrls && referenceUrls.length > 0
-                ? {
-                    input_references: referenceUrls.slice(0, 3).map((url) => ({
-                      type: "image_url",
-                      image_url: { url },
-                    })),
-                  }
-                : {}),
-            }),
-          });
+            body: JSON.stringify(payload),
+          };
+
+          if (signal !== undefined) request.signal = signal;
+          const response = await fetch("https://openrouter.ai/api/v1/images", request);
+
           if (!response.ok)
             throw new Error(`OpenRouter HTTP ${response.status}: ${await response.text()}`);
-          const json = (await response.json()) as OpenRouterImageResponse;
+          const json = Schema.decodeUnknownSync(OpenRouterImageResponse)(await response.json());
           const result = json.data?.[0];
+
           if (!result?.b64_json) throw new Error("image response missing b64_json");
+
           return {
             bytes: Uint8Array.from(Buffer.from(result.b64_json, "base64")),
             mimeType: result.media_type ?? "image/jpeg",

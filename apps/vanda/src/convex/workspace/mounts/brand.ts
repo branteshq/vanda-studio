@@ -16,13 +16,16 @@ import {
 
 const loadBrand = async (ctx: QueryCtx, accountId: Id<"accounts">) => {
   const account = await ctx.db.get(accountId);
+
   const canon = (
     await ctx.db
       .query("brandCanon")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .collect()
   ).filter((item) => item.confirmedByOwner);
+
   const readiness = assessBrandReadiness({ confirmedKinds: canon.map((item) => item.kind) });
+
   return { account, handle: account?.handle ?? null, canon, readiness };
 };
 
@@ -31,6 +34,7 @@ const loadReferences = async (ctx: QueryCtx, accountId: Id<"accounts">) => {
     .query("images")
     .withIndex("by_account", (q) => q.eq("accountId", accountId))
     .collect();
+
   return images.filter((image) => image.purpose === "reference");
 };
 
@@ -62,15 +66,19 @@ const memoryMarkdown = (brand: Awaited<ReturnType<typeof loadBrand>>): string =>
     "## Fatos confirmados pelo dono",
     "",
   ];
+
   if (brand.canon.length === 0) {
     lines.push("(nenhum fato confirmado ainda — peça ao dono para completar o perfil)");
   }
+
   for (const item of brand.canon) lines.push(`- **${item.kind}**: ${item.text}`);
+
   return lines.join("\n");
 };
 
 /** The writable files in /brand. */
 const NOTES_PATH = "/brand/notes.md";
+
 const KIT_PATH = "/brand/kit.json";
 
 /** Read fallback that teaches the kit's schema in-band. */
@@ -103,8 +111,10 @@ export const brandMount: WorkspaceMount = {
         { name: "references", kind: "dir", summary: "fotos de referência (rosto, produto, lugar)" },
       ];
     }
+
     if (segments.length === 1 && segments[0] === "references") {
       const references = await loadReferences(ctx, accountId);
+
       return references.map((image) => ({
         name: `${entityName(referenceLabel(image), image._id)}.${imageFileParts(image.mimeType).extension}`,
         kind: "file",
@@ -113,12 +123,14 @@ export const brandMount: WorkspaceMount = {
           `${image.description ? ` · ${image.description.slice(0, 60)}` : ""} · id ${image._id}`,
       }));
     }
+
     return null;
   },
   read: async (ctx, accountId, segments): Promise<WorkspaceFile | null> => {
     if (segments.length === 1 && segments[0] === "memory.md") {
       return { kind: "text", text: memoryMarkdown(await loadBrand(ctx, accountId)) };
     }
+
     if (segments.length === 1 && segments[0] === "notes.md") {
       return (
         (await readDocument(ctx, accountId, NOTES_PATH)) ?? {
@@ -127,11 +139,14 @@ export const brandMount: WorkspaceMount = {
         }
       );
     }
+
     if (segments.length === 1 && segments[0] === "kit.json") {
       return (await readDocument(ctx, accountId, KIT_PATH)) ?? jsonFile(EMPTY_KIT);
     }
+
     if (segments.length === 1 && segments[0] === "profile.json") {
       const brand = await loadBrand(ctx, accountId);
+
       return jsonFile({
         name: brand.account?.name ?? null,
         handle: brand.handle,
@@ -139,16 +154,21 @@ export const brandMount: WorkspaceMount = {
         readiness: brand.readiness,
       });
     }
+
     if (segments.length === 2 && segments[0] === "references") {
       const references = await loadReferences(ctx, accountId);
       const image = resolveByName(segments[1]!, references);
+
       if (!image) return null;
       const url = await imageUrl(ctx, image);
+
       if (!url) return null;
+
       const authorized =
         image.referenceKind === "face"
           ? "AUTORIZADA para condicionar geração de imagens com essa pessoa."
           : "Disponível como referência para geração.";
+
       return {
         kind: "image",
         imageId: image._id,
@@ -160,17 +180,22 @@ export const brandMount: WorkspaceMount = {
         mimeType: imageFileParts(image.mimeType).mimeType,
       };
     }
+
     return null;
   },
   write: async (ctx, accountId, segments, content) => {
     if (segments.length === 1 && segments[0] === "notes.md") {
       return saveDocument(ctx, accountId, NOTES_PATH, content);
     }
+
     if (segments.length === 1 && segments[0] === "kit.json") {
       const kit = validateBrandKit(content);
+
       if (!kit.ok) return { ok: false, error: kit.error };
+
       return saveDocument(ctx, accountId, KIT_PATH, kit.normalized);
     }
+
     return { ok: false, error: brandMount.writeHint };
   },
 };

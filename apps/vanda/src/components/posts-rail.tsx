@@ -43,7 +43,10 @@ import { useWorkRail } from "./work-rail";
 
 type RailStatus = "draft" | "ready" | "scheduled" | "publishing" | "published" | "failed";
 
-const STATUS_META: Record<RailStatus, { label: string; tone: "neutral" | "suggestion" | "scheduled" | "creating" | "live" | "needs" }> = {
+const STATUS_META: Record<
+  RailStatus,
+  { label: string; tone: "neutral" | "suggestion" | "scheduled" | "creating" | "live" | "needs" }
+> = {
   draft: { label: "Rascunho", tone: "neutral" },
   ready: { label: "Pronto", tone: "suggestion" },
   scheduled: { label: "Agendado", tone: "scheduled" },
@@ -63,6 +66,7 @@ const formatWhen = (timestamp: number): string =>
 /** Hosts the rail inside its own provider, driven by the WorkRail state. */
 export function PostsRailHost() {
   const rail = useWorkRail();
+
   return (
     <SidebarProvider
       className="contents"
@@ -82,10 +86,13 @@ export function PostsRailHost() {
  * the gallery renders its opener inline in its own header instead. */
 export function CollapsedRailControls() {
   const rail = useWorkRail();
+
   const gallery = useRouterState({
     select: (s) => s.location.pathname.startsWith("/galeria"),
   });
+
   if (rail.open || gallery) return null;
+
   return (
     <div className="absolute top-3 right-3 z-20 hidden items-center rounded-lg border border-border bg-surface/90 p-0.5 shadow-sm backdrop-blur-sm md:flex">
       <ActionTooltip label="Abrir posts" side="bottom">
@@ -127,12 +134,7 @@ function PostsRail() {
           </Button>
         ) : null}
         <h2 className="min-w-0 flex-1 truncate text-body font-semibold">Posts</h2>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Recolher posts"
-          onClick={toggleSidebar}
-        >
+        <Button variant="ghost" size="icon-sm" aria-label="Recolher posts" onClick={toggleSidebar}>
           <PanelRightClose />
         </Button>
       </SidebarHeader>
@@ -151,6 +153,7 @@ function PostsRail() {
 const dayOf = (post: { scheduledFor: number | null; createdAt: number }): Date => {
   const date = new Date(post.scheduledFor ?? post.createdAt);
   date.setHours(0, 0, 0, 0);
+
   return date;
 };
 
@@ -163,6 +166,7 @@ function PostList({ accountId }: { accountId: Id<"accounts"> }) {
     () => [...new Set((posts ?? []).map((post) => dayOf(post).getTime()))].map((t) => new Date(t)),
     [posts],
   );
+
   const visible =
     selectedDay === undefined
       ? (posts ?? [])
@@ -177,6 +181,7 @@ function PostList({ accountId }: { accountId: Id<"accounts"> }) {
       </div>
     );
   }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Calendar
@@ -197,55 +202,54 @@ function PostList({ accountId }: { accountId: Id<"accounts"> }) {
           <CalendarDays className="mx-auto size-5 text-text-5" />
           <p className="mt-2 text-body-sm text-text-3">Nenhum post ainda</p>
           <p className="mt-1 text-[12px] leading-relaxed text-text-5">
-            Peça na conversa: "posta essa foto pra mim" — rascunhos, agendamentos e
-            publicações aparecem aqui.
+            Peça na conversa: "posta essa foto pra mim" — rascunhos, agendamentos e publicações
+            aparecem aqui.
           </p>
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto border-t border-sidebar-border p-2">
           {visible.length === 0 ? (
-            <p className="px-2 py-6 text-center text-body-sm text-text-4">
-              Nenhum post neste dia.
-            </p>
+            <p className="px-2 py-6 text-center text-body-sm text-text-4">Nenhum post neste dia.</p>
           ) : null}
           <SidebarMenu>
             {visible.map((post) => {
-          const meta = STATUS_META[post.status];
-          return (
-            <SidebarMenuItem key={post.postId}>
-              <SidebarMenuButton
-                size="lg"
-                className="h-auto items-center gap-2.5 py-2"
-                onClick={() => rail.openPost(post.postId)}
-              >
-                {post.thumbnailUrl !== null ? (
-                  <img
-                    src={post.thumbnailUrl}
-                    alt=""
-                    className="size-9 shrink-0 rounded-md object-cover"
-                  />
-                ) : (
-                  <div className="grid size-9 shrink-0 place-items-center rounded-md bg-sidebar-accent">
-                    <CalendarDays className="size-4 text-text-5" />
-                  </div>
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-body-sm text-sidebar-foreground">
-                    {post.caption.replaceAll("\n", " ") || "(sem legenda)"}
-                  </span>
-                  <span className="mt-0.5 flex items-center gap-1.5">
-                    <StatusPill tone={meta.tone}>{meta.label}</StatusPill>
-                    <span className="truncate text-[11px] text-text-5">
-                      {post.scheduledFor !== null
-                        ? formatWhen(post.scheduledFor)
-                        : formatWhen(post.createdAt)}
-                      {post.slideCount > 1 ? ` · ${post.slideCount} slides` : ""}
+              const meta = STATUS_META[post.status];
+
+              return (
+                <SidebarMenuItem key={post.postId}>
+                  <SidebarMenuButton
+                    size="lg"
+                    className="h-auto items-center gap-2.5 py-2"
+                    onClick={() => rail.openPost(post.postId)}
+                  >
+                    {post.thumbnailUrl !== null ? (
+                      <img
+                        src={post.thumbnailUrl}
+                        alt=""
+                        className="size-9 shrink-0 rounded-md object-cover"
+                      />
+                    ) : (
+                      <div className="grid size-9 shrink-0 place-items-center rounded-md bg-sidebar-accent">
+                        <CalendarDays className="size-4 text-text-5" />
+                      </div>
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-body-sm text-sidebar-foreground">
+                        {post.caption.replaceAll("\n", " ") || "(sem legenda)"}
+                      </span>
+                      <span className="mt-0.5 flex items-center gap-1.5">
+                        <StatusPill tone={meta.tone}>{meta.label}</StatusPill>
+                        <span className="truncate text-[11px] text-text-5">
+                          {post.scheduledFor !== null
+                            ? formatWhen(post.scheduledFor)
+                            : formatWhen(post.createdAt)}
+                          {post.slideCount > 1 ? ` · ${post.slideCount} slides` : ""}
+                        </span>
+                      </span>
                     </span>
-                  </span>
-                </span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          );
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
             })}
           </SidebarMenu>
         </div>
@@ -254,13 +258,7 @@ function PostList({ accountId }: { accountId: Id<"accounts"> }) {
   );
 }
 
-function PostDetail({
-  accountId,
-  postId,
-}: {
-  accountId: Id<"accounts">;
-  postId: Id<"posts">;
-}) {
+function PostDetail({ accountId, postId }: { accountId: Id<"accounts">; postId: Id<"posts"> }) {
   const post = useQuery(api.posts.detail, { accountId, postId });
   const [slide, setSlide] = useState(0);
 
@@ -272,9 +270,11 @@ function PostDetail({
       </div>
     );
   }
+
   if (post === null) {
     return <p className="p-4 text-body-sm text-text-3">Post não encontrado.</p>;
   }
+
   const meta = STATUS_META[post.status];
   const current = Math.min(slide, Math.max(0, post.imageUrls.length - 1));
   const url = post.imageUrls[current];
@@ -323,11 +323,7 @@ function PostDetail({
 
       <section>
         <h3 className="section-label text-text-3">Legenda</h3>
-        <div
-          className={cn(
-            "mt-1.5 rounded-lg border border-border bg-surface p-3 text-body-sm",
-          )}
-        >
+        <div className={cn("mt-1.5 rounded-lg border border-border bg-surface p-3 text-body-sm")}>
           <Markdown variant="reading">{post.caption}</Markdown>
         </div>
       </section>

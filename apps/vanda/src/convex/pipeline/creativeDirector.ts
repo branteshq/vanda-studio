@@ -8,6 +8,7 @@ export const NarrativeBeat = Schema.Struct({
   role: Schema.String,
   description: Schema.String,
 });
+
 export type NarrativeBeat = typeof NarrativeBeat.Type;
 
 export const PerformanceHypothesis = Schema.Struct({
@@ -15,6 +16,7 @@ export const PerformanceHypothesis = Schema.Struct({
   evidence: Schema.Array(Schema.String),
   confidence: UnitScore,
 });
+
 export type PerformanceHypothesis = typeof PerformanceHypothesis.Type;
 
 export const MechanismAnalysis = Schema.Struct({
@@ -49,6 +51,7 @@ export const MechanismAnalysis = Schema.Struct({
   rejectionReason: Schema.String,
   confidence: UnitScore,
 });
+
 export type MechanismAnalysis = typeof MechanismAnalysis.Type;
 
 export const CreativeDirection = Schema.Struct({
@@ -78,11 +81,13 @@ export const CreativeDirection = Schema.Struct({
   feasibilityScore: UnitScore,
   riskScore: UnitScore,
 });
+
 export type CreativeDirection = typeof CreativeDirection.Type;
 
 export const CreativeDirectionSet = Schema.Struct({
   directions: Schema.Array(CreativeDirection),
 });
+
 export type CreativeDirectionSet = typeof CreativeDirectionSet.Type;
 
 export const BriefBeat = Schema.Struct({
@@ -92,6 +97,7 @@ export const BriefBeat = Schema.Struct({
   keyMessage: Schema.String,
   visualInstruction: Schema.String,
 });
+
 export type BriefBeat = typeof BriefBeat.Type;
 
 export const CreativeBrief = Schema.Struct({
@@ -122,6 +128,7 @@ export const CreativeBrief = Schema.Struct({
   productionNotes: Schema.Array(Schema.String),
   confidence: UnitScore,
 });
+
 export type CreativeBrief = typeof CreativeBrief.Type;
 
 export const BriefSelection = Schema.Struct({
@@ -131,6 +138,7 @@ export const BriefSelection = Schema.Struct({
   rejectedDirectionReasons: Schema.Array(Schema.String),
   brief: CreativeBrief,
 });
+
 export type BriefSelection = typeof BriefSelection.Type;
 
 export const BriefReview = Schema.Struct({
@@ -148,6 +156,7 @@ export const BriefReview = Schema.Struct({
   issues: Schema.Array(Schema.String),
   confidence: UnitScore,
 });
+
 export type BriefReview = typeof BriefReview.Type;
 
 export interface CreativeDirectorSource {
@@ -290,9 +299,12 @@ const tokens = (text: string): ReadonlyArray<string> =>
 const jaccard = (left: ReadonlyArray<string>, right: ReadonlyArray<string>): number => {
   const a = new Set(left);
   const b = new Set(right);
+
   if (a.size === 0 || b.size === 0) return 0;
   let intersection = 0;
+
   for (const value of a) if (b.has(value)) intersection += 1;
+
   return intersection / (a.size + b.size - intersection);
 };
 
@@ -319,18 +331,23 @@ export const validateDirectionSet = (
   directions: ReadonlyArray<CreativeDirection>,
 ): ReadonlyArray<string> => {
   const issues: string[] = [];
+
   if (directions.length !== 3) issues.push("direction_count_must_be_three");
+
   for (let left = 0; left < directions.length; left += 1) {
     for (let right = left + 1; right < directions.length; right += 1) {
       const first = directions[left]!;
       const second = directions[right]!;
+
       const similarity = jaccard(
         tokens(`${first.title} ${first.angle} ${first.hook} ${first.concept}`),
         tokens(`${second.title} ${second.angle} ${second.hook} ${second.concept}`),
       );
+
       if (similarity >= 0.65) issues.push(`directions_${left + 1}_${right + 1}_too_similar`);
     }
   }
+
   return issues;
 };
 
@@ -360,44 +377,63 @@ export const validateCreativePackage = (input: {
 }): CreativePackageValidation => {
   const issues = [...validateDirectionSet(input.directions)];
   const selectedIndex = input.selection.selectedDirectionNumber - 1;
+
   if (!Number.isInteger(selectedIndex) || selectedIndex < 0 || selectedIndex >= 3)
     issues.push("invalid_selected_direction");
+
   if (input.selection.brief.narrativeBeats.length < 3)
     issues.push("brief_requires_at_least_three_beats");
+
   if (input.selection.brief.narrativeBeats.length > 7) issues.push("brief_exceeds_seven_beats");
+
   for (const direction of input.directions) {
     for (const factId of direction.brandFactIds)
       if (!input.allowedBrandFactIds.has(factId)) issues.push(`unknown_direction_fact:${factId}`);
+
     for (const asset of direction.requiredAssets) {
       if (asset.strategy === "available" && asset.assetIds.length === 0)
         issues.push("direction_available_asset_has_no_id");
+
       if (asset.assetIds.some((id) => !input.allowedAssetIds.has(id)))
         issues.push("direction_claims_unavailable_asset");
+
       if (asset.strategy !== "available" && asset.assetIds.length > 0)
         issues.push("direction_nonavailable_asset_has_id");
     }
   }
+
   for (const factId of input.selection.brief.brandFactIds)
     if (!input.allowedBrandFactIds.has(factId)) issues.push(`unknown_brand_fact:${factId}`);
+
   for (const asset of input.selection.brief.assetRequirements) {
     if (asset.strategy === "available" && asset.assetIds.length === 0)
       issues.push("brief_available_asset_has_no_id");
+
     if (asset.assetIds.some((id) => !input.allowedAssetIds.has(id)))
       issues.push("brief_claims_unavailable_asset");
+
     if (asset.strategy !== "available" && asset.assetIds.length > 0)
       issues.push("brief_nonavailable_asset_has_id");
   }
+
   for (const grounding of input.review.brandGrounding)
     if (!input.allowedBrandFactIds.has(grounding.factId))
       issues.push(`unknown_review_fact:${grounding.factId}`);
+
   if (input.review.decision !== "approved") issues.push("editorial_review_rejected");
+
   if (input.review.unsupportedClaims.length > 0) issues.push("unsupported_claims");
+
   if (input.review.similarityRisks.length > 0) issues.push("review_similarity_risk");
+
   if (input.review.issues.length > 0) issues.push("editorial_issues");
+
   const sourceSimilarity = jaccard(
     tokens(sourceExpression(input.source)),
     tokens(briefExpression(input.selection.brief)),
   );
+
   if (sourceSimilarity >= 0.55) issues.push("deterministic_source_similarity");
+
   return { valid: issues.length === 0, issues: [...new Set(issues)], sourceSimilarity };
 };

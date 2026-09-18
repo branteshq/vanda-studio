@@ -11,6 +11,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
 import { ArrowUp, Paperclip, Square, X } from "lucide-react";
+import { z } from "zod";
 import {
   Attachment,
   AttachmentAction,
@@ -28,6 +29,10 @@ import type { Id } from "../convex/_generated/dataModel";
 import { errorMessage } from "../errors";
 
 const MAX_COMPOSER_HEIGHT = 224;
+
+const uploadResponseSchema = z.object({
+  storageId: z.string().min(1),
+});
 
 export interface ReadyImageAttachment {
   imageId: Id<"images">;
@@ -51,10 +56,19 @@ interface ComposerAttachment {
   error?: string;
 }
 
+const attachmentDescription = (attachment: ComposerAttachment) => {
+  if (attachment.state === "uploading") return "Enviando…";
+
+  if (attachment.state === "error") return attachment.error ?? "Falha no envio";
+
+  return `${attachment.width}×${attachment.height}`;
+};
+
 const imageDimensions = async (file: File): Promise<{ width: number; height: number }> => {
   const bitmap = await createImageBitmap(file);
   const dimensions = { width: bitmap.width, height: bitmap.height };
   bitmap.close();
+
   return dimensions;
 };
 
@@ -76,6 +90,7 @@ export function MessageImageAttachments({
   attachments: ReadonlyArray<Pick<ReadyImageAttachment, "url" | "fileName">>;
 }) {
   if (attachments.length === 0) return null;
+
   return (
     <AttachmentGroup className="justify-end">
       {attachments.map((attachment) => (
@@ -131,6 +146,7 @@ export function ImageMessageComposer({
 
   useLayoutEffect(() => {
     const element = textareaRef.current;
+
     if (!element) return;
     element.style.height = "auto";
     element.style.height = `${Math.min(element.scrollHeight, MAX_COMPOSER_HEIGHT)}px`;
@@ -148,6 +164,7 @@ export function ImageMessageComposer({
         URL.revokeObjectURL(attachment.previewUrl);
         cancelledUploads.current.add(attachment.clientId);
       }
+
       for (const controller of uploadControllers.current.values()) controller.abort();
     },
     [],
@@ -165,6 +182,7 @@ export function ImageMessageComposer({
     if (!accountId) return;
     const clientId = crypto.randomUUID();
     const previewUrl = URL.createObjectURL(file);
+
     const initial: ComposerAttachment = {
       clientId,
       fileName: file.name,
@@ -174,42 +192,54 @@ export function ImageMessageComposer({
       height: 1,
       state: "uploading",
     };
+
     setAttachments((current) => [...current, initial]);
 
     if (!file.type.startsWith("image/")) {
       updateAttachment(clientId, { state: "error", error: "Formato não suportado" });
+
       return;
     }
+
     if (file.size > 10 * 1024 * 1024) {
       updateAttachment(clientId, { state: "error", error: "Máximo de 10 MB" });
+
       return;
     }
 
     const controller = new AbortController();
     uploadControllers.current.set(clientId, controller);
+
     try {
       const dimensions = await imageDimensions(file);
       updateAttachment(clientId, dimensions);
       const uploadUrl = await generateUploadUrl();
+
       const response = await fetch(uploadUrl, {
         method: "POST",
         headers: { "Content-Type": file.type },
         body: file,
         signal: controller.signal,
       });
+
       if (!response.ok) throw new Error(`upload HTTP ${response.status}`);
-      const payload = (await response.json()) as { storageId?: Id<"_storage"> };
-      if (!payload.storageId) throw new Error("upload returned no storageId");
+      const payload = uploadResponseSchema.parse(await response.json());
+      // SAFETY: Convex IDs are nominal strings; the schema above verified this value is non-empty.
+      const storageId = payload.storageId as Id<"_storage">;
+
       const stored = await addImage({
         accountId,
-        storageId: payload.storageId,
+        storageId,
         mimeType: file.type,
         ...dimensions,
       });
+
       if (cancelledUploads.current.has(clientId)) {
         await removeImage({ accountId, imageId: stored.imageId });
+
         return;
       }
+
       updateAttachment(clientId, {
         state: "done",
         imageId: stored.imageId,
@@ -231,7 +261,9 @@ export function ImageMessageComposer({
   const selectFiles = (files: Iterable<File> | null) => {
     if (!files) return;
     const remaining = Math.max(0, 4 - attachments.length);
+
     for (const file of Array.from(files).slice(0, remaining)) void uploadFile(file);
+
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -239,14 +271,17 @@ export function ImageMessageComposer({
     const clipboardFiles = Array.from(event.clipboardData.files).filter((file) =>
       file.type.startsWith("image/"),
     );
+
     const images =
       clipboardFiles.length > 0
         ? clipboardFiles
         : Array.from(event.clipboardData.items).flatMap((item) => {
             if (item.kind !== "file" || !item.type.startsWith("image/")) return [];
             const file = item.getAsFile();
+
             return file ? [file] : [];
           });
+
     if (images.length === 0) return;
     event.preventDefault();
     selectFiles(images);
@@ -259,6 +294,7 @@ export function ImageMessageComposer({
     setAttachments((current) =>
       current.filter((candidate) => candidate.clientId !== attachment.clientId),
     );
+
     if (accountId && attachment.imageId) {
       void removeImage({ accountId, imageId: attachment.imageId });
     }
@@ -267,7 +303,9 @@ export function ImageMessageComposer({
   const readyAttachments = attachments
     .map(readyAttachment)
     .filter((attachment): attachment is ReadyImageAttachment => attachment !== undefined);
+
   const attachmentsSettled = attachments.every((attachment) => attachment.state === "done");
+
   const canSend =
     !disabled &&
     !working &&
@@ -279,8 +317,10 @@ export function ImageMessageComposer({
     if (!canSend) return;
     setSubmitting(true);
     setSubmitError(null);
+
     try {
       await onSend(draft, readyAttachments);
+
       for (const attachment of attachments) URL.revokeObjectURL(attachment.previewUrl);
       setAttachments([]);
     } catch (cause) {
@@ -295,6 +335,7 @@ export function ImageMessageComposer({
     event.preventDefault();
     void submit();
   };
+
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
@@ -345,11 +386,7 @@ export function ImageMessageComposer({
                   <AttachmentContent>
                     <AttachmentTitle>{attachment.fileName}</AttachmentTitle>
                     <AttachmentDescription>
-                      {attachment.state === "uploading"
-                        ? "Enviando…"
-                        : attachment.state === "error"
-                          ? (attachment.error ?? "Falha no envio")
-                          : `${attachment.width}×${attachment.height}`}
+                      {attachmentDescription(attachment)}
                     </AttachmentDescription>
                   </AttachmentContent>
                   <AttachmentActions>

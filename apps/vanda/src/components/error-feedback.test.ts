@@ -1,11 +1,8 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { toast } from "sonner";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { publicError } from "../errors";
-import { ErrorNotice, showErrorToast } from "./error-feedback";
-
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+import { createErrorToast, ErrorNotice } from "./error-feedback";
 
 describe("error feedback", () => {
   it("never renders exception text in inline feedback or toasts", () => {
@@ -14,9 +11,9 @@ describe("error feedback", () => {
     expect(html).toContain('role="alert"');
     expect(html).toContain("Algo deu errado. Tente novamente em instantes.");
     expect(html).not.toMatch(/CONVEX|credential-secret|backend\.ts/);
-    showErrorToast(error);
-    expect(toast.error).toHaveBeenLastCalledWith("Não foi possível concluir", {
-      description: "Algo deu errado. Tente novamente em instantes.",
+    expect(createErrorToast(error)).toEqual({
+      title: "Não foi possível concluir",
+      options: { description: "Algo deu errado. Tente novamente em instantes." },
     });
   });
 
@@ -25,11 +22,12 @@ describe("error feedback", () => {
     const html = renderToStaticMarkup(createElement(ErrorNotice, { error }));
     expect(html).toContain('href="/perfil"');
     expect(html).toContain("Reconectar");
-    showErrorToast(error);
-    expect(toast.error).toHaveBeenLastCalledWith(
-      "Reconecte sua conta",
+    expect(createErrorToast(error)).toEqual(
       expect.objectContaining({
-        action: { label: "Reconectar", onClick: expect.any(Function) },
+        title: "Reconecte sua conta",
+        options: expect.objectContaining({
+          action: { label: "Reconectar", onClick: expect.any(Function) },
+        }),
       }),
     );
   });

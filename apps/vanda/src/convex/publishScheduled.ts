@@ -8,14 +8,18 @@ export const loadScheduledPostData = internalQuery({
   args: { scheduledPostId: v.id("scheduledPosts") },
   handler: async (ctx, { scheduledPostId }) => {
     const scheduled = await ctx.db.get(scheduledPostId);
+
     if (scheduled === null) return null;
     const post = await ctx.db.get(scheduled.postId);
+
     if (post === null) return null;
     const images = await Promise.all(post.imageIds.map((imageId) => ctx.db.get(imageId)));
     // A post must reference a fully-resolvable image set; a dangling reference
     // would silently publish different content, so treat it as unresolvable.
     const present = images.filter((image): image is NonNullable<typeof image> => image !== null);
+
     if (present.length !== post.imageIds.length) return null;
+
     return {
       type: post.type,
       caption: post.caption,
@@ -32,9 +36,12 @@ export const getPublishProfile = internalQuery({
   args: { scheduledPostId: v.id("scheduledPosts") },
   handler: async (ctx, { scheduledPostId }): Promise<{ username: string } | null> => {
     const scheduled = await ctx.db.get(scheduledPostId);
+
     if (scheduled === null) return null;
     const account = await ctx.db.get(scheduled.accountId);
+
     if (account === null || account.publisherConnectedAt === undefined) return null;
+
     // The publisher profile username is the account id by construction.
     return { username: String(account._id) };
   },
@@ -50,18 +57,30 @@ export const setScheduledStatus = internalMutation({
   },
   handler: async (ctx, { scheduledPostId, status, externalPostId, permalink, lastError }) => {
     const scheduled = await ctx.db.get(scheduledPostId);
+
     if (!scheduled) return;
     const now = Date.now();
-    await ctx.db.patch(scheduledPostId, {
+
+    const patch: Pick<
+      Partial<typeof scheduled>,
+      "status" | "externalPostId" | "permalink" | "lastError" | "updatedAt"
+    > = {
       status,
-      ...(externalPostId !== undefined ? { externalPostId } : {}),
-      ...(permalink !== undefined ? { permalink } : {}),
-      ...(lastError !== undefined ? { lastError } : {}),
       updatedAt: now,
-    });
+    };
+
+    if (externalPostId !== undefined) patch.externalPostId = externalPostId;
+
+    if (permalink !== undefined) patch.permalink = permalink;
+
+    if (lastError !== undefined) patch.lastError = lastError;
+    await ctx.db.patch(scheduledPostId, patch);
     const post = await ctx.db.get(scheduled.postId);
+
     if (!post) return;
+
     if (status === "published") await ctx.db.patch(post._id, { status: "published" });
+
     if (
       scheduled.status !== status &&
       (status === "published" || status === "failed") &&
@@ -71,7 +90,9 @@ export const setScheduledStatus = internalMutation({
         scheduledPostId,
       });
     }
+
     const opportunity = post.opportunityId ? await ctx.db.get(post.opportunityId) : null;
+
     if (opportunity) {
       if (status === "published")
         await ctx.db.patch(opportunity._id, {
@@ -94,8 +115,10 @@ export const schedulePost = internalMutation({
   args: { postId: v.id("posts"), scheduledFor: v.number() },
   handler: async (ctx, { postId, scheduledFor }) => {
     const post = await ctx.db.get(postId);
+
     if (post === null) throw new Error("post not found");
     const now = Date.now();
+
     const scheduledPostId = await ctx.db.insert("scheduledPosts", {
       accountId: post.accountId,
       postId,
@@ -104,12 +127,15 @@ export const schedulePost = internalMutation({
       createdAt: now,
       updatedAt: now,
     });
+
     const scheduledJobId = await ctx.scheduler.runAt(
       scheduledFor,
       internal.publishScheduledNode.runScheduledPost,
       { scheduledPostId },
     );
+
     await ctx.db.patch(scheduledPostId, { scheduledJobId });
+
     return scheduledPostId;
   },
 });

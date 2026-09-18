@@ -9,6 +9,7 @@ import {
 } from "./inputQuality";
 
 const now = 10 * DAY_MS;
+
 const base = {
   now,
   publishedAt: now - DAY_MS,
@@ -33,6 +34,7 @@ describe("input quality", () => {
       followers: undefined,
       views: undefined,
     });
+
     expect(assessment.decision).toBe("rejected");
     expect(assessment.rejectionCodes).toEqual(
       expect.arrayContaining(["brand_incomplete", "missing_views", "missing_followers"]),
@@ -68,6 +70,7 @@ describe("input quality", () => {
       hasDurableThumbnail: false,
       frameCount: 0,
     });
+
     expect(assessment.decision).toBe("rejected");
     expect(assessment.rejectionCodes).toEqual(
       expect.arrayContaining([

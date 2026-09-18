@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export type PlanSchedule = "immediate" | "end_of_cycle";
 
 /** Explicit timing avoids Autumn's price-based downgrade scheduling. */
@@ -13,9 +15,20 @@ export interface PlanChangePreview {
   currency: string;
 }
 
-export async function billingRequest(method: string, body: object): Promise<unknown> {
+type BillingRequestBody = Readonly<Record<string, string | boolean>>;
+
+const BillingResponseSchema = z.json();
+
+const PreviewSchema = z.object({
+  total: z.number().finite(),
+  currency: z.string().regex(/^[a-z]{3}$/i),
+});
+
+export async function billingRequest(method: string, body: BillingRequestBody) {
   const key = process.env.AUTUMN_SECRET_KEY;
+
   if (!key) throw new Error("Autumn não configurado");
+
   const response = await fetch(`https://api.useautumn.com/v1/billing.${method}`, {
     method: "POST",
     headers: {
@@ -26,27 +39,25 @@ export async function billingRequest(method: string, body: object): Promise<unkn
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(30_000),
   });
+
   if (!response.ok) {
     console.error(`[Autumn] ${method}: HTTP ${response.status}`, await response.text());
     throw new Error(
       "Não foi possível atualizar a cobrança. Confira seu plano antes de tentar novamente.",
     );
   }
-  return response.json();
+
+  return BillingResponseSchema.parse(await response.json());
 }
 
-export function parsePreview(value: unknown): PlanChangePreview {
-  const data = value as Partial<PlanChangePreview> | null;
-  if (
-    !data ||
-    typeof data.total !== "number" ||
-    !Number.isFinite(data.total) ||
-    typeof data.currency !== "string" ||
-    !/^[a-z]{3}$/i.test(data.currency)
-  ) {
+export function parsePreview(value: z.infer<typeof BillingResponseSchema>): PlanChangePreview {
+  const result = PreviewSchema.safeParse(value);
+
+  if (!result.success) {
     throw new Error("Não foi possível conferir o valor da mudança.");
   }
-  return { total: data.total, currency: data.currency.toUpperCase() };
+
+  return { total: result.data.total, currency: result.data.currency.toUpperCase() };
 }
 
 export function assertPreviewUnchanged(actual: PlanChangePreview, expected: PlanChangePreview) {

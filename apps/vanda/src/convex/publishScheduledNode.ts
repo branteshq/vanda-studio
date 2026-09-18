@@ -22,14 +22,17 @@ export const runScheduledPost = internalAction({
     const profile = await ctx.runQuery(internal.publishScheduled.getPublishProfile, {
       scheduledPostId,
     });
+
     if (profile === null) {
       await ctx.runMutation(internal.publishScheduled.setScheduledStatus, {
         scheduledPostId,
         status: "failed",
         lastError: "no_connected_account",
       });
+
       return;
     }
+
     const layer = Layer.mergeAll(publishStoreLive(ctx), publisherLive(profile));
     await Effect.runPromise(publishDue(scheduledPostId).pipe(Effect.provide(layer)));
   },

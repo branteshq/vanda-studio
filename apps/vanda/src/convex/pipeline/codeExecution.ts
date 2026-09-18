@@ -14,10 +14,13 @@ export const SANDBOX_OUT_DIR = "/home/user/out";
 
 /** Wall-clock budget for the agent's Python; any legit Pillow job is single-digit seconds. */
 export const EXECUTION_TIMEOUT_MS = 30_000;
+
 /** Sandbox TTL — the backstop reaper if the orchestrating action dies mid-run. */
 const SANDBOX_TTL_MS = 60_000;
+
 /** Ingestion caps: sandbox output is untrusted until validated. */
 export const MAX_OUTPUT_FILES = 10;
+
 export const MAX_OUTPUT_FILE_BYTES = 25 * 1024 * 1024;
 
 const OUTPUT_EXTENSIONS = [".png", ".jpg", ".jpeg", ".json", ".csv", ".md", ".txt"];
@@ -48,7 +51,7 @@ export class CodeExecutionFailed extends Data.TaggedError("CodeExecutionFailed")
   readonly message: string;
 }> {}
 
-export interface CodeSandboxShape {
+export interface CodeSandboxService {
   readonly execute: (input: {
     readonly code: string;
     readonly files: ReadonlyArray<SandboxInputFile>;
@@ -60,13 +63,14 @@ export interface CodeSandboxShape {
   }) => Effect.Effect<SandboxRunResult, CodeExecutionFailed>;
 }
 
-export class CodeSandbox extends Context.Service<CodeSandbox, CodeSandboxShape>()(
+export class CodeSandbox extends Context.Service<CodeSandbox, CodeSandboxService>()(
   "@vanda/studio/CodeSandbox",
 ) {}
 
 const toArrayBuffer = (bytes: Uint8Array): ArrayBuffer => {
   const copy = new Uint8Array(bytes.byteLength);
   copy.set(bytes);
+
   return copy.buffer;
 };
 
@@ -89,6 +93,7 @@ export const e2bCodeSandboxLayer = (input: {
               timeoutMs: SANDBOX_TTL_MS,
               allowInternetAccess: false,
             };
+
             return input.template ? Sandbox.create(input.template, opts) : Sandbox.create(opts);
           },
           catch: (error) =>
@@ -102,16 +107,18 @@ export const e2bCodeSandboxLayer = (input: {
             try: async () => {
               onSandbox?.(() => sandbox.kill().then(() => {}));
               await sandbox.files.makeDir(SANDBOX_OUT_DIR);
+
               if (files.length > 0) {
                 await sandbox.files.write(
                   files.map((file) => ({
                     path: file.path,
-                    data: typeof file.data === "string" ? file.data : toArrayBuffer(file.data),
+                    data: file.data instanceof Uint8Array ? toArrayBuffer(file.data) : file.data,
                   })),
                 );
               }
 
               let execution;
+
               try {
                 execution = await sandbox.runCode(code, { timeoutMs: EXECUTION_TIMEOUT_MS });
               } catch (error) {
@@ -126,10 +133,12 @@ export const e2bCodeSandboxLayer = (input: {
                     skipped: [],
                   };
                 }
+
                 throw error;
               }
 
               const stdout = execution.logs.stdout.join("");
+
               const stderr = [execution.logs.stderr.join(""), execution.error?.traceback ?? ""]
                 .filter(Boolean)
                 .join("\n");
@@ -137,6 +146,7 @@ export const e2bCodeSandboxLayer = (input: {
               const outputs: SandboxOutputFile[] = [];
               const skipped: string[] = [];
               const entries = await sandbox.files.list(SANDBOX_OUT_DIR).catch(() => []);
+
               // Deterministic ingestion order regardless of listing order.
               // (lib target predates Array#toSorted, hence copy-then-sort.)
               const candidates = entries.filter(
@@ -144,19 +154,24 @@ export const e2bCodeSandboxLayer = (input: {
                   entry.type === "file" &&
                   OUTPUT_EXTENSIONS.some((ext) => entry.name.toLowerCase().endsWith(ext)),
               );
+
               candidates.sort((a, b) => a.name.localeCompare(b.name));
+
               for (const entry of candidates) {
                 if (outputs.length >= MAX_OUTPUT_FILES) {
                   skipped.push(`${entry.name}: limite de ${MAX_OUTPUT_FILES} arquivos`);
                   continue;
                 }
+
                 const bytes = await sandbox.files.read(`${SANDBOX_OUT_DIR}/${entry.name}`, {
                   format: "bytes",
                 });
+
                 if (bytes.byteLength > MAX_OUTPUT_FILE_BYTES) {
                   skipped.push(`${entry.name}: maior que 25MB`);
                   continue;
                 }
+
                 outputs.push({ filename: entry.name, bytes });
               }
 

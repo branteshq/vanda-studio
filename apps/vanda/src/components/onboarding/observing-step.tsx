@@ -19,8 +19,17 @@ const LINES = [
 
 /** How long each cosmetic checklist line dwells before the next ticks active. */
 const STEP_MS = 1200;
+
 /** A short beat on the completed state before handing off to Confirm. */
 const SETTLE_MS = 900;
+
+const progressTextColor = (state: "done" | "active" | "pending") => {
+  if (state === "active") return "text-text";
+
+  if (state === "done") return "text-text-3";
+
+  return "text-text-5";
+};
 
 /**
  * Step 2 — Vanda reads the account. One `analyzeAccount` call does the real work;
@@ -69,6 +78,7 @@ export function ObservingStep({
   useEffect(() => {
     if (done || error || progress >= LINES.length - 1) return;
     const timer = setTimeout(() => setProgress((p) => Math.min(p + 1, LINES.length - 1)), STEP_MS);
+
     return () => clearTimeout(timer);
   }, [progress, done, error]);
 
@@ -112,6 +122,7 @@ export function ObservingStep({
         <ul className="mt-7 flex flex-col gap-3">
           {LINES.map((line, index) => {
             const state = index < progress ? "done" : index === progress ? "active" : "pending";
+
             return (
               <li
                 key={line}
@@ -119,18 +130,7 @@ export function ObservingStep({
                 style={{ animationDelay: `${index * 60}ms` }}
               >
                 <StatusRing state={state} />
-                <span
-                  className={cn(
-                    "text-[14px]",
-                    state === "active"
-                      ? "text-text"
-                      : state === "done"
-                        ? "text-text-3"
-                        : "text-text-5",
-                  )}
-                >
-                  {line}
-                </span>
+                <span className={cn("text-[14px]", progressTextColor(state))}>{line}</span>
               </li>
             );
           })}

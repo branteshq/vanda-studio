@@ -16,10 +16,13 @@ const loadObservations = async (ctx: QueryCtx, accountId: Id<"accounts">) => {
     .withIndex("by_account_observed", (q) => q.eq("accountId", accountId))
     .order("desc")
     .take(OBSERVATION_CAP);
+
   const latest = new Map<string, (typeof rows)[number]>();
+
   for (const row of rows) {
     if (!latest.has(row.workspacePath)) latest.set(row.workspacePath, row);
   }
+
   return [...latest.values()];
 };
 
@@ -31,29 +34,36 @@ const listChildren = (
   segments: readonly string[],
 ): WorkspaceEntry[] => {
   const children = new Map<string, WorkspaceEntry>();
+
   for (const observation of observations) {
     const path = relativeSegments(observation.workspacePath);
+
     if (!segments.every((segment, index) => path[index] === segment)) continue;
     const name = path[segments.length];
+
     if (!name) continue;
     const isFile = path.length === segments.length + 1;
     const existing = children.get(name);
+
     if (!existing || existing.kind === "file") {
-      children.set(name, {
+      const child: WorkspaceEntry = {
         name,
         kind: isFile ? "file" : "dir",
-        ...(isFile
-          ? {
-              summary: `${observation.source} · ${observation.completeness} · ${formatDate(observation.observedAt)}`,
-            }
-          : {}),
-      });
+        summary: isFile
+          ? `${observation.source} · ${observation.completeness} · ${formatDate(observation.observedAt)}`
+          : undefined,
+      };
+
+      children.set(name, child);
     }
   }
+
   return [...children.values()].reduce<WorkspaceEntry[]>((ordered, entry) => {
     const index = ordered.findIndex((candidate) => candidate.name.localeCompare(entry.name) > 0);
+
     if (index < 0) ordered.push(entry);
     else ordered.splice(index, 0, entry);
+
     return ordered;
   }, []);
 };
@@ -71,24 +81,31 @@ export const instagramMount: WorkspaceMount = {
         { name: "searches", kind: "dir", summary: "buscas de perfis realizadas" },
       ];
     }
+
     if (!["self", "public", "posts", "searches"].includes(segments[0]!)) return null;
+
     return listChildren(await loadObservations(ctx, accountId), segments);
   },
   read: async (ctx, accountId, segments): Promise<WorkspaceFile | null> => {
     if (segments.length < 2) return null;
     const path = `/instagram/${segments.join("/")}`;
+
     const observation = (await loadObservations(ctx, accountId)).find(
       (row) => row.workspacePath === path,
     );
+
     if (!observation) return null;
-    return jsonFile({
+
+    const content = {
       source: observation.source,
       observedAt: new Date(observation.observedAt).toISOString(),
       expiresAt: new Date(observation.expiresAt).toISOString(),
       completeness: observation.completeness,
-      ...(observation.costUsd !== undefined ? { costUsd: observation.costUsd } : {}),
       nextCursor: observation.nextCursor ?? null,
       data: observation.payload,
-    });
+      costUsd: observation.costUsd,
+    };
+
+    return jsonFile(content);
   },
 };

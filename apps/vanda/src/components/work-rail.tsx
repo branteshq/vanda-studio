@@ -27,6 +27,7 @@ export function WorkRailProvider({ children }: { children: ReactNode }) {
     setView({ kind: "list" });
     setOpen(true);
   }, []);
+
   const openPost = useCallback((postId: Id<"posts">) => {
     setView({ kind: "post", postId });
     setOpen(true);
@@ -36,11 +37,14 @@ export function WorkRailProvider({ children }: { children: ReactNode }) {
     () => ({ open, setOpen, view, openList, openPost }),
     [open, view, openList, openPost],
   );
+
   return <WorkRailContext.Provider value={value}>{children}</WorkRailContext.Provider>;
 }
 
 export function useWorkRail(): WorkRailState {
   const context = useContext(WorkRailContext);
+
   if (context === null) throw new Error("useWorkRail must be used within a WorkRailProvider");
+
   return context;
 }

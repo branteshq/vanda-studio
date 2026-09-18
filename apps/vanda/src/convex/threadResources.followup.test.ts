@@ -12,8 +12,10 @@ describe("publication thread follow-up", () => {
   it("posts the final receipt to Vanda and Caetano with rendered resources", async () => {
     const t = convexTest(schema, modules);
     agentComponent.register(t);
+
     const setup = await t.run(async (ctx) => {
       const now = Date.now();
+
       const userId = await ctx.db.insert("users", {
         clerkId: "owner",
         name: "Dono",
@@ -21,23 +23,28 @@ describe("publication thread follow-up", () => {
         createdAt: now,
         updatedAt: now,
       });
+
       const accountId = await ctx.db.insert("accounts", {
         ownerUserId: userId,
         createdAt: now,
         updatedAt: now,
       });
+
       const imageId = await ctx.db.insert("images", {
         accountId,
         origin: "generated",
         purpose: "post",
         createdAt: now,
       });
+
       const originThreadId = await createThread(ctx, components.agent, {
         userId: String(accountId),
       });
+
       const caetanoThreadId = await createThread(ctx, components.agent, {
         userId: `caetano:${userId}`,
       });
+
       const postId = await ctx.db.insert("posts", {
         accountId,
         originThreadId,
@@ -49,6 +56,7 @@ describe("publication thread follow-up", () => {
         status: "published",
         createdAt: now,
       });
+
       const scheduledPostId = await ctx.db.insert("scheduledPosts", {
         accountId,
         postId,
@@ -58,6 +66,7 @@ describe("publication thread follow-up", () => {
         createdAt: now,
         updatedAt: now,
       });
+
       return { accountId, postId, scheduledPostId, originThreadId, caetanoThreadId };
     });
 
@@ -67,6 +76,7 @@ describe("publication thread follow-up", () => {
 
     const manifests = await t.run((ctx) => ctx.db.query("threadResourceManifests").collect());
     expect(manifests).toHaveLength(2);
+
     for (const manifest of manifests) {
       expect(manifest.presented).toEqual(
         expect.arrayContaining([
@@ -92,6 +102,7 @@ describe("publication thread follow-up", () => {
           paginationOpts: { cursor: null, numItems: 10 },
         }),
       );
+
       expect(messages.page.at(-1)?.text).toContain("já está no Instagram");
     }
   });

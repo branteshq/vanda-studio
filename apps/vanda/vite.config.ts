@@ -9,6 +9,7 @@ const rootEnvDir = fileURLToPath(new URL("../..", import.meta.url));
 
 export default defineConfig(({ mode }) => {
   const rootEnv = loadEnv(mode, rootEnvDir, "");
+
   for (const [key, value] of Object.entries(rootEnv)) {
     process.env[key] ??= value;
   }
@@ -49,11 +50,6 @@ export default defineConfig(({ mode }) => {
         },
       ],
     },
-    plugins: [
-      tailwindcss(),
-      tanstackStart(),
-      nitro({ noExternals: true }),
-      viteReact(),
-    ],
+    plugins: [tailwindcss(), tanstackStart(), nitro({ noExternals: true }), viteReact()],
   };
 });

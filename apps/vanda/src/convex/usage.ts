@@ -64,8 +64,10 @@ const resolveUser = async (
   args: { userId?: Id<"users"> | undefined; accountId?: Id<"accounts"> | undefined },
 ): Promise<Doc<"users"> | null> => {
   if (args.userId) return ctx.db.get(args.userId);
+
   if (!args.accountId) return null;
   const account = await ctx.db.get(args.accountId);
+
   return account?.ownerUserId ? ctx.db.get(account.ownerUserId) : null;
 };
 
@@ -79,11 +81,13 @@ export const budgetOf = async (ctx: QueryCtx, user: Doc<"users">): Promise<Budge
   const periodKey = periodKeyOf(user);
   const row = await periodRow(ctx, user._id, periodKey);
   const spentMicroUsd = row?.spentMicroUsd ?? 0;
+
   // Paid allowances follow the current plan configuration immediately instead
   // of retaining the amount cached when the subscription was last synchronized.
   const allowanceMicroUsd = user.planId
     ? allowanceForPlan(user.planId)
     : (user.usageAllowanceMicroUsd ?? TRIAL_ALLOWANCE_MICRO_USD);
+
   return { ok: spentMicroUsd < allowanceMicroUsd, spentMicroUsd, allowanceMicroUsd, periodKey };
 };
 
@@ -103,21 +107,30 @@ export const chargeUsage = async (
   },
 ): Promise<void> => {
   const user = await resolveUser(ctx, args);
+
   if (!user) return;
   const microUsd = Math.round(args.usd * 1_000_000);
+
   if (microUsd <= 0) return;
   const periodKey = periodKeyOf(user);
   const now = Date.now();
-  await ctx.db.insert("usageEvents", {
+
+  const event = {
     userId: user._id,
-    ...(args.accountId ? { accountId: args.accountId } : {}),
     kind: args.kind,
     microUsd,
-    ...(args.ref ? { ref: args.ref.slice(0, 120) } : {}),
     periodKey,
     createdAt: now,
-  });
+  };
+
+  if (args.accountId) Object.assign(event, { accountId: args.accountId });
+
+  if (args.ref) Object.assign(event, { ref: args.ref.slice(0, 120) });
+
+  await ctx.db.insert("usageEvents", event);
+
   const row = await periodRow(ctx, user._id, periodKey);
+
   if (row) {
     await ctx.db.patch(row._id, { spentMicroUsd: row.spentMicroUsd + microUsd, updatedAt: now });
   } else {
@@ -150,9 +163,11 @@ export const budget = internalQuery({
   args: { accountId: v.optional(v.id("accounts")), userId: v.optional(v.id("users")) },
   handler: async (ctx, args): Promise<BudgetState> => {
     const user = await resolveUser(ctx, args);
+
     if (!user) {
       return { ok: true, spentMicroUsd: 0, allowanceMicroUsd: 0, periodKey: "none" };
     }
+
     return budgetOf(ctx, user);
   },
 });
@@ -174,17 +189,22 @@ export const summary = query({
     renewsAt: number | null;
   } | null> => {
     const identity = await ctx.auth.getUserIdentity();
+
     if (!identity) return null;
+
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .unique();
+
     if (!user) return null;
     const state = await budgetOf(ctx, user);
+
     const usedPct =
       state.allowanceMicroUsd > 0
         ? Math.min(100, Math.round((state.spentMicroUsd / state.allowanceMicroUsd) * 100))
         : 100;
+
     return {
       plan: user.planId ?? null,
       scheduledPlan: user.scheduledPlanId ?? null,

@@ -1,12 +1,11 @@
 import { v } from "convex/values";
-import { errorCode, errorCopy, type ErrorCode } from "../errors";
+import { errorCode, errorCodes, errorCopy } from "../errors";
 
-export const errorCodeValidator = v.union(
-  ...Object.keys(errorCopy).map((code) => v.literal(code as ErrorCode)),
-);
+export const errorCodeValidator = v.union(...errorCodes.map((code) => v.literal(code)));
 
 /** Reduce any exception to catalogued copy before it crosses a durable/UI boundary. */
-export const safeFailure = (error: unknown): { code: ErrorCode; message: string } => {
-  const code = errorCode(error);
+export const safeFailure = (cause: unknown) => {
+  const code = errorCode(cause);
+
   return { code, message: errorCopy[code].message };
 };

@@ -9,6 +9,7 @@ const modules = import.meta.glob("./**/*.ts");
 describe("thread resource manifests", () => {
   it("deduplicates resources across a turn and updates retried tool calls", async () => {
     const t = convexTest(schema, modules);
+
     const accountId = await t.run((ctx) =>
       ctx.db.insert("accounts", {
         name: "Conta",
@@ -16,6 +17,7 @@ describe("thread resource manifests", () => {
         updatedAt: Date.now(),
       }),
     );
+
     const imageId = await t.run((ctx) =>
       ctx.db.insert("images", {
         accountId,
@@ -24,6 +26,7 @@ describe("thread resource manifests", () => {
         createdAt: Date.now(),
       }),
     );
+
     const image = { kind: "image" as const, accountId, imageId };
 
     await t.mutation(internal.threadResources.record, {
@@ -45,6 +48,7 @@ describe("thread resource manifests", () => {
       threadId: "thread",
       anchorMessageId: "prompt",
     });
+
     expect(manifest.resources).toEqual([image]);
     expect(manifest.presented).toEqual([image]);
     expect(await t.run((ctx) => ctx.db.query("threadResourceManifests").collect())).toHaveLength(1);
@@ -52,30 +56,36 @@ describe("thread resource manifests", () => {
 
   it("resolves presentable resources only inside the selected account", async () => {
     const t = convexTest(schema, modules);
+
     const { accountId, imageId, foreignImageId } = await t.run(async (ctx) => {
       const now = Date.now();
+
       const accountId = await ctx.db.insert("accounts", {
         name: "Conta",
         createdAt: now,
         updatedAt: now,
       });
+
       const foreignAccountId = await ctx.db.insert("accounts", {
         name: "Outra",
         createdAt: now,
         updatedAt: now,
       });
+
       const imageId = await ctx.db.insert("images", {
         accountId,
         origin: "generated",
         purpose: "post",
         createdAt: now,
       });
+
       const foreignImageId = await ctx.db.insert("images", {
         accountId: foreignAccountId,
         origin: "generated",
         purpose: "post",
         createdAt: now,
       });
+
       return { accountId, imageId, foreignImageId };
     });
 

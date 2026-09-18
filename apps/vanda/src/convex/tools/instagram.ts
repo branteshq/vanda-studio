@@ -8,17 +8,18 @@ import { summarizeInstagramResult } from "../instagram/toolSummary";
 import { capabilityResult, capabilityResultSchema, type ThreadResource } from "../resourceRefs";
 
 type InstagramToolCtx = ToolCtx & { accountId: Id<"accounts"> };
+
 type Scope = "connected" | "public";
 
 interface InstagramToolRunners {
   readonly searchProfiles: (
     ctx: InstagramToolCtx,
     args: { query: string; limit?: number | undefined },
-  ) => Promise<unknown>;
+  ) => Promise<InstagramToolResult>;
   readonly readProfile: (
     ctx: InstagramToolCtx,
     args: { scope: Scope; handle?: string | undefined },
-  ) => Promise<unknown>;
+  ) => Promise<InstagramToolResult>;
   readonly listPosts: (
     ctx: InstagramToolCtx,
     args: {
@@ -27,11 +28,11 @@ interface InstagramToolRunners {
       limit?: number | undefined;
       cursor?: string | undefined;
     },
-  ) => Promise<unknown>;
+  ) => Promise<InstagramToolResult>;
   readonly readPost: (
     ctx: InstagramToolCtx,
     args: { postUrl: string; includeTranscript?: boolean | undefined },
-  ) => Promise<unknown>;
+  ) => Promise<InstagramToolResult>;
   readonly listComments: (
     ctx: InstagramToolCtx,
     args: {
@@ -41,29 +42,41 @@ interface InstagramToolRunners {
       limit?: number | undefined;
       cursor?: string | undefined;
     },
-  ) => Promise<unknown>;
+  ) => Promise<InstagramToolResult>;
   readonly readMetrics: (
     ctx: InstagramToolCtx,
     args: { postId?: string | undefined },
-  ) => Promise<unknown>;
+  ) => Promise<InstagramToolResult>;
 }
 
 const scopeSchema = z.enum(["connected", "public"]).default("connected");
+
+const instagramToolResultSchema = z.object({
+  data: z.json(),
+  savedTo: z.string(),
+  cached: z.boolean(),
+  source: z.enum(["upload_post", "apify"]),
+  completeness: z.enum(["complete", "partial"]),
+  observedAt: z.number(),
+  costUsd: z.number().optional(),
+  nextCursor: z.string().optional(),
+});
+
+type InstagramToolResult = z.infer<typeof instagramToolResultSchema>;
 
 const instagramResult = async (
   ctx: InstagramToolCtx,
   options: ToolExecutionOptions,
   operation: InstagramOperation,
-  run: () => Promise<unknown>,
-): Promise<unknown> => {
-  const data = summarizeInstagramResult(operation, await run());
-  const savedTo =
-    data && typeof data === "object" && typeof (data as { savedTo?: unknown }).savedTo === "string"
-      ? (data as { savedTo: string }).savedTo
-      : null;
-  const resources: ThreadResource[] = savedTo
-    ? [{ kind: "document", accountId: ctx.accountId, path: savedTo }]
-    : [];
+  run: () => Promise<InstagramToolResult>,
+) => {
+  const result = instagramToolResultSchema.parse(await run());
+  const data = summarizeInstagramResult(operation, result);
+
+  const resources: ThreadResource[] = [
+    { kind: "document", accountId: ctx.accountId, path: result.savedTo },
+  ];
+
   return recordCapabilityResult(ctx, options, capabilityResult(data, { resources }));
 };
 

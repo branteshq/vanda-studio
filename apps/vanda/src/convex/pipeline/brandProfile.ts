@@ -4,6 +4,7 @@ import { BrandAnalysis, type BrandCorpus } from "./brand";
 
 /** Cap the corpus fed to the model so a large account stays within a sane prompt. */
 const MAX_CAPTIONS = 25;
+
 const MAX_COMMENTS = 50;
 
 const profileLines = (profile: BrandCorpus["profile"]): string => {
@@ -17,6 +18,7 @@ const profileLines = (profile: BrandCorpus["profile"]): string => {
     profile.views !== undefined ? `Visualizações recentes: ${profile.views}` : null,
     profile.biography !== undefined ? `Bio: ${profile.biography}` : null,
   ].filter((line): line is string => line !== null);
+
   return lines.length > 0 ? lines.join("\n") : "(sem dados de perfil)";
 };
 
@@ -73,5 +75,6 @@ export const proposeBrandProfile = Effect.fn("pipeline.proposeBrandProfile")(fun
     prompt: buildPrompt(corpus),
     schema: BrandAnalysis,
   });
+
   return response.value;
 });

@@ -10,12 +10,14 @@ const modules = import.meta.glob("./**/*.ts");
 
 const setup = async () => {
   const t = convexTest(schema, modules);
+
   const accountId = await t.run(async (ctx) => {
     const userId = await ctx.db.insert("users", {
       name: "Marina",
       email: "m@example.com",
       clerkId: "clerk-1",
     });
+
     return ctx.db.insert("accounts", {
       ownerUserId: userId,
       handle: "cafelumiar",
@@ -23,6 +25,7 @@ const setup = async () => {
       updatedAt: Date.now(),
     });
   });
+
   return { t, accountId };
 };
 
@@ -49,6 +52,7 @@ describe("Instagram observation cache and workspace", () => {
       accountId,
       since: observedAt - 1,
     });
+
     expect(publicItems).toBe(2);
     const budget = await t.query(internal.usage.budget, { accountId });
     expect(budget.spentMicroUsd).toBe(5_400);
@@ -57,6 +61,7 @@ describe("Instagram observation cache and workspace", () => {
       accountId,
       path: "/instagram",
     });
+
     expect(root.ok && root.entries.map((entry) => entry.name)).toEqual([
       "self",
       "public",
@@ -68,18 +73,21 @@ describe("Instagram observation cache and workspace", () => {
       accountId,
       path: "/instagram/public/cafeexterno/profile.json",
     });
+
     expect(file.ok).toBe(true);
+
     if (!file.ok || file.file.kind !== "text") throw new Error("expected text observation");
-    const parsed = JSON.parse(file.file.text) as Record<string, unknown>;
-    expect(parsed["source"]).toBe("apify");
-    expect(parsed["costUsd"]).toBe(0.0054);
-    expect(parsed["data"]).toEqual({ handle: "cafeexterno", followers: 800 });
+    const parsed = JSON.parse(file.file.text);
+    expect(parsed.source).toBe("apify");
+    expect(parsed.costUsd).toBe(0.0054);
+    expect(parsed.data).toEqual({ handle: "cafeexterno", followers: 800 });
   });
 
   it("returns compact tool results while retaining full cached and workspace data", async () => {
     const { t, accountId } = await setup();
     const now = Date.now();
     const path = "/instagram/searches/cafe.json";
+
     const payload = [
       {
         handle: "cafeexterno",
@@ -87,6 +95,7 @@ describe("Instagram observation cache and workspace", () => {
         latestPosts: [{ id: "post-1", caption: "a".repeat(100_000) }],
       },
     ];
+
     await t.mutation(internal.instagramData.saveObservation, {
       accountId,
       requestKey: "search:test",
@@ -100,12 +109,15 @@ describe("Instagram observation cache and workspace", () => {
       observedAt: now,
       expiresAt: now + 60_000,
     });
+
     const cached = await t.query(internal.instagramData.readCachedObservation, {
       accountId,
       requestKey: "search:test",
       now,
     });
+
     if (!cached) throw new Error("expected cached observation");
+
     const run = async () => ({
       data: cached.payload,
       savedTo: cached.workspacePath,
@@ -114,6 +126,7 @@ describe("Instagram observation cache and workspace", () => {
       completeness: cached.completeness,
       observedAt: cached.observedAt,
     });
+
     const tools = makeInstagramTools({
       searchProfiles: run,
       readProfile: run,
@@ -122,9 +135,11 @@ describe("Instagram observation cache and workspace", () => {
       listComments: run,
       readMetrics: run,
     });
+
     const tool = Object.assign(tools.search_instagram_profiles, {
       ctx: { accountId, threadId: "thread", messageId: "prompt", runMutation: t.mutation.bind(t) },
     });
+
     const result = await tool.execute!({ query: "cafe" }, { toolCallId: "search-1", messages: [] });
     expect(JSON.stringify(result).length).toBeLessThan(2_000);
     expect(result).toMatchObject({
@@ -138,6 +153,7 @@ describe("Instagram observation cache and workspace", () => {
     const manifests = await t.run((ctx) => ctx.db.query("threadResourceManifests").collect());
     expect(manifests[0]?.resources).toEqual([{ kind: "document", accountId, path }]);
     const file = await t.query(internal.workspaceData.read, { accountId, path });
+
     if (!file.ok || file.file.kind !== "text") throw new Error("expected workspace observation");
     expect(JSON.parse(file.file.text).data).toEqual(payload);
     expect(cached.payload).toEqual(payload);
@@ -163,6 +179,7 @@ describe("Instagram observation cache and workspace", () => {
       requestKey: "posts:self",
       now: 201,
     });
+
     expect(cached).toBeNull();
     const budget = await t.query(internal.usage.budget, { accountId });
     expect(budget.spentMicroUsd).toBe(0);

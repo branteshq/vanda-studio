@@ -11,6 +11,8 @@ import {
 } from "./_generated/server";
 import { requireUser } from "./authz";
 import { tierOfPlan } from "./billing/plans";
+import * as Schema from "effect/Schema";
+import * as Match from "effect/Match";
 
 /**
  * The Conectado plan's OpenAI connection: the ChatGPT device-code OAuth flow
@@ -23,13 +25,49 @@ import { tierOfPlan } from "./billing/plans";
  */
 
 const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
+
 const AUTH_BASE_URL = "https://auth.openai.com";
+
 const TOKEN_URL = `${AUTH_BASE_URL}/oauth/token`;
+
 const DEVICE_USER_CODE_URL = `${AUTH_BASE_URL}/api/accounts/deviceauth/usercode`;
+
 const DEVICE_TOKEN_URL = `${AUTH_BASE_URL}/api/accounts/deviceauth/token`;
+
 const DEVICE_REDIRECT_URI = `${AUTH_BASE_URL}/deviceauth/callback`;
+
 export const DEVICE_VERIFICATION_URI = `${AUTH_BASE_URL}/codex/device`;
+
 const JWT_CLAIM_PATH = "https://api.openai.com/auth";
+
+const JwtPayload = Schema.Struct({
+  [JWT_CLAIM_PATH]: Schema.optional(
+    Schema.Struct({ chatgpt_account_id: Schema.optional(Schema.String) }),
+  ),
+});
+
+const DeviceCodeResponse = Schema.Struct({
+  device_auth_id: Schema.optional(Schema.String),
+  user_code: Schema.optional(Schema.String),
+  interval: Schema.optional(Schema.Union([Schema.Number, Schema.String])),
+});
+
+const DeviceErrorResponse = Schema.Struct({
+  error: Schema.optional(
+    Schema.Union([Schema.String, Schema.Struct({ code: Schema.optional(Schema.String) })]),
+  ),
+});
+
+const DeviceApprovalResponse = Schema.Struct({
+  authorization_code: Schema.optional(Schema.String),
+  code_verifier: Schema.optional(Schema.String),
+});
+
+const TokenResponse = Schema.Struct({
+  access_token: Schema.optional(Schema.String),
+  refresh_token: Schema.optional(Schema.String),
+  expires_in: Schema.optional(Schema.Number),
+});
 
 /** The tier whose inference rides the user's ChatGPT subscription. */
 export const CONNECTED_TIER = "conectado";
@@ -37,10 +75,11 @@ export const CONNECTED_TIER = "conectado";
 const decodeAccountId = (accessToken: string): string | null => {
   try {
     const payload = accessToken.split(".")[1];
+
     if (!payload) return null;
-    const decoded = JSON.parse(atob(payload)) as {
-      [JWT_CLAIM_PATH]?: { chatgpt_account_id?: string };
-    };
+
+    const decoded = Schema.decodeUnknownSync(JwtPayload)(JSON.parse(atob(payload)));
+
     return decoded[JWT_CLAIM_PATH]?.chatgpt_account_id ?? null;
   } catch {
     return null;
@@ -59,29 +98,33 @@ export const startDeviceAuth = action({
     intervalSeconds: number;
   }> => {
     const identity = await ctx.auth.getUserIdentity();
+
     if (!identity) throw new Error("Not authenticated");
+
     const response = await fetch(DEVICE_USER_CODE_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ client_id: CLIENT_ID }),
     });
+
     if (!response.ok) {
       throw new Error(`Falha ao iniciar a conexão com a OpenAI (HTTP ${response.status})`);
     }
-    const json = (await response.json()) as {
-      device_auth_id?: string;
-      user_code?: string;
-      interval?: number | string;
-    };
-    const interval = typeof json.interval === "string" ? Number(json.interval) : json.interval;
+
+    const json = Schema.decodeUnknownSync(DeviceCodeResponse)(await response.json());
+
+    const interval = json.interval === undefined ? undefined : Number(json.interval);
+
     if (!json.device_auth_id || !json.user_code) {
       throw new Error("Resposta inválida da OpenAI ao iniciar a conexão");
     }
+
     return {
       deviceAuthId: json.device_auth_id,
       userCode: json.user_code,
       verificationUri: DEVICE_VERIFICATION_URI,
-      intervalSeconds: Number.isFinite(interval) ? Math.max(interval as number, 3) : 5,
+      intervalSeconds:
+        interval !== undefined && Number.isFinite(interval) ? Math.max(interval, 3) : 5,
     };
   },
 });
@@ -97,31 +140,40 @@ export const pollDeviceAuth = action({
     { deviceAuthId, userCode },
   ): Promise<{ status: "pending" | "complete" | "failed"; message?: string }> => {
     const identity = await ctx.auth.getUserIdentity();
+
     if (!identity) throw new Error("Not authenticated");
+
     const response = await fetch(DEVICE_TOKEN_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ device_auth_id: deviceAuthId, user_code: userCode }),
     });
+
     if (response.status === 403 || response.status === 404) return { status: "pending" };
+
     if (!response.ok) {
       const body = await response.text().catch(() => "");
       let code: unknown;
+
       try {
-        const parsed = JSON.parse(body) as { error?: string | { code?: string } };
-        code = typeof parsed.error === "object" ? parsed.error?.code : parsed.error;
+        const parsed = Schema.decodeUnknownSync(DeviceErrorResponse)(JSON.parse(body));
+        code = Match.value(parsed.error).pipe(
+          Match.when(Match.string, (error) => error),
+          Match.orElse((error) => error?.code),
+        );
       } catch {
         // non-JSON error body
       }
+
       if (code === "deviceauth_authorization_pending" || code === "slow_down") {
         return { status: "pending" };
       }
+
       return { status: "failed", message: `OpenAI respondeu HTTP ${response.status}` };
     }
-    const approved = (await response.json()) as {
-      authorization_code?: string;
-      code_verifier?: string;
-    };
+
+    const approved = Schema.decodeUnknownSync(DeviceApprovalResponse)(await response.json());
+
     if (!approved.authorization_code || !approved.code_verifier) {
       return { status: "failed", message: "Resposta de aprovação inválida" };
     }
@@ -137,18 +189,19 @@ export const pollDeviceAuth = action({
         redirect_uri: DEVICE_REDIRECT_URI,
       }),
     });
+
     if (!exchange.ok) {
       return { status: "failed", message: `Troca de tokens falhou (HTTP ${exchange.status})` };
     }
-    const tokens = (await exchange.json()) as {
-      access_token?: string;
-      refresh_token?: string;
-      expires_in?: number;
-    };
-    if (!tokens.access_token || !tokens.refresh_token || typeof tokens.expires_in !== "number") {
+
+    const tokens = Schema.decodeUnknownSync(TokenResponse)(await exchange.json());
+
+    if (!tokens.access_token || !tokens.refresh_token || tokens.expires_in === undefined) {
       return { status: "failed", message: "Tokens ausentes na resposta da OpenAI" };
     }
+
     const accountId = decodeAccountId(tokens.access_token);
+
     if (!accountId) return { status: "failed", message: "Conta ChatGPT não identificada no token" };
 
     await ctx.runAction(internal.openaiSubNode.encryptAndStore, {
@@ -158,6 +211,7 @@ export const pollDeviceAuth = action({
       expiresAt: Date.now() + tokens.expires_in * 1000,
       accountId,
     });
+
     return { status: "complete" };
   },
 });
@@ -180,6 +234,7 @@ export const saveTokens = internalMutation({
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
       .unique();
+
     if (!user) throw new Error("user not found");
     await ctx.db.patch(user._id, {
       openaiAccountId: args.accountId,
@@ -250,12 +305,16 @@ export const connectionStatus = query({
   args: {},
   handler: async (ctx): Promise<{ connected: boolean; connectedAt: number | null } | null> => {
     const identity = await ctx.auth.getUserIdentity();
+
     if (!identity) return null;
+
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .unique();
+
     if (!user) return null;
+
     return {
       connected: user.openaiAccessCiphertext !== undefined,
       connectedAt: user.openaiConnectedAt ?? null,
@@ -279,13 +338,17 @@ export const subscriberState = internalQuery({
     args: { accountId?: Id<"accounts">; userId?: Id<"users"> },
   ): Promise<{ active: boolean; userId: Id<"users"> | null }> => {
     let userId = args.userId ?? null;
+
     if (!userId && args.accountId) {
       const account = await ctx.db.get(args.accountId);
       userId = account?.ownerUserId ?? null;
     }
+
     if (!userId) return { active: false, userId: null };
     const user = await ctx.db.get(userId);
+
     if (!user) return { active: false, userId: null };
+
     return { active: isConnectedSubscriber(user), userId };
   },
 });

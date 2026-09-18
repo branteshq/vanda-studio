@@ -5,7 +5,7 @@ import {
   fetchBrandCorpus,
   InstagramReader,
   InstagramReadFailed,
-  type InstagramReaderShape,
+  type InstagramReaderService,
 } from "./liveBrand";
 
 const mediaPage = {
@@ -35,7 +35,7 @@ const mediaPage = {
 const unavailable = (operation: string) =>
   Effect.fail(new InstagramReadFailed({ operation, message: "permission denied" }));
 
-const readerLayer = (overrides: Partial<InstagramReaderShape> = {}) =>
+const readerLayer = (overrides: Partial<InstagramReaderService> = {}) =>
   Layer.succeed(InstagramReader, {
     getProfile: () =>
       Effect.succeed({

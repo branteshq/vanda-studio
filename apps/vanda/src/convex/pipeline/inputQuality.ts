@@ -1,9 +1,13 @@
 import * as Schema from "effect/Schema";
 
 export const DAY_MS = 86_400_000;
+
 export const MAX_SOURCE_AGE_MS = 7 * DAY_MS;
+
 export const EMERGING_SOURCE_AGE_MS = 72 * 3_600_000;
+
 export const INPUT_QUALITY_VERSION = "input-quality-v1";
+
 export const BREAKOUT_DETECTOR_VERSION = "breakout-v2";
 
 export const InputRejectionCode = Schema.Literals([
@@ -22,12 +26,15 @@ export const InputRejectionCode = Schema.Literals([
   "provider_data_inconsistent",
   "duplicate_opportunity",
 ]);
+
 export type InputRejectionCode = typeof InputRejectionCode.Type;
 
 export const InputAssessmentDecision = Schema.Literals(["qualified", "rejected"]);
+
 export type InputAssessmentDecision = typeof InputAssessmentDecision.Type;
 
 export const InputAssessmentStage = Schema.Literals(["preflight", "final"]);
+
 export type InputAssessmentStage = typeof InputAssessmentStage.Type;
 
 export class InputAssessment extends Schema.Class<InputAssessment>("InputAssessment")({
@@ -49,6 +56,7 @@ export interface BrandReadinessResult {
 }
 
 const REQUIRED_BRAND_KINDS = ["identity", "summary", "voice"] as const;
+
 const RECOMMENDED_BRAND_KINDS = [
   "positioning",
   "audience",
@@ -65,6 +73,7 @@ export const assessBrandReadiness = ({
   const missingRecommended = RECOMMENDED_BRAND_KINDS.filter((kind) => !kinds.has(kind));
   const total = REQUIRED_BRAND_KINDS.length + RECOMMENDED_BRAND_KINDS.length;
   const score = (total - missingRequired.length - missingRecommended.length) / Math.max(1, total);
+
   return {
     ready: missingRequired.length === 0,
     score,
@@ -76,10 +85,12 @@ export const assessBrandReadiness = ({
 /** Stable non-cryptographic content key used to reuse immutable brand snapshots. */
 export const brandSnapshotHash = (lines: ReadonlyArray<string>): string => {
   let hash = 2_166_136_261;
-  for (const character of [...lines].sort().join("\n")) {
+
+  for (const character of lines.toSorted().join("\n")) {
     hash ^= character.codePointAt(0) ?? 0;
     hash = Math.imul(hash, 16_777_619);
   }
+
   return `brand-${(hash >>> 0).toString(16).padStart(8, "0")}`;
 };
 
@@ -91,7 +102,9 @@ const semanticWords = (value: string | undefined): ReadonlyArray<string> =>
 
 export const isUsableSemanticText = (value: string | undefined): boolean => {
   const words = semanticWords(value);
+
   if (words.length < 6) return false;
+
   return new Set(words).size >= 4;
 };
 
@@ -113,22 +126,30 @@ export const assessPreflightInput = (input: PreflightInput): InputAssessment => 
   const age = input.now - input.publishedAt;
 
   if (!input.brandReady) rejectionCodes.push("brand_incomplete");
+
   if (input.creatorBlocked) rejectionCodes.push("creator_blocked");
+
   if (input.creatorRelevanceScore < 0.65) rejectionCodes.push("creator_irrelevant");
+
   if (!Number.isFinite(input.publishedAt) || age < -3_600_000)
     rejectionCodes.push("invalid_published_at");
   else if (age > MAX_SOURCE_AGE_MS) rejectionCodes.push("source_too_old");
+
   if (views === undefined || !Number.isFinite(views) || views < 0)
     rejectionCodes.push("missing_views");
+
   if (input.followers === undefined || !Number.isFinite(input.followers) || input.followers <= 0)
     rejectionCodes.push("missing_followers");
+
   if (age > EMERGING_SOURCE_AGE_MS && age <= MAX_SOURCE_AGE_MS)
     warnings.push("source_outside_emerging_window");
 
   const freshness = Number.isFinite(age)
     ? Math.max(0, 1 - Math.max(0, age) / MAX_SOURCE_AGE_MS)
     : 0;
+
   const metricConfidence = views !== undefined && input.followers !== undefined ? 1 : 0;
+
   const qualityScore = Math.round(
     Math.max(
       0,
@@ -162,19 +183,23 @@ export const assessFinalInput = (input: FinalInput): InputAssessment => {
   const warnings = [...preflight.warnings];
   const usableTranscript = isUsableSemanticText(input.transcript);
   const usableCaption = isUsableSemanticText(input.caption);
+
   const usableVisualEvidence =
     (input.hasDurableVideo || input.hasDurableThumbnail || input.frameCount >= 3) &&
     isUsableSemanticText(input.visualDescription);
 
   if (!input.hasDurableVideo && !input.hasDurableThumbnail && input.frameCount === 0)
     rejectionCodes.push("missing_media");
+
   if (input.transcript && !usableTranscript) warnings.push("transcript_unusable");
+
   if (!usableTranscript && !usableCaption && !usableVisualEvidence) {
     rejectionCodes.push("unusable_transcript", "insufficient_visual_context");
   }
 
   const semanticCompleteness = usableTranscript || usableCaption ? 1 : 0.5;
   const visualCompleteness = usableVisualEvidence ? 1 : 0;
+
   const qualityScore = Math.round(
     Math.max(
       0,

@@ -1,14 +1,26 @@
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery } from "./_generated/server";
 import { chargeUsage } from "./usage";
+
+interface InstagramReadEvent {
+  accountId: Id<"accounts">;
+  operation: string;
+  source: "upload_post" | "apify";
+  itemCount: number;
+  observedAt: number;
+  costUsd?: number;
+}
 
 export const resolveConnectedTarget = internalQuery({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
     const account = await ctx.db.get(accountId);
+
     if (!account || !account.handle || account.publisherConnectedAt === undefined) {
       throw new Error("account has no connected Instagram profile");
     }
+
     return { publisherUsername: String(accountId), handle: account.handle };
   },
 });
@@ -26,6 +38,7 @@ export const readCachedObservation = internalQuery({
         q.eq("accountId", accountId).eq("requestKey", requestKey),
       )
       .unique();
+
     return observation && observation.expiresAt > now ? observation : null;
   },
 });
@@ -39,6 +52,7 @@ export const publicReadItemsSince = internalQuery({
         q.eq("accountId", accountId).gte("observedAt", since),
       )
       .collect();
+
     return observations
       .filter((observation) => observation.source === "apify")
       .reduce((total, observation) => total + observation.itemCount, 0);
@@ -63,30 +77,39 @@ export const saveObservation = internalMutation({
   },
   handler: async (ctx, args) => {
     if (!(await ctx.db.get(args.accountId))) throw new Error("account not found");
+
     if (!args.workspacePath.startsWith("/instagram/")) {
       throw new Error("invalid Instagram workspace path");
     }
+
     const existing = await ctx.db
       .query("instagramObservations")
       .withIndex("by_account_request", (q) =>
         q.eq("accountId", args.accountId).eq("requestKey", args.requestKey),
       )
       .unique();
+
     let observationId;
+
     if (existing) {
       await ctx.db.patch(existing._id, args);
       observationId = existing._id;
     } else {
       observationId = await ctx.db.insert("instagramObservations", args);
     }
-    await ctx.db.insert("instagramReadEvents", {
+
+    const readEvent: InstagramReadEvent = {
       accountId: args.accountId,
       operation: args.operation,
       source: args.source,
       itemCount: args.itemCount ?? 1,
-      ...(args.costUsd !== undefined ? { costUsd: args.costUsd } : {}),
       observedAt: args.observedAt,
-    });
+    };
+
+    if (args.costUsd !== undefined) readEvent.costUsd = args.costUsd;
+
+    await ctx.db.insert("instagramReadEvents", readEvent);
+
     if (args.source === "apify" && args.costUsd && args.costUsd > 0) {
       await chargeUsage(ctx, {
         accountId: args.accountId,
@@ -95,6 +118,7 @@ export const saveObservation = internalMutation({
         ref: `${args.operation}:${args.target}`,
       });
     }
+
     return observationId;
   },
 });

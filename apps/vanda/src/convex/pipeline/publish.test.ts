@@ -8,11 +8,13 @@ describe("publishPost", () => {
   it.effect("publishes a single image and returns the receipt", () =>
     Effect.gen(function* () {
       const fake = makeFakePublisher();
+
       const receipt = yield* publishPost({
         type: "feed",
         caption: "hi",
         imageUrls: ["https://img/1.jpg"],
       }).pipe(Effect.provide(fake.layer));
+
       expect(fake.published).toHaveLength(1);
       expect(fake.published[0]).toMatchObject({
         caption: "hi",
@@ -38,10 +40,12 @@ describe("publishPost", () => {
   it.effect("rejects an empty image set without calling the publisher", () =>
     Effect.gen(function* () {
       const fake = makeFakePublisher();
+
       const error = yield* publishPost({ type: "feed", caption: "x", imageUrls: [] }).pipe(
         Effect.provide(fake.layer),
         Effect.flip,
       );
+
       expect(error._tag).toBe("InvalidPost");
       expect(fake.published).toHaveLength(0);
     }),
@@ -50,11 +54,13 @@ describe("publishPost", () => {
   it.effect("rejects more than 10 images", () =>
     Effect.gen(function* () {
       const fake = makeFakePublisher();
+
       const error = yield* publishPost({
         type: "feed",
         caption: "x",
         imageUrls: Array.from({ length: 11 }, (_, i) => `u${i}`),
       }).pipe(Effect.provide(fake.layer), Effect.flip);
+
       expect(error._tag).toBe("InvalidPost");
     }),
   );
@@ -62,10 +68,12 @@ describe("publishPost", () => {
   it.effect("rejects an unsupported post type", () =>
     Effect.gen(function* () {
       const fake = makeFakePublisher();
+
       const error = yield* publishPost({ type: "reel", caption: "x", imageUrls: ["u"] }).pipe(
         Effect.provide(fake.layer),
         Effect.flip,
       );
+
       expect(error._tag).toBe("UnsupportedFormat");
     }),
   );
@@ -78,9 +86,11 @@ describe("publishDue", () => {
     Effect.gen(function* () {
       const fake = makeFakePublisher();
       const store = makeInMemoryPublishStore({ sp1: job });
+
       const receipt = yield* publishDue("sp1").pipe(
         Effect.provide(Layer.mergeAll(fake.layer, store.layer)),
       );
+
       expect(receipt.externalPostId).toBe("media_1");
       expect(store.state.get("sp1")).toMatchObject({
         status: "published",
@@ -93,10 +103,12 @@ describe("publishDue", () => {
     Effect.gen(function* () {
       const fake = makeFakePublisher({ fail: true });
       const store = makeInMemoryPublishStore({ sp1: job });
+
       const error = yield* publishDue("sp1").pipe(
         Effect.provide(Layer.mergeAll(fake.layer, store.layer)),
         Effect.flip,
       );
+
       expect(error._tag).toBe("PublisherRequestFailed");
       expect(store.state.get("sp1")).toMatchObject({
         status: "failed",
@@ -109,10 +121,12 @@ describe("publishDue", () => {
     Effect.gen(function* () {
       const fake = makeFakePublisher();
       const store = makeInMemoryPublishStore({});
+
       const error = yield* publishDue("missing").pipe(
         Effect.provide(Layer.mergeAll(fake.layer, store.layer)),
         Effect.flip,
       );
+
       expect(error._tag).toBe("PublishJobNotFound");
     }),
   );

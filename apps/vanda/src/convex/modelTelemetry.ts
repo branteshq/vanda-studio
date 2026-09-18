@@ -21,11 +21,16 @@ export const finish = internalMutation({
     outputSummary: v.optional(v.string()),
     error: v.optional(v.string()),
   },
-  handler: (ctx, { runId, status, outputSummary, error }) =>
-    ctx.db.patch(runId, {
+  handler: (ctx, { runId, status, outputSummary, error }) => {
+    const patch = {
       status,
       completedAt: Date.now(),
-      ...(outputSummary !== undefined ? { outputSummary } : {}),
-      ...(error !== undefined ? { error } : {}),
-    }),
+    };
+
+    if (outputSummary !== undefined) Object.assign(patch, { outputSummary });
+
+    if (error !== undefined) Object.assign(patch, { error });
+
+    return ctx.db.patch(runId, patch);
+  },
 });

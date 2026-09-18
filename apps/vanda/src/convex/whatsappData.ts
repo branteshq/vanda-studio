@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
 import { requireUser } from "./authz";
 import { isStop, replyParts, serviceWindowOpen } from "./whatsapp/protocol";
@@ -9,13 +9,16 @@ export const storeLink = internalMutation({
   args: { tokenHash: v.string() },
   handler: async (ctx, { tokenHash }) => {
     const user = await requireUser(ctx);
+
     const links = await ctx.db
       .query("whatsappLinks")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .collect();
+
     for (const link of links) await ctx.db.delete(link._id);
     const expiresAt = Date.now() + 10 * 60_000;
     await ctx.db.insert("whatsappLinks", { userId: user._id, tokenHash, expiresAt });
+
     return expiresAt;
   },
 });
@@ -24,11 +27,14 @@ export const state = query({
   args: {},
   handler: async (ctx) => {
     const user = await requireUser(ctx);
+
     const connections = await ctx.db
       .query("whatsappConnections")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .collect();
+
     const connection = connections.find((c) => c.active);
+
     const recent = connection
       ? await ctx.db
           .query("whatsappOutbox")
@@ -36,6 +42,7 @@ export const state = query({
           .order("desc")
           .take(10)
       : [];
+
     return {
       configured: !!(
         process.env.KAPSO_API_KEY &&
@@ -59,15 +66,19 @@ export const disconnect = mutation({
   args: {},
   handler: async (ctx) => {
     const user = await requireUser(ctx);
+
     const connections = await ctx.db
       .query("whatsappConnections")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .collect();
+
     for (const connection of connections) await ctx.db.patch(connection._id, { active: false });
+
     const links = await ctx.db
       .query("whatsappLinks")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .collect();
+
     for (const link of links) await ctx.db.delete(link._id);
   },
 });
@@ -79,17 +90,24 @@ async function enqueue(
   sourceMessageId?: string,
 ) {
   const connection = await ctx.db.get(connectionId);
+
   if (!connection?.active) return;
-  for (const part of replyParts(text))
-    await ctx.db.insert("whatsappOutbox", {
+
+  for (const part of replyParts(text)) {
+    const outbox: Omit<Doc<"whatsappOutbox">, "_id" | "_creationTime"> = {
       connectionId,
       text: part,
       attempts: 0,
       status: "pending",
-      ...(sourceMessageId ? { sourceMessageId } : {}),
-    });
+    };
+
+    if (sourceMessageId) outbox.sourceMessageId = sourceMessageId;
+    await ctx.db.insert("whatsappOutbox", outbox);
+  }
+
   await ctx.scheduler.runAfter(0, internal.whatsapp.deliver, { connectionId });
 }
+
 export const enqueueReply = internalMutation({
   args: {
     connectionId: v.id("whatsappConnections"),
@@ -98,6 +116,33 @@ export const enqueueReply = internalMutation({
   },
   handler: async (ctx, args) => enqueue(ctx, args.connectionId, args.text, args.sourceMessageId),
 });
+
+type DeliveryEventStatus = "sent" | "delivered" | "read" | "failed";
+
+const deliveryStatus = (value: string | undefined): DeliveryEventStatus | null => {
+  switch (value) {
+    case "sent":
+    case "delivered":
+    case "read":
+    case "failed":
+      return value;
+    default:
+      return null;
+  }
+};
+
+const deliveryRank = (status: string): number => {
+  switch (status) {
+    case "sent":
+      return 1;
+    case "delivered":
+      return 2;
+    case "read":
+      return 3;
+    default:
+      return 0;
+  }
+};
 
 const eventValidator = v.object({
   event: v.string(),
@@ -117,6 +162,7 @@ export const accept = internalMutation({
   args: { deliveryKey: v.string(), events: v.array(eventValidator) },
   handler: async (ctx, args) => {
     const key = `accepted:${args.deliveryKey}`;
+
     if (
       await ctx.db
         .query("whatsappReceipts")
@@ -141,32 +187,41 @@ export const ingest = internalMutation({
       )
         return true;
       await ctx.db.insert("whatsappReceipts", { key, receivedAt: Date.now() });
+
       return false;
     };
+
     if (await seen(`delivery:${deliveryKey}`)) return;
+
     for (let index = 0; index < events.length; index++) {
       const event = { ...events[index]! };
+
       if (event.phoneNumberId !== process.env.KAPSO_PHONE_NUMBER_ID)
         throw new Error("wrong number");
+
       if (await seen(`${event.phoneNumberId}:${event.event}:${event.messageId}`)) continue;
+
       if (event.event !== "whatsapp.message.received") {
         const callback = event.callbackId
           ? ctx.db.normalizeId("whatsappOutbox", event.callbackId)
           : null;
+
         const row = callback
           ? await ctx.db.get(callback)
           : await ctx.db
               .query("whatsappOutbox")
               .withIndex("by_external", (q) => q.eq("externalMessageId", event.messageId))
               .first();
+
         if (!row) continue;
         const connection = await ctx.db.get(row.connectionId);
+
         if (connection?.phoneNumberId !== event.phoneNumberId) continue;
-        const status = event.event.split(".").at(-1);
-        const rank: Record<string, number> = { sent: 1, delivered: 2, read: 3 };
-        if (status && rank[status] && (rank[status] ?? 0) > (rank[row.status] ?? 0)) {
+        const status = deliveryStatus(event.event.split(".").at(-1));
+
+        if (status && deliveryRank(status) > deliveryRank(row.status)) {
           await ctx.db.patch(row._id, {
-            status: status as "sent" | "delivered" | "read",
+            status,
             externalMessageId: event.messageId,
           });
         } else if (status === "failed" && row.status !== "delivered" && row.status !== "read") {
@@ -175,16 +230,19 @@ export const ingest = internalMutation({
             error: "WhatsApp não entregou a mensagem.",
           });
         }
+
         await ctx.scheduler.runAfter(0, internal.whatsapp.deliver, {
           connectionId: row.connectionId,
         });
         continue;
       }
+
       // Kapso's per-conversation buffer becomes one turn, while each external
       // message keeps its own dedupe receipt. Never merge across a stop/link.
       if (event.text && !event.tokenHash && !isStop(event.text)) {
         while (index + 1 < events.length) {
           const next = events[index + 1]!;
+
           if (
             next.event !== event.event ||
             next.phoneNumberId !== event.phoneNumberId ||
@@ -196,29 +254,37 @@ export const ingest = internalMutation({
           )
             break;
           index++;
+
           if (await seen(`${next.phoneNumberId}:${next.event}:${next.messageId}`)) continue;
           event.text += `\n${next.text}`;
           event.timestamp = Math.max(event.timestamp, next.timestamp);
         }
       }
+
       let connection = await ctx.db
         .query("whatsappConnections")
         .withIndex("by_sender", (q) =>
           q.eq("phoneNumberId", event.phoneNumberId).eq("sender", event.sender),
         )
         .unique();
+
       if (event.tokenHash) {
         const link = await ctx.db
           .query("whatsappLinks")
           .withIndex("by_hash", (q) => q.eq("tokenHash", event.tokenHash!))
           .unique();
+
         if (!link || link.expiresAt < Date.now()) continue;
+
         if (connection?.active && connection.userId !== link.userId) continue;
+
         const previous = await ctx.db
           .query("whatsappConnections")
           .withIndex("by_user", (q) => q.eq("userId", link.userId))
           .collect();
+
         for (const row of previous) await ctx.db.patch(row._id, { active: false });
+
         // Never reassign an existing row: queued replies from its old owner must stay isolated.
         if (connection && connection.userId !== link.userId) {
           await ctx.db.patch(connection._id, {
@@ -227,17 +293,21 @@ export const ingest = internalMutation({
           });
           connection = null;
         }
-        const data = {
+
+        const data: Omit<Doc<"whatsappConnections">, "_id" | "_creationTime"> = {
           userId: link.userId,
           phoneNumberId: event.phoneNumberId,
           sender: event.sender,
           recipientKind: event.recipientKind,
-          ...(event.phone ? { phone: event.phone } : {}),
           lastInboundAt: Math.min(event.timestamp, Date.now()),
           connectedAt: Date.now(),
           active: true,
         };
+
+        if (event.phone) data.phone = event.phone;
+
         const id = connection?._id ?? (await ctx.db.insert("whatsappConnections", data));
+
         if (connection) await ctx.db.patch(id, data);
         await ctx.db.delete(link._id);
         await enqueue(
@@ -247,19 +317,29 @@ export const ingest = internalMutation({
         );
         continue;
       }
+
       if (!connection?.active) continue;
-      await ctx.db.patch(connection._id, {
+
+      const connectionPatch: Pick<
+        Partial<Doc<"whatsappConnections">>,
+        "lastInboundAt" | "phone"
+      > = {
         lastInboundAt: Math.max(connection.lastInboundAt, Math.min(event.timestamp, Date.now())),
-        ...(event.phone ? { phone: event.phone } : {}),
-      });
+      };
+
+      if (event.phone) connectionPatch.phone = event.phone;
+      await ctx.db.patch(connection._id, connectionPatch);
+
       const waiting = await ctx.db
         .query("whatsappOutbox")
         .withIndex("by_connection_status", (q) =>
           q.eq("connectionId", connection!._id).eq("status", "awaiting_window"),
         )
         .collect();
+
       for (const row of waiting) await ctx.db.patch(row._id, { status: "pending" });
       await ctx.scheduler.runAfter(0, internal.whatsapp.deliver, { connectionId: connection._id });
+
       if (isStop(event.text)) {
         await ctx.runMutation(internal.caetano.stopForOwner, { userId: connection.userId });
         await enqueue(
@@ -300,35 +380,46 @@ export const claimDelivery = internalMutation({
   args: { connectionId: v.id("whatsappConnections") },
   handler: async (ctx, { connectionId }) => {
     const connection = await ctx.db.get(connectionId);
+
     if (!connection?.active) return null;
+
     const sending = await ctx.db
       .query("whatsappOutbox")
       .withIndex("by_connection_status", (q) =>
         q.eq("connectionId", connectionId).eq("status", "sending"),
       )
       .first();
+
     if (sending) return null;
+
     const row = await ctx.db
       .query("whatsappOutbox")
       .withIndex("by_connection_status", (q) =>
         q.eq("connectionId", connectionId).eq("status", "pending"),
       )
       .first();
+
     if (!row) return null;
+
     if (row.nextAttemptAt && row.nextAttemptAt > Date.now()) {
       await ctx.scheduler.runAt(row.nextAttemptAt, internal.whatsapp.deliver, { connectionId });
+
       return null;
     }
+
     if (!serviceWindowOpen(connection.lastInboundAt)) {
       await ctx.db.patch(row._id, { status: "awaiting_window" });
       await ctx.scheduler.runAfter(0, internal.whatsapp.deliver, { connectionId });
+
       return null;
     }
+
     await ctx.db.patch(row._id, { status: "sending", attempts: row.attempts + 1 });
     await ctx.scheduler.runAfter(60_000, internal.whatsappData.deliveryTimeout, {
       id: row._id,
       attempts: row.attempts + 1,
     });
+
     return {
       ...row,
       attempts: row.attempts + 1,
@@ -354,15 +445,18 @@ export const finishDelivery = internalMutation({
   },
   handler: async (ctx, { id, ...patch }) => {
     const row = await ctx.db.get(id);
+
     if (!row) return;
+
     // Delivery/read webhook may beat the HTTP response.
-    if (row.status === "sending")
-      await ctx.db.patch(id, {
-        ...patch,
-        ...(patch.status === "pending"
-          ? { nextAttemptAt: Date.now() + 10_000 * row.attempts }
-          : {}),
-      });
+    if (row.status === "sending") {
+      const deliveryPatch = { ...patch };
+
+      if (patch.status === "pending")
+        Object.assign(deliveryPatch, { nextAttemptAt: Date.now() + 10_000 * row.attempts });
+      await ctx.db.patch(id, deliveryPatch);
+    }
+
     await ctx.scheduler.runAfter(
       patch.status === "pending" ? 10_000 * row.attempts : 0,
       internal.whatsapp.deliver,
@@ -375,6 +469,7 @@ export const deliveryTimeout = internalMutation({
   args: { id: v.id("whatsappOutbox"), attempts: v.number() },
   handler: async (ctx, { id, attempts }) => {
     const row = await ctx.db.get(id);
+
     if (row?.status !== "sending" || row.attempts !== attempts) return;
     await ctx.db.patch(id, {
       status: "unknown",
@@ -390,8 +485,10 @@ export const retryDelivery = mutation({
     const user = await requireUser(ctx);
     const row = await ctx.db.get(id);
     const connection = row ? await ctx.db.get(row.connectionId) : null;
+
     if (!row || !connection?.active || connection.userId !== user._id)
       throw new Error("mensagem não encontrada");
+
     if (!["failed", "unknown"].includes(row.status))
       throw new Error("mensagem não pode ser reenviada");
     await ctx.db.patch(id, {

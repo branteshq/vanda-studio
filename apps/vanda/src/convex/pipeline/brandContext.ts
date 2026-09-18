@@ -1,6 +1,7 @@
 import type * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
+import type { Id } from "../_generated/dataModel";
 import type { BrandCanonKind, BrandKind } from "./brand";
 
 export interface BrandCanonEntry {
@@ -17,11 +18,13 @@ export interface BrandContextSnapshot {
   readonly referenceImageUrls: ReadonlyArray<string>;
 }
 
-export interface BrandContextShape {
-  readonly load: (accountId: string) => Effect.Effect<BrandContextSnapshot, Cause.UnknownError>;
+export interface BrandContextService {
+  readonly load: (
+    accountId: Id<"accounts">,
+  ) => Effect.Effect<BrandContextSnapshot, Cause.UnknownError>;
 }
 
-export class BrandContext extends Context.Service<BrandContext, BrandContextShape>()(
+export class BrandContext extends Context.Service<BrandContext, BrandContextService>()(
   "@vanda/pipeline/BrandContext",
 ) {}
 
@@ -49,6 +52,8 @@ export const renderBrandContext = (brand: BrandContextSnapshot): string => {
     brand.brandKind ? `Tipo: ${brand.brandKind}` : null,
     `Idioma: ${brand.locale}`,
   ].filter((line): line is string => line !== null);
+
   const canon = brand.canon.map((entry) => `${labels[entry.kind]}: ${entry.text}`);
+
   return [...header, ...canon].join("\n");
 };

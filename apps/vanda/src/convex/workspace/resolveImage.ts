@@ -29,11 +29,15 @@ export const resolveImagePath = async (
     const images = (await allImages()).filter(
       (image) => image.purpose !== "reference" && image.status === undefined,
     );
+
     return resolveByName(segments[1]!, images);
   }
+
   if (segments[0] === "brand" && segments[1] === "references" && segments.length === 3) {
     const references = (await allImages()).filter((image) => image.purpose === "reference");
+
     return resolveByName(segments[2]!, references);
   }
+
   return null;
 };

@@ -9,8 +9,10 @@ const modules = import.meta.glob("./**/*.ts");
 const setup = async () => {
   const t = convexTest(schema, modules);
   const now = Date.now();
+
   const { accountId, imageId } = await t.run(async (ctx) => {
     const userId = await ctx.db.insert("users", { name: "Me", email: "me@e.com", clerkId: "me" });
+
     const accountId = await ctx.db.insert("accounts", {
       ownerUserId: userId,
       handle: "cafelumiar",
@@ -19,6 +21,7 @@ const setup = async () => {
       createdAt: now,
       updatedAt: now,
     });
+
     const imageId = await ctx.db.insert("images", {
       accountId,
       name: "foto",
@@ -27,8 +30,10 @@ const setup = async () => {
       externalUrl: "https://img/1.jpg",
       createdAt: now,
     });
+
     return { accountId, imageId };
   });
+
   return { t, accountId, imageId };
 };
 
@@ -41,6 +46,7 @@ describe("posts.createPostInternal — the light post path", () => {
       imageIds: [imageId],
       caption: "bom dia ☕",
     });
+
     const post = (await t.run((ctx) => ctx.db.get(postId)))!;
     expect(post).toMatchObject({ status: "draft", type: "image", platform: "instagram" });
 
@@ -61,6 +67,7 @@ describe("posts.createPostInternal — the light post path", () => {
         createdAt: 1,
         updatedAt: 1,
       });
+
       return ctx.db.insert("images", {
         accountId: otherAccount,
         name: "alheia",
@@ -70,6 +77,7 @@ describe("posts.createPostInternal — the light post path", () => {
         createdAt: 1,
       });
     });
+
     await expect(
       t.mutation(internal.posts.createPostInternal, {
         accountId,
@@ -83,6 +91,7 @@ describe("posts.createPostInternal — the light post path", () => {
 describe("posts.schedulePostInternal — the approved commit", () => {
   it("arms the scheduler, flips the post, and re-aims instead of duplicating", async () => {
     const { t, accountId, imageId } = await setup();
+
     const postId = await t.mutation(internal.posts.createPostInternal, {
       accountId,
       imageIds: [imageId],
@@ -90,11 +99,13 @@ describe("posts.schedulePostInternal — the approved commit", () => {
     });
 
     const scheduledFor = Date.now() + 60_000;
+
     const result = await t.mutation(internal.posts.schedulePostInternal, {
       accountId,
       postId,
       scheduledFor,
     });
+
     expect(result).toMatchObject({ scheduledFor, rescheduled: false });
 
     const post = (await t.run((ctx) => ctx.db.get(postId)))!;
@@ -105,11 +116,13 @@ describe("posts.schedulePostInternal — the approved commit", () => {
 
     // Scheduling again RE-AIMS the same row at the new time.
     const later = scheduledFor + 3_600_000;
+
     const again = await t.mutation(internal.posts.schedulePostInternal, {
       accountId,
       postId,
       scheduledFor: later,
     });
+
     expect(again).toMatchObject({
       scheduledPostId: result.scheduledPostId,
       scheduledFor: later,
@@ -123,11 +136,13 @@ describe("posts.schedulePostInternal — the approved commit", () => {
 describe("posts.cancelScheduleInternal / deletePostInternal — the inverses", () => {
   it("cancel disarms back to draft; delete removes drafts and scheduled posts", async () => {
     const { t, accountId, imageId } = await setup();
+
     const postId = await t.mutation(internal.posts.createPostInternal, {
       accountId,
       imageIds: [imageId],
       caption: "bom dia",
     });
+
     await t.mutation(internal.posts.schedulePostInternal, {
       accountId,
       postId,
@@ -162,16 +177,19 @@ describe("posts.cancelScheduleInternal / deletePostInternal — the inverses", (
 
   it("refuses to delete a published post", async () => {
     const { t, accountId, imageId } = await setup();
+
     const postId = await t.mutation(internal.posts.createPostInternal, {
       accountId,
       imageIds: [imageId],
       caption: "bom dia",
     });
+
     const { scheduledPostId } = await t.mutation(internal.posts.schedulePostInternal, {
       accountId,
       postId,
       scheduledFor: Date.now() + 60_000,
     });
+
     await t.run(async (ctx) => {
       await ctx.db.patch(scheduledPostId, { status: "published" });
       await ctx.db.patch(postId, { status: "published" });
@@ -188,11 +206,13 @@ describe("posts.cancelScheduleInternal / deletePostInternal — the inverses", (
 describe("posts.listForRail", () => {
   it("returns the merged lifecycle state, scoped to the owner", async () => {
     const { t, accountId, imageId } = await setup();
+
     const postId = await t.mutation(internal.posts.createPostInternal, {
       accountId,
       imageIds: [imageId],
       caption: "bom dia",
     });
+
     await t.mutation(internal.posts.schedulePostInternal, {
       accountId,
       postId,
@@ -202,6 +222,7 @@ describe("posts.listForRail", () => {
     const rows = await t
       .withIdentity({ subject: "me" })
       .query(api.posts.listForRail, { accountId });
+
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       postId,

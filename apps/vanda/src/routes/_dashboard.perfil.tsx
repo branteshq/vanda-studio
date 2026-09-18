@@ -1,8 +1,16 @@
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 import { useClerk, useUser } from "@clerk/tanstack-react-start";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAction, useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
+import { z } from "zod";
 import {
   ArrowLeft,
   Building2,
@@ -62,6 +70,96 @@ import { errorMessage } from "../errors";
 export const Route = createFileRoute("/_dashboard/perfil")({
   component: ProfilePage,
 });
+
+const profileHooks = {
+  useUsageSummary: () => useQuery(api.usage.summary),
+  useSyncBilling: () => useAction(api.billing.autumn.syncBilling),
+  useBillingActions: () => ({
+    startCheckout: useAction(api.billing.autumn.startCheckout),
+    previewPlanChange: useAction(api.billing.autumn.previewPlanChange),
+    changePlan: useAction(api.billing.autumn.changePlan),
+    getPortalUrl: useAction(api.billing.autumn.getBillingPortalUrl),
+  }),
+  useModelPreferences: () => {
+    const setAgentModel = useMutation(api.users.setAgentModel);
+    const setCaetanoModel = useMutation(api.users.setCaetanoModel);
+    const setImageModel = useMutation(api.users.setImageModel);
+
+    return {
+      preferences: useQuery(api.users.modelPreferences),
+      setAgentModel: (args: { modelId: string }) => setAgentModel(args),
+      setCaetanoModel: (args: { modelId: string }) => setCaetanoModel(args),
+      setImageModel: (args: { modelId: string }) => setImageModel(args),
+    };
+  },
+  usePublisherConnection: (accountId: Id<"accounts">) => ({
+    status: useQuery(api.publisherConnect.connectionStatus, { accountId }),
+    startConnect: useAction(api.publisherConnect.startConnect),
+    syncConnection: useAction(api.publisherConnect.syncConnection),
+  }),
+  useOpenAiConnection: () => {
+    const disconnect = useMutation(api.openaiSub.disconnect);
+
+    return {
+      status: useQuery(api.openaiSub.connectionStatus),
+      startDeviceAuth: useAction(api.openaiSub.startDeviceAuth),
+      pollDeviceAuth: useAction(api.openaiSub.pollDeviceAuth),
+      disconnect: () => disconnect(),
+    };
+  },
+  useInstalledSkills: (accountId: Id<"accounts">) =>
+    useQuery(api.workspacePublic.installedSkills, { accountId }),
+  useWorkspaceFile: (accountId: Id<"accounts">, path: string, skip: boolean) =>
+    useQuery(api.workspacePublic.file, skip ? "skip" : { accountId, path }),
+  useWorkspaceBrowse: (accountId: Id<"accounts">, path: string) =>
+    useQuery(api.workspacePublic.browse, { accountId, path }),
+};
+
+type ProfileRuntime = typeof profileHooks & {
+  useProfileUser: () => {
+    user:
+      | (Pick<NonNullable<ReturnType<typeof useUser>["user"]>, "firstName" | "fullName"> &
+          Partial<
+            Pick<
+              NonNullable<ReturnType<typeof useUser>["user"]>,
+              "username" | "imageUrl" | "primaryEmailAddress"
+            >
+          >)
+      | null
+      | undefined;
+  };
+  useClerkActions: () => Pick<ReturnType<typeof useClerk>, "signOut" | "openUserProfile">;
+  useProfileNavigate: () => ReturnType<typeof useNavigate>;
+  useProfileAccounts: () => {
+    accounts:
+      | Array<
+          Pick<
+            NonNullable<ReturnType<typeof useActiveAccount>["accounts"]>[number],
+            "id" | "name" | "onboardedAt"
+          >
+        >
+      | undefined;
+    activeAccount:
+      | Pick<
+          NonNullable<ReturnType<typeof useActiveAccount>["activeAccount"]>,
+          "id" | "name" | "onboardedAt"
+        >
+      | undefined;
+    selectAccount: (accountId: Id<"accounts">) => void;
+  };
+  WhatsAppSettings: ComponentType;
+};
+
+const defaultRuntime: ProfileRuntime = {
+  ...profileHooks,
+  useProfileUser: useUser,
+  useClerkActions: useClerk,
+  useProfileNavigate: useNavigate,
+  useProfileAccounts: useActiveAccount,
+  WhatsAppSettings,
+};
+
+const ProfileRuntimeContext = createContext(defaultRuntime);
 
 /**
  * The owner-facing window into what Vanda knows: brand memory, durable notes
@@ -146,11 +244,28 @@ function getInitials(name: string) {
     .join("");
 }
 
-function ProfilePage() {
-  const { user } = useUser();
-  const clerk = useClerk();
-  const navigate = useNavigate();
-  const { accounts, selectAccount } = useActiveAccount();
+function planBadge(tier: string): string | undefined {
+  if (tier === "profissional") return "Mais popular";
+
+  if (tier === "conectado") return "Traga sua assinatura";
+
+  return undefined;
+}
+
+export function ProfilePage({ runtime = defaultRuntime }: { runtime?: ProfileRuntime }) {
+  return (
+    <ProfileRuntimeContext.Provider value={runtime}>
+      <ProfilePageContent />
+    </ProfileRuntimeContext.Provider>
+  );
+}
+
+function ProfilePageContent() {
+  const runtime = useContext(ProfileRuntimeContext);
+  const { user } = runtime.useProfileUser();
+  const clerk = runtime.useClerkActions();
+  const navigate = runtime.useProfileNavigate();
+  const { accounts, selectAccount } = runtime.useProfileAccounts();
   const ready = accounts?.filter((account) => account.onboardedAt !== null) ?? [];
   const [viewedId, setViewedId] = useState<Id<"accounts"> | null>(null);
   const viewed = ready.find((account) => account.id === viewedId);
@@ -160,8 +275,8 @@ function ProfilePage() {
   const tab = businessSection ? businessTab : personalTab;
   const setTab = businessSection ? setBusinessTab : setPersonalTab;
   const section = TABS.find((item) => item.key === tab)!;
-  const summary = useQuery(api.usage.summary);
-  const syncBilling = useAction(api.billing.autumn.syncBilling);
+  const summary = runtime.useUsageSummary();
+  const syncBilling = runtime.useSyncBilling();
 
   // Checkout returns here, even when the plan section isn't open.
   useEffect(() => {
@@ -331,7 +446,7 @@ function ProfilePage() {
           {tab === "modelos" ? <ModelsCard /> : null}
           {tab === "conexoes" ? (
             <div className="space-y-4">
-              <WhatsAppSettings />
+              <runtime.WhatsAppSettings />
               {summary?.plan && tierOfPlan(summary.plan) === "conectado" ? (
                 <OpenAiConnectCard />
               ) : null}
@@ -391,7 +506,7 @@ function ProfilePage() {
  * the owner only ever sees a percentage, never the underlying money.
  */
 function UsageCard({ action }: { action?: ReactNode }) {
-  const summary = useQuery(api.usage.summary);
+  const summary = useContext(ProfileRuntimeContext).useUsageSummary();
   const pct = summary?.usedPct ?? 0;
 
   return (
@@ -466,7 +581,7 @@ function UsageCard({ action }: { action?: ReactNode }) {
   );
 }
 
-const TIER_FEATURES: Record<string, string[]> = {
+const TIER_FEATURES = {
   trial: [
     "Crédito único para experimentar tudo",
     "Todos os recursos incluídos",
@@ -487,19 +602,22 @@ const TIER_FEATURES: Record<string, string[]> = {
     "Texto e imagens pelo seu plano OpenAI",
     "GPT Image 2 — o melhor modelo de imagem",
   ],
-};
+} satisfies Record<string, string[]>;
 
 /**
  * Plan comparison and billing controls. Checkout and portal ride Autumn;
  * the page refreshes the enforcement snapshot on arrival from checkout.
  */
 function AccountTab() {
-  const summary = useQuery(api.usage.summary);
-  const syncBilling = useAction(api.billing.autumn.syncBilling);
-  const startCheckout = useAction(api.billing.autumn.startCheckout);
-  const previewPlanChange = useAction(api.billing.autumn.previewPlanChange);
-  const changePlan = useAction(api.billing.autumn.changePlan);
+  const runtime = useContext(ProfileRuntimeContext);
+  const summary = runtime.useUsageSummary();
+  const syncBilling = runtime.useSyncBilling();
+
+  const { startCheckout, previewPlanChange, changePlan, getPortalUrl } =
+    runtime.useBillingActions();
+
   const [schedule, setSchedule] = useState<"immediate" | "end_of_cycle">("immediate");
+
   const [preview, setPreview] = useState<{
     planId: string;
     currentPlanId: string;
@@ -509,7 +627,7 @@ function AccountTab() {
     effectiveAt: number | null;
     schedule: "immediate" | "end_of_cycle";
   } | null>(null);
-  const getPortalUrl = useAction(api.billing.autumn.getBillingPortalUrl);
+
   const [interval, setInterval] = useState<"monthly" | "annual">("monthly");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -519,17 +637,23 @@ function AccountTab() {
   const subscribe = async (planId: string) => {
     setBusy(planId);
     setError(null);
+
     try {
       if (summary?.plan) {
         const result = await previewPlanChange({ planId, schedule });
         setPreview({ ...result, planId, schedule });
+
         return;
       }
+
       const { checkoutUrl, attached } = await startCheckout({ planId });
+
       if (checkoutUrl) {
         window.location.href = checkoutUrl;
+
         return;
       }
+
       // The purchase completed without a payment page — refresh the snapshot
       // so the cards and the usage bar flip to the new plan reactively.
       if (attached) await syncBilling();
@@ -539,14 +663,17 @@ function AccountTab() {
       setBusy(null);
     }
   };
+
   const confirmChange = async () => {
     if (!preview) return;
     setBusy(preview.planId);
     setError(null);
+
     try {
       const { effectiveAt: _, ...input } = preview;
       const result = await changePlan(input);
       setPreview(null);
+
       if (result.checkoutUrl) window.location.href = result.checkoutUrl;
       else await syncBilling();
     } catch (cause) {
@@ -557,11 +684,14 @@ function AccountTab() {
       setBusy(null);
     }
   };
+
   const manage = async () => {
     setBusy("portal");
     setError(null);
+
     try {
       const { url } = await getPortalUrl();
+
       if (url) window.location.href = url;
     } catch (cause) {
       setError(errorMessage(cause));
@@ -697,18 +827,13 @@ function AccountTab() {
           const perMonth = annual ? annual.perMonthBrl : tier.monthly.priceBrl;
           const current = summary?.plan === price.productId;
           const scheduled = summary?.scheduledPlan === price.productId;
+
           return (
             <PlanCard
               key={tier.tier}
               title={tier.label}
               highlight={tier.tier === "profissional"}
-              badge={
-                tier.tier === "profissional"
-                  ? "Mais popular"
-                  : tier.tier === "conectado"
-                    ? "Traga sua assinatura"
-                    : undefined
-              }
+              badge={planBadge(tier.tier)}
               priceLine={
                 <>
                   <span className="text-xl font-semibold">R${perMonth}</span>
@@ -775,10 +900,15 @@ function AccountTab() {
  * independent preference and continues using Vanda's OpenRouter budget.
  */
 function ModelsCard() {
-  const prefs = useQuery(api.users.modelPreferences);
-  const setAgentModel = useMutation(api.users.setAgentModel);
-  const setCaetanoModel = useMutation(api.users.setCaetanoModel);
-  const setImageModel = useMutation(api.users.setImageModel);
+  const runtime = useContext(ProfileRuntimeContext);
+
+  const {
+    preferences: prefs,
+    setAgentModel,
+    setCaetanoModel,
+    setImageModel,
+  } = runtime.useModelPreferences();
+
   const [error, setError] = useState<string | null>(null);
 
   const conectado = prefs?.conectado ?? false;
@@ -793,6 +923,7 @@ function ModelsCard() {
 
   const choose = async (action: Promise<unknown>) => {
     setError(null);
+
     try {
       await action;
     } catch (cause) {
@@ -841,6 +972,7 @@ function ModelsCard() {
                 <SelectValue>
                   {(value) => {
                     const model = ORCHESTRATOR_MODELS.find((item) => item.id === value);
+
                     return model ? (
                       <>
                         <MakerMark maker={model.maker} />
@@ -853,6 +985,7 @@ function ModelsCard() {
               <SelectContent align="end" className="w-72">
                 {ORCHESTRATOR_MODELS.map((model) => {
                   const blocked = choice.connectedTransport && !model.codexCapable;
+
                   return (
                     <SelectItem key={model.id} value={model.id} disabled={blocked}>
                       <span className="flex items-center gap-2">
@@ -883,6 +1016,7 @@ function ModelsCard() {
               <SelectValue>
                 {(value) => {
                   const model = imageModels.find((item) => item.id === value);
+
                   return model ? (
                     <>
                       <MakerMark maker={model.maker} />
@@ -955,6 +1089,7 @@ function MakerMark({ maker }: { maker: ModelMaker | ImageModel["maker"] }) {
     Google: GeminiIcon,
     "Black Forest Labs": FluxIcon,
   }[maker];
+
   return <Icon className="size-4 shrink-0 text-text-2" />;
 }
 
@@ -965,9 +1100,8 @@ function MakerMark({ maker }: { maker: ModelMaker | ImageModel["maker"] }) {
  * (redirected to /perfil) picks up a fresh connection.
  */
 function InstagramConnectCard({ accountId, name }: { accountId: Id<"accounts">; name: string }) {
-  const status = useQuery(api.publisherConnect.connectionStatus, { accountId });
-  const startConnect = useAction(api.publisherConnect.startConnect);
-  const syncConnection = useAction(api.publisherConnect.syncConnection);
+  const runtime = useContext(ProfileRuntimeContext);
+  const { status, startConnect, syncConnection } = runtime.usePublisherConnection(accountId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -978,12 +1112,14 @@ function InstagramConnectCard({ accountId, name }: { accountId: Id<"accounts">; 
   const connect = async () => {
     setBusy(true);
     setError(null);
+
     try {
       const { url } = await startConnect({
         accountId,
         origin: window.location.origin,
         returnTo: "perfil",
       });
+
       window.location.href = url;
     } catch (cause) {
       setError(errorMessage(cause));
@@ -1026,16 +1162,16 @@ function InstagramConnectCard({ accountId, name }: { accountId: Id<"accounts">; 
  * polled here until approval lands.
  */
 function OpenAiConnectCard() {
-  const status = useQuery(api.openaiSub.connectionStatus);
-  const startDeviceAuth = useAction(api.openaiSub.startDeviceAuth);
-  const pollDeviceAuth = useAction(api.openaiSub.pollDeviceAuth);
-  const disconnect = useMutation(api.openaiSub.disconnect);
+  const runtime = useContext(ProfileRuntimeContext);
+  const { status, startDeviceAuth, pollDeviceAuth, disconnect } = runtime.useOpenAiConnection();
+
   const [device, setDevice] = useState<{
     deviceAuthId: string;
     userCode: string;
     verificationUri: string;
     intervalSeconds: number;
   } | null>(null);
+
   const [flowState, setFlowState] = useState<"idle" | "starting" | "waiting" | "failed">("idle");
   const [flowError, setFlowError] = useState<string | null>(null);
 
@@ -1043,11 +1179,13 @@ function OpenAiConnectCard() {
   useEffect(() => {
     if (!device || flowState !== "waiting") return;
     let cancelled = false;
+
     const timer = setInterval(
       () => {
         void pollDeviceAuth({ deviceAuthId: device.deviceAuthId, userCode: device.userCode })
           .then((result) => {
             if (cancelled) return;
+
             if (result.status === "complete") {
               setDevice(null);
               setFlowState("idle");
@@ -1060,6 +1198,7 @@ function OpenAiConnectCard() {
       },
       Math.max(device.intervalSeconds, 3) * 1000,
     );
+
     return () => {
       cancelled = true;
       clearInterval(timer);
@@ -1069,6 +1208,7 @@ function OpenAiConnectCard() {
   const connect = async () => {
     setFlowState("starting");
     setFlowError(null);
+
     try {
       const info = await startDeviceAuth();
       setDevice(info);
@@ -1178,7 +1318,7 @@ function PlanCard({
 }
 
 function SkillsTab({ accountId }: { accountId: Id<"accounts"> }) {
-  const skills = useQuery(api.workspacePublic.installedSkills, { accountId });
+  const skills = useContext(ProfileRuntimeContext).useInstalledSkills(accountId);
 
   return (
     <section className="rounded-xl border border-border bg-surface p-5">
@@ -1248,8 +1388,10 @@ type FileResult = ReturnType<typeof useFileText>;
 
 /** Reads a workspace text file; null while loading, "" only if truly empty. */
 function useFileText(accountId: Id<"accounts">, path: string, skip = false) {
-  const result = useQuery(api.workspacePublic.file, skip ? "skip" : { accountId, path });
+  const result = useContext(ProfileRuntimeContext).useWorkspaceFile(accountId, path, skip);
+
   if (result === undefined) return { loading: true as const, text: null };
+
   return {
     loading: false as const,
     text: result.ok && result.file.kind === "text" ? result.file.text : null,
@@ -1282,11 +1424,16 @@ function BrandTab({ accountId }: { accountId: Id<"accounts"> }) {
   const notes = useFileText(accountId, "/brand/notes.md");
 
   let readiness: number | null = null;
+
   if (profile.text) {
     try {
-      const parsed = JSON.parse(profile.text) as { readiness?: { score?: number } };
+      const parsed = z
+        .object({ readiness: z.object({ score: z.number() }).optional() })
+        .parse(JSON.parse(profile.text));
+
       const score = parsed.readiness?.score;
-      if (typeof score === "number") readiness = Math.round(score * 100);
+
+      if (score !== undefined) readiness = Math.round(score * 100);
     } catch {
       readiness = null;
     }
@@ -1416,8 +1563,10 @@ function FileBody({ result, format }: { result: FileResult; format: "markdown" |
       </div>
     );
   }
+
   if (!result.text)
     return <p className="text-body-sm text-text-3">Nada registrado por aqui ainda.</p>;
+
   if (format === "code") {
     return (
       <pre className="overflow-x-auto rounded-lg border border-border bg-muted/40 p-3 font-mono text-body-sm leading-relaxed whitespace-pre text-text-2">
@@ -1425,6 +1574,7 @@ function FileBody({ result, format }: { result: FileResult; format: "markdown" |
       </pre>
     );
   }
+
   return <Markdown variant="reading">{result.text}</Markdown>;
 }
 
@@ -1443,12 +1593,15 @@ function FolderTab({
   emptyTitle: string;
   emptyBody: string;
 }) {
-  const listing = useQuery(api.workspacePublic.browse, { accountId, path: folder });
+  const listing = useContext(ProfileRuntimeContext).useWorkspaceBrowse(accountId, folder);
+
   const entries = listing?.ok ? listing.entries : [];
   const [selectedName, setSelectedName] = useState<string | null>(null);
+
   const selected = entries.some((entry) => entry.name === selectedName)
     ? selectedName
     : (entries[0]?.name ?? null);
+
   const file = useFileText(accountId, `${folder}/${selected}`, selected === null);
 
   if (listing === undefined) {
@@ -1477,6 +1630,7 @@ function FolderTab({
       <div className="space-y-1">
         {entries.map((entry) => {
           const active = entry.name === selected;
+
           return (
             <button
               key={entry.name}

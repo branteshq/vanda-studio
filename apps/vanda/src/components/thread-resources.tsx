@@ -23,17 +23,21 @@ export const resourcesForMessage = (
   manifests: readonly PresentedResourceManifest[],
 ): ThreadResource[] => {
   const message = messages[index];
+
   if (!message) return [];
   const anchors = new Set([message.id]);
+
   if (message.role === "assistant") {
     for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
       const previous = messages[cursor];
+
       if (previous?.role === "user") {
         anchors.add(previous.id);
         break;
       }
     }
   }
+
   return dedupeResources(
     manifests
       .filter((manifest) => anchors.has(manifest.anchorMessageId))
@@ -44,7 +48,9 @@ export const resourcesForMessage = (
 export function ThreadResourceList({ resources }: { resources: readonly ThreadResource[] }) {
   const [selectedImage, setSelectedImage] = useState<ImageResourceRef | null>(null);
   const unique = dedupeResources(resources);
+
   if (unique.length === 0) return null;
+
   return (
     <div className="grid w-full gap-2.5">
       {unique.map((resource) => (
@@ -69,6 +75,7 @@ export function ThreadResourceList({ resources }: { resources: readonly ThreadRe
                 resource.accountId === selectedImage.accountId &&
                 resource.imageId === imageId,
             );
+
             if (next) setSelectedImage(next);
           }}
           onClose={() => setSelectedImage(null)}
@@ -105,21 +112,23 @@ function ThreadResourceView({
   }
 }
 
-const POST_STATUS: Record<string, string> = {
+const POST_STATUS = {
   draft: "Rascunho",
   ready: "Pronto",
   scheduled: "Agendado",
   publishing: "Publicando",
   published: "Publicado",
   failed: "Falhou",
-};
+} satisfies Record<string, string>;
 
 function PostResource({ resource }: { resource: Extract<ThreadResource, { kind: "post" }> }) {
   const post = useQuery(api.posts.detail, {
     accountId: resource.accountId,
     postId: resource.postId,
   });
+
   if (post === undefined) return <Skeleton className="h-64 w-full max-w-lg rounded-xl" />;
+
   if (post === null) {
     return (
       <ResourceNotice icon={<X />} title="Post indisponível">
@@ -127,6 +136,7 @@ function PostResource({ resource }: { resource: Extract<ThreadResource, { kind: 
       </ResourceNotice>
     );
   }
+
   return (
     <article className="w-full max-w-lg overflow-hidden rounded-xl border border-border bg-surface">
       {post.imageUrls.length > 0 ? (
@@ -186,8 +196,11 @@ function DocumentResource({
     accountId: resource.accountId,
     path: resource.path,
   });
+
   const title = resource.title ?? resource.path.split("/").at(-1) ?? resource.path;
+
   if (document === undefined) return <Skeleton className="h-24 w-full max-w-lg rounded-xl" />;
+
   if (document === null) {
     return (
       <ResourceNotice icon={<FileText />} title={title}>
@@ -195,7 +208,9 @@ function DocumentResource({
       </ResourceNotice>
     );
   }
+
   const markdown = resource.path.endsWith(".md");
+
   return (
     <details className="w-full max-w-lg overflow-hidden rounded-xl border border-border bg-surface">
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-medium text-text-2">

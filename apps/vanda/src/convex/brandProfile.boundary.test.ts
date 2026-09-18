@@ -50,14 +50,17 @@ const analysis = {
 const setup = async (clerkId = "c1") => {
   const t = convexTest(schema, modules);
   agentTest.register(t);
+
   const accountId = await t.run(async (ctx) => {
     const userId = await ctx.db.insert("users", { name: "Marina", email: "m@e.com", clerkId });
+
     return ctx.db.insert("accounts", {
       ownerUserId: userId,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
   });
+
   return { t, accountId };
 };
 
@@ -135,7 +138,6 @@ describe("approveBrandProfile", () => {
       }),
     ).rejects.toThrow();
   });
-
 });
 
 describe("completeWithoutAnalysis", () => {
@@ -146,9 +148,11 @@ describe("completeWithoutAnalysis", () => {
       .mutation(api.brandProfile.completeWithoutAnalysis, { accountId });
     const account = await t.run((ctx) => ctx.db.get(accountId));
     expect(account?.onboardedAt).toBeTypeOf("number");
+
     const canon = await t
       .withIdentity({ subject: "c1" })
       .query(api.brandProfile.getBrandCanon, { accountId });
+
     expect(canon).toHaveLength(0);
   });
 
@@ -178,6 +182,7 @@ describe("reference photos", () => {
     const storageId = await t.run((ctx) =>
       ctx.storage.store(new Blob(["fake-image"], { type: "image/png" })),
     );
+
     const imageId = await owner.mutation(api.brandProfile.addReferencePhoto, {
       accountId,
       storageId,
@@ -219,14 +224,17 @@ describe("reference photos", () => {
     const { t, accountId } = await setup();
     const owner = t.withIdentity({ subject: "c1" });
     const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["dup"])));
+
     const first = await owner.mutation(api.brandProfile.addReferencePhoto, {
       accountId,
       storageId,
     });
+
     const second = await owner.mutation(api.brandProfile.addReferencePhoto, {
       accountId,
       storageId,
     });
+
     expect(second).toBe(first); // relinking returns the existing row, not a duplicate
     const listed = await owner.query(api.brandProfile.listReferencePhotos, { accountId });
     expect(listed).toHaveLength(1);

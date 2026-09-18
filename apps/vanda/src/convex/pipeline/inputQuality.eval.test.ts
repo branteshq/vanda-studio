@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DAY_MS, assessFinalInput, type FinalInput } from "./inputQuality";
 
 const now = 20 * DAY_MS;
+
 const healthy: FinalInput = {
   now,
   publishedAt: now - DAY_MS,
@@ -112,6 +113,7 @@ describe("input qualification golden fixtures", () => {
     it(fixture.name, () => {
       const result = assessFinalInput(fixture.input);
       expect(result.decision).toBe(fixture.expected);
+
       if (fixture.code) expect(result.rejectionCodes).toContain(fixture.code);
     });
   }

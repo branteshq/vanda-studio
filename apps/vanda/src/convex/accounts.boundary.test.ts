@@ -10,9 +10,11 @@ describe("accounts.listMine — the owner's businesses", () => {
   it("returns only my accounts, names defaulted from the connected handle", async () => {
     const t = convexTest(schema, modules);
     const now = Date.now();
+
     const { withHandle, override } = await t.run(async (ctx) => {
       const me = await ctx.db.insert("users", { name: "Me", email: "me@e.com", clerkId: "me" });
       const other = await ctx.db.insert("users", { name: "O", email: "o@e.com", clerkId: "other" });
+
       const withHandle = await ctx.db.insert("accounts", {
         ownerUserId: me,
         handle: "cafelumiar",
@@ -20,18 +22,21 @@ describe("accounts.listMine — the owner's businesses", () => {
         createdAt: now,
         updatedAt: now,
       });
+
       const override = await ctx.db.insert("accounts", {
         ownerUserId: me,
         name: "Segundo Negócio",
         createdAt: now,
         updatedAt: now,
       });
+
       // Another owner's account must never surface in my switcher.
       await ctx.db.insert("accounts", {
         ownerUserId: other,
         createdAt: now,
         updatedAt: now,
       });
+
       return { withHandle, override };
     });
 
@@ -54,33 +59,40 @@ describe("accounts.selectActive", () => {
   it("persists an owned onboarded business and rejects pending or unowned accounts", async () => {
     const t = convexTest(schema, modules);
     const now = Date.now();
+
     const { me, ready, pending, theirs } = await t.run(async (ctx) => {
       const me = await ctx.db.insert("users", { name: "Me", email: "me@e.com", clerkId: "me" });
       const other = await ctx.db.insert("users", { name: "O", email: "o@e.com", clerkId: "other" });
+
       const ready = await ctx.db.insert("accounts", {
         ownerUserId: me,
         onboardedAt: now,
         createdAt: now,
         updatedAt: now,
       });
+
       const pending = await ctx.db.insert("accounts", {
         ownerUserId: me,
         createdAt: now + 1,
         updatedAt: now + 1,
       });
+
       const theirs = await ctx.db.insert("accounts", {
         ownerUserId: other,
         onboardedAt: now,
         createdAt: now,
         updatedAt: now,
       });
+
       return { me, ready, pending, theirs };
     });
 
     const asMe = t.withIdentity({ subject: "me" });
     await asMe.mutation(api.accounts.selectActive, { accountId: ready });
     expect((await t.run((ctx) => ctx.db.get(me)))?.activeAccountId).toBe(ready);
-    await expect(asMe.mutation(api.accounts.selectActive, { accountId: pending })).rejects.toThrow();
+    await expect(
+      asMe.mutation(api.accounts.selectActive, { accountId: pending }),
+    ).rejects.toThrow();
     await expect(asMe.mutation(api.accounts.selectActive, { accountId: theirs })).rejects.toThrow();
   });
 });
@@ -89,8 +101,10 @@ describe("publisherConnect.applyConnection", () => {
   it("caches the synced handle, defaults the name, and clears on disconnect", async () => {
     const t = convexTest(schema, modules);
     const now = Date.now();
+
     const accountId = await t.run(async (ctx) => {
       const me = await ctx.db.insert("users", { name: "Me", email: "me@e.com", clerkId: "me" });
+
       return ctx.db.insert("accounts", {
         ownerUserId: me,
         createdAt: now,
@@ -134,9 +148,11 @@ describe("accounts.remove", () => {
   it("removes an owned business and clears its account data", async () => {
     const t = convexTest(schema, modules);
     const now = Date.now();
+
     const { mine, theirs, canonId } = await t.run(async (ctx) => {
       const me = await ctx.db.insert("users", { name: "Me", email: "me@e.com", clerkId: "me" });
       const other = await ctx.db.insert("users", { name: "O", email: "o@e.com", clerkId: "other" });
+
       const mine = await ctx.db.insert("accounts", {
         ownerUserId: me,
         handle: "cafelumiar",
@@ -144,11 +160,13 @@ describe("accounts.remove", () => {
         createdAt: now,
         updatedAt: now,
       });
+
       const theirs = await ctx.db.insert("accounts", {
         ownerUserId: other,
         createdAt: now,
         updatedAt: now,
       });
+
       const canonId = await ctx.db.insert("brandCanon", {
         accountId: mine,
         kind: "identity",
@@ -156,6 +174,7 @@ describe("accounts.remove", () => {
         confirmedByOwner: true,
         createdAt: now,
       });
+
       return { mine, theirs, canonId };
     });
 
@@ -171,21 +190,26 @@ describe("accounts.remove", () => {
   it("moves active selection to the oldest remaining onboarded business", async () => {
     const t = convexTest(schema, modules);
     const now = Date.now();
+
     const { me, active, fallback } = await t.run(async (ctx) => {
       const me = await ctx.db.insert("users", { name: "Me", email: "me@e.com", clerkId: "me" });
+
       const fallback = await ctx.db.insert("accounts", {
         ownerUserId: me,
         onboardedAt: now,
         createdAt: now,
         updatedAt: now,
       });
+
       const active = await ctx.db.insert("accounts", {
         ownerUserId: me,
         onboardedAt: now + 1,
         createdAt: now + 1,
         updatedAt: now + 1,
       });
+
       await ctx.db.patch(me, { activeAccountId: active });
+
       return { me, active, fallback };
     });
 

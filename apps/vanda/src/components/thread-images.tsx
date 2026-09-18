@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { createContext, useContext, useEffect, type ReactNode } from "react";
 import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
+import type { FunctionReturnType } from "convex/server";
 import { Copy, Download, ImageOff, SquarePen, Trash2 } from "lucide-react";
 import { ThinkingOrb } from "thinking-orbs";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
@@ -31,6 +32,60 @@ export interface ThreadImageView {
   height?: number | undefined;
 }
 
+type GalleryImage = FunctionReturnType<typeof api.gallery.get>;
+
+interface ThreadImageRuntime {
+  useImage: (accountId: Id<"accounts">, imageId: string | null) => GalleryImage | undefined;
+  useImageActions: () => {
+    rename: (args: { accountId: Id<"accounts">; imageId: string; name: string }) => Promise<null>;
+    remove: (args: { accountId: Id<"accounts">; imageId: string }) => Promise<null>;
+  };
+  copyImage: typeof copyImageToClipboard;
+  downloadImage: typeof downloadImageFile;
+  loadingIndicator: ReactNode;
+}
+
+const defaultRuntime: ThreadImageRuntime = {
+  useImage: (accountId, imageId) =>
+    useQuery(
+      api.gallery.get,
+      // SAFETY: image identifiers arrive unchanged from Convex-backed thread resources.
+      imageId ? { accountId, imageId: imageId as Id<"images"> } : "skip",
+    ),
+  useImageActions: () => {
+    const rename = useMutation(api.gallery.rename);
+    const remove = useMutation(api.gallery.remove);
+
+    return {
+      rename: ({ accountId, imageId, name }) =>
+        // SAFETY: image identifiers arrive unchanged from Convex-backed thread resources.
+        rename({ accountId, imageId: imageId as Id<"images">, name }),
+      remove: ({ accountId, imageId }) =>
+        // SAFETY: image identifiers arrive unchanged from Convex-backed thread resources.
+        remove({ accountId, imageId: imageId as Id<"images"> }),
+    };
+  },
+  copyImage: copyImageToClipboard,
+  downloadImage: downloadImageFile,
+  loadingIndicator: <ThinkingOrb state="shaping" size={64} aria-label="Preparando a imagem…" />,
+};
+
+const ThreadImageRuntimeContext = createContext(defaultRuntime);
+
+export function ThreadImageRuntimeProvider({
+  runtime,
+  children,
+}: {
+  runtime: ThreadImageRuntime;
+  children?: ReactNode;
+}) {
+  return (
+    <ThreadImageRuntimeContext.Provider value={runtime}>
+      {children}
+    </ThreadImageRuntimeContext.Provider>
+  );
+}
+
 /** One image surface for generated images, present, and delegated resources. */
 export function ThreadImage({
   image,
@@ -41,17 +96,17 @@ export function ThreadImage({
   accountId: Id<"accounts">;
   onOpen: () => void;
 }) {
+  const runtime = useContext(ThreadImageRuntimeContext);
   const enter = useEntranceOnMount();
-  const live = useQuery(api.gallery.get, {
-    accountId,
-    imageId: image.imageId as Id<"images">,
-  });
+
+  const live = runtime.useImage(accountId, image.imageId);
+
   const url = live?.url ?? image.url;
   const width = live?.width ?? image.width;
   const height = live?.height ?? image.height;
-  const remove = useMutation(api.gallery.remove);
-  const copy = useMediaAction(() => copyImageToClipboard(url!));
-  const download = useMediaAction(() => downloadImageFile(url!, live?.name ?? null));
+  const { remove } = runtime.useImageActions();
+  const copy = useMediaAction(() => runtime.copyImage(url!));
+  const download = useMediaAction(() => runtime.downloadImage(url!, live?.name ?? null));
 
   if (live === null) return <DeletedImageNotice />;
 
@@ -73,7 +128,7 @@ export function ThreadImage({
           <span className="relative block size-full">
             <Skeleton className="size-full" />
             <span className="absolute inset-0 flex items-center justify-center">
-              <ThinkingOrb state="shaping" size={64} aria-label="Preparando a imagem…" />
+              {runtime.loadingIndicator}
             </span>
           </span>
         )}
@@ -93,7 +148,7 @@ export function ThreadImage({
           </MediaTileAction>
           <MediaTileAction
             label="Excluir"
-            onClick={() => void remove({ accountId, imageId: image.imageId as Id<"images"> })}
+            onClick={() => void remove({ accountId, imageId: image.imageId })}
             className="hover:bg-destructive/85"
           >
             <Trash2 />
@@ -126,12 +181,10 @@ export function ThreadImageLightbox({
   onSelect: (id: string) => void;
   onClose: () => void;
 }) {
-  const detail = useQuery(
-    api.gallery.get,
-    selectedId ? { accountId, imageId: selectedId as Id<"images"> } : "skip",
-  );
-  const rename = useMutation(api.gallery.rename);
-  const remove = useMutation(api.gallery.remove);
+  const runtime = useContext(ThreadImageRuntimeContext);
+
+  const detail = runtime.useImage(accountId, selectedId);
+  const { rename, remove } = runtime.useImageActions();
 
   useEffect(() => {
     if (selectedId && detail === null) onClose();
@@ -141,6 +194,7 @@ export function ThreadImageLightbox({
   const prev = index > 0 ? images[index - 1] : undefined;
   const next = index >= 0 && index < images.length - 1 ? images[index + 1] : undefined;
   const fallback = index >= 0 ? images[index] : undefined;
+
   const image: ImageLightboxData | null = detail
     ? {
         id: detail.id,
@@ -176,12 +230,16 @@ export function ThreadImageLightbox({
       onPrev={prev ? () => onSelect(prev.imageId) : undefined}
       onNext={next ? () => onSelect(next.imageId) : undefined}
       onRename={(name) => {
-        if (selectedId) void rename({ accountId, imageId: selectedId as Id<"images">, name });
+        if (selectedId) {
+          void rename({ accountId, imageId: selectedId, name });
+        }
       }}
       onDelete={() => {
         if (!selectedId) return;
-        void remove({ accountId, imageId: selectedId as Id<"images"> }).then(onClose);
+        void remove({ accountId, imageId: selectedId }).then(onClose);
       }}
+      copyImage={runtime.copyImage}
+      downloadImage={runtime.downloadImage}
     />
   );
 }

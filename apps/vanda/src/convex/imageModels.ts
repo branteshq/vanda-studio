@@ -114,7 +114,9 @@ export const CODE_IMAGE_MODEL = "python/pillow";
 /** The display label for a model id, falling back to the raw id if unknown. */
 export const imageModelLabel = (id: string | undefined): string => {
   if (id === CODE_IMAGE_MODEL) return "Pillow (código)";
+
   if (id === CONECTADO_IMAGE_MODEL) return "GPT Image 2";
+
   return (id && BY_ID.get(id)?.label) ?? id ?? "Desconhecido";
 };
 
@@ -125,6 +127,7 @@ export const modelResolutions = (id: string): ReadonlyArray<ImageResolution> =>
 /** Tiers every one of the given models supports (drives the picker's gating). */
 export const sharedResolutions = (modelIds: Iterable<string>): ReadonlyArray<ImageResolution> => {
   const ids = [...modelIds];
+
   return IMAGE_RESOLUTIONS.filter((resolution) =>
     ids.every((id) => modelResolutions(id).includes(resolution)),
   );
@@ -133,11 +136,15 @@ export const sharedResolutions = (modelIds: Iterable<string>): ReadonlyArray<Ima
 /** The requested tier if the model supports it, else the best it can do. */
 export const clampResolution = (id: string, requested: ImageResolution): ImageResolution => {
   const supported = modelResolutions(id);
+
   if (supported.includes(requested)) return requested;
+
   // Highest supported tier below the request (every model supports 1K).
   for (let i = IMAGE_RESOLUTIONS.indexOf(requested) - 1; i >= 0; i -= 1) {
     const tier = IMAGE_RESOLUTIONS[i]!;
+
     if (supported.includes(tier)) return tier;
   }
+
   return "1K";
 };

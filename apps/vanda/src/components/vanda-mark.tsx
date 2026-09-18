@@ -4,6 +4,7 @@ import { useId } from "react";
 // favicon): six gradient petals radiating from a light center. One petal path,
 // rotated in 60° steps.
 const PETAL = "M0,0 C -8,-14 -10,-31 0,-45 C 10,-31 8,-14 0,0 Z";
+
 const ROTATIONS = [0, 60, 120, 180, 240, 300];
 
 /**
@@ -29,7 +30,14 @@ export function VandaMark({
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden="true">
       <defs>
-        <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1="14" y1="12" x2="86" y2="90">
+        <linearGradient
+          id={gradientId}
+          gradientUnits="userSpaceOnUse"
+          x1="14"
+          y1="12"
+          x2="86"
+          y2="90"
+        >
           <stop offset="0" stopColor={from} />
           <stop offset="1" stopColor={to} />
         </linearGradient>

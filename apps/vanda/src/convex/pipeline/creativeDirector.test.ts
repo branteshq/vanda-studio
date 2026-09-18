@@ -114,12 +114,14 @@ const approvedReview: BriefReview = {
 describe("creative director validation", () => {
   it("scores a feasible, on-brand direction above a risky one", () => {
     const strong = scoreCreativeDirection(directions[0]);
+
     const risky = scoreCreativeDirection({
       ...directions[0],
       brandFitScore: 0.3,
       feasibilityScore: 0.2,
       riskScore: 1,
     });
+
     expect(strong).toBeGreaterThan(risky);
   });
 
@@ -160,6 +162,7 @@ describe("creative director validation", () => {
       allowedBrandFactIds: new Set(["fact-1"]),
       allowedAssetIds: new Set(),
     });
+
     expect(result.valid).toBe(false);
     expect(result.issues).toEqual(
       expect.arrayContaining([

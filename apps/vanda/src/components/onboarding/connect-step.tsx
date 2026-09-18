@@ -18,11 +18,14 @@ export function ConnectStep({ accountId }: { accountId?: Id<"accounts"> }) {
 
   async function connect() {
     setStatus("connecting");
+
     try {
-      const { url } = await startConnect({
-        ...(accountId ? { accountId } : {}),
-        origin: window.location.origin,
-      });
+      const origin = window.location.origin;
+
+      const { url } = await startConnect(
+        accountId === undefined ? { origin } : { origin, accountId },
+      );
+
       window.location.href = url;
     } catch {
       setStatus("error");

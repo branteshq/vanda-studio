@@ -6,7 +6,19 @@ import { api, internal } from "./_generated/api";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
+
+const event = (messageId: string, text = "Oi") => ({
+  event: "whatsapp.message.received",
+  phoneNumberId: "sandbox",
+  messageId,
+  sender: "55119999",
+  recipientKind: "phone" as const,
+  text,
+  timestamp: Date.now(),
+});
+
 beforeEach(() => vi.useFakeTimers());
+
 afterEach(() => {
   vi.clearAllTimers();
   vi.useRealTimers();
@@ -18,12 +30,15 @@ async function setup() {
   vi.stubEnv("KAPSO_PHONE_NUMBER_ID", "sandbox");
   const t = convexTest(schema, modules);
   agentComponent.register(t);
+
   const userId = await t.run((ctx) =>
     ctx.db.insert("users", { clerkId: "ana", name: "Ana", email: "ana@example.com" }),
   );
+
   const otherId = await t.run((ctx) =>
     ctx.db.insert("users", { clerkId: "bia", name: "Bia", email: "bia@example.com" }),
   );
+
   const connectionId = await t.run((ctx) =>
     ctx.db.insert("whatsappConnections", {
       userId,
@@ -35,15 +50,7 @@ async function setup() {
       lastInboundAt: Date.now(),
     }),
   );
-  const event = (messageId: string, text = "Oi") => ({
-    event: "whatsapp.message.received",
-    phoneNumberId: "sandbox",
-    messageId,
-    sender: "55119999",
-    recipientKind: "phone" as const,
-    text,
-    timestamp: Date.now(),
-  });
+
   return { t, userId, otherId, connectionId, event, owner: t.withIdentity({ subject: "ana" }) };
 }
 
@@ -127,12 +134,14 @@ describe("WhatsApp and canonical Caetano queue", () => {
       deliveryKey: "b",
       events: [{ ...event("m2", ""), tokenHash: "hash" }],
     });
+
     const connection = await t.run((ctx) =>
       ctx.db
         .query("whatsappConnections")
         .withIndex("by_sender", (q) => q.eq("phoneNumberId", "sandbox").eq("sender", "55119999"))
         .unique(),
     );
+
     expect(connection?.userId).toBe(otherId);
     expect(connection?._id).not.toBe(connectionId);
     expect(await t.run((ctx) => ctx.db.query("whatsappLinks").collect())).toHaveLength(0);
@@ -159,6 +168,7 @@ describe("WhatsApp and canonical Caetano queue", () => {
     await t.mutation(internal.whatsappData.enqueueReply, { connectionId, text: "Oi" });
     const row = await t.mutation(internal.whatsappData.claimDelivery, { connectionId });
     expect(await t.mutation(internal.whatsappData.claimDelivery, { connectionId })).toBeNull();
+
     for (const status of ["read", "delivered"])
       await t.mutation(internal.whatsappData.ingest, {
         deliveryKey: status,
@@ -270,6 +280,7 @@ describe("WhatsApp and canonical Caetano queue", () => {
   it("requires a valid signature at the HTTP boundary and durably accepts signed events", async () => {
     const { t } = await setup();
     vi.stubEnv("KAPSO_WEBHOOK_SECRET", "secret");
+
     const body = JSON.stringify({
       phone_number_id: "sandbox",
       message: {
@@ -281,7 +292,9 @@ describe("WhatsApp and canonical Caetano queue", () => {
         kapso: { direction: "inbound" },
       },
     });
+
     expect((await t.fetch("/webhooks/kapso", { method: "POST", body })).status).toBe(401);
+
     const key = await crypto.subtle.importKey(
       "raw",
       new TextEncoder().encode("secret"),
@@ -289,10 +302,12 @@ describe("WhatsApp and canonical Caetano queue", () => {
       false,
       ["sign"],
     );
+
     const signature = Array.from(
       new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(body))),
       (b) => b.toString(16).padStart(2, "0"),
     ).join("");
+
     expect(
       (
         await t.fetch("/webhooks/kapso", {

@@ -1,6 +1,21 @@
 import { ConvexError } from "convex/values";
+import { z } from "zod";
 
 /** Public copy is selected here, never taken from an exception or provider response. */
+export const errorCodes = [
+  "USAGE_LIMIT",
+  "PROVIDER_LIMIT",
+  "RECONNECT_REQUIRED",
+  "UNAUTHENTICATED",
+  "INVALID_INPUT",
+  "NOT_FOUND",
+  "UNAVAILABLE",
+  "TIMEOUT",
+  "UNEXPECTED",
+] as const;
+
+export type ErrorCode = (typeof errorCodes)[number];
+
 export const errorCopy = {
   USAGE_LIMIT: {
     title: "Limite do plano atingido",
@@ -45,34 +60,33 @@ export const errorCopy = {
     title: "Não foi possível concluir",
     message: "Algo deu errado. Tente novamente em instantes.",
   },
-} as const;
+} as const satisfies Record<
+  ErrorCode,
+  { title: string; message: string; action?: string; href?: string }
+>;
 
-export type ErrorCode = keyof typeof errorCopy;
 export type PublicError = { kind: "vanda-error"; code: ErrorCode };
 
+const errorCodeSchema = z.enum(errorCodes);
+
+const publicErrorSchema = z.object({ kind: z.literal("vanda-error"), code: errorCodeSchema });
+
 export function isErrorCode(code: unknown): code is ErrorCode {
-  return typeof code === "string" && Object.hasOwn(errorCopy, code);
+  return errorCodeSchema.safeParse(code).success;
 }
 
 /** Convex serializes data across function calls; only this explicit envelope is trusted. */
-export function errorCode(error: unknown): ErrorCode {
-  const data = error instanceof ConvexError ? error.data : error;
-  if (
-    typeof data === "object" &&
-    data !== null &&
-    "kind" in data &&
-    data.kind === "vanda-error" &&
-    "code" in data &&
-    isErrorCode(data.code)
-  )
-    return data.code;
-  return "UNEXPECTED";
+export function errorCode(cause: unknown): ErrorCode {
+  const data = cause instanceof ConvexError ? cause.data : cause;
+  const parsed = publicErrorSchema.safeParse(data);
+
+  return parsed.success ? parsed.data.code : "UNEXPECTED";
 }
 
 export function publicError(code: ErrorCode): ConvexError<PublicError> {
   return new ConvexError({ kind: "vanda-error", code });
 }
 
-export function errorMessage(error: unknown): string {
-  return errorCopy[errorCode(error)].message;
+export function errorMessage(cause: unknown): string {
+  return errorCopy[errorCode(cause)].message;
 }

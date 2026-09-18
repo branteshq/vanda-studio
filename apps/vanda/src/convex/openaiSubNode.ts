@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 import { publicError } from "../errors";
+import * as Schema from "effect/Schema";
 
 /**
  * Node-side of the OpenAI connection: AES-256-GCM token encryption (the same
@@ -13,20 +14,25 @@ import { publicError } from "../errors";
  */
 
 const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
+
 const TOKEN_URL = "https://auth.openai.com/oauth/token";
+
 /** Refresh when the access token has less than this much life left. */
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
 function encryptionKey(): Buffer {
   const material = process.env.OPENAI_TOKEN_ENCRYPTION_KEY;
+
   if (!material) throw new Error("OPENAI_TOKEN_ENCRYPTION_KEY is not set");
+
   return createHash("sha256").update(material).digest();
 }
 
-function encrypt(plaintext: string): { ciphertext: string; iv: string; authTag: string } {
+function encrypt(plaintext: string) {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", encryptionKey(), iv);
   const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+
   return {
     ciphertext: encrypted.toString("base64"),
     iv: iv.toString("base64"),
@@ -34,9 +40,16 @@ function encrypt(plaintext: string): { ciphertext: string; iv: string; authTag: 
   };
 }
 
+const TokenResponse = Schema.Struct({
+  access_token: Schema.String,
+  refresh_token: Schema.String,
+  expires_in: Schema.Number,
+});
+
 function decrypt(ciphertext: string, iv: string, authTag: string): string {
   const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), Buffer.from(iv, "base64"));
   decipher.setAuthTag(Buffer.from(authTag, "base64"));
+
   return Buffer.concat([
     decipher.update(Buffer.from(ciphertext, "base64")),
     decipher.final(),
@@ -76,6 +89,7 @@ export const getAccess = internalAction({
   args: { userId: v.id("users") },
   handler: async (ctx, { userId }): Promise<{ access: string; accountId: string }> => {
     const user = await ctx.runQuery(internal.openaiSub.tokensOf, { userId });
+
     if (
       !user?.openaiAccessCiphertext ||
       !user.openaiAccessIv ||
@@ -89,6 +103,7 @@ export const getAccess = internalAction({
     }
 
     const expiresAt = user.openaiTokenExpiresAt ?? 0;
+
     if (expiresAt - Date.now() > REFRESH_MARGIN_MS) {
       return {
         access: decrypt(user.openaiAccessCiphertext, user.openaiAccessIv, user.openaiAccessAuthTag),
@@ -101,6 +116,7 @@ export const getAccess = internalAction({
       user.openaiRefreshIv,
       user.openaiRefreshAuthTag,
     );
+
     const response = await fetch(TOKEN_URL, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -110,13 +126,14 @@ export const getAccess = internalAction({
         client_id: CLIENT_ID,
       }),
     });
+
     if (!response.ok) throw publicError("RECONNECT_REQUIRED");
-    const tokens = (await response.json()) as {
-      access_token?: string;
-      refresh_token?: string;
-      expires_in?: number;
-    };
-    if (!tokens.access_token || !tokens.refresh_token || typeof tokens.expires_in !== "number") {
+
+    let tokens: Schema.Schema.Type<typeof TokenResponse>;
+
+    try {
+      tokens = Schema.decodeUnknownSync(TokenResponse)(await response.json());
+    } catch {
       throw publicError("RECONNECT_REQUIRED");
     }
 
@@ -132,6 +149,7 @@ export const getAccess = internalAction({
       refreshAuthTag: encryptedRefresh.authTag,
       expiresAt: Date.now() + tokens.expires_in * 1000,
     });
+
     return { access: tokens.access_token, accountId: user.openaiAccountId };
   },
 });

@@ -43,11 +43,14 @@ export const tierOfPlan = (planId: string): string => planId.replace(/-anual$/, 
 
 export const planLabel = (planId: string | null): string => {
   if (!planId) return "Teste grátis";
+
   const tier = PLAN_TIERS.find(
-    (candidate) =>
-      candidate.monthly.productId === planId || candidate.annual?.productId === planId,
+    (candidate) => candidate.monthly.productId === planId || candidate.annual?.productId === planId,
   );
+
   if (!tier) return planId;
+
   if (tier.tier === "conectado") return tier.label;
+
   return planId.endsWith("-anual") ? `${tier.label} · anual` : `${tier.label} · mensal`;
 };

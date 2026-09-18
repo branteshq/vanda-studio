@@ -13,6 +13,7 @@ export const customerOrNull = <Customer>(
   result: CustomerLookupResult<Customer>,
 ): Customer | null => {
   if (!result.error) return result.data;
+
   if (result.error.code === "customer_not_found") return null;
   throw new Error(result.error.message || "Failed to load customer");
 };

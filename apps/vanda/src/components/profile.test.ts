@@ -1,50 +1,87 @@
 // @vitest-environment happy-dom
-import { act, createElement, type ComponentType } from "react";
+import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { getFunctionName } from "convex/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { Route } from "../routes/_dashboard.perfil";
+import { api } from "../convex/_generated/api";
+import type { Id } from "../convex/_generated/dataModel";
+import { ProfilePage } from "../routes/_dashboard.perfil";
 
-const mocks = vi.hoisted(() => ({
+// SAFETY: test IDs model opaque identifiers without pretending to be account records.
+const businessA = "business-a" as Id<"accounts">;
+
+// SAFETY: test IDs model opaque identifiers without pretending to be account records.
+const businessB = "business-b" as Id<"accounts">;
+
+// SAFETY: test IDs model opaque identifiers without pretending to be account records.
+const unfinished = "unfinished" as Id<"accounts">;
+
+const mocks = {
   query: vi.fn(),
   action: vi.fn().mockResolvedValue({}),
   navigate: vi.fn(),
   selectAccount: vi.fn(),
   openUserProfile: vi.fn(),
+  // SAFETY: the mutable fixture intentionally models Clerk's nullable first name.
   user: { fullName: "Test Owner", firstName: "Test" as string | null },
-}));
-vi.mock("@clerk/tanstack-react-start", () => ({
-  useUser: () => ({ user: mocks.user }),
-  useClerk: () => ({ signOut: mocks.action, openUserProfile: mocks.openUserProfile }),
-}));
-vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: () => (options: unknown) => ({ options }),
-  useNavigate: () => mocks.navigate,
-}));
-vi.mock("convex-helpers/react/cache", () => ({ useQuery: mocks.query }));
-vi.mock("convex/react", () => ({
-  useQuery: mocks.query,
-  useAction: () => mocks.action,
-  useMutation: () => mocks.action,
-}));
-vi.mock("../components/active-account", () => ({
-  useActiveAccount: () => ({
+};
+
+const runtime = {
+  useProfileUser: () => ({ user: mocks.user }),
+  useClerkActions: () => ({ signOut: mocks.action, openUserProfile: mocks.openUserProfile }),
+  useProfileNavigate: () => mocks.navigate,
+  useProfileAccounts: () => ({
     accounts: [
-      { id: "business-a", name: "Business A", onboardedAt: 1 },
-      { id: "business-b", name: "Business B", onboardedAt: 1 },
-      { id: "unfinished", name: "Unfinished", onboardedAt: null },
+      { id: businessA, name: "Business A", onboardedAt: 1 },
+      { id: businessB, name: "Business B", onboardedAt: 1 },
+      { id: unfinished, name: "Unfinished", onboardedAt: null },
     ],
-    activeAccount: { id: "business-a", name: "Business A", onboardedAt: 1 },
+    activeAccount: { id: businessA, name: "Business A", onboardedAt: 1 },
     selectAccount: mocks.selectAccount,
   }),
-}));
+  useUsageSummary: () => mocks.query(api.usage.summary),
+  useSyncBilling: () => mocks.action,
+  useBillingActions: () => ({
+    startCheckout: mocks.action,
+    previewPlanChange: mocks.action,
+    changePlan: mocks.action,
+    getPortalUrl: mocks.action,
+  }),
+  useModelPreferences: () => ({
+    preferences: mocks.query(api.users.modelPreferences),
+    setAgentModel: mocks.action,
+    setCaetanoModel: mocks.action,
+    setImageModel: mocks.action,
+  }),
+  usePublisherConnection: (accountId: string) => ({
+    status: mocks.query(api.publisherConnect.connectionStatus, { accountId }),
+    startConnect: mocks.action,
+    syncConnection: mocks.action,
+  }),
+  useOpenAiConnection: () => ({
+    status: mocks.query(api.openaiSub.connectionStatus),
+    startDeviceAuth: mocks.action,
+    pollDeviceAuth: mocks.action,
+    disconnect: mocks.action,
+  }),
+  useInstalledSkills: (accountId: string) =>
+    mocks.query(api.workspacePublic.installedSkills, { accountId }),
+  useWorkspaceFile: (accountId: string, path: string, skip: boolean) =>
+    mocks.query(api.workspacePublic.file, skip ? "skip" : { accountId, path }),
+  useWorkspaceBrowse: (accountId: string, path: string) =>
+    mocks.query(api.workspacePublic.browse, { accountId, path }),
+  WhatsAppSettings: () => createElement("p", null, "Caetano no WhatsApp"),
+};
 
 let root: Root;
+
 let container: HTMLDivElement;
+
 const click = async (label: string) => {
   const button = [...container.querySelectorAll("button")].find(
     (item) => (item.getAttribute("aria-label") ?? item.textContent) === label,
   );
+
   expect(button, label).toBeDefined();
   await act(async () => button!.click());
 };
@@ -55,17 +92,22 @@ beforeEach(async () => {
   mocks.user.firstName = "Test";
   mocks.query.mockImplementation((ref, args) => {
     const name = getFunctionName(ref);
+
     if (name === "usage:summary") return { plan: "profissional", usedPct: 37 };
+
     if (name === "workspacePublic:browse") return { ok: true, entries: [] };
+
     if (name === "workspacePublic:file") return args === "skip" ? undefined : { ok: false };
+
     if (name === "whatsappData:state")
       return { connected: false, configured: true, deliveries: [] };
+
     return undefined;
   });
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  await act(async () => root.render(createElement(Route.options.component as ComponentType)));
+  await act(async () => root.render(createElement(ProfilePage, { runtime })));
 });
 
 afterEach(async () => {
@@ -88,7 +130,7 @@ it("labels the personal page with the first name and omits sidebar branding", as
   expect(container.querySelector("aside")?.textContent).not.toContain("Vanda Studio");
   expect(container.querySelector("aside")?.textContent).toContain("Sair da conta");
   mocks.user.firstName = null;
-  await act(async () => root.render(createElement(Route.options.component as ComponentType)));
+  await act(async () => root.render(createElement(ProfilePage, { runtime })));
   expect(container.querySelector('header [aria-label="Minha conta"]')).not.toBeNull();
 });
 
@@ -144,7 +186,7 @@ it("opens the real profile editor and routes plan management to billing", async 
 
 it("does not claim zero usage or a trial plan while the summary is loading", async () => {
   mocks.query.mockReturnValue(undefined);
-  await act(async () => root.render(createElement(Route.options.component as ComponentType)));
+  await act(async () => root.render(createElement(ProfilePage, { runtime })));
   expect(container.querySelector('[aria-label="Carregando uso do plano"]')).not.toBeNull();
   expect(container.querySelector('[role="progressbar"]')).toBeNull();
   expect(container.textContent).not.toContain("Teste grátis");

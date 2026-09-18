@@ -8,11 +8,15 @@ import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
 
+type StreamResult = Awaited<ReturnType<typeof caetano.streamText>>;
+
 const setup = async () => {
   const t = convexTest(schema, modules);
   agentComponent.register(t);
+
   const ids = await t.run(async (ctx) => {
     const now = Date.now();
+
     const userId = await ctx.db.insert("users", {
       name: "Ana",
       email: "ana@example.com",
@@ -20,6 +24,7 @@ const setup = async () => {
       createdAt: now,
       updatedAt: now,
     });
+
     const accountId = await ctx.db.insert("accounts", {
       ownerUserId: userId,
       name: "Café da Ana",
@@ -29,6 +34,7 @@ const setup = async () => {
       createdAt: now,
       updatedAt: now,
     });
+
     await ctx.db.patch(userId, { activeAccountId: accountId });
 
     const foreignUserId = await ctx.db.insert("users", {
@@ -38,6 +44,7 @@ const setup = async () => {
       createdAt: now,
       updatedAt: now,
     });
+
     const foreignAccountId = await ctx.db.insert("accounts", {
       ownerUserId: foreignUserId,
       name: "Loja da Bia",
@@ -45,8 +52,10 @@ const setup = async () => {
       createdAt: now,
       updatedAt: now,
     });
+
     return { userId, accountId, foreignUserId, foreignAccountId };
   });
+
   return { t, ...ids };
 };
 
@@ -94,27 +103,37 @@ describe("Caetano control plane", () => {
 
   it.each(["web", "whatsapp"] as const)("uses the saved model on each %s turn", async (channel) => {
     const { t, userId } = await setup();
-    const stream = vi.spyOn(caetano, "streamText").mockResolvedValue({
+
+    const streamResult: Partial<StreamResult> & Pick<StreamResult, "consumeStream" | "text"> = {
       consumeStream: async () => {},
       text: Promise.resolve("Feito"),
-    } as unknown as Awaited<ReturnType<typeof caetano.streamText>>);
+    };
+
+    // SAFETY: generateResponse reads only consumeStream and text from this stream-result test double.
+    const stream = vi.spyOn(caetano, "streamText").mockResolvedValue(streamResult as StreamResult);
+
     try {
       for (const modelId of ["openai/gpt-5.6-sol", "anthropic/claude-sonnet-5"]) {
         await t.withIdentity({ subject: "ana" }).mutation(api.users.setCaetanoModel, { modelId });
+
         const turn = await t.run(async (ctx) => {
           const base = { userId, threadId: "test-thread", promptMessageId: "test-prompt" };
+
           const inboxId = await ctx.db.insert("caetanoInbox", {
             ...base,
             channel,
             status: "running",
           });
+
           const activityId = await ctx.db.insert("caetanoThreadActivity", {
             ...base,
             inboxId,
             startedAt: Date.now(),
           });
+
           return { ...base, activityId };
         });
+
         expect(await t.action(internal.caetano.generateResponse, turn)).toBe("Feito");
         expect(stream).toHaveBeenLastCalledWith(
           expect.objectContaining({ ownerUserId: userId }),
@@ -144,14 +163,17 @@ describe("Caetano control plane", () => {
 
   it("creates and reuses one default Vanda thread for the active account", async () => {
     const { t, userId, accountId } = await setup();
+
     const first = await t.mutation(internal.caetanoData.prepareVandaTurn, {
       userId,
       request: "Crie um post para amanhã",
     });
+
     const second = await t.mutation(internal.caetanoData.prepareVandaTurn, {
       userId,
       request: "Agora ajuste a legenda",
     });
+
     expect(first.accountId).toBe(accountId);
     expect(second.threadId).toBe(first.threadId);
 
@@ -161,12 +183,14 @@ describe("Caetano control plane", () => {
     expect(threads).toEqual([
       expect.objectContaining({ threadId: first.threadId, caetanoDefault: true }),
     ]);
+
     const activity = await t.run((ctx) =>
       ctx.db
         .query("chatThreadActivity")
         .withIndex("by_thread", (q) => q.eq("threadId", first.threadId))
         .collect(),
     );
+
     expect(activity).toHaveLength(2);
   });
 
@@ -182,6 +206,7 @@ describe("Caetano control plane", () => {
       threadId: sent.threadId,
       paginationOpts: { cursor: null, numItems: 20 },
     });
+
     expect(messages.page.some((message) => message.text === "Oi, Caetano")).toBe(true);
 
     await expect(
@@ -198,6 +223,7 @@ describe("Caetano control plane", () => {
     const { t, accountId } = await setup();
     const owner = t.withIdentity({ subject: "ana" });
     const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["image"])));
+
     const uploaded = await owner.mutation(api.imageUploads.addImage, {
       accountId,
       storageId,
@@ -210,6 +236,7 @@ describe("Caetano control plane", () => {
       prompt: "",
       imageIds: [uploaded.imageId],
     });
+
     const messages = await owner.query(api.caetano.listMessages, {
       threadId: sent.threadId,
       paginationOpts: { cursor: null, numItems: 20 },
@@ -225,8 +252,10 @@ describe("Caetano control plane", () => {
 
   it("refuses an image from another account", async () => {
     const { t, foreignAccountId } = await setup();
+
     const foreignImageId = await t.run(async (ctx) => {
       const storageId = await ctx.storage.store(new Blob(["foreign-image"]));
+
       return ctx.db.insert("images", {
         accountId: foreignAccountId,
         origin: "uploaded",

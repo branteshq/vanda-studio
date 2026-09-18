@@ -4,6 +4,7 @@ import { usePaginatedQuery, useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type * as React from "react";
+import { z } from "zod";
 import {
   ArrowDownWideNarrow,
   ArrowUpNarrowWide,
@@ -54,6 +55,7 @@ export const Route = createFileRoute("/_dashboard/galeria")({
 });
 
 type GalleryItem = FunctionReturnType<typeof api.gallery.list>["page"][number];
+
 type RailPost = FunctionReturnType<typeof api.posts.listForRail>[number];
 
 /** The gallery grid mixes two first-class citizens: images and posts. */
@@ -63,12 +65,24 @@ type GridEntry =
 
 function GalleryPage() {
   const { activeAccount } = useActiveAccount();
+
   if (!activeAccount) return null;
+
   return <GalleryStudio key={activeAccount.id} accountId={activeAccount.id} />;
 }
 
 type OriginFilter = "all" | "generated" | "edited" | "uploaded" | "posts";
+
 type OrderFilter = "recent" | "oldest";
+
+const originFilterSchema = z.enum(["all", "generated", "edited", "uploaded", "posts"]);
+
+const orderFilterSchema = z.enum(["recent", "oldest"]);
+
+function galleryImageId(id: string): Id<"images"> {
+  // SAFETY: callers only pass ids sourced from Convex gallery image records.
+  return id as Id<"images">;
+}
 
 function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
   const [query, setQuery] = useState("");
@@ -86,9 +100,11 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
     { accountId },
     { initialNumItems: 40 },
   );
+
   const posts = useQuery(api.posts.listForRail, { accountId });
 
   const normalized = query.trim().toLocaleLowerCase("pt-BR");
+
   const matchesOrigin = (item: GalleryItem): boolean => {
     switch (origin) {
       case "uploaded":
@@ -103,21 +119,23 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
         return true;
     }
   };
+
   const filtered = results.filter(
     (item) =>
       matchesOrigin(item) &&
       (model === "all" || item.model === model) &&
       (!normalized || (item.name ?? "").toLocaleLowerCase("pt-BR").includes(normalized)),
   );
+
   // Posts are first-class gallery citizens: searched by caption, shown under
   // "Todas" and their own filter, interleaved with images by creation time.
   const filteredPosts =
     (origin === "all" || origin === "posts") && model === "all"
       ? (posts ?? []).filter(
-          (post) =>
-            !normalized || post.caption.toLocaleLowerCase("pt-BR").includes(normalized),
+          (post) => !normalized || post.caption.toLocaleLowerCase("pt-BR").includes(normalized),
         )
       : [];
+
   const merged: GridEntry[] = [
     ...filtered.map(
       (item): GridEntry => ({ kind: "image", id: item.id, createdAt: item.createdAt, item }),
@@ -132,6 +150,7 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
     ),
     // eslint-disable-next-line unicorn/no-array-sort -- fresh literal, safe to sort in place
   ].sort((a, b) => b.createdAt - a.createdAt);
+
   // eslint-disable-next-line unicorn/no-array-reverse -- the spread already copies
   const entries = order === "oldest" ? [...merged].reverse() : merged;
 
@@ -143,8 +162,10 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
   const toggleChecked = (id: string) =>
     setChecked((prev) => {
       const next = new Set(prev);
+
       if (next.has(id)) next.delete(id);
       else next.add(id);
+
       return next;
     });
 
@@ -155,27 +176,34 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
       if (prev.size === 0) return prev;
       const alive = new Set(results.map((item) => item.id));
       const next = new Set([...prev].filter((id) => alive.has(id)));
+
       return next.size === prev.size ? prev : next;
     });
   }, [results]);
 
   useEffect(() => {
     if (!selecting) return;
+
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setChecked(new Set());
     };
+
     window.addEventListener("keydown", onKey);
+
     return () => window.removeEventListener("keydown", onKey);
   }, [selecting]);
 
   const deleteChecked = async () => {
+    // SAFETY: `checked` is populated exclusively from Convex image document ids.
     const ids = [...checked] as Id<"images">[];
     setDeleting(true);
+
     try {
       // The mutation caps each batch; chunk so any selection size goes through.
       for (let i = 0; i < ids.length; i += 100) {
         await removeMany({ accountId, imageIds: ids.slice(i, i + 100) });
       }
+
       setChecked(new Set());
     } finally {
       setDeleting(false);
@@ -197,50 +225,48 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
-          {status === "LoadingFirstPage" ? (
-            <MasonrySkeleton />
-          ) : entries.length === 0 ? (
-            <EmptyGallery
-              hasQuery={normalized.length > 0 || origin !== "all" || model !== "all"}
+        {status === "LoadingFirstPage" ? (
+          <MasonrySkeleton />
+        ) : entries.length === 0 ? (
+          <EmptyGallery hasQuery={normalized.length > 0 || origin !== "all" || model !== "all"} />
+        ) : (
+          <>
+            <MasonryGrid
+              items={entries}
+              renderItem={(entry) =>
+                entry.kind === "image" ? (
+                  <GalleryCard
+                    key={entry.id}
+                    item={entry.item}
+                    accountId={accountId}
+                    selected={checked.has(entry.id)}
+                    selecting={selecting}
+                    onOpen={() => setSelectedId(galleryImageId(entry.id))}
+                    onToggleSelect={() => toggleChecked(entry.id)}
+                  />
+                ) : (
+                  <PostCard
+                    key={entry.id}
+                    post={entry.post}
+                    onOpen={() => setSelectedPostId(entry.post.postId)}
+                  />
+                )
+              }
             />
-          ) : (
-            <>
-              <MasonryGrid
-                items={entries}
-                renderItem={(entry) =>
-                  entry.kind === "image" ? (
-                    <GalleryCard
-                      key={entry.id}
-                      item={entry.item}
-                      accountId={accountId}
-                      selected={checked.has(entry.id)}
-                      selecting={selecting}
-                      onOpen={() => setSelectedId(entry.id as Id<"images">)}
-                      onToggleSelect={() => toggleChecked(entry.id)}
-                    />
-                  ) : (
-                    <PostCard
-                      key={entry.id}
-                      post={entry.post}
-                      onOpen={() => setSelectedPostId(entry.post.postId)}
-                    />
-                  )
-                }
-              />
-              {status === "CanLoadMore" && (
-                <div className="mt-6 flex justify-center">
-                  <Button variant="outline" onClick={() => loadMore(40)}>
-                    Carregar mais
-                  </Button>
-                </div>
-              )}
-              {status === "LoadingMore" && (
-                <div className="mt-6 flex justify-center">
-                  <Spinner className="size-5 text-text-4" />
-                </div>
-              )}
-            </>
-          )}
+            {status === "CanLoadMore" && (
+              <div className="mt-6 flex justify-center">
+                <Button variant="outline" onClick={() => loadMore(40)}>
+                  Carregar mais
+                </Button>
+              </div>
+            )}
+            {status === "LoadingMore" && (
+              <div className="mt-6 flex justify-center">
+                <Spinner className="size-5 text-text-4" />
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {selecting && (
@@ -263,9 +289,7 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
       />
       <PostPreviewDialog
         accountId={accountId}
-        postIds={entries.flatMap((entry) =>
-          entry.kind === "post" ? [entry.post.postId] : [],
-        )}
+        postIds={entries.flatMap((entry) => (entry.kind === "post" ? [entry.post.postId] : []))}
         postId={selectedPostId}
         onSelect={setSelectedPostId}
         onClose={() => setSelectedPostId(null)}
@@ -355,6 +379,7 @@ function GalleryHeader({
   accountId: Id<"accounts">;
 }) {
   const { state, setOpen } = useSidebar();
+
   return (
     <header className="flex items-center gap-2 px-4 py-2 md:px-6">
       {state === "collapsed" && (
@@ -391,7 +416,7 @@ function GalleryHeader({
               value: origin,
               defaultValue: "all",
               options: ORIGIN_FILTERS,
-              onChange: (value) => onOrigin(value as OriginFilter),
+              onChange: (value) => onOrigin(originFilterSchema.parse(value)),
             },
             {
               key: "order",
@@ -399,7 +424,7 @@ function GalleryHeader({
               value: order,
               defaultValue: "recent",
               options: ORDER_FILTERS,
-              onChange: (value) => onOrder(value as OrderFilter),
+              onChange: (value) => onOrder(orderFilterSchema.parse(value)),
             },
             {
               key: "model",
@@ -421,7 +446,9 @@ function GalleryHeader({
 /** Inline rail opener — the gallery's twin of the header's PanelLeftOpen. */
 function RailOpenButton() {
   const rail = useWorkRail();
+
   if (rail.open) return null;
+
   return (
     <ActionTooltip label="Abrir posts" side="bottom">
       <Button
@@ -464,21 +491,27 @@ function UploadButton({ accountId }: { accountId: Id<"accounts"> }) {
   const upload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setBusy(true);
+
     try {
       for (const file of Array.from(files)) {
         if (!file.type.startsWith("image/")) continue;
         const dims = await imageDimensions(file);
         const url = await generateUploadUrl();
+
         const res = await fetch(url, {
           method: "POST",
           headers: { "content-type": file.type },
           body: file,
         });
-        const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
+
+        const payload = z.object({ storageId: z.string() }).parse(await res.json());
+        // SAFETY: Convex's upload endpoint returns an encoded `_storage` document id.
+        const storageId = payload.storageId as Id<"_storage">;
         await addImage({ accountId, storageId, mimeType: file.type, ...dims });
       }
     } finally {
       setBusy(false);
+
       if (inputRef.current) inputRef.current.value = "";
     }
   };
@@ -514,6 +547,7 @@ function UploadButton({ accountId }: { accountId: Id<"accounts"> }) {
 /** A generation still in flight: the image's slot, pulsing, at its final ratio. */
 function GeneratingCard({ item }: { item: GalleryItem }) {
   const ratio = item.width && item.height ? item.width / item.height : 1;
+
   return (
     <div
       style={{ aspectRatio: ratio }}
@@ -533,12 +567,16 @@ function GeneratingCard({ item }: { item: GalleryItem }) {
 /** A generation that died: what failed, why, and a way to clear the slot. */
 export function GalleryFailureMessage({ code }: { code: ErrorCode }) {
   const copy = errorCopy[code];
+
   return (
     <>
       <p className="text-body-sm font-medium text-destructive">{copy.title}</p>
       <p className="line-clamp-3 max-w-full text-note text-text-4">{copy.message}</p>
       {"action" in copy ? (
-        <a className="text-note font-medium text-destructive underline underline-offset-4" href={copy.href}>
+        <a
+          className="text-note font-medium text-destructive underline underline-offset-4"
+          href={copy.href}
+        >
           {copy.action}
         </a>
       ) : null}
@@ -557,6 +595,7 @@ function FailedCard({
 }) {
   const ratio = item.width && item.height ? item.width / item.height : 1;
   const remove = useMutation(api.gallery.remove);
+
   return (
     <div
       style={{ aspectRatio: ratio }}
@@ -568,7 +607,7 @@ function FailedCard({
         <button
           type="button"
           aria-label="Descartar geração falha"
-          onClick={() => void remove({ accountId, imageId: item.id as Id<"images"> })}
+          onClick={() => void remove({ accountId, imageId: galleryImageId(item.id) })}
           className="absolute top-2 right-2 flex size-7 items-center justify-center rounded-lg text-text-4 outline-none transition-colors duration-150 ease-[var(--ease-out)] hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-destructive/50"
         >
           <X className="size-3.5" />
@@ -610,6 +649,7 @@ function GalleryCard({
       />
     );
   }
+
   if (item.status === "generating") {
     // The action can die without reporting (deploy restart) — after the
     // timeout the slot flips to a dismissible failure instead of pulsing forever.
@@ -665,7 +705,7 @@ function GalleryCard({
           </MediaTileAction>
           <MediaTileAction
             label="Excluir"
-            onClick={() => void remove({ accountId, imageId: item.id as Id<"images"> })}
+            onClick={() => void remove({ accountId, imageId: galleryImageId(item.id) })}
             className="hover:bg-destructive/85"
           >
             <Trash2 />
@@ -702,6 +742,7 @@ function PostCard({ post, onOpen }: { post: RailPost; onOpen: () => void }) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(post.scheduledFor ?? post.createdAt);
+
   return (
     <MediaTile label={post.caption || "Post"} onOpen={onOpen}>
       <MediaTileMedia aspectRatio={4 / 5}>
@@ -742,6 +783,19 @@ function PostCard({ post, onOpen }: { post: RailPost; onOpen: () => void }) {
  * robin distribution across real flex columns keeps reading order left-to-
  * right, row by row, while each column still stacks to its own height.
  */
+function columnKey(index: number) {
+  switch (index) {
+    case 0:
+      return "first";
+    case 1:
+      return "second";
+    case 2:
+      return "third";
+    default:
+      return "fourth";
+  }
+}
+
 function MasonryGrid<T extends { id: string }>({
   items,
   renderItem,
@@ -750,16 +804,18 @@ function MasonryGrid<T extends { id: string }>({
   renderItem: (item: T) => React.ReactNode;
 }) {
   const count = useColumnCount();
+
   const columns = useMemo(() => {
     const cols: T[][] = Array.from({ length: count }, () => []);
     items.forEach((item, index) => cols[index % count]!.push(item));
+
     return cols;
   }, [items, count]);
 
   return (
     <div className="mx-auto flex max-w-7xl gap-3">
       {columns.map((column, index) => (
-        <div key={index} className="flex min-w-0 flex-1 flex-col gap-3">
+        <div key={columnKey(index)} className="flex min-w-0 flex-1 flex-col gap-3">
           {column.map(renderItem)}
         </div>
       ))}
@@ -777,11 +833,13 @@ function useColumnCount(): number {
     update();
     lg.addEventListener("change", update);
     sm.addEventListener("change", update);
+
     return () => {
       lg.removeEventListener("change", update);
       sm.removeEventListener("change", update);
     };
   }, []);
+
   return count;
 }
 
@@ -789,6 +847,7 @@ function MasonrySkeleton() {
   // Enough varied-height placeholders to fill the viewport across all columns
   // (~5 per column at the widest breakpoint), not just the top rows.
   const heights = [220, 300, 180, 260, 340, 200, 280, 240];
+
   return (
     <div className="mx-auto max-w-7xl columns-2 gap-3 sm:columns-3 lg:columns-4 [&>*]:mb-3">
       {Array.from({ length: 20 }, (_, i) => (
@@ -844,6 +903,7 @@ function ImageDetailDialog({
     api.gallery.get,
     selectedId ? { accountId, imageId: selectedId } : "skip",
   );
+
   const rename = useMutation(api.gallery.rename);
   const remove = useMutation(api.gallery.remove);
 
@@ -857,11 +917,13 @@ function ImageDetailDialog({
     () => items.findIndex((item) => item.id === selectedId),
     [items, selectedId],
   );
+
   const prev = index > 0 ? items[index - 1] : undefined;
   const next = index >= 0 && index < items.length - 1 ? items[index + 1] : undefined;
   const gridItem: GalleryItem | undefined = index >= 0 ? items[index] : undefined;
 
   const source = detail ?? gridItem;
+
   const image: ImageLightboxData | null = source
     ? {
         id: source.id,
@@ -886,8 +948,8 @@ function ImageDetailDialog({
       onClose={onClose}
       image={image}
       loading={detail === undefined}
-      onPrev={prev ? () => onSelect(prev.id as Id<"images">) : undefined}
-      onNext={next ? () => onSelect(next.id as Id<"images">) : undefined}
+      onPrev={prev ? () => onSelect(galleryImageId(prev.id)) : undefined}
+      onNext={next ? () => onSelect(galleryImageId(next.id)) : undefined}
       onRename={(name) => {
         if (selectedId) void rename({ accountId, imageId: selectedId, name });
       }}
@@ -905,14 +967,17 @@ function imageDimensions(file: File): Promise<{ width?: number; height?: number 
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
-    img.onload = () => {
+
+    img.addEventListener("load", () => {
       resolve({ width: img.naturalWidth, height: img.naturalHeight });
       URL.revokeObjectURL(url);
-    };
-    img.onerror = () => {
+    });
+
+    img.addEventListener("error", () => {
       resolve({});
       URL.revokeObjectURL(url);
-    };
+    });
+
     img.src = url;
   });
 }

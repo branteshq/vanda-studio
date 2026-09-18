@@ -23,25 +23,33 @@ export const askVanda = internalAction({
     request: v.string(),
   },
   handler: async (ctx, args): Promise<VandaDelegationResult> => {
-    const prepared = await ctx.runMutation(internal.caetanoData.prepareVandaTurn, {
+    const input = {
       userId: args.userId,
       request: args.request,
-      ...(args.accountId ? { accountId: args.accountId } : {}),
-      ...(args.threadId ? { threadId: args.threadId } : {}),
-    });
+    };
+
+    if (args.accountId) Object.assign(input, { accountId: args.accountId });
+
+    if (args.threadId) Object.assign(input, { threadId: args.threadId });
+
+    const prepared = await ctx.runMutation(internal.caetanoData.prepareVandaTurn, input);
+
     await ctx.runMutation(internal.caetanoData.setActiveVandaThread, {
       userId: args.userId,
       caetanoThreadId: args.caetanoThreadId,
       vandaThreadId: prepared.threadId,
     });
+
     const response = await ctx.runAction(internal.chat.generateResponse, {
       ...prepared,
       caetanoThreadId: args.caetanoThreadId,
     });
+
     const manifest = await ctx.runQuery(internal.threadResources.forPrompt, {
       threadId: prepared.threadId,
       anchorMessageId: prepared.promptMessageId,
     });
+
     return {
       accountId: prepared.accountId,
       threadId: prepared.threadId,

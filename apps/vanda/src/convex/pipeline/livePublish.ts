@@ -8,6 +8,11 @@ import { publishPhotos } from "../publisher/uploadpost";
 import { PublishJobNotFound, PublishStore } from "./publish";
 import { Publisher, PublisherRequestFailed, type PublishReceipt } from "./publisher";
 
+interface PublishStatusDetails {
+  externalPostId?: string;
+  permalink?: string;
+}
+
 /**
  * Live `Publisher` adapter over the Upload-Post API: one synchronous call
  * publishes a single image or carousel to the profile's connected Instagram.
@@ -30,7 +35,10 @@ export const publisherLive = (config: { readonly username: string }): Layer.Laye
       }),
   });
 
-const scheduledId = (id: string) => id as Id<"scheduledPosts">;
+const scheduledId = (id: string) => {
+  // SAFETY: publishDue receives this value from the Convex scheduledPosts ID boundary.
+  return id as Id<"scheduledPosts">;
+};
 
 const resolveImageUrl = (
   ctx: ActionCtx,
@@ -43,7 +51,9 @@ const resolveImageUrl = (
     ? Effect.succeed(image.externalUrl)
     : Effect.tryPromise(async () => {
         const url = image.storageId ? await ctx.storage.getUrl(image.storageId) : null;
+
         if (url === null) throw new Error("image has no resolvable url");
+
         return url;
       });
 
@@ -75,17 +85,24 @@ export const publishStoreLive = (ctx: ActionCtx): Layer.Layer<PublishStore> =>
             scheduledPostId: scheduledId(scheduledPostId),
           }),
         );
+
         if (data === null) return yield* new PublishJobNotFound({ scheduledPostId });
+
         const imageUrls = yield* Effect.forEach(data.images, (image) =>
           resolveImageUrl(ctx, image),
         );
+
         return { type: data.type, caption: data.caption, imageUrls };
       }),
     markPublishing: (id) => setStatus(ctx, id, "publishing"),
-    markPublished: (id, receipt) =>
-      setStatus(ctx, id, "published", {
-        ...(receipt.externalPostId !== null ? { externalPostId: receipt.externalPostId } : {}),
-        ...(receipt.url !== null ? { permalink: receipt.url } : {}),
-      }),
+    markPublished: (id, receipt) => {
+      const extra: PublishStatusDetails = {};
+
+      if (receipt.externalPostId !== null) extra.externalPostId = receipt.externalPostId;
+
+      if (receipt.url !== null) extra.permalink = receipt.url;
+
+      return setStatus(ctx, id, "published", extra);
+    },
     markFailed: (id, reason) => setStatus(ctx, id, "failed", { lastError: reason }),
   });

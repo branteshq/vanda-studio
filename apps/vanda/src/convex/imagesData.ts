@@ -1,13 +1,22 @@
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type QueryCtx } from "./_generated/server";
 import { chargeUsage } from "./usage";
 import { isErrorCode } from "../errors";
 import { errorCodeValidator } from "./publicErrors";
 
+interface PaintCharge {
+  accountId: Id<"accounts">;
+  kind: string;
+  usd: number;
+  ref?: string;
+}
+
 const loadOwnedImage = async (ctx: QueryCtx, accountId: Id<"accounts">, imageId: Id<"images">) => {
   const image = await ctx.db.get(imageId);
+
   if (!image || image.accountId !== accountId) throw new Error("image not found");
+
   return image;
 };
 
@@ -28,6 +37,7 @@ export const resolvePaintInput = internalQuery({
         // generation. The model can only reproduce a person's likeness from a
         // photo already in this account, so `purpose` is not a security gate.
         const image = await loadOwnedImage(ctx, accountId, imageId);
+
         return {
           imageId: image._id,
           externalUrl: image.externalUrl ?? null,
@@ -75,13 +85,31 @@ export const savePaintedImage = internalMutation({
   },
   handler: async (ctx, args) => {
     if (!(await ctx.db.get(args.accountId))) throw new Error("account not found");
+
     if (args.activityId) {
       const activity = await ctx.db.get(args.activityId);
+
       if (!activity || activity.accountId !== args.accountId) {
         throw new Error("activity expired");
       }
     }
-    const fields = {
+
+    const fields: Pick<
+      Doc<"images">,
+      "storageId" | "prompt" | "mimeType" | "width" | "height" | "description" | "altText"
+    > &
+      Partial<
+        Pick<
+          Doc<"images">,
+          | "name"
+          | "model"
+          | "costUsd"
+          | "generationMs"
+          | "promptAuthor"
+          | "codeRunId"
+          | "editOfImageId"
+        >
+      > = {
       storageId: args.storageId,
       prompt: args.prompt,
       mimeType: args.mimeType,
@@ -89,37 +117,53 @@ export const savePaintedImage = internalMutation({
       height: args.height,
       description: args.prompt,
       altText: args.name ?? args.prompt,
-      ...(args.name ? { name: args.name } : {}),
-      ...(args.model ? { model: args.model } : {}),
-      ...(args.costUsd !== undefined ? { costUsd: args.costUsd } : {}),
-      ...(args.generationMs !== undefined ? { generationMs: args.generationMs } : {}),
-      ...(args.promptAuthor ? { promptAuthor: args.promptAuthor } : {}),
-      ...(args.codeRunId ? { codeRunId: args.codeRunId } : {}),
-      ...(args.editOfImageId ? { editOfImageId: args.editOfImageId } : {}),
     };
+
+    if (args.name) fields.name = args.name;
+
+    if (args.model) fields.model = args.model;
+
+    if (args.costUsd !== undefined) fields.costUsd = args.costUsd;
+
+    if (args.generationMs !== undefined) fields.generationMs = args.generationMs;
+
+    if (args.promptAuthor) fields.promptAuthor = args.promptAuthor;
+
+    if (args.codeRunId) fields.codeRunId = args.codeRunId;
+
+    if (args.editOfImageId) fields.editOfImageId = args.editOfImageId;
+
     // run_code images carry a share of the sandbox cost for display, but the
     // sandbox itself is charged once in finishCodeRun — only paints bill here.
     if (args.costUsd && !args.codeRunId) {
-      await chargeUsage(ctx, {
+      const charge: PaintCharge = {
         accountId: args.accountId,
         kind: "paint",
         usd: args.costUsd,
-        ...(args.model ? { ref: args.model } : {}),
-      });
+      };
+
+      if (args.model) charge.ref = args.model;
+
+      await chargeUsage(ctx, charge);
     }
+
     if (args.placeholderId) {
       const placeholder = await ctx.db.get(args.placeholderId);
+
       if (!placeholder || placeholder.accountId !== args.accountId) {
         throw new Error("placeholder not found");
       }
+
       await ctx.db.patch(args.placeholderId, {
         ...fields,
         status: undefined,
         generationError: undefined,
         generationErrorCode: undefined,
       });
+
       return args.placeholderId;
     }
+
     return ctx.db.insert("images", {
       accountId: args.accountId,
       origin: "generated",
@@ -141,6 +185,7 @@ export const markPaintFailed = internalMutation({
   },
   handler: async (ctx, { imageId, generationErrorCode, error }) => {
     const image = await ctx.db.get(imageId);
+
     if (!image || image.status !== "generating") return;
     await ctx.db.patch(imageId, {
       status: "failed",
