@@ -118,9 +118,15 @@ The conversational system prompt describes the workspace and adds a live clock.
 The agent is instructed to read brand facts, the visual kit, and durable preferences.
 Those facts are not all automatically included with each new task.
 
-Proposed change: reliably provide a small authoritative block with the active
-business, essential brand facts, restrictions, and relevant explicit preferences.
-Keep larger reference collections available through retrieval.
+Confirmed requirement from Davi's review: brand context must always be included.
+The user must never have to re-explain who they are or what their business is.
+Supply the known business identity, brand facts, visual identity, restrictions, and
+explicit preferences automatically rather than depending on the agent to search
+for them. Missing facts must not be invented.
+
+Thread history and media should ideally be discoverable when relevant, rather than
+loading the entire archive into every turn. This does not remove the requirement
+to preserve the current request and its attachments when delegating to Vanda.
 
 The pipeline already has `renderBrandContext`; that is a useful existing pattern,
 but does not mean the conversational path automatically uses it.
@@ -342,8 +348,8 @@ business performance will require evidence after launch.
 1. Create fictional brands and realistic requests. Generate a baseline and review
    the results together. Reconstruct the founder's comparison if its inputs become
    available, but do not block on it or on Convex data.
-2. Fix context preservation between Caetano and Vanda and supply essential brand
-   constraints reliably.
+2. Fix context preservation between Caetano and Vanda and always include brand
+   context. Make previous thread history and media discoverable when needed.
 3. Add minimal discovery over existing capabilities, with an authorized execution
    path and clear descriptions. Include product help as it becomes available.
 4. Give Caetano a maintained product guide alongside live-state inspection.
@@ -357,16 +363,39 @@ tool discovery, verified with representative tasks. This is a recommendation, no
 a claim that implementation has started. No wholesale rewrite or additional group
 of agents is required to begin.
 
-## Decisions still open
+## Review decisions and questions to investigate
 
-- Which functions stay directly available and which become discoverable?
-- How should discovered functions be invoked without exposing arbitrary execution?
-- Which context must always be included, and which history should be retrieved?
-- What are the default authority rules for scheduling and publication?
-- Which production method works best for each creative task?
-- When does visual review justify a retry or a separate reviewer?
-- Which model and prompt configuration gives the best dependable default within
-  acceptable cost and latency?
+Brand context is settled: always include it. Previous thread history and media
+should ideally be discoverable. The other questions below remain open; they are
+work for investigation and experiments, not choices Davi needs to make upfront.
+
+- **Which tools are visible immediately?** We do not know yet. Decide which tools
+  the agent needs often enough to show on every turn, and which it should find
+  through `tool_search`. Start with the existing capabilities and test the split.
+- **How does the agent call a tool after finding it?** Search only finds the
+  function; something still has to execute it. We could expose the selected tool
+  directly or use a controlled call that takes its name and arguments. The question
+  is whether we need an Amp-like JavaScript execution tool at all. This is an
+  implementation choice, not a request to remove Vanda's existing Python tool.
+  Account ownership and permissions must still be checked on every operation.
+- **When may Vanda schedule or publish?** For example, does "make a post" mean
+  create a draft, or also put it on the calendar? Can a standing instruction allow
+  automatic publication? The current prompt favors scheduling when immediate
+  publication is ambiguous. We have not agreed to keep or change that policy.
+- **How should Vanda make the artwork?** "Production method" means generating
+  the whole post with an image model, generating a background and adding text/logo
+  with Python, or using an approved template. Compare the results to learn which
+  works best for each task; there is no selected winner yet.
+- **Who checks the finished image, and when should it try again?** A "separate
+  reviewer" means another model call or a subagent that sees the image and brief
+  and looks for problems. It need not use a different model. The simpler starting
+  point is for the creating agent to inspect its own result. Test whether a second
+  reviewer improves quality enough to justify its extra time and cost; adding one
+  is not a requirement. Also test when a correction helps rather than making the
+  result worse.
+- **Which model and prompt work best?** We have to find out through the fictional
+  tasks and taste-based comparisons above, including consistency, cost, and wait
+  time. Do not choose a winner from assumptions or one impressive output.
 
 As work proceeds, add the experiment, what changed, the observed result, and the
 decision here. Keep hypotheses distinct from measured or directly observed facts.
