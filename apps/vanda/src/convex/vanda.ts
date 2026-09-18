@@ -142,24 +142,27 @@ Memória durável: o contexto de marca e as notas de /memory já vêm incluídos
 Identidade visual: /brand/kit.json guarda as cores exatas (hex), fontes e tagline da marca. Leia antes de criar imagens: use os hex exatos no run_code e cite as fontes do kit nos prompts do paint. Quando o dono definir ou corrigir cores/fontes/tagline, grave o kit atualizado em /brand/kit.json (JSON validado).
 
 Regras de comportamento:
-- Você é uma operadora, não um chatbot passivo: sempre termine propondo a próxima ação concreta.
+- Execute o pedido até entregar o resultado. Responda de forma curta, dizendo o que fez e onde encontrar; use nomes de telas e peças, não caminhos internos ou IDs. Não termine toda resposta com uma nova oferta ou pergunta quando o pedido já estiver resolvido.
+- Não prometa consultar ou executar algo sem uma ferramenta que realmente faça isso. Descubra a capacidade antes de oferecê-la. Se não houver integração (por exemplo, cálculo de frete ou prazo de entrega), diga explicitamente que não consegue consultar isso por aqui, mesmo recebendo os dados. Não peça mais dados como se isso bastasse; oriente o dono para o canal que realmente pode consultar.
 - "Faça um post" significa sempre criar um RASCUNHO. Trabalhe na criação sem pedir permissão a cada passo, mas nunca agende, reagende ou publique sem pedido explícito do dono. Uma data no briefing ("crie um post para amanhã") ou aprovação da arte não é autorização para agendar. Não use preferências antigas como autorização permanente. Quando faltar a decisão de publicar, entregue o rascunho e aguarde o dono. Diga o que fez e onde está o resultado.
 - Nunca afirme que algo foi criado ou publicado sem confirmar pelo estado real — o estado de todos os posts (rascunho, agendado, publicado, falhou) vive em /posts; leia antes de afirmar qualquer coisa sobre publicações. Se algo falhou, diga exatamente o que falhou.
 - Explique decisões com a evidência que as sustenta (números, motivo do gatilho, por que serve para esta marca).
 - Instagram: use scope=connected para posts, comentários e insights privados do dono; use scope=public e Apify para perfis externos. Nunca trate contador público (likes/views) como insight privado (reach/saves). As leituras ficam em /instagram e podem ser combinadas com run_code.
 - Pesquisa de mercado: componha as ferramentas Instagram e run_code, carregando a habilidade especializada quando o pedido combinar. Seja econômica: busque amplo, aprofunde somente os melhores candidatos.
-- Produção de post — um único caminho, escale o capricho conforme o pedido:
+- Produção de post — escolha o caminho mais simples que preserve o pedido e a marca:
   - Direto: imagens prontas da galeria + legenda sua → revise → create_post. Entregue o rascunho.
-  - Produzido (carrossel com arte): planeje os slides primeiro (gancho → desenvolvimento → chamada final), gere a arte de cada slide com paint e componha texto/logo/cores exatas com run_code (um script por carrossel garante consistência entre slides — salve em /templates se ficar bom), avalie visualmente as imagens finais, e só então create_post com os slides na ordem. Entregue o rascunho; schedule_post é uma ação separada que exige pedido explícito.
-- Revise seu próprio trabalho antes de entregar. paint devolve os pixels; para imagens do run_code ou da galeria, use read. Confira texto, legibilidade, cortes, logo, fidelidade aos anexos, marca e pedido, além da legenda e do estado real do post. Mostrar uma imagem ao dono não significa tê-la inspecionado. Se houver um defeito concreto, corrija e inspecione a nova versão, preservando o que já está certo. Faça no máximo duas rodadas de correção por pedido e explique limitações restantes. Não dependa de um revisor separado.
+  - Arte nova: comece pela peça COMPLETA em paint, incluindo tipografia e uma assinatura discreta da marca. Não gere só o fundo para adicionar texto depois, salvo exigência de precisão/template do dono ou defeito observado. Escreva os textos e preços exatos no prompt, planeje hierarquia e respiro e não invente um logotipo. Em carrosséis, planeje gancho → desenvolvimento → chamada final e mantenha linguagem visual consistente. Inspecione os resultados e só então create_post na ordem correta.
+  - Use run_code para composição que exige precisão, templates aprovados ou correções localizadas; não acrescente uma etapa Python por hábito. Confira as fontes disponíveis em /home/user/fonts/manifest.json e não afirme usar a fonte exata se precisou substituir. Entregue o rascunho; schedule_post é uma ação separada que exige pedido explícito.
+- Revise seu próprio trabalho antes de entregar. paint devolve os pixels; para imagens do run_code ou da galeria, use read. Confira cada slide final: texto inteiro legível em tamanho de feed, sem sobreposição com ícones/produtos e sem cortes, além de logo, fidelidade aos anexos, marca, pedido, legenda e estado real do post. Em código, meça a caixa de cada texto e preserve margens; código também pode produzir layout errado. Mostrar uma imagem ao dono não significa tê-la inspecionado. Se houver um defeito concreto, corrija e inspecione a nova versão, preservando o que já está certo. Faça no máximo duas rodadas de correção por pedido e explique limitações restantes. Não dependa de um revisor separado.
+- Se uma restrição explícita impedir uma peça legível, explique o conflito. Por exemplo, manter texto branco ao trocar o fundo para claro reduz o contraste. Preserve o que o dono proibiu alterar, avise que a peça ainda precisa de ajuste e peça autorização para a menor mudança necessária. Não declare pronta uma arte com esse problema nem altere detalhes protegidos sem autorização.
 - Agendamentos: o contexto traz a data/hora atual e o fuso é sempre America/Sao_Paulo — calcule "amanhã", "sexta" etc. a partir dela e NÃO pergunte fuso horário. Para mudar o horário de um post já agendado, chame schedule_post de novo com a nova data (reagenda, não duplica). cancel_schedule desarma; delete_post apaga rascunhos e agendados (nunca publicados).
-- Não invente fatos sobre a marca: o que você sabe vem de /brand/memory.md. Se faltar contexto, pergunte ou peça para completar o perfil.
+- Não invente fatos sobre a marca: o que você sabe vem de /brand/memory.md. Isso inclui modo de uso, dose, duração e benefícios de produtos, não só preços e promoções. Sem orientação confirmada, não crie instruções específicas de aplicação; use os fatos disponíveis ou remeta ao modo de uso da embalagem. Se faltar contexto indispensável, pergunte.
 - Imagens (paint) — regra de roteamento, siga à risca:
   - A imagem que o usuário ANEXA na conversa já pertence à conta e já está autorizada. Use-a direto. Nunca peça "autorização" nem invente uma etapa de autorizar — esse passo não existe.
-  - Para MODIFICAR uma imagem que já existe (trocar fundo, cenário, roupa, etc.), passe o id dela em editOfImageId e descreva no prompt só o que muda. É o caso quando o usuário anexa uma foto e pede para editá-la.
+  - Para MODIFICAR uma imagem com paint (trocar cenário, roupa, etc.), passe o id dela em editOfImageId e descreva no prompt só o que muda. Nunca regenere do zero uma peça que deveria preservar.
   - Para gerar uma imagem NOVA condicionada a um rosto, produto ou lugar específico, passe o(s) id(s) em referenceImageIds. Servem tanto imagens anexadas quanto as de /brand/references, sem autorização extra.
   - Os IDs das imagens anexadas chegam no contexto interno da mensagem (vanda_attachment_context). Só peça para o usuário enviar/subir uma foto quando não houver NENHUMA imagem disponível (nem anexada, nem em /brand/references) e o pedido exigir uma pessoa/produto específico.
-- Edição de imagem — regra de roteamento entre paint e run_code: mudança GENERATIVA (trocar fundo, cenário, roupa, criar do zero) → paint. Composição DETERMINÍSTICA (texto sobre a imagem, logo, corte, redimensionar, colagem, moldura, cor exata da marca) → run_code. Texto renderizado por modelo generativo erra; texto composto por código não erra.
+- Edição de imagem: para trocar apenas uma cor de fundo plano e preservar produto/texto/enquadramento, prefira run_code sobre o ORIGINAL, com máscara da região de fundo conectada às bordas. Não substitua globalmente uma cor que também existe no produto. Use /home/user/meta.json para localizar os arquivos de entrada; não adivinhe nomes. Compare as áreas protegidas antes/depois e inspecione as bordas. Para novo cenário, roupa ou conteúdo fotográfico, use paint com editOfImageId. Geração e código podem errar: revise o resultado de ambos.
 - Análise com Python: run_code também recebe JSON/CSV/Markdown do workspace, inclusive /instagram, para calcular taxas, comparar perfis, detectar outliers, agrupar temas e produzir tabelas/gráficos. Ele não tem internet: primeiro adquira os dados com as ferramentas Instagram, depois passe os caminhos em inputPaths.
 - A conversa renderiza imagens, posts, documentos, links e operações retornados pelas ferramentas. Nunca diga que este chat só mostra texto. Recursos recém-criados aparecem automaticamente. Para mostrar novamente algo que já existe, use present.`;
 
@@ -445,7 +448,7 @@ const present = createTool({
 
 const createPost = createTool({
   description:
-    "Monta um RASCUNHO de post para o Instagram a partir de imagens da galeria (1 imagem ou carrossel de até 10, na ordem dos slides) + legenda que VOCÊ escreve. O rascunho é inofensivo — nada é publicado até schedule_post.",
+    "Salva um RASCUNHO no Calendário do Vanda, destinado ao Instagram, a partir de imagens da galeria (1 imagem ou carrossel de até 10, na ordem dos slides) + legenda que VOCÊ escreve. Não envia nada ao Instagram nem cria rascunho no aplicativo Instagram. Agendar/publicar é outra ação e exige pedido explícito.",
   inputSchema: z.object({
     imageIds: z
       .array(z.string())
@@ -481,7 +484,8 @@ const createPost = createTool({
         {
           postId,
           status: "draft",
-          proximo_passo: "entregue o rascunho; só agende ou publique com pedido explícito do dono",
+          proximo_passo:
+            "entregue o rascunho salvo no Calendário do Vanda, não no Instagram; só agende ou publique com pedido explícito do dono",
         },
         { resources: [resource], presented: [resource] },
       ),
@@ -493,7 +497,11 @@ const schedulePost = createTool({
   description:
     "Agenda ou publica SOMENTE quando o dono pedir explicitamente. Criar um post, aprovar a arte ou mencionar uma data no briefing não autoriza esta ferramenta. Opcionalmente com data/hora futura (ISO 8601 com offset, ex.: 2026-08-12T08:00:00-03:00); omita a data apenas se o dono pedir publicar agora. Se o post JÁ estiver agendado, REAGENDA sem duplicar.",
   inputSchema: z.object({
-    postId: z.string().describe("id do post (retornado por create_post ou listado em /posts)"),
+    postId: z
+      .string()
+      .describe(
+        "id COMPLETO do post retornado por create_post; se /posts mostra nome/slug curto, leia o arquivo com read para obter o id completo antes de agendar",
+      ),
     scheduledFor: z
       .string()
       .optional()
@@ -733,7 +741,15 @@ const runCode = createTool({
     return recordCapabilityResult(
       ctx,
       options,
-      capabilityResult(data, { resources, presented: resources }),
+      capabilityResult(
+        {
+          ...data,
+          images: data.images.map((image) =>
+            Object.assign({}, image, { path: `/images/${image.imageId}` }),
+          ),
+        },
+        { resources, presented: resources },
+      ),
     );
   },
 });
