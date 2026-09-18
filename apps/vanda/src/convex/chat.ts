@@ -22,7 +22,7 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
-import { AGENT_MAX_OUTPUT_TOKENS, resolveOrchestratorModel } from "./agentModels";
+import { resolveOrchestratorModel } from "./agentModels";
 import { requireOwnedAccount } from "./authz";
 import { codexChatModel, codexResponsesText } from "./pipeline/codex";
 import { budgetOf } from "./usage";
@@ -396,7 +396,6 @@ export const generateResponse = internalAction({
       const streamOptions = {
         promptMessageId,
         system: systemPrompt(),
-        maxOutputTokens: AGENT_MAX_OUTPUT_TOKENS,
         onError: ({ error }: { error: unknown }) => {
           streamError = error;
         },

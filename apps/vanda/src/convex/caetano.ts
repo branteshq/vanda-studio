@@ -21,7 +21,9 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
-import { AGENT_MAX_OUTPUT_TOKENS } from "./agentModels";
+import { resolveOrchestratorModel } from "./agentModels";
+import { isConnectedSubscriber } from "./openaiSub";
+import { codexChatModel } from "./pipeline/codex";
 import { requireOwnedAccount, requireUser } from "./authz";
 import { caetano, caetanoLanguageModel, caetanoSystemPrompt } from "./caetanoAgent";
 import { resolveMessageImages } from "./messageImages";
@@ -94,7 +96,8 @@ const submitMessage = async (
     }>;
   },
 ): Promise<{ threadId: string; messageId: string }> => {
-  if (!(await budgetOf(ctx, user)).ok) throw publicError("USAGE_LIMIT");
+  if (!isConnectedSubscriber(user) && !(await budgetOf(ctx, user)).ok)
+    throw publicError("USAGE_LIMIT");
   const text = input.prompt.trim();
   const images = input.images ?? [];
 
@@ -329,22 +332,32 @@ export const generateResponse = internalAction({
 
       if (!turn) return "";
 
-      if (!(await ctx.runQuery(internal.usage.budget, { userId })).ok)
+      const sub = await ctx.runQuery(internal.openaiSub.subscriberState, { userId });
+
+      if (!sub.active && !(await ctx.runQuery(internal.usage.budget, { userId })).ok)
         throw publicError("USAGE_LIMIT");
       const preferences = await ctx.runQuery(internal.caetanoData.modelPreferences, { userId });
+      const modelId = resolveOrchestratorModel(preferences.caetano, { conectado: sub.active });
+
+      const model =
+        sub.active && sub.userId
+          ? codexChatModel(
+              await ctx.runAction(internal.openaiSubNode.getAccess, { userId: sub.userId }),
+              modelId,
+            )
+          : caetanoLanguageModel(modelId);
 
       const result = await caetano.streamText(
         { ...ctx, ownerUserId: userId, caetanoThreadId: threadId },
         { threadId },
         {
           promptMessageId,
-          model: caetanoLanguageModel(preferences.caetano),
+          model,
           system:
             caetanoSystemPrompt() +
             (turn.channel === "whatsapp"
               ? "\n\nEste turno veio do WhatsApp, que neste sandbox aceita somente texto. Não diga que imagens ou arquivos foram anexados aqui. Recursos apresentados ficam disponíveis na conversa web; links de acesso serão incluídos pelo sistema quando disponíveis. Responda de forma curta, sem tabelas Markdown."
               : ""),
-          maxOutputTokens: AGENT_MAX_OUTPUT_TOKENS,
           onError: ({ error }) => {
             streamError = error;
           },
