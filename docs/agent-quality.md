@@ -433,11 +433,20 @@ business performance will require evidence after launch.
 6. Compare prompts and orchestrator models on the stable examples. Change one
    uncertain thing at a time, repeat important cases, and retain regressions.
 
-Implementation has started with context preservation, always-on brand information,
-draft-only guidance, self-review capabilities, and minimal tool discovery. Product
-knowledge and previous-work retrieval come next; creative quality still needs the
-fictional-brand comparisons. No wholesale rewrite or additional group of agents
-is required.
+Implemented locally: context preservation, always-on brand information, draft-only
+guidance, self-review capabilities, and minimal tool discovery. Both agents can now
+discover product_help, search_conversations, read_conversation, and search_media.
+Product help covers six maintained topics and points to real UI routes; it does
+not substitute for live account state. Historical messages are scoped to the
+active account (or Caetano's owner), and archived threads are excluded. Retrieval
+uses keywords, not embeddings. Messages and media are paginated; resource manifests
+are limited to the latest 100 and report truncation. Scheduling guidance remains a
+prompt policy, not a server-side approval gate.
+
+Verification for this slice: typecheck passes; 301 tests across 51 files pass,
+including discovery, ownership boundaries, history pagination, and media matches
+beyond an empty page. These checks do not establish creative quality. That still
+needs live fictional-brand comparisons. No deployment or production writes made.
 
 ## Review decisions and questions to investigate
 

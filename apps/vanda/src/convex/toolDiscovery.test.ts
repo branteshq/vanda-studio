@@ -86,13 +86,17 @@ describe("role-specific discovery", () => {
       deferred: [
         "cancel_schedule",
         "delete_post",
+        "product_help",
+        "read_conversation",
         "read_instagram_comments",
         "read_instagram_metrics",
         "read_instagram_post",
         "read_instagram_posts",
         "read_instagram_profile",
         "schedule_post",
+        "search_conversations",
         "search_instagram_profiles",
+        "search_media",
       ],
     },
     {
@@ -104,6 +108,10 @@ describe("role-specific discovery", () => {
         "list_accounts",
         "list_vanda_threads",
         "model_preferences",
+        "product_help",
+        "read_conversation",
+        "search_conversations",
+        "search_media",
         "select_account",
         "set_model_preferences",
         "usage_status",
@@ -139,6 +147,9 @@ describe("role-specific discovery", () => {
     ["caetano", "usage quota", "usage_status", "read"],
     ["caetano", "conversas anteriores", "list_vanda_threads", "read"],
     ["caetano", "model_preferences", "model_preferences", "read"],
+    ["vanda", "product_help", "product_help", "read"],
+    ["caetano", "search_media", "search_media", "read"],
+    ["vanda", "search_conversations", "search_conversations", "read"],
   ] as const)("finds %s / %s", async (role, query, name, effect) => {
     const discovery = role === "vanda" ? vandaToolDiscovery : caetanoToolDiscovery;
 
