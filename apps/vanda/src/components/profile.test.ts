@@ -115,6 +115,30 @@ afterEach(async () => {
   container.remove();
 });
 
+it("enables the subscription image picker and displays the selected new models", async () => {
+  mocks.query.mockImplementation((ref) => {
+    if (getFunctionName(ref) === "users:modelPreferences") {
+      return {
+        conectado: true,
+        orchestrator: "openai/gpt-6-astra",
+        caetano: "openai/gpt-6-astra",
+        image: "openai/gpt-image-2.5-sunburst",
+      };
+    }
+
+    return undefined;
+  });
+  await click("Modelos");
+  const picker = container.querySelector('[aria-label="Modelo de imagens"]');
+
+  expect(picker).not.toBeNull();
+  expect(picker?.hasAttribute("disabled")).toBe(false);
+  expect(picker?.textContent).toContain("GPT Image 2.5 Sunburst");
+  expect(container.querySelector('[aria-label="Modelo de conversa"]')?.textContent).toContain(
+    "GPT-6 Astra",
+  );
+});
+
 it("refreshes billing on arrival without opening the plan comparison", () => {
   expect(mocks.action).toHaveBeenCalledTimes(1);
   expect(container.querySelector("h1")?.textContent).toBe("Conta");

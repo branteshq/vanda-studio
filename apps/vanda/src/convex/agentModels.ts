@@ -26,6 +26,13 @@ export interface OrchestratorModel {
 
 export const ORCHESTRATOR_MODELS: readonly OrchestratorModel[] = [
   {
+    id: "openai/gpt-6-astra",
+    label: "GPT-6 Astra",
+    maker: "OpenAI",
+    tagline: "Para análises e tarefas complexas.",
+    codexCapable: true,
+  },
+  {
     id: "openai/gpt-5.6-terra",
     label: "GPT-5.6 Terra",
     maker: "OpenAI",

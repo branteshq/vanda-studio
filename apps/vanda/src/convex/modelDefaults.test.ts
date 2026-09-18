@@ -7,11 +7,30 @@ import {
 import {
   DEFAULT_IMAGE_MODEL,
   IMAGE_MODELS,
+  CONECTADO_IMAGE_MODELS,
+  resolveConnectedImageModel,
   isKnownImageModel,
   modelResolutions,
 } from "./imageModels";
 
 describe("model defaults", () => {
+  it("offers Astra on both text transports and both subscription image variants", () => {
+    for (const conectado of [true, false]) {
+      expect(resolveOrchestratorModel("openai/gpt-6-astra", { conectado })).toBe(
+        "openai/gpt-6-astra",
+      );
+    }
+
+    expect(CONECTADO_IMAGE_MODELS.map((model) => model.id)).toEqual([
+      "openai/gpt-image-2.5-flare",
+      "openai/gpt-image-2.5-sunburst",
+    ]);
+    expect(resolveConnectedImageModel("openai/gpt-image-2.5-sunburst")).toBe(
+      "openai/gpt-image-2.5-sunburst",
+    );
+    expect(resolveConnectedImageModel("google/gemini-3-pro-image")).toBe(DEFAULT_IMAGE_MODEL);
+  });
+
   it("uses Opus 5 and GPT Image 2.5 Flare by default", () => {
     expect(DEFAULT_ORCHESTRATOR_MODEL).toBe("anthropic/claude-opus-5");
     expect(DEFAULT_IMAGE_MODEL).toBe("openai/gpt-image-2.5-flare");

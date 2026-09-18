@@ -10,7 +10,7 @@ import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { tierOfPlan } from "../convex/billing/plans";
 import {
-  CONECTADO_IMAGE_MODEL,
+  resolveConnectedImageModel,
   CONECTADO_IMAGE_MODELS,
   DEFAULT_IMAGE_MODEL,
   IMAGE_MODELS,
@@ -61,10 +61,11 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
   const [resolution, setResolution] = useState<ImageResolution>("1K");
   const [busy, setBusy] = useState(false);
 
-  // The backend forces gpt-image-2 for Conectado anyway; the picker mirrors it.
+  const preferredModels = selected ?? new Set([prefs?.image ?? DEFAULT_IMAGE_MODEL]);
+
   const models = connectedOnly
-    ? new Set([CONECTADO_IMAGE_MODEL])
-    : (selected ?? new Set([prefs?.image ?? DEFAULT_IMAGE_MODEL]));
+    ? new Set([...preferredModels].map(resolveConnectedImageModel))
+    : preferredModels;
 
   const total = models.size;
   const canGenerate = prompt.trim().length > 0 && total > 0 && total <= MAX_FANOUT && !busy;

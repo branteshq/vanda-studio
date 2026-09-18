@@ -14,7 +14,12 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { orchestratorModel, resolveCaetanoModel, resolveOrchestratorModel } from "./agentModels";
-import { DEFAULT_IMAGE_MODEL, isKnownImageModel } from "./imageModels";
+import {
+  DEFAULT_IMAGE_MODEL,
+  isKnownImageModel,
+  isConnectedImageModel,
+  resolveConnectedImageModel,
+} from "./imageModels";
 import { isConnectedSubscriber } from "./openaiSub";
 import { budgetOf } from "./usage";
 import { publicError } from "../errors";
@@ -140,8 +145,9 @@ export const modelPreferences = internalQuery({
     return {
       orchestrator: resolveOrchestratorModel(user.orchestratorModel, { conectado }),
       caetano: resolveCaetanoModel(user.caetanoModel),
-      image:
-        user.imageModel && isKnownImageModel(user.imageModel)
+      image: conectado
+        ? resolveConnectedImageModel(user.imageModel)
+        : user.imageModel && isKnownImageModel(user.imageModel)
           ? user.imageModel
           : DEFAULT_IMAGE_MODEL,
       conectado,
@@ -195,7 +201,8 @@ export const setModelPreferences = internalMutation({
     if (image !== undefined) {
       if (!isKnownImageModel(image)) throw new Error("modelo de imagem desconhecido");
 
-      if (conectado) throw new Error("o plano ChatGPT fixa o modelo de imagem");
+      if (conectado && !isConnectedImageModel(image))
+        throw new Error("modelo indisponível pela assinatura do ChatGPT");
       patch.imageModel = image;
     }
 

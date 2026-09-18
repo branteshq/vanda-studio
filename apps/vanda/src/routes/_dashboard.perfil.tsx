@@ -55,7 +55,7 @@ import {
   type ModelMaker,
 } from "../convex/agentModels";
 import {
-  CONECTADO_IMAGE_MODEL,
+  resolveConnectedImageModel,
   CONECTADO_IMAGE_MODELS,
   DEFAULT_IMAGE_MODEL,
   IMAGE_MODELS,
@@ -600,7 +600,7 @@ const TIER_FEATURES = {
   conectado: [
     "Conecte sua assinatura do ChatGPT",
     "Texto e imagens pelo seu plano OpenAI",
-    "GPT Image 2 — o melhor modelo de imagem",
+    "GPT Image 2.5 — pela sua assinatura",
   ],
 } satisfies Record<string, string[]>;
 
@@ -914,8 +914,10 @@ function ModelsCard() {
   const conectado = prefs?.conectado ?? false;
   const orchestratorId = prefs?.orchestrator ?? DEFAULT_ORCHESTRATOR_MODEL;
   const caetanoId = prefs?.caetano ?? DEFAULT_CAETANO_MODEL;
-  // On Conectado the plan decides the painter — show what will actually run.
-  const imageId = conectado ? CONECTADO_IMAGE_MODEL : (prefs?.image ?? DEFAULT_IMAGE_MODEL);
+
+  const imageId = conectado
+    ? resolveConnectedImageModel(prefs?.image)
+    : (prefs?.image ?? DEFAULT_IMAGE_MODEL);
 
   const orchestrator = ORCHESTRATOR_MODELS.find((model) => model.id === orchestratorId);
   const imageModels = conectado ? CONECTADO_IMAGE_MODELS : IMAGE_MODELS;
@@ -1012,7 +1014,7 @@ function ModelsCard() {
             value={imageId}
             onValueChange={(value) => void choose(setImageModel({ modelId: String(value) }))}
           >
-            <SelectTrigger className="w-56" aria-label="Modelo de imagens" disabled={conectado}>
+            <SelectTrigger className="w-56" aria-label="Modelo de imagens">
               <SelectValue>
                 {(value) => {
                   const model = imageModels.find((item) => item.id === value);

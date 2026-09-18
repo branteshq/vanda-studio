@@ -3,6 +3,7 @@ import { defaultSettingsMiddleware, wrapLanguageModel, type LanguageModel } from
 import { publicError } from "../../errors";
 import * as Schema from "effect/Schema";
 import { z } from "zod";
+import { isConnectedImageModel } from "../imageModels";
 
 /**
  * Adapters for the ChatGPT subscription backend (the Conectado plan): the
@@ -202,15 +203,17 @@ const dataUrlOf = async (url: string, signal?: AbortSignal): Promise<string> => 
 
 /**
  * Generate (or edit, when references are present) through the subscription
- * image endpoint — always gpt-image-2, billed to the user's ChatGPT plan.
+ * image endpoint, billed to the user's ChatGPT plan.
  */
 export const codexGenerateImage = async (args: {
   auth: CodexAuth;
+  model: string;
   prompt: string;
   aspectRatio: string;
   referenceUrls?: readonly string[] | undefined;
   signal?: AbortSignal | undefined;
 }): Promise<{ bytes: Uint8Array; mimeType: string; costUsd: number }> => {
+  if (!isConnectedImageModel(args.model)) throw new Error("Unsupported ChatGPT image model");
   const references = args.referenceUrls ?? [];
 
   const images = await Promise.all(
@@ -224,7 +227,7 @@ export const codexGenerateImage = async (args: {
   const payload: CodexImagePayload = {
     prompt: args.prompt,
     background: "auto",
-    model: "gpt-image-2",
+    model: codexModelId(args.model),
     quality: "high",
     size:
       new Map<string, string>(Object.entries(CODEX_IMAGE_SIZES)).get(args.aspectRatio) ??

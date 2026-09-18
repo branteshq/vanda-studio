@@ -4,7 +4,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
-import { CONECTADO_IMAGE_MODEL, isKnownImageModel } from "./imageModels";
+import { isConnectedImageModel, isKnownImageModel } from "./imageModels";
 import { isConnectedSubscriber } from "./openaiSub";
 import { isErrorCode, type ErrorCode } from "../errors";
 
@@ -219,8 +219,8 @@ export const generate = mutation({
 
     if (!trimmed) throw new Error("prompt vazio");
 
-    const models = modelIds.filter(
-      (id) => isKnownImageModel(id) || (conectado && id === CONECTADO_IMAGE_MODEL),
+    const models = modelIds.filter((id) =>
+      conectado ? isConnectedImageModel(id) : isKnownImageModel(id),
     );
 
     if (models.length === 0) throw new Error("nenhum modelo válido selecionado");

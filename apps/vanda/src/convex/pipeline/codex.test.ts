@@ -2,9 +2,35 @@ import { streamText } from "ai";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { errorCode, errorMessage } from "../../errors";
-import { codexChatModel, codexResponsesText } from "./codex";
+import { codexChatModel, codexResponsesText, codexGenerateImage } from "./codex";
 
 afterEach(() => vi.unstubAllGlobals());
+
+describe("ChatGPT image models", () => {
+  it.each(["flare", "sunburst"])("sends %s through subscription billing", async (variant) => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ data: [{ b64_json: "aGk=" }] }));
+
+    vi.stubGlobal("fetch", request);
+
+    const result = await codexGenerateImage({
+      auth: { access: "test-only", accountId: "test-only" },
+      model: `openai/gpt-image-2.5-${variant}`,
+      prompt: "A flower",
+      aspectRatio: "1:1",
+    });
+
+    expect(request).toHaveBeenCalledOnce();
+    expect(request.mock.calls[0]?.[0]).toBe(
+      "https://chatgpt.com/backend-api/codex/images/generations",
+    );
+    expect(JSON.parse(z.string().parse(request.mock.calls[0]?.[1]?.body))).toMatchObject({
+      model: `gpt-image-2.5-${variant}`,
+    });
+    expect(result.costUsd).toBe(0);
+  });
+});
 
 describe("ChatGPT public errors", () => {
   it("does not send an output token cap to the subscription backend", async () => {

@@ -1,7 +1,12 @@
 import { v } from "convex/values";
 import { z } from "zod";
 import { orchestratorModel, resolveCaetanoModel, resolveOrchestratorModel } from "./agentModels";
-import { DEFAULT_IMAGE_MODEL, isKnownImageModel } from "./imageModels";
+import {
+  DEFAULT_IMAGE_MODEL,
+  isKnownImageModel,
+  isConnectedImageModel,
+  resolveConnectedImageModel,
+} from "./imageModels";
 import type { Id } from "./_generated/dataModel";
 import { internalQuery, mutation, query } from "./_generated/server";
 import { requireUser } from "./authz";
@@ -100,7 +105,7 @@ export const current = query({
  * The model pickers' state. Conectado constrains Vanda's text/image choices,
  * while Caetano keeps using Vanda's OpenRouter budget on every plan.
  * Conectado inference rides their ChatGPT subscription, so the orchestrator is
- * limited to OpenAI models and every paint collapses to gpt-image-2.
+ * limited to supported OpenAI text and image models.
  */
 export const modelPreferences = query({
   args: {},
@@ -127,8 +132,9 @@ export const modelPreferences = query({
     return {
       orchestrator: resolveOrchestratorModel(user.orchestratorModel, { conectado }),
       caetano: resolveCaetanoModel(user.caetanoModel),
-      image:
-        user.imageModel && isKnownImageModel(user.imageModel)
+      image: conectado
+        ? resolveConnectedImageModel(user.imageModel)
+        : user.imageModel && isKnownImageModel(user.imageModel)
           ? user.imageModel
           : DEFAULT_IMAGE_MODEL,
       conectado,
@@ -168,9 +174,7 @@ export const setCaetanoModel = mutation({
 });
 
 /**
- * Choose the model Vanda paints with by default. Refused on Conectado, where
- * the plan itself decides (gpt-image-2 on the owner's subscription) — storing
- * a preference we'd never honour would be a lie told by the UI.
+ * Choose the default painter, validating the subscription transport when active.
  */
 export const setImageModel = mutation({
   args: { modelId: v.string() },
@@ -179,10 +183,8 @@ export const setImageModel = mutation({
 
     if (!isKnownImageModel(modelId)) throw new Error("modelo de imagem desconhecido");
 
-    if (isConnectedSubscriber(user)) {
-      throw new Error(
-        "no plano ChatGPT toda imagem usa o GPT Image 2 pela sua assinatura — não dá para trocar",
-      );
+    if (isConnectedSubscriber(user) && !isConnectedImageModel(modelId)) {
+      throw new Error("modelo indisponível pela assinatura do ChatGPT");
     }
 
     await ctx.db.patch(user._id, { imageModel: modelId, updatedAt: Date.now() });

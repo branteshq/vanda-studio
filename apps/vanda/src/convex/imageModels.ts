@@ -84,24 +84,22 @@ export const IMAGE_MODELS: ReadonlyArray<ImageModel> = [
 export const DEFAULT_IMAGE_MODEL = "openai/gpt-image-2.5-flare";
 
 /**
- * The painter the Conectado plan forces: every paint runs on the owner's
- * ChatGPT subscription, so model choice collapses and our meter stays at zero.
- * Canonical here — the backend override, the gallery composer and the profile
- * picker all read this one constant.
+ * Default painter on the owner's ChatGPT subscription.
  */
-export const CONECTADO_IMAGE_MODEL = "openai/gpt-image-2";
+export const CONECTADO_IMAGE_MODEL = DEFAULT_IMAGE_MODEL;
 
-/** Separate subscription transport; not selectable in the OpenRouter catalog. */
-export const CONECTADO_IMAGE_MODELS: ReadonlyArray<ImageModel> = [
-  {
-    id: CONECTADO_IMAGE_MODEL,
-    label: "GPT Image 2",
-    maker: "OpenAI",
-    priceTier: "$$$",
-    blurb: "Pela sua assinatura do ChatGPT",
-    resolutions: ["1K"],
-  },
-];
+/** Models available through the separate subscription transport. */
+export const CONECTADO_IMAGE_MODELS: ReadonlyArray<ImageModel> = IMAGE_MODELS.flatMap((model) =>
+  model.id === "openai/gpt-image-2.5-flare" || model.id === "openai/gpt-image-2.5-sunburst"
+    ? [{ ...model, blurb: "Pela sua assinatura do ChatGPT" }]
+    : [],
+);
+
+export const isConnectedImageModel = (id: string): boolean =>
+  CONECTADO_IMAGE_MODELS.some((model) => model.id === id);
+
+export const resolveConnectedImageModel = (id: string | undefined): string =>
+  id && isConnectedImageModel(id) ? id : CONECTADO_IMAGE_MODEL;
 
 const BY_ID = new Map(IMAGE_MODELS.map((model) => [model.id, model]));
 
@@ -115,7 +113,7 @@ export const CODE_IMAGE_MODEL = "python/pillow";
 export const imageModelLabel = (id: string | undefined): string => {
   if (id === CODE_IMAGE_MODEL) return "Pillow (código)";
 
-  if (id === CONECTADO_IMAGE_MODEL) return "GPT Image 2";
+  if (id === "openai/gpt-image-2") return "GPT Image 2";
 
   return (id && BY_ID.get(id)?.label) ?? id ?? "Desconhecido";
 };
