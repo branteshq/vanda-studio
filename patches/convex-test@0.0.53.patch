@@ -1,0 +1,12 @@
+diff --git a/dist/index.js b/dist/index.js
+index 42cb0c59234e520c217ea592538c0927e5de153c..f2a2da19d23024325b5973a5419463e8c6eab3c8 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -674,6 +674,7 @@ function evaluateSearchFilter(document, filter) {
+         case "Eq":
+             return compareValues(result, evaluateValue(filter.value)) === 0;
+         case "Search": {
++            if (typeof result !== "string") return false;
+             const queryTerms = filter.value
+                 .toLowerCase()
+                 .split(/\s+/)

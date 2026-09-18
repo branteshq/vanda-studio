@@ -81,6 +81,24 @@ async function setup() {
 describe("previous work boundaries", () => {
   it("searches within the current business, supports owner history, and excludes archived threads", async () => {
     const { t, userId, accountId, foreignAccountId, threadIds } = await setup();
+    // Agent tool calls have no indexed text. Production search skips them;
+    // the convex-test optional-field patch must preserve that behavior.
+    await t.run((ctx) =>
+      saveMessage(ctx, components.agent, {
+        threadId: threadIds[0]!,
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool-call",
+              toolCallId: "search",
+              toolName: "search_conversations",
+              input: { query: "girassol" },
+            },
+          ],
+        },
+      }),
+    );
 
     const result = await t.query(internal.previousWork.searchConversations, {
       userId,

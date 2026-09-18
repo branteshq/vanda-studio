@@ -36,6 +36,7 @@ catalogs:
 
 patchedDependencies:
   convex-helpers@0.1.120: 7856f47539fd454fc01e53ebb81c0f9f87f7f5fc09864b63652268908f929c1b
+  convex-test@0.0.53: 38d665f00685b6a14119c7a6547e513e5dd942d0cbcf077c479a324147059e15
 
 importers:
 
@@ -210,7 +211,7 @@ importers:
         version: 6.0.2(vite@8.0.16(@types/node@24.13.2)(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))
       convex-test:
         specifier: ^0.0.53
-        version: 0.0.53(convex@1.41.0(@clerk/react@6.10.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7))
+        version: 0.0.53(patch_hash=38d665f00685b6a14119c7a6547e513e5dd942d0cbcf077c479a324147059e15)(convex@1.41.0(@clerk/react@6.10.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7))
       e2b:
         specifier: ^2.37.0
         version: 2.37.0
@@ -9047,7 +9048,7 @@ snapshots:
       typescript: 5.9.3
       zod: 4.4.3
 
-  convex-test@0.0.53(convex@1.41.0(@clerk/react@6.10.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)):
+  convex-test@0.0.53(patch_hash=38d665f00685b6a14119c7a6547e513e5dd942d0cbcf077c479a324147059e15)(convex@1.41.0(@clerk/react@6.10.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)):
     dependencies:
       convex: 1.41.0(@clerk/react@6.10.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)
 

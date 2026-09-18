@@ -32,3 +32,4 @@ minimumReleaseAgeExclude:
 
 patchedDependencies:
   convex-helpers@0.1.120: patches/convex-helpers@0.1.120.patch
+  convex-test@0.0.53: patches/convex-test@0.0.53.patch
