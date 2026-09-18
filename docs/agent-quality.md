@@ -15,13 +15,14 @@ document for continued investigation and implementation, not a finished design.
   agent. Start with at most two correction rounds and evaluate that limit.
 - Work with GPT models through Davi's connected ChatGPT subscription for the initial
   live comparisons. This does not require removing other existing model support or
-  changing unrelated users' preferences. No live model comparisons have run yet.
+  changing unrelated users' preferences. Live trials now use GPT-5.6 Terra and GPT
+  Image 2.5 Flare; no cross-model winner has been established.
 
 The first local implementation supplies brand facts, the visual kit, brand notes,
 and durable memory at the start of both agents' turns. Account selection returns
 updated brand context. Caetano's handoff preserves the original current message
 and attachment IDs/pixels using stored message and attachment references, with
-ownership checks. Older conversations and media discovery remain future work;
+ownership checks. Older conversations and media are now discoverable;
 the new attachment record applies to messages submitted after this change.
 
 Vanda's paint result now carries image pixels for inspection. Caetano has an
@@ -34,25 +35,28 @@ The scheduling restriction is currently agent guidance and tool descriptions, no
 a new server-side approval mechanism. Existing post creation still creates drafts;
 the scheduling operation remains separately callable. Automated tests cover context
 and media transfer, account isolation, image tool outputs, and draft creation, not
-real-model compliance or aesthetic quality. Those need the GPT comparisons.
+real-model compliance or aesthetic quality. The opt-in live evaluations exercise
+real model behavior separately; their assertions are not aesthetic judgments.
 
-Tool discovery is now implemented locally over the existing capabilities. Product-help
-retrieval, conversation-content search, and fictional-brand taste evaluations remain
-to build. Nothing in these implementations deploys or changes shared data.
+Tool discovery, maintained product help, conversation-content search, media discovery,
+and a fictional-brand evaluation harness are implemented locally. Four fictional
+brands and 18 cases cover creation, revision, recall, help, failures, delegation, and
+scheduling intent. Trials and provisional findings are recorded below. Nothing in
+these implementations deploys or changes shared data.
 
 ### Tool discovery implementation
 
 The working tools remain directly visible; specialized tools are discovered through
 `tool_search`. The initial split is:
 
-| Agent   | Always visible                                                                        | Discoverable                                                                                                          |
-| ------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Vanda   | `tool_search`, `list`, `read`, `write`, `paint`, `run_code`, `create_post`, `present` | The six Instagram research/analytics tools, `schedule_post`, `cancel_schedule`, `delete_post`                         |
-| Caetano | `tool_search`, `ask_vanda`, `inspect_image`, `present`, `account_status`              | `list_accounts`, `select_account`, `usage_status`, `model_preferences`, `set_model_preferences`, `list_vanda_threads` |
+| Agent   | Always visible                                                                        | Discoverable                                                                                                                                                                                       |
+| ------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Vanda   | `tool_search`, `list`, `read`, `write`, `paint`, `run_code`, `create_post`, `present` | The six Instagram research/analytics tools, `schedule_post`, `cancel_schedule`, `delete_post`, `product_help`, `search_conversations`, `read_conversation`, `search_media`                         |
+| Caetano | `tool_search`, `ask_vanda`, `inspect_image`, `present`, `account_status`              | `list_accounts`, `select_account`, `usage_status`, `model_preferences`, `set_model_preferences`, `list_vanda_threads`, `product_help`, `search_conversations`, `read_conversation`, `search_media` |
 
 Each agent receives a short capability map and instructions to search before declaring
 a task unsupported. Brand context remains automatically included, outside discovery.
-The maps do not advertise product-help or conversation-content search as implemented.
+The maps now include product help and previous-work retrieval.
 
 Search is local keyword matching over names, existing descriptions, and Portuguese/
 English aliases, ignoring case and accents. An exact tool name returns only that
@@ -445,8 +449,8 @@ prompt policy, not a server-side approval gate.
 
 Verification for this slice: typecheck passes; 301 tests across 51 files pass,
 including discovery, ownership boundaries, history pagination, and media matches
-beyond an empty page. These checks do not establish creative quality. That still
-needs live fictional-brand comparisons. No deployment or production writes made.
+beyond an empty page. These checks do not establish creative quality. Subsequent
+live fictional-brand comparisons are recorded below. No deployment or production writes made.
 
 ## Review decisions and questions to investigate
 
@@ -467,8 +471,9 @@ experiments, not choices Davi needs to make upfront.
   date. Approval of the artwork alone is not permission to publish.
 - **How should Vanda make the artwork?** "Production method" means generating
   the whole post with an image model, generating a background and adding text/logo
-  with Python, or using an approved template. Compare the results to learn which
-  works best for each task; there is no selected winner yet.
+  with Python, or using an approved template. Initial trials favor complete-image
+  generation for new artwork and code for precision edits/templates. This is the
+  provisional default, not proof that one method always wins.
 - **Who checks the finished image, and when should it try again?** The working
   agent does it. Both Vanda and Caetano should inspect their results and correct
   concrete defects. No separate reviewer or reviewer subagent. We still need to
@@ -499,6 +504,91 @@ The initial subscription trials exposed two failures that mocked model tests mis
 Typecheck and all 303 offline tests pass after these fixes. Early harness runs also
 had missing activity rows and incorrect mock-storage handling; those are setup
 failures, not evidence about model taste or reliable first-attempt performance.
+
+## Fictional-brand trials and provisional decisions
+
+Fixtures and replay instructions live in `apps/vanda/evals/`. Café Caju is a warm
+neighborhood café, Orvalho Botânica a restrained skincare brand, Prumo Reparos a
+practical repair business, and Pimba Papelaria a colorful stationery shop. Inputs
+include distinct voices, exact prices, colors, protected details, and unsupported
+requests. They are invented businesses, not customer evidence.
+
+Trials call the real agents, ChatGPT text/image transport, and E2B Python against
+disposable local databases. Instagram publishing is mocked and unrelated external
+requests are blocked. No production deployment, customer changes, or live publishing
+occurred. Artifacts under `.amp/in/artifacts/agent-quality/` retain exact prompts,
+fixture hashes, tool traces, timings, final state, and actual PNGs. Credentials are
+not included. Amp reviewed the outputs; these are not blinded human taste results.
+
+| Experiment / batch (2026-09-18 UTC) | Observation                                                                                                                                                                                                                                              | Decision                                                                                                                         |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Hybrid baseline, 19:47              | Prumo text overlapped an icon despite self-review. Café artwork was usable but generic. Python did not guarantee good layout.                                                                                                                            | Remove the claim that code-rendered text cannot fail; inspect every final slide.                                                 |
+| Complete-art comparison, 19:54      | Café had clearer branding and hierarchy; Prumo was readable without the compulsory composition step. Only two cases, not a statistical comparison.                                                                                                       | Generate complete new artwork first; retain code for exact edits and templates.                                                  |
+| Development set, 19:59              | Fourteen cases exposed invented skincare application instructions, another layout defect, shipping overpromises, and ambiguous claims about where drafts were saved.                                                                                     | Ground directions as well as prices in brand facts; distinguish Vanda drafts from Instagram; do not offer unavailable lookups.   |
+| Targeted follow-up, 20:10           | Four cases passed structural checks. Inspected Orvalho slides avoided invented application times. Pimba used a local background edit. Shipping help admitted the unavailable lookup.                                                                     | Retain these changes provisionally.                                                                                              |
+| Initial holdout + repeats, 20:13    | Six weak structural checks passed, but manual inspection found failed recall in both historical-preference cases and weak contrast in a protected-text background revision.                                                                              | Strengthen recall assertions. Once inspected, these cases become regressions, not fresh holdouts.                                |
+| Recall investigation, 20:18–20:30   | The test simulator crashed on tool messages without text. After fixing that, Prumo recovered its earlier CTA; Pimba still stopped after finding only the current request. Alternate-query guidance recovered the exact Pimba preference in the next run. | Patch only the simulator's optional-field handling; teach bounded query reformulation and reading the actual older conversation. |
+
+The 19:59 scheduling failure was a harness assertion counting rejected attempts as
+successful reschedules; successful actions and attempts are now recorded separately.
+The simulator patch skips non-string search fields, matching Convex's omission of
+unindexed values. Neither finding establishes a production search failure. Local
+search tokenization/ranking still cannot validate deployed Convex retrieval quality.
+
+Taste labels remain **ready**, **needs changes**, and **unacceptable**, with reasons.
+For example, the initial Prumo overlap needs changes; invented skincare directions
+are unacceptable; the 20:10 Orvalho follow-up was provisionally ready. Passing
+an automated test does not establish any of those labels or consistency across repeats. Image revisions use
+synthetic diagrams, so success does not prove preservation of real photography.
+
+### Full regression run and remaining gaps
+
+The 20:30:55 batch ran all 18 cases: **18 behavioral checks passed** in 643 seconds.
+This includes both historical CTAs, draft creation without scheduling attempts,
+explicit rescheduling through the mock, and generation failure reporting. Product
+help consulted actual local account state and correctly pointed to Perfil › Conexões.
+Caetano delegated creation and then called `inspect_image`. No claim here covers
+real Instagram delivery, browser rendering, or a deployed database.
+
+Review of the saved outputs, separate from the automated checks:
+
+- **Ready:** both new Café Caju posts, Prumo's service and recalled-format carousels,
+  Pimba's planner and delegated Kit Rabisco artwork. Prices, visible products, and
+  branding were correct; final Prumo slides no longer overlapped text and icons.
+- **Ready for the requested edit:** Orvalho and Pimba background revisions. A pixel
+  comparison found zero changes to Orvalho's 153,880 non-background pixels and to
+  129,780 protected Pimba pixels, including the purple pen that matched its old
+  background. Background samples matched the requested hex colors.
+- **Needs changes:** Orvalho copy still adds unconfirmed details: “after cleansing”
+  in the carousel and “light texture” in the otherwise correct refusal of medical
+  claims. It rejected the requested medical promises, but the replacement copy is
+  not fully grounded. A passing assertion does not hide this finding.
+- **Needs changes:** Café's background-only edit preserves white text at the cost
+  of contrast. A targeted 20:34:20 rerun with explicit constraint-conflict guidance
+  passed and warned the owner that the title was hard to read, without recoloring
+  protected text. The artwork still needs an owner-approved text adjustment. A
+  pixel comparison also found 200 changed non-background pixels, so this is not a claim of
+  byte-for-byte preservation of every non-background pixel.
+- Text-only recall, repair-scope help, shipping limitations, and connection help
+  were useful and factually consistent with their fixtures. Caetano's delegated
+  delivery still included an unnecessary mascot joke; tone is worth further review.
+
+The contrast guidance was added after the full run started and verified in its own
+targeted run. These are two configurations, not a claim that the final exact prompt
+passed all 18 cases unchanged. The next comparison should also add fresh unseen
+cases; all existing cases have now been inspected and used for regression work.
+
+Final offline verification: `pnpm --filter @vanda-studio/vanda typecheck` passes;
+`pnpm --filter @vanda-studio/vanda test:run` passes 304 tests across 51 files, with
+14 opt-in live cases skipped by default. Targeted Oxlint checks pass. `cargo check`
+cannot run because Cargo is unavailable; this checkout's changed code is TypeScript.
+
+Remaining risks: self-review sometimes misses problems; subtle product attributes
+can still be invented; keyword discovery can require several attempts. Creative
+consistency, real-photo editing, deployed search, latency, and comparison with
+another GPT model need further trials. Scheduling authorization remains prompt
+guidance, not an enforced server-side approval gate. These results support a better
+working default and a repeatable evaluation loop, not “works for every request.”
 
 ## External references
 

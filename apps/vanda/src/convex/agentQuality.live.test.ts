@@ -224,6 +224,12 @@ it.skipIf(!enabled).each(suite)(
               text: step.text,
               calls: step.toolCalls,
               results: step.toolResults,
+              errors: step.content
+                .filter((part) => part.type === "tool-error")
+                .map((part) => ({
+                  toolName: part.toolName,
+                  message: part.error instanceof Error ? part.error.message : String(part.error),
+                })),
               usage: step.usage,
             });
           },
@@ -247,6 +253,12 @@ it.skipIf(!enabled).each(suite)(
                 text: step.text,
                 calls: step.toolCalls,
                 results: step.toolResults,
+                errors: step.content
+                  .filter((part) => part.type === "tool-error")
+                  .map((part) => ({
+                    toolName: part.toolName,
+                    message: part.error instanceof Error ? part.error.message : String(part.error),
+                  })),
                 usage: step.usage,
               });
             },
@@ -455,6 +467,13 @@ it.skipIf(!enabled).each(suite)(
       if (entry.kind === "revision") expect(state.images.length).toBeGreaterThan(1);
 
       if (entry.id === "orvalho-tool-failure") expect(state.images).toEqual([]);
+
+      if (entry.id === "pimba-past-preference") expect(response).toContain("Bora rabiscar?");
+
+      if (entry.id === "prumo-history-recall")
+        expect([response, ...state.posts.map((post) => post.caption)].join("\n")).toContain(
+          "Chame a Prumo para avaliar",
+        );
 
       if (entry.id !== "prumo-explicit-reschedule") expect(scheduleAttempts).toEqual([]);
       else {

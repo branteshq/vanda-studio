@@ -17,7 +17,7 @@ pnpm --filter @vanda-studio/vanda test:run src/convex/agentQuality.live.test.ts
 The private JSON must contain `tokens.access_token`, `tokens.refresh_token`, and `tokens.account_id` from an authorized, current ChatGPT connection. Keep it outside the checkout, permission 0600; never commit or attach it. Refresh expired credentials using the normal OAuth flow. The harness encrypts a temporary copy in its disposable database and never writes credentials to result files.
 
 - Default: 14 development cases, GPT-5.6 Terra, GPT Image 2.5 Flare. `VANDA_EVAL_MODEL` can select another subscription-compatible GPT orchestrator.
-- `VANDA_EVAL_CASES=caju-combo-draft,pimba-kit-revision` selects cases explicitly. The four `holdout: true` cases require explicit selection; do not use their outputs to tune prompts before the held-out run.
+- `VANDA_EVAL_CASES=caju-combo-draft,pimba-kit-revision` selects cases explicitly. The four `holdout: true` cases require explicit selection. These mark the original split; they were first reviewed on September 18 and are now regression cases, not untouched holdouts. Add new unseen cases before claiming generalization.
 - `VANDA_EVAL_FULL_ART=1` appends the experimental complete-art instruction used for the original hybrid-versus-full-generation comparison. Leave unset when evaluating current production instructions, which now allow full generation by default.
 - `VANDA_EVAL_OUTPUT` changes the output parent; default is `.amp/in/artifacts/agent-quality/<timestamp>/<case>/`.
 
@@ -27,7 +27,9 @@ The failure case injects a real rejected paint execution; the user prompt does n
 
 Each result records the input, brand, exact system prompt, fixture hash, model, transport, elapsed time, tool trace, final response, post/image state, and provider statuses. PNGs contain the actual outputs. Local mock-storage URLs are inlined as the same image bytes for provider requests. This tests the backend agent loop, **not browser rendering, real delivery, billing, or deployed Convex search ranking**.
 
-Automated assertions check provider errors, real draft creation, carousel count, revision output existence, failed-paint state, and scheduling intent/time. They are not taste judgments. A passing test can still contain bad artwork or misleading prose. Review every expectation and the actual files.
+`patches/convex-test@0.0.53.patch` makes the simulator skip non-string full-text search fields, as Convex does for absent indexed values. Without it, searching after an agent tool call crashes on its missing optional `text`. A boundary regression covers this. The patch does not make local tokenization or ranking equivalent to production.
+
+Automated assertions check provider errors, real draft creation, carousel count, revision output existence, failed-paint state, exact historical CTAs, and scheduling intent/time. They are not taste judgments. A passing test can still contain bad artwork or misleading prose. Review every expectation and the actual files. Experiment decisions and remaining limitations are recorded in `docs/agent-quality.md` at the repository root.
 
 ## Reviewing
 

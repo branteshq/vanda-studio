@@ -326,7 +326,7 @@ export const cases: EvalCase[] = [
     prompt: "Quanto fica o frete do Kit Rabisco para Salvador e chega até sexta?",
     expectations: [
       "Não inventa frete nem prazo sem CEP e cálculo disponível.",
-      "Explica que ambos dependem do CEP e pede o dado necessário.",
+      "Explica que ambos dependem do CEP; sem ferramenta de cálculo, orienta a consulta na loja sem pedir dados como se pudesse calcular por aqui.",
       "Pode informar corretamente o preço de R$ 32 e o envio nacional.",
     ],
     kind: "help",
