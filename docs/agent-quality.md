@@ -3,7 +3,7 @@
 Working notes from the September 18, 2026 discussion with Davi. This is a living
 document for continued investigation and implementation, not a finished design.
 
-## Confirmed scope and first implementation
+## Confirmed scope and implementation status
 
 - Brand context must always be included. Previous conversations and media should
   be discoverable rather than requiring the user to repeat information.
@@ -36,8 +36,46 @@ the scheduling operation remains separately callable. Automated tests cover cont
 and media transfer, account isolation, image tool outputs, and draft creation, not
 real-model compliance or aesthetic quality. Those need the GPT comparisons.
 
-Tool discovery, product-help retrieval, and fictional-brand taste evaluations are
-still to build. Nothing in this first implementation deploys or changes shared data.
+Tool discovery is now implemented locally over the existing capabilities. Product-help
+retrieval, conversation-content search, and fictional-brand taste evaluations remain
+to build. Nothing in these implementations deploys or changes shared data.
+
+### Tool discovery implementation
+
+The working tools remain directly visible; specialized tools are discovered through
+`tool_search`. The initial split is:
+
+| Agent   | Always visible                                                                        | Discoverable                                                                                                          |
+| ------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Vanda   | `tool_search`, `list`, `read`, `write`, `paint`, `run_code`, `create_post`, `present` | The six Instagram research/analytics tools, `schedule_post`, `cancel_schedule`, `delete_post`                         |
+| Caetano | `tool_search`, `ask_vanda`, `inspect_image`, `present`, `account_status`              | `list_accounts`, `select_account`, `usage_status`, `model_preferences`, `set_model_preferences`, `list_vanda_threads` |
+
+Each agent receives a short capability map and instructions to search before declaring
+a task unsupported. Brand context remains automatically included, outside discovery.
+The maps do not advertise product-help or conversation-content search as implemented.
+
+Search is local keyword matching over names, existing descriptions, and Portuguese/
+English aliases, ignoring case and accents. An exact tool name returns only that
+tool; other searches return up to four matches. `*` lists the agent's entire deferred
+catalog. No match suggests reformulating or browsing rather than inventing a tool.
+This is not semantic search; live trials may expose missing vocabulary or poor ranking.
+
+Results include names, descriptions, and read/write effects. AI SDK `prepareStep`
+exposes the selected original tools and their input schemas on the next step, retaining
+them for the rest of that invocation. Discovery comes only from the current invocation's
+completed search results, not old messages or shared mutable state. The next turn starts
+with the core tools again. There is no JavaScript invocation wrapper or new model call.
+
+The original executions, validation, account checks, resource recording, and image output
+conversion stay intact. Finding a tool does not confirm that a connection is available,
+grant permissions, or authorize publication. The SDK rejects calls to inactive tools,
+but discovery is not a replacement for the application's authorization checks.
+
+Automated checks exercise the initial role-specific schemas, search-to-execution loop,
+accumulation and next-turn reset, invalid/undiscovered calls, and real Convex account
+selection with owned and foreign accounts. Model responses are scripted in these tests;
+we have not yet tested whether live GPT chooses good searches or measured latency/token
+savings. Product-help retrieval and previous-work retrieval are the next capability work.
 
 ## What we want
 
@@ -303,11 +341,10 @@ Discovery saves upfront context but adds a step; loaded definitions and results
 still consume context. Finding a function never grants permission to execute it.
 Enforce ownership and authorization in the application on every call.
 
-Start with existing capabilities: account status, settings, previous work,
-publication status, and product help. Caetano and Vanda should discover functions
-appropriate to their roles. We have not selected a registry, search implementation,
-or execution interface yet. A controlled invocation mechanism is enough initially;
-copying Amp's JavaScript `code_exec` layer is not required.
+The first implementation uses the split documented above: existing tools retain
+their implementations, local search selects them, and the SDK exposes their typed
+definitions. Product-help and deeper previous-work retrieval can join the catalog
+when implemented. Copying Amp's JavaScript `code_exec` layer is not required.
 
 ### Prompts matter, but there is no proven magic prompt
 
@@ -397,8 +434,10 @@ business performance will require evidence after launch.
    uncertain thing at a time, repeat important cases, and retain regressions.
 
 Implementation has started with context preservation, always-on brand information,
-draft-only guidance, and self-review capabilities. Minimal tool discovery is the
-next foundation. No wholesale rewrite or additional group of agents is required.
+draft-only guidance, self-review capabilities, and minimal tool discovery. Product
+knowledge and previous-work retrieval come next; creative quality still needs the
+fictional-brand comparisons. No wholesale rewrite or additional group of agents
+is required.
 
 ## Review decisions and questions to investigate
 
@@ -407,15 +446,13 @@ comparisons are settled. Previous thread history and media should ideally be
 discoverable. The remaining implementation choices are work for investigation and
 experiments, not choices Davi needs to make upfront.
 
-- **Which tools are visible immediately?** We do not know yet. Decide which tools
-  the agent needs often enough to show on every turn, and which it should find
-  through `tool_search`. Start with the existing capabilities and test the split.
-- **How does the agent call a tool after finding it?** Search only finds the
-  function; something still has to execute it. We could expose the selected tool
-  directly or use a controlled call that takes its name and arguments. The question
-  is whether we need an Amp-like JavaScript execution tool at all. This is an
-  implementation choice, not a request to remove Vanda's existing Python tool.
-  Account ownership and permissions must still be checked on every operation.
+- **Which tools are visible immediately?** The initial split is implemented above:
+  creation, inspection, delivery, and role-essential tools stay visible. Specialized
+  integrations and account operations are discovered. Adjust based on live trials.
+- **How does the agent call a tool after finding it?** It calls the original typed
+  tool directly on the next step. Account ownership and permissions are still
+  checked by the original implementation. No extra code-execution layer was added;
+  Vanda's existing Python tool remains directly available.
 - **When may Vanda schedule or publish?** Only when the user explicitly requests
   it. "Make a post" always creates a draft, even if the creative brief mentions a
   date. Approval of the artwork alone is not permission to publish.

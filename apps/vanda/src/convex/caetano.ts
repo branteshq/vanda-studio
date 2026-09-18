@@ -25,7 +25,12 @@ import { resolveOrchestratorModel } from "./agentModels";
 import { isConnectedSubscriber } from "./openaiSub";
 import { codexChatModel } from "./pipeline/codex";
 import { requireOwnedAccount, requireUser } from "./authz";
-import { caetano, caetanoLanguageModel, caetanoSystemPrompt } from "./caetanoAgent";
+import {
+  caetano,
+  caetanoLanguageModel,
+  caetanoSystemPrompt,
+  caetanoToolDiscovery,
+} from "./caetanoAgent";
 import { messageWithImages, resolveMessageImages } from "./messageImages";
 import { budgetOf } from "./usage";
 import { errorMessage, publicError } from "../errors";
@@ -361,6 +366,7 @@ export const generateResponse = internalAction({
         {
           promptMessageId,
           model,
+          prepareStep: caetanoToolDiscovery.prepareStep,
           system:
             `${caetanoSystemPrompt()}\n\n${brand}` +
             (turn.channel === "whatsapp"

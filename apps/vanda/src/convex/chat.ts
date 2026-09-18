@@ -28,7 +28,7 @@ import { codexChatModel, codexResponsesText } from "./pipeline/codex";
 import { budgetOf } from "./usage";
 import { isConnectedSubscriber } from "./openaiSub";
 import { messageWithImages, resolveMessageImages } from "./messageImages";
-import { openrouterChatModel, systemPrompt, vanda, VANDA_MODEL } from "./vanda";
+import { openrouterChatModel, systemPrompt, vanda, VANDA_MODEL, vandaToolDiscovery } from "./vanda";
 import { errorMessage, publicError } from "../errors";
 import { errorCodeValidator, safeFailure } from "./publicErrors";
 import * as Schema from "effect/Schema";
@@ -380,6 +380,7 @@ export const generateResponse = internalAction({
       const streamOptions = {
         promptMessageId,
         system: `${systemPrompt()}\n\n${brand}`,
+        prepareStep: vandaToolDiscovery.prepareStep,
         onError: ({ error }: { error: unknown }) => {
           streamError = error;
         },

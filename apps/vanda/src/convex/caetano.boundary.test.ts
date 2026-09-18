@@ -1,10 +1,11 @@
 // @vitest-environment edge-runtime
 import agentComponent from "@convex-dev/agent/test";
+import { convertArrayToReadableStream, MockLanguageModelV3 } from "ai/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it, vi } from "vitest";
 import { api, components, internal } from "./_generated/api";
-import { caetano } from "./caetanoAgent";
-import { vanda } from "./vanda";
+import { caetano, caetanoToolDiscovery } from "./caetanoAgent";
+import { vanda, vandaToolDiscovery } from "./vanda";
 import { capabilityResult } from "./resourceRefs";
 import schema from "./schema";
 
@@ -202,6 +203,7 @@ describe("Caetano control plane", () => {
               }),
               promptMessageId: "test-prompt",
               system: expect.stringContaining("Café da Ana"),
+              prepareStep: caetanoToolDiscovery.prepareStep,
             }),
             { saveStreamDeltas: true },
           );
@@ -547,6 +549,7 @@ describe("Caetano control plane", () => {
       expect(result.response).toBe("Rascunho pronto");
       expect(stream.mock.calls[0]?.[0]).toMatchObject({ accountId });
       expect(stream.mock.calls[0]?.[2].system).toContain("Café da Ana");
+      expect(stream.mock.calls[0]?.[2].prepareStep).toBe(vandaToolDiscovery.prepareStep);
 
       const [message] = await t.run((ctx) =>
         ctx.runQuery(components.agent.messages.getMessagesByIds, {
@@ -559,6 +562,126 @@ describe("Caetano control plane", () => {
       stream.mockRestore();
     }
   });
+
+  it.each([false, true])(
+    "preserves ownership and resource recording after discovery (foreign=%s)",
+    async (foreign) => {
+      const { t, userId, accountId, foreignAccountId } = await setup();
+
+      const secondAccountId = await t.run((ctx) =>
+        ctx.db.insert("accounts", {
+          ownerUserId: userId,
+          name: "Padaria da Ana",
+          onboardedAt: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        }),
+      );
+
+      const target = foreign ? foreignAccountId : secondAccountId;
+
+      const sent = await t
+        .withIdentity({ subject: "ana" })
+        .mutation(api.caetano.sendMessage, { prompt: "Troque de negócio" });
+
+      const calls = [
+        { name: "tool_search", input: { query: "select_account" } },
+        { name: "select_account", input: { accountId: target } },
+      ];
+
+      let step = 0;
+
+      const model = new MockLanguageModelV3({
+        doStream: async () => {
+          const next = calls[step++];
+
+          return {
+            stream: convertArrayToReadableStream([
+              { type: "stream-start" as const, warnings: [] },
+              ...(next
+                ? [
+                    {
+                      type: "tool-call" as const,
+                      toolCallId: `call-${step}`,
+                      toolName: next.name,
+                      input: JSON.stringify(next.input),
+                    },
+                  ]
+                : []),
+              {
+                type: "finish" as const,
+                finishReason: {
+                  unified: next ? ("tool-calls" as const) : ("stop" as const),
+                  raw: undefined,
+                },
+                usage: {
+                  inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+                  outputTokens: { total: 1, text: 1, reasoning: 0 },
+                },
+              },
+            ]),
+          };
+        },
+      });
+
+      let steps: Awaited<StreamResult["steps"]> = [];
+
+      await t.action(async (ctx) => {
+        const result = await caetano.streamText(
+          {
+            ...ctx,
+            ownerUserId: userId,
+            caetanoThreadId: sent.threadId,
+            sourcePromptMessageId: sent.messageId,
+          },
+          { threadId: sent.threadId },
+          { promptMessageId: sent.messageId, model, prepareStep: caetanoToolDiscovery.prepareStep },
+        );
+
+        await result.consumeStream();
+
+        steps = await result.steps;
+      });
+
+      expect(model.doStreamCalls).toHaveLength(3);
+      expect(model.doStreamCalls[0]!.tools!.map((tool) => tool.name)).not.toContain(
+        "select_account",
+      );
+      expect(model.doStreamCalls[1]!.tools!.map((tool) => tool.name)).toContain("select_account");
+      expect((await t.run((ctx) => ctx.db.get(userId)))?.activeAccountId).toBe(
+        foreign ? accountId : secondAccountId,
+      );
+      const manifests = await t.run((ctx) => ctx.db.query("threadResourceManifests").collect());
+
+      if (foreign) {
+        expect(steps.flatMap((step) => step.content)).toContainEqual(
+          expect.objectContaining({ type: "tool-error", toolName: "select_account" }),
+        );
+        expect(manifests).toEqual([]);
+      } else {
+        expect(steps[1]!.toolResults).toContainEqual(
+          expect.objectContaining({
+            toolName: "select_account",
+            output: expect.objectContaining({
+              data: expect.objectContaining({
+                accountId: secondAccountId,
+                brandContext: expect.stringContaining("Padaria da Ana"),
+              }),
+            }),
+          }),
+        );
+        expect(manifests).toContainEqual(
+          expect.objectContaining({
+            threadId: sent.threadId,
+            toolCallId: "call-2",
+            resources: [
+              expect.objectContaining({ operation: "account.select", accountId: secondAccountId }),
+            ],
+          }),
+        );
+      }
+    },
+  );
 
   it("lets Caetano inspect owned images and rejects foreign images and accounts", async () => {
     const { t, userId, accountId, foreignAccountId } = await setup();

@@ -6,6 +6,7 @@ import type { Id } from "./_generated/dataModel";
 import { DEFAULT_ORCHESTRATOR_MODEL } from "./agentModels";
 import { recordCapabilityResult } from "./capabilityTools";
 import { imageModelOutput, imagePreviewSchema } from "./messageImages";
+import { toolDiscovery } from "./toolDiscovery";
 import { compactInstagramHistory } from "./instagram/toolSummary";
 import {
   capabilityResult,
@@ -129,6 +130,8 @@ const instagramToolResultSchema = z.object({
 const INSTRUCTIONS = `Você é a Vanda, uma operadora de crescimento de Instagram para pequenos negócios brasileiros. Você conversa em português do Brasil, com tom direto, caloroso e profissional.
 
 Seu trabalho: observar o mercado, encontrar oportunidades com evidência real e criar conteúdo original fiel à marca do usuário. Trabalhe de forma autônoma na criação; agende ou publique somente quando o dono pedir explicitamente.
+
+Ferramentas adicionais: tool_search encontra pesquisa de perfis/concorrentes, posts/reels, comentários e métricas do Instagram, além de agendar/reagendar/publicar, cancelar agendamento e excluir posts. Busque por tarefa ou nome antes de concluir que algo não é suportado; se não encontrar, reformule ou use '*'. Os resultados habilitam as ferramentas tipadas no próximo passo e pelo restante deste turno; em um novo turno, busque novamente se precisar. Busca não executa ações nem autoriza publicação. Falta de conexão/permissão e falha temporária não significam capacidade inexistente. Contas, planos e configurações pertencem ao Caetano.
 
 Workspace: cada conta tem um sistema de arquivos que você explora com list e read. /brand (memória de marca em memory.md, anotações em notes.md, identidade visual em kit.json e fotos de referência em references/), /memory (suas notas duráveis), /templates (trechos Python reutilizáveis), /skills (habilidades instaladas e seus recursos), /images (galeria da conta), /instagram (leituras conectadas e públicas com fonte e frescor), /posts (o calendário de posts: rascunhos, agendados e publicados), /market (oportunidades e última varredura), /runs (execuções de código). As listagens trazem um resumo por linha e o id de cada entidade — paint recebe esses ids; run_code recebe os próprios caminhos do workspace (e também aceita ids de anexos). Ler um arquivo de imagem envia os pixels para você: você enxerga a imagem de verdade.
 
@@ -817,6 +820,61 @@ const CHAT_FALLBACK_USD_PER_INPUT_TOKEN = 2e-6;
 
 const CHAT_FALLBACK_USD_PER_OUTPUT_TOKEN = 8e-6;
 
+const tools = {
+  list: listFiles,
+  read: readFile,
+  write: writeFile,
+  present,
+  ...instagramTools,
+  paint,
+  run_code: runCode,
+  create_post: createPost,
+  schedule_post: schedulePost,
+  cancel_schedule: cancelSchedule,
+  delete_post: deletePost,
+};
+
+export const vandaToolDiscovery = toolDiscovery(tools, {
+  search_instagram_profiles: {
+    keywords:
+      "pesquisa pesquisar concorrente concorrentes descobrir buscar research competitors search profiles",
+    effect: "read",
+  },
+  read_instagram_profile: {
+    keywords: "perfil bio seguidores profile followers account",
+    effect: "read",
+  },
+  read_instagram_posts: {
+    keywords: "feed publicações catálogo histórico posts reels carousel list",
+    effect: "read",
+  },
+  read_instagram_post: {
+    keywords: "link url referência transcrição transcript reel",
+    effect: "read",
+  },
+  read_instagram_comments: {
+    keywords: "comentários feedback comments replies",
+    effect: "read",
+  },
+  read_instagram_metrics: {
+    keywords: "métricas desempenho alcance engajamento analytics performance insights reach saves",
+    effect: "read",
+  },
+  schedule_post: {
+    keywords:
+      "agendar reagendar publicar publicação mover remarcar calendário schedule reschedule publish move calendar",
+    effect: "write",
+  },
+  cancel_schedule: {
+    keywords: "cancelar desagendar desarmar cancel unschedule",
+    effect: "write",
+  },
+  delete_post: {
+    keywords: "apagar excluir remover deletar delete remove draft rascunho",
+    effect: "write",
+  },
+});
+
 export const vanda = new Agent<VandaCtx>(components.agent, {
   name: "vanda",
   contextHandler: (_ctx, { allMessages }) => compactInstagramHistory(allMessages),
@@ -850,18 +908,6 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
     });
   },
   instructions: `${INSTRUCTIONS}\n\n${SKILLS_PROMPT}`,
-  tools: {
-    list: listFiles,
-    read: readFile,
-    write: writeFile,
-    present,
-    ...instagramTools,
-    paint,
-    run_code: runCode,
-    create_post: createPost,
-    schedule_post: schedulePost,
-    cancel_schedule: cancelSchedule,
-    delete_post: deletePost,
-  },
+  tools: { ...tools, tool_search: vandaToolDiscovery.search },
   stopWhen: stepCountIs(24),
 });
