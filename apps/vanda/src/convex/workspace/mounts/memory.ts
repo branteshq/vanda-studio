@@ -2,13 +2,13 @@ import { documentMount } from "../documents";
 import type { WorkspaceMount } from "../types";
 
 /**
- * /memory — Vanda's durable per-account notes: preferences the owner states in
- * conversation ("nunca use essa cor"), plans, learnings. Free-write: the agent
- * curates its own memory. Not auto-injected into the system prompt — the agent
- * reads what it needs, which keeps a poisoned note inspectable and inert.
+ * /memory — concise durable preferences and facts, included at each turn within
+ * a shared byte budget. Full working documents belong in discoverable /notes.
+ * Legacy oversized memory is reported as partial, never silently truncated.
  */
 export const memoryMount: WorkspaceMount = documentMount({
   root: "memory",
-  summary: "suas notas duráveis: preferências do dono, planos, aprendizados (gravável)",
+  summary:
+    "memória automática compacta: fatos e preferências; detalhes longos em /notes (gravável)",
   extension: ".md",
 });

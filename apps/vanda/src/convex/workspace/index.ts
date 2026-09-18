@@ -1,5 +1,6 @@
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { documentMount } from "./documents";
 import { brandMount } from "./mounts/brand";
 import { imagesMount } from "./mounts/images";
 import { instagramMount } from "./mounts/instagram";
@@ -14,6 +15,12 @@ import type { WorkspaceEntry, WorkspaceFile, WorkspaceMount, WorkspaceWriteResul
 const MOUNTS: readonly WorkspaceMount[] = [
   brandMount,
   memoryMount,
+  documentMount({
+    root: "notes",
+    summary:
+      "documentos longos e detalhes arquivados; consulte quando necessário, fora da memória automática",
+    extension: ".md",
+  }),
   templatesMount,
   skillsMount,
   imagesMount,
@@ -112,7 +119,7 @@ export const readPath = async (
 export type WriteResult = WorkspaceWriteResult;
 
 const WRITABLE_HELP =
-  "graváveis: /memory/<nome>.md, /templates/<nome>.py, /brand/notes.md e /brand/kit.json";
+  "graváveis: /memory/<nome>.md, /notes/<nome>.md, /templates/<nome>.py, /brand/notes.md e /brand/kit.json";
 
 /**
  * One write surface, per-mount handlers underneath (the VFS shape — like

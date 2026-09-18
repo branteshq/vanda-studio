@@ -236,4 +236,103 @@ describe("workspace writes", () => {
 
     expect(read.ok).toBe(false);
   });
+
+  it("bounds serialized memory across files, counts UTF-8 bytes, and does not double-count replacements", async () => {
+    const { t, accountId, foreignAccountId } = await setup();
+    const path = "/memory/a.md";
+    // The JSON array envelope and this path take 38 bytes, independently of the budget helper.
+    const content = "x".repeat(23_962);
+
+    const write = (path: string, content: string) =>
+      t.mutation(internal.workspaceData.write, { accountId, path, content });
+
+    expect((await write(path, content)).ok).toBe(true);
+    expect((await write(path, content.replaceAll("x", "y"))).ok).toBe(true);
+    expect((await write(path, content + "x")).ok).toBe(false);
+    expect((await write("/memory/b.md", "")).ok).toBe(false);
+
+    const stored = await t.query(internal.workspaceData.read, { accountId, path });
+    expect(stored).toMatchObject({ ok: true, file: { text: content.replaceAll("x", "y") } });
+    const context = await t.query(internal.brandContext.conversation, { accountId });
+    expect(context).not.toContain("MEMÓRIA PARCIAL");
+    expect(context).toContain(content.replaceAll("x", "y"));
+    const revisions = await t.run((ctx) => ctx.db.query("workspaceFileRevisions").collect());
+    expect(revisions).toHaveLength(2);
+
+    expect((await write(path, "curto")).ok).toBe(true);
+    expect((await write("/memory/b.md", "🌿".repeat(6_000))).ok).toBe(false);
+    expect((await write("/memory/b.md", '"'.repeat(12_000))).ok).toBe(false);
+    expect((await write("/memory/b.md", "z".repeat(12_000))).ok).toBe(true);
+    expect((await write("/memory/c.md", "z".repeat(12_000))).ok).toBe(false);
+    expect(
+      (
+        await t.mutation(internal.workspaceData.write, {
+          accountId: foreignAccountId,
+          path,
+          content,
+        })
+      ).ok,
+    ).toBe(true);
+  });
+
+  it("keeps legacy oversized memory readable, includes brand and preferences, and allows incremental compaction", async () => {
+    const { t, accountId } = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("brandCanon", {
+        accountId,
+        kind: "restriction",
+        text: "Não anunciar álcool",
+        confirmedByOwner: true,
+        createdAt: 1,
+      });
+
+      for (const [path, content] of [
+        ["/memory/a.md", "a".repeat(40_000)],
+        ["/memory/b.md", "b".repeat(40_000)],
+        ["/memory/preferences.md", "Nunca oferecer entrega grátis"],
+      ])
+        await ctx.db.insert("workspaceFiles", {
+          accountId,
+          path: path!,
+          content: content!,
+          updatedAt: 1,
+          updatedBy: "vanda",
+        });
+    });
+
+    const context = await t.query(internal.brandContext.conversation, { accountId });
+    expect(context).toContain("MEMÓRIA PARCIAL");
+    expect(context).toContain("Café da Ana");
+    expect(context).toContain("Não anunciar álcool");
+    expect(context).toContain("Nunca oferecer entrega grátis");
+    expect(context.length).toBeLessThan(25_000);
+    expect(context).not.toContain("a".repeat(1_000));
+    expect(
+      await t.query(internal.workspaceData.read, { accountId, path: "/memory/a.md" }),
+    ).toMatchObject({ ok: true, file: { text: "a".repeat(40_000) } });
+
+    const write = (path: string, content: string) =>
+      t.mutation(internal.workspaceData.write, { accountId, path, content });
+
+    expect((await write("/memory/c.md", "mais notas")).ok).toBe(false);
+    expect((await write("/memory/a.md", "a".repeat(40_001))).ok).toBe(false);
+    // Preserve full details outside automatic memory before compacting each head.
+    expect((await write("/notes/a.md", "a".repeat(40_000))).ok).toBe(true);
+    expect(await write("/memory/a.md", "Resumo A: detalhes em /notes/a.md")).toMatchObject({
+      ok: true,
+      note: expect.stringContaining("ainda excede"),
+    });
+    expect((await write("/notes/b.md", "b".repeat(40_000))).ok).toBe(true);
+    expect((await write("/memory/b.md", "Resumo B: detalhes em /notes/b.md")).ok).toBe(true);
+
+    const compact = await t.query(internal.brandContext.conversation, { accountId });
+    expect(compact).not.toContain("MEMÓRIA PARCIAL");
+    expect(compact).toContain("Resumo A");
+    expect(compact).toContain("Resumo B");
+    expect(compact).toContain("Nunca oferecer entrega grátis");
+    expect(compact).not.toContain("b".repeat(1_000));
+    expect(
+      await t.query(internal.workspaceData.read, { accountId, path: "/notes/b.md" }),
+    ).toMatchObject({ ok: true, file: { text: "b".repeat(40_000) } });
+  });
 });
