@@ -225,7 +225,10 @@ describe("Caetano control plane", () => {
               system: expect.stringContaining("Café da Ana"),
               prepareStep: caetanoToolDiscovery.prepareStep,
             }),
-            { saveStreamDeltas: true },
+            expect.objectContaining({
+              saveStreamDeltas: true,
+              contextHandler: expect.any(Function),
+            }),
           );
           expect(stream.mock.calls.at(-1)?.[2]).not.toHaveProperty("maxOutputTokens");
         }

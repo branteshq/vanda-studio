@@ -28,6 +28,8 @@ import { codexChatModel, codexResponsesText } from "./pipeline/codex";
 import { budgetOf } from "./usage";
 import { isConnectedSubscriber } from "./openaiSub";
 import { messageWithImages, resolveMessageImages } from "./messageImages";
+import { turnClock } from "./chatModel";
+import { turnContext } from "./chatContext";
 import { openrouterChatModel, systemPrompt, vanda, VANDA_MODEL, vandaToolDiscovery } from "./vanda";
 import { errorMessage, publicError } from "../errors";
 import { errorCodeValidator, safeFailure } from "./publicErrors";
@@ -380,6 +382,7 @@ export const generateResponse = internalAction({
       const streamOptions = {
         promptMessageId,
         system: `${systemPrompt()}\n\n${brand}`,
+        providerOptions: { openrouter: { session_id: threadId } },
         prepareStep: vandaToolDiscovery.prepareStep,
         onError: ({ error }: { error: unknown }) => {
           streamError = error;
@@ -388,14 +391,10 @@ export const generateResponse = internalAction({
 
       if (model) Object.assign(streamOptions, { model });
 
-      const result = await vanda.streamText(
-        streamContext,
-        { threadId },
-        // The live-clock system prompt replaces the agent's static
-        // instructions so relative dates ("amanhã às 8") resolve correctly.
-        streamOptions,
-        { saveStreamDeltas: true },
-      );
+      const result = await vanda.streamText(streamContext, { threadId }, streamOptions, {
+        saveStreamDeltas: true,
+        contextHandler: turnContext(turnClock()),
+      });
 
       await result.consumeStream();
 

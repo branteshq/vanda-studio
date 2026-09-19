@@ -32,6 +32,8 @@ import {
   caetanoToolDiscovery,
 } from "./caetanoAgent";
 import { messageWithImages, resolveMessageImages } from "./messageImages";
+import { turnClock } from "./chatModel";
+import { turnContext } from "./chatContext";
 import { budgetOf } from "./usage";
 import { errorMessage, publicError } from "../errors";
 import { errorCodeValidator, safeFailure } from "./publicErrors";
@@ -366,6 +368,7 @@ export const generateResponse = internalAction({
         {
           promptMessageId,
           model,
+          providerOptions: { openrouter: { session_id: threadId } },
           prepareStep: caetanoToolDiscovery.prepareStep,
           system:
             `${caetanoSystemPrompt()}\n\n${brand}` +
@@ -376,7 +379,7 @@ export const generateResponse = internalAction({
             streamError = error;
           },
         },
-        { saveStreamDeltas: true },
+        { saveStreamDeltas: true, contextHandler: turnContext(turnClock()) },
       );
 
       await result.consumeStream();

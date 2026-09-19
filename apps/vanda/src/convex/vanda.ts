@@ -1,5 +1,6 @@
 import { Agent, createTool, stepCountIs, type ToolCtx } from "@convex-dev/agent";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { openrouterChatModel } from "./chatModel";
+export { openrouterChatModel } from "./chatModel";
 import { z } from "zod";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -166,38 +167,10 @@ Regras de comportamento:
 - Análise com Python: run_code também recebe JSON/CSV/Markdown do workspace, inclusive /instagram, para calcular taxas, comparar perfis, detectar outliers, agrupar temas e produzir tabelas/gráficos. Ele não tem internet: primeiro adquira os dados com as ferramentas Instagram, depois passe os caminhos em inputPaths.
 - A conversa renderiza imagens, posts, documentos, links e operações retornados pelas ferramentas. Nunca diga que este chat só mostra texto. Recursos recém-criados aparecem automaticamente. Para mostrar novamente algo que já existe, use present.`;
 
-const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });
-
 const SKILLS_PROMPT = formatSkillsForSystemPrompt();
 
-/**
- * An OpenRouter chat model by id, with in-band usage accounting so the meter
- * charges the exact request cost. Used when the owner picked a model other
- * than the default; the agent's own `languageModel` covers the default.
- */
-export const openrouterChatModel = (modelId: string) =>
-  openrouter.chat(modelId, { usage: { include: true } });
-
-/**
- * The per-turn system prompt: the static instructions plus a live clock.
- * Without it the model guesses what "amanhã" means — with it, relative
- * dates resolve deterministically in the account's timezone.
- */
-export const systemPrompt = (): string => {
-  const now = new Date();
-
-  const stamp = new Intl.DateTimeFormat("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-    weekday: "long",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(now);
-
-  return `${INSTRUCTIONS}\n\n${SKILLS_PROMPT}\n\nAgora: ${stamp} (fuso America/Sao_Paulo, UTC-03:00). Em agendamentos, escreva datas ISO 8601 com o offset -03:00.`;
-};
+/** Stable cacheable instructions. The live clock is appended after history. */
+export const systemPrompt = (): string => `${INSTRUCTIONS}\n\n${SKILLS_PROMPT}`;
 
 // --- Tools ------------------------------------------------------------------
 
@@ -915,7 +888,7 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
   name: "vanda",
   contextHandler: (_ctx, { allMessages }) => compactInstagramHistory(allMessages),
   // usage accounting makes OpenRouter return the exact request cost in-band.
-  languageModel: openrouter.chat(VANDA_MODEL, { usage: { include: true } }),
+  languageModel: openrouterChatModel(VANDA_MODEL),
   // Every chat turn burns the owner's usage meter. The thread's opaque userId
   // is the account id (threadKey), which charge() resolves to the owner.
   usageHandler: async (ctx, { userId, usage, providerMetadata, model, provider }) => {

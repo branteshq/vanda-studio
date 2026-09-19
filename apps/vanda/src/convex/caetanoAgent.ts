@@ -1,5 +1,5 @@
 import { Agent, createTool, stepCountIs, type ToolCtx } from "@convex-dev/agent";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { openrouterChatModel } from "./chatModel";
 import { z } from "zod";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -368,10 +368,8 @@ const askVanda = createTool({
   }),
 });
 
-const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });
-
 export const caetanoLanguageModel = (preferred?: string | null) =>
-  openrouter.chat(resolveCaetanoModel(preferred), { usage: { include: true } });
+  openrouterChatModel(resolveCaetanoModel(preferred));
 
 const FALLBACK_INPUT_USD = 2e-6;
 
@@ -483,9 +481,4 @@ export const caetano = new Agent<CaetanoCtx>(components.agent, {
   stopWhen: stepCountIs(12),
 });
 
-export const caetanoSystemPrompt = (): string =>
-  `${INSTRUCTIONS}\n\nAgora: ${new Date().toLocaleString("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-    dateStyle: "full",
-    timeStyle: "short",
-  })}. Fuso: America/Sao_Paulo.`;
+export const caetanoSystemPrompt = (): string => INSTRUCTIONS;
