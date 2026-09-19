@@ -123,7 +123,7 @@ export const capabilityResult = <Data>(
   return result;
 };
 
-export const resourceKey = (resource: ThreadResource): string => {
+export const resourceKey = (resource: z.infer<typeof threadResourceSchema>): string => {
   switch (resource.kind) {
     case "image":
       return `image:${resource.accountId}:${resource.imageId}`;
@@ -138,7 +138,9 @@ export const resourceKey = (resource: ThreadResource): string => {
   }
 };
 
-export const dedupeResources = (resources: readonly ThreadResource[]): ThreadResource[] => {
+export const dedupeResources = <Resource extends z.infer<typeof threadResourceSchema>>(
+  resources: readonly Resource[],
+): Resource[] => {
   const seen = new Set<string>();
 
   return resources.filter((resource) => {

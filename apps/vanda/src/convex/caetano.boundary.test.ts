@@ -63,6 +63,26 @@ const setup = async () => {
 };
 
 describe("Caetano control plane", () => {
+  it("sends delegation locators once while retaining presentation metadata", async () => {
+    const link = { kind: "link" as const, url: "https://example.com/draft", title: "Rascunho" };
+    const other = { kind: "link" as const, url: "https://example.com/source", title: "Fonte" };
+    const output = capabilityResult(
+      { response: "Rascunho pronto; não publicado", threadId: "vanda-thread" },
+      { resources: [link, other], presented: [link] },
+    );
+    const projected = await caetano.options.tools.ask_vanda.toModelOutput!({
+      toolCallId: "delegation",
+      input: { request: "Crie um rascunho" },
+      output,
+    });
+
+    expect(projected).toEqual({
+      type: "json",
+      value: { data: output.data, resources: [link, other] },
+    });
+    expect(output.presented).toEqual([link]);
+  });
+
   it("persists a separate owner-scoped model, including on the ChatGPT plan", async () => {
     const { t, userId, foreignUserId } = await setup();
     const owner = t.withIdentity({ subject: "ana" });

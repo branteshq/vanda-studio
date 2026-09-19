@@ -12,6 +12,7 @@ import { productHelp } from "./productHelp";
 import {
   capabilityResult,
   capabilityResultSchema,
+  dedupeResources,
   presentableResourceInputSchema,
   type PresentableResourceInput,
   type ThreadResource,
@@ -350,17 +351,21 @@ const askVanda = createTool({
     }
 
     if (input.threadId) actionArgs.threadId = input.threadId;
-    const data = await ctx.runAction(internal.caetanoNode.askVanda, actionArgs);
-
-    return recordCapabilityResult(
-      ctx,
-      options,
-      capabilityResult(data, {
-        resources: data.resources,
-        presented: data.presented,
-      }),
+    const { resources, presented, ...data } = await ctx.runAction(
+      internal.caetanoNode.askVanda,
+      actionArgs,
     );
+
+    return recordCapabilityResult(ctx, options, capabilityResult(data, { resources, presented }));
   },
+  // Presentation stays in the manifest; the model needs each locator only once.
+  toModelOutput: (_ctx, { output }) => ({
+    type: "json",
+    value: {
+      data: z.json().parse(output.data),
+      resources: dedupeResources([...output.resources, ...output.presented]),
+    },
+  }),
 });
 
 const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });
