@@ -79,20 +79,3 @@ export const compactHistory = (
       }),
     };
   });
-
-/** Dynamic turn data follows history so it cannot invalidate the reusable prefix. */
-export const turnContext =
-  (clock: string): ContextHandler =>
-  (_ctx, { search, recent, inputMessages, inputPrompt, existingResponses }) => {
-    const history = [...search, ...recent, ...inputMessages];
-    const recentTurns = history.flatMap((message, index) =>
-      message.role === "user" ? [index] : [],
-    );
-
-    return [
-      ...compactHistory(history, recentTurns.at(-2) ?? 0),
-      { role: "user", content: clock },
-      ...inputPrompt,
-      ...existingResponses,
-    ];
-  };

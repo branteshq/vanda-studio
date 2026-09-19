@@ -32,8 +32,8 @@ import {
   caetanoToolDiscovery,
 } from "./caetanoAgent";
 import { messageWithImages, resolveMessageImages } from "./messageImages";
-import { turnClock } from "./chatModel";
-import { turnContext } from "./chatContext";
+import { openrouterChatModel, turnClock } from "./chatModel";
+import { conversationContext } from "./conversationContext";
 import { budgetOf } from "./usage";
 import { errorMessage, publicError } from "../errors";
 import { errorCodeValidator, safeFailure } from "./publicErrors";
@@ -379,7 +379,17 @@ export const generateResponse = internalAction({
             streamError = error;
           },
         },
-        { saveStreamDeltas: true, contextHandler: turnContext(turnClock()) },
+        {
+          saveStreamDeltas: true,
+          contextOptions: { recentMessages: 0 },
+          contextHandler: conversationContext(turnClock(), {
+            threadId,
+            promptMessageId,
+            ownerKey: threadKey(userId),
+            userId,
+            summaryModel: sub.active ? model : openrouterChatModel("openai/gpt-5.6-luna"),
+          }),
+        },
       );
 
       await result.consumeStream();

@@ -29,8 +29,8 @@ import { budgetOf } from "./usage";
 import { isConnectedSubscriber } from "./openaiSub";
 import { messageWithImages, resolveMessageImages } from "./messageImages";
 import { turnClock } from "./chatModel";
-import { turnContext } from "./chatContext";
-import { openrouterChatModel, systemPrompt, vanda, VANDA_MODEL, vandaToolDiscovery } from "./vanda";
+import { conversationContext } from "./conversationContext";
+import { openrouterChatModel, systemPrompt, vanda, vandaToolDiscovery } from "./vanda";
 import { errorMessage, publicError } from "../errors";
 import { errorCodeValidator, safeFailure } from "./publicErrors";
 import * as Schema from "effect/Schema";
@@ -367,9 +367,7 @@ export const generateResponse = internalAction({
               await ctx.runAction(internal.openaiSubNode.getAccess, { userId: sub.userId }),
               modelId,
             )
-          : modelId === VANDA_MODEL
-            ? undefined // the agent's configured default — no override needed
-            : openrouterChatModel(modelId);
+          : openrouterChatModel(modelId);
 
       const streamContext = { ...ctx, accountId };
 
@@ -393,7 +391,14 @@ export const generateResponse = internalAction({
 
       const result = await vanda.streamText(streamContext, { threadId }, streamOptions, {
         saveStreamDeltas: true,
-        contextHandler: turnContext(turnClock()),
+        contextOptions: { recentMessages: 0 },
+        contextHandler: conversationContext(turnClock(), {
+          threadId,
+          promptMessageId,
+          ownerKey: String(accountId),
+          accountId,
+          summaryModel: sub.active ? model : openrouterChatModel("openai/gpt-5.6-luna"),
+        }),
       });
 
       await result.consumeStream();

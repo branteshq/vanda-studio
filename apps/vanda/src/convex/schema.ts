@@ -26,6 +26,14 @@ import {
 } from "./pipeline/constants";
 
 export default defineSchema({
+  // Immutable cumulative checkpoints. Original messages remain in the agent component.
+  conversationSummaries: defineTable({
+    threadId: v.string(),
+    ownerKey: v.string(),
+    throughOrder: v.number(),
+    throughMessageId: v.string(),
+    summary: v.string(),
+  }).index("by_thread_order", ["threadId", "throughOrder"]),
   caetanoInbox: defineTable({
     userId: v.id("users"),
     threadId: v.string(),
