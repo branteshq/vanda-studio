@@ -28,7 +28,7 @@ import { codexChatModel, codexResponsesText } from "./pipeline/codex";
 import { budgetOf } from "./usage";
 import { isConnectedSubscriber } from "./openaiSub";
 import { messageWithImages, resolveMessageImages } from "./messageImages";
-import { turnClock } from "./chatModel";
+import { chatUsageHandler, failedModelAttempt, turnClock } from "./chatModel";
 import { conversationContext } from "./conversationContext";
 import { openrouterChatModel, systemPrompt, vanda, vandaToolDiscovery } from "./vanda";
 import { errorMessage, publicError } from "../errors";
@@ -216,6 +216,7 @@ export const sendMessage = mutation({
       await ctx.scheduler.runAfter(0, internal.chat.generateTitle, {
         accountId,
         threadId: target,
+        requestId: messageId,
         prompt: trimmed || "Imagem anexada",
       });
     }
@@ -246,8 +247,9 @@ export const generateTitle = internalAction({
     accountId: v.optional(v.id("accounts")),
     threadId: v.string(),
     prompt: v.string(),
+    requestId: v.optional(v.string()),
   },
-  handler: async (ctx, { accountId, threadId, prompt }): Promise<void> => {
+  handler: async (ctx, { accountId, threadId, prompt, requestId }): Promise<void> => {
     const fallback = prompt.length > 60 ? `${prompt.slice(0, 57)}…` : prompt;
 
     const system =
@@ -287,6 +289,7 @@ export const generateTitle = internalAction({
           body: JSON.stringify({
             model: VANDA_TITLE_MODEL,
             usage: { include: true },
+            session_id: threadId,
             messages: [
               { role: "system", content: system },
               { role: "user", content: prompt.slice(0, 2000) },
@@ -300,12 +303,16 @@ export const generateTitle = internalAction({
         const json = Schema.decodeUnknownSync(TitleResponse)(await response.json());
 
         if (accountId && json.usage?.cost !== undefined && json.usage.cost > 0) {
-          await ctx.runMutation(internal.usage.charge, {
+          const charge = {
             accountId,
             kind: "title",
             usd: json.usage.cost,
             ref: VANDA_TITLE_MODEL,
-          });
+            threadId,
+          };
+
+          if (requestId) Object.assign(charge, { requestId });
+          await ctx.runMutation(internal.usage.charge, charge);
         }
 
         raw = json.choices?.[0]?.message?.content ?? "";
@@ -339,10 +346,11 @@ export const generateResponse = internalAction({
     activityId: v.optional(v.id("chatThreadActivity")),
     // Delegated turns return durable async outcomes to Caetano as well.
     caetanoThreadId: v.optional(v.string()),
+    requestId: v.optional(v.string()),
   },
   handler: async (
     ctx,
-    { accountId, threadId, promptMessageId, activityId, caetanoThreadId },
+    { accountId, threadId, promptMessageId, activityId, caetanoThreadId, requestId },
   ): Promise<string> => {
     let streamError: unknown;
 
@@ -367,7 +375,15 @@ export const generateResponse = internalAction({
               await ctx.runAction(internal.openaiSubNode.getAccess, { userId: sub.userId }),
               modelId,
             )
-          : openrouterChatModel(modelId);
+          : openrouterChatModel(modelId, () =>
+              failedModelAttempt(ctx, {
+                accountId,
+                threadId,
+                requestId: requestId ?? promptMessageId,
+                model: modelId,
+                kind: "chat",
+              }),
+            );
 
       const streamContext = { ...ctx, accountId };
 
@@ -379,6 +395,7 @@ export const generateResponse = internalAction({
 
       const streamOptions = {
         promptMessageId,
+        maxOutputTokens: 8192,
         system: `${systemPrompt()}\n\n${brand}`,
         providerOptions: { openrouter: { session_id: threadId } },
         prepareStep: vandaToolDiscovery.prepareStep,
@@ -391,13 +408,26 @@ export const generateResponse = internalAction({
 
       const result = await vanda.streamText(streamContext, { threadId }, streamOptions, {
         saveStreamDeltas: true,
+        usageHandler: chatUsageHandler("chat", requestId ?? promptMessageId),
         contextOptions: { recentMessages: 0 },
         contextHandler: conversationContext(turnClock(), {
           threadId,
           promptMessageId,
           ownerKey: String(accountId),
           accountId,
-          summaryModel: sub.active ? model : openrouterChatModel("openai/gpt-5.6-luna"),
+          requestId: requestId ?? promptMessageId,
+          subscription: sub.active,
+          summaryModel: sub.active
+            ? model
+            : openrouterChatModel("openai/gpt-5.6-luna", () =>
+                failedModelAttempt(ctx, {
+                  accountId,
+                  threadId,
+                  requestId: requestId ?? promptMessageId,
+                  model: "openai/gpt-5.6-luna",
+                  kind: "context_summary",
+                }),
+              ),
         }),
       });
 

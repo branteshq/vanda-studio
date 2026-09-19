@@ -9,6 +9,7 @@ import {
 } from "./_generated/server";
 import { PLAN_TIERS, tierOfPlan } from "./billing/plans";
 import { isConnectedSubscriber } from "./openaiSub";
+import { modelUsageValidator } from "./usageDetails";
 
 /**
  * The usage meter: every real-money cost (model calls, image generation,
@@ -104,6 +105,10 @@ export const chargeUsage = async (
     kind: string;
     usd: number;
     ref?: string | undefined;
+    requestId?: string | undefined;
+    threadId?: string | undefined;
+    activityId?: Id<"chatThreadActivity"> | undefined;
+    modelUsage?: Doc<"usageEvents">["modelUsage"];
   },
 ): Promise<void> => {
   const user = await resolveUser(ctx, args);
@@ -111,7 +116,7 @@ export const chargeUsage = async (
   if (!user) return;
   const microUsd = Math.round(args.usd * 1_000_000);
 
-  if (microUsd <= 0) return;
+  if (microUsd < 0 || (microUsd === 0 && !args.modelUsage)) return;
   const periodKey = periodKeyOf(user);
   const now = Date.now();
 
@@ -127,8 +132,25 @@ export const chargeUsage = async (
 
   if (args.ref) Object.assign(event, { ref: args.ref.slice(0, 120) });
 
+  if (args.modelUsage) Object.assign(event, { modelUsage: args.modelUsage });
+
+  if (args.requestId) Object.assign(event, { requestId: args.requestId });
+
+  if (args.threadId) Object.assign(event, { threadId: args.threadId });
+
+  if (args.activityId) {
+    const activity = await ctx.db.get(args.activityId);
+
+    if (activity && activity.accountId === args.accountId)
+      Object.assign(event, {
+        requestId: activity.requestId ?? activity.promptMessageId,
+        threadId: activity.threadId,
+      });
+  }
+
   await ctx.db.insert("usageEvents", event);
 
+  if (microUsd === 0) return;
   const row = await periodRow(ctx, user._id, periodKey);
 
   if (row) {
@@ -151,8 +173,62 @@ export const charge = internalMutation({
     kind: v.string(),
     usd: v.number(),
     ref: v.optional(v.string()),
+    requestId: v.optional(v.string()),
+    threadId: v.optional(v.string()),
+    modelUsage: v.optional(modelUsageValidator),
   },
   handler: (ctx, args) => chargeUsage(ctx, args),
+});
+
+/** One original prompt, including delegated agents/tools and repeated attempts. */
+export const requestCosts = internalQuery({
+  args: { userId: v.id("users"), requestId: v.string() },
+  handler: async (ctx, { userId, requestId }) => {
+    const events = await ctx.db
+      .query("usageEvents")
+      .withIndex("by_user_request", (q) => q.eq("userId", userId).eq("requestId", requestId))
+      .collect();
+
+    let microUsd = 0;
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let cacheReadTokens = 0;
+    let cacheWriteTokens = 0;
+    let modelSteps = 0;
+    let estimatedSteps = 0;
+    let unpricedAttempts = 0;
+
+    for (const event of events) {
+      microUsd += event.microUsd;
+
+      if (!event.modelUsage) continue;
+
+      if (event.modelUsage.costSource === "unknown") {
+        unpricedAttempts++;
+        continue;
+      }
+
+      modelSteps++;
+
+      if (event.modelUsage.costSource === "estimated") estimatedSteps++;
+      inputTokens += event.modelUsage.inputTokens ?? 0;
+      outputTokens += event.modelUsage.outputTokens ?? 0;
+      cacheReadTokens += event.modelUsage.cacheReadTokens ?? 0;
+      cacheWriteTokens += event.modelUsage.cacheWriteTokens ?? 0;
+    }
+
+    return {
+      microUsd,
+      inputTokens,
+      outputTokens,
+      cacheReadTokens,
+      cacheWriteTokens,
+      modelSteps,
+      estimatedSteps,
+      unpricedAttempts,
+      events,
+    };
+  },
 });
 
 /**

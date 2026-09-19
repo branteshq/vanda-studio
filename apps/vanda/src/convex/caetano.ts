@@ -25,14 +25,9 @@ import { resolveOrchestratorModel } from "./agentModels";
 import { isConnectedSubscriber } from "./openaiSub";
 import { codexChatModel } from "./pipeline/codex";
 import { requireOwnedAccount, requireUser } from "./authz";
-import {
-  caetano,
-  caetanoLanguageModel,
-  caetanoSystemPrompt,
-  caetanoToolDiscovery,
-} from "./caetanoAgent";
+import { caetano, caetanoSystemPrompt, caetanoToolDiscovery } from "./caetanoAgent";
 import { messageWithImages, resolveMessageImages } from "./messageImages";
-import { openrouterChatModel, turnClock } from "./chatModel";
+import { chatUsageHandler, failedModelAttempt, openrouterChatModel, turnClock } from "./chatModel";
 import { conversationContext } from "./conversationContext";
 import { budgetOf } from "./usage";
 import { errorMessage, publicError } from "../errors";
@@ -353,7 +348,15 @@ export const generateResponse = internalAction({
               await ctx.runAction(internal.openaiSubNode.getAccess, { userId: sub.userId }),
               modelId,
             )
-          : caetanoLanguageModel(modelId);
+          : openrouterChatModel(modelId, () =>
+              failedModelAttempt(ctx, {
+                userId,
+                threadId,
+                requestId: promptMessageId,
+                model: modelId,
+                kind: "caetano_chat",
+              }),
+            );
 
       const brand = await ctx.runQuery(internal.brandContext.conversation, { userId });
 
@@ -368,6 +371,7 @@ export const generateResponse = internalAction({
         {
           promptMessageId,
           model,
+          maxOutputTokens: 4096,
           providerOptions: { openrouter: { session_id: threadId } },
           prepareStep: caetanoToolDiscovery.prepareStep,
           system:
@@ -381,13 +385,25 @@ export const generateResponse = internalAction({
         },
         {
           saveStreamDeltas: true,
+          usageHandler: chatUsageHandler("caetano_chat", promptMessageId),
           contextOptions: { recentMessages: 0 },
           contextHandler: conversationContext(turnClock(), {
             threadId,
             promptMessageId,
             ownerKey: threadKey(userId),
             userId,
-            summaryModel: sub.active ? model : openrouterChatModel("openai/gpt-5.6-luna"),
+            subscription: sub.active,
+            summaryModel: sub.active
+              ? model
+              : openrouterChatModel("openai/gpt-5.6-luna", () =>
+                  failedModelAttempt(ctx, {
+                    userId,
+                    threadId,
+                    requestId: promptMessageId,
+                    model: "openai/gpt-5.6-luna",
+                    kind: "context_summary",
+                  }),
+                ),
           }),
         },
       );

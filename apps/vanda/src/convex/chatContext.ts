@@ -67,7 +67,8 @@ export const compactHistory = (
           output: {
             ...part.output,
             value: part.output.value.map((content) =>
-              content.type.startsWith("image-")
+              content.type.startsWith("image-") ||
+              ("mediaType" in content && content.mediaType.startsWith("image/"))
                 ? {
                     type: "text" as const,
                     text: "[Pixels históricos omitidos; use read/inspect_image com o imageId acima se precisar rever. A inspeção anterior não substitui uma revisão atual.]",

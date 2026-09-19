@@ -209,6 +209,7 @@ export const finishCodeRun = internalMutation({
         kind: "run_code",
         usd: outcome.costUsd,
         ref: String(codeRunId),
+        activityId,
       });
     }
   },

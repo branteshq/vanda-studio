@@ -46,6 +46,7 @@ export const askVanda = internalAction({
     const response = await ctx.runAction(internal.chat.generateResponse, {
       ...prepared,
       caetanoThreadId: args.caetanoThreadId,
+      requestId: args.sourcePromptMessageId,
     });
 
     const manifest = await ctx.runQuery(internal.threadResources.forPrompt, {

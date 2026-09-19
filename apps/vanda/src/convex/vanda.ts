@@ -1,6 +1,8 @@
 import { Agent, createTool, stepCountIs, type ToolCtx } from "@convex-dev/agent";
-import { openrouterChatModel } from "./chatModel";
+import { chatUsageHandler, openrouterChatModel } from "./chatModel";
+
 export { openrouterChatModel } from "./chatModel";
+
 import { z } from "zod";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -731,6 +733,8 @@ const instagramTools = InstagramToolFactory.makeInstagramTools({
   searchProfiles: async (ctx, args) => {
     const actionArgs: SearchProfilesArgs = { accountId: ctx.accountId, query: args.query };
 
+    if (ctx.activityId) Object.assign(actionArgs, { activityId: ctx.activityId });
+
     if (args.limit !== undefined) actionArgs.limit = args.limit;
 
     return instagramToolResultSchema.parse(
@@ -743,6 +747,8 @@ const instagramTools = InstagramToolFactory.makeInstagramTools({
       scope: args.scope,
     };
 
+    if (ctx.activityId) Object.assign(actionArgs, { activityId: ctx.activityId });
+
     if (args.handle) actionArgs.handle = args.handle;
 
     return instagramToolResultSchema.parse(
@@ -754,6 +760,8 @@ const instagramTools = InstagramToolFactory.makeInstagramTools({
       accountId: ctx.accountId,
       scope: args.scope,
     };
+
+    if (ctx.activityId) Object.assign(actionArgs, { activityId: ctx.activityId });
 
     if (args.handle) actionArgs.handle = args.handle;
 
@@ -771,6 +779,8 @@ const instagramTools = InstagramToolFactory.makeInstagramTools({
       postUrl: args.postUrl,
     };
 
+    if (ctx.activityId) Object.assign(actionArgs, { activityId: ctx.activityId });
+
     if (args.includeTranscript !== undefined) actionArgs.includeTranscript = args.includeTranscript;
 
     return instagramToolResultSchema.parse(
@@ -782,6 +792,8 @@ const instagramTools = InstagramToolFactory.makeInstagramTools({
       accountId: ctx.accountId,
       scope: args.scope,
     };
+
+    if (ctx.activityId) Object.assign(actionArgs, { activityId: ctx.activityId });
 
     if (args.postId) actionArgs.postId = args.postId;
 
@@ -805,11 +817,6 @@ const instagramTools = InstagramToolFactory.makeInstagramTools({
     );
   },
 });
-
-/** Fallback pricing when OpenRouter's in-band cost is missing (per token). */
-const CHAT_FALLBACK_USD_PER_INPUT_TOKEN = 2e-6;
-
-const CHAT_FALLBACK_USD_PER_OUTPUT_TOKEN = 8e-6;
 
 const tools = {
   ...previousWorkTools("vanda"),
@@ -891,31 +898,7 @@ export const vanda = new Agent<VandaCtx>(components.agent, {
   languageModel: openrouterChatModel(VANDA_MODEL),
   // Every chat turn burns the owner's usage meter. The thread's opaque userId
   // is the account id (threadKey), which charge() resolves to the owner.
-  usageHandler: async (ctx, { userId, usage, providerMetadata, model, provider }) => {
-    if (!userId) return;
-
-    // Conectado plan turns run on the owner's ChatGPT subscription (the
-    // openai provider) — their money, not the Vanda meter.
-    if (!provider.includes("openrouter")) return;
-
-    const costSchema = z.object({ usage: z.object({ cost: z.number() }).optional() }).optional();
-    const reported = costSchema.safeParse(providerMetadata?.openrouter);
-
-    const usd =
-      reported.success && reported.data?.usage
-        ? reported.data.usage.cost
-        : (usage.inputTokens ?? 0) * CHAT_FALLBACK_USD_PER_INPUT_TOKEN +
-          (usage.outputTokens ?? 0) * CHAT_FALLBACK_USD_PER_OUTPUT_TOKEN;
-
-    if (usd <= 0) return;
-    await ctx.runMutation(internal.usage.charge, {
-      // SAFETY: the Agent uses the account id as its opaque userId/thread key.
-      accountId: userId as Id<"accounts">,
-      kind: "chat",
-      usd,
-      ref: model,
-    });
-  },
+  usageHandler: chatUsageHandler("chat"),
   instructions: `${INSTRUCTIONS}\n\n${SKILLS_PROMPT}`,
   tools: { ...tools, tool_search: vandaToolDiscovery.search },
   stopWhen: stepCountIs(24),

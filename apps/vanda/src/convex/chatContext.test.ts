@@ -34,6 +34,8 @@ describe("historical model context", () => {
               value: [
                 { type: "text", text: "imageId=draft" },
                 { type: "image-url", url: "https://example.com/draft.png" },
+                { type: "file-data", data: "legacy-image-pixels", mediaType: "image/png" },
+                { type: "file-data", data: "keep-this-document", mediaType: "application/pdf" },
               ],
             },
           },
@@ -42,11 +44,14 @@ describe("historical model context", () => {
       { role: "assistant", content: "Texto cortado; precisa corrigir antes de entregar." },
       { role: "user", content: [{ type: "image", image: "https://example.com/current.png" }] },
     ];
+
     const original = structuredClone(history);
     const result = compactHistory(history, 4);
 
     expect(JSON.stringify(result)).not.toContain("https://example.com/original.png");
     expect(JSON.stringify(result)).not.toContain("https://example.com/draft.png");
+    expect(JSON.stringify(result)).not.toContain("legacy-image-pixels");
+    expect(JSON.stringify(result)).toContain("keep-this-document");
     expect(JSON.stringify(result)).toContain("imageId=original; não altere o rosto");
     expect(JSON.stringify(result)).toContain("imageId=draft");
     expect(result[1]).toEqual(history[1]);
@@ -57,6 +62,7 @@ describe("historical model context", () => {
 
   it("compacts legacy delegation envelopes and preserves data from unrelated tools", () => {
     const resource = { kind: "link", url: "https://example.com/post", title: "Rascunho" };
+
     const message: ModelMessage = {
       role: "tool",
       content: [
@@ -75,6 +81,7 @@ describe("historical model context", () => {
         },
       ],
     };
+
     expect(compactHistory([message])).toMatchObject([
       {
         content: [
@@ -84,11 +91,14 @@ describe("historical model context", () => {
     ]);
     expect(JSON.stringify(compactHistory([message]))).not.toContain("presented");
     const part = message.content[0]!;
+
     if (part.type !== "tool-result") throw new Error("invalid fixture");
+
     const unrelated: ModelMessage = {
       role: "tool",
       content: [{ ...part, toolName: "other" }],
     };
+
     expect(compactHistory([unrelated])).toEqual([unrelated]);
   });
 });

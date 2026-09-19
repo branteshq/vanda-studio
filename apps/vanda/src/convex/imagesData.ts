@@ -10,6 +10,7 @@ interface PaintCharge {
   kind: string;
   usd: number;
   ref?: string;
+  activityId?: Id<"chatThreadActivity">;
 }
 
 const loadOwnedImage = async (ctx: QueryCtx, accountId: Id<"accounts">, imageId: Id<"images">) => {
@@ -143,6 +144,8 @@ export const savePaintedImage = internalMutation({
       };
 
       if (args.model) charge.ref = args.model;
+
+      if (args.activityId) charge.activityId = args.activityId;
 
       await chargeUsage(ctx, charge);
     }

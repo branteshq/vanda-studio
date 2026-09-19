@@ -1,16 +1,58 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { generateText } from "ai";
 import { openrouterChatModel, TURN_CONTEXT } from "./chatModel";
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("OpenRouter prompt caching", () => {
+  it("records a failed provider attempt before an SDK retry succeeds", async () => {
+    let requests = 0;
+    const failures = vi.fn(async () => {});
+    vi.stubGlobal("fetch", async () => {
+      if (++requests === 1)
+        return Response.json({ error: { message: "busy", code: 503 } }, { status: 503 });
+
+      return Response.json({
+        id: "gen-retry",
+        model: "anthropic/claude-opus-5",
+        created: 1,
+        choices: [
+          { index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" },
+        ],
+        usage: {
+          prompt_tokens: 100,
+          completion_tokens: 1,
+          total_tokens: 101,
+          cost: 0.001,
+          prompt_tokens_details: { cached_tokens: 70, cache_write_tokens: 20 },
+        },
+      });
+    });
+
+    const result = await generateText({
+      model: openrouterChatModel("anthropic/claude-opus-5", failures),
+      prompt: "test",
+      maxOutputTokens: 4096,
+      maxRetries: 1,
+    });
+
+    expect(result.text).toBe("ok");
+    expect(result.usage.inputTokenDetails).toMatchObject({
+      cacheReadTokens: 70,
+      cacheWriteTokens: 20,
+    });
+    expect(requests).toBe(2);
+    expect(failures).toHaveBeenCalledTimes(1);
+  });
+
   it.each(["anthropic/claude-opus-5", "openai/gpt-5.6-terra"])(
     "serializes cache boundaries only for Claude (%s)",
     async (modelId) => {
       const bodies: string[] = [];
       vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
         bodies.push(z.string().parse(init.body));
+
         return Response.json({
           id: "gen-test",
           model: modelId,
@@ -42,6 +84,7 @@ describe("OpenRouter prompt caching", () => {
         session_id: z.string(),
         max_tokens: z.number(),
       });
+
       const first = schema.parse(JSON.parse(bodies[0]!));
       const second = schema.parse(JSON.parse(bodies[1]!));
       expect(first.session_id).toBe("thread-1");

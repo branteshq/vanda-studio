@@ -2,6 +2,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { errorCodeValidator } from "./publicErrors";
 import { threadResourceValidator } from "./resourceRefs";
+import { modelUsageValidator } from "./usageDetails";
 import { brandCanonColumns } from "./pipeline/storage";
 import {
   brandKinds,
@@ -149,9 +150,14 @@ export default defineSchema({
     kind: v.string(),
     microUsd: v.number(),
     ref: v.optional(v.string()),
+    requestId: v.optional(v.string()),
+    threadId: v.optional(v.string()),
+    modelUsage: v.optional(modelUsageValidator),
     periodKey: v.string(),
     createdAt: v.number(),
-  }).index("by_user_period", ["userId", "periodKey"]),
+  })
+    .index("by_user_period", ["userId", "periodKey"])
+    .index("by_user_request", ["userId", "requestId"]),
 
   // O(1) balance checks: one counter row per user per billing period.
   usagePeriods: defineTable({
@@ -199,6 +205,7 @@ export default defineSchema({
     accountId: v.id("accounts"),
     threadId: v.string(),
     promptMessageId: v.string(),
+    requestId: v.optional(v.string()),
     startedAt: v.number(),
   })
     .index("by_account", ["accountId"])

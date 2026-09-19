@@ -1,9 +1,9 @@
 import { docsToModelMessages, type ContextHandler, type MessageDoc } from "@convex-dev/agent";
 import { generateText, type LanguageModel, type ToolResultPart } from "ai";
-import { z } from "zod";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { compactHistory, type ModelMessage } from "./chatContext";
+import { modelCharge } from "./usageDetails";
 
 /** Estimates, not provider token counts. Reserve additional space for brand/tools/output. */
 export const HISTORY_HIGH_WATER_TOKENS = 24_000;
@@ -17,6 +17,8 @@ interface MemoryTurn {
   summaryModel: LanguageModel;
   accountId?: Id<"accounts">;
   userId?: Id<"users">;
+  requestId?: string;
+  subscription?: boolean;
 }
 
 // Agent's stored-message converter still admits the SDK's legacy `media` part.
@@ -129,10 +131,12 @@ export const conversationContext =
 
     rows.sort((a, b) => a.order - b.order || a.stepOrder - b.stepOrder);
     let history = rows.filter((row) => row.order < state.promptOrder);
+
     // With recentMessages: 0 the Agent may omit the stored inputPrompt too.
     const current = inputPrompt.length
       ? inputPrompt
       : modelMessages(rows.filter((row) => row._id === turn.promptMessageId));
+
     let summary = state.summary?.summary ?? "";
     const eligible = history.filter((row) => row.status === "success");
 
@@ -167,26 +171,28 @@ export const conversationContext =
               model: turn.summaryModel,
               maxOutputTokens: 4096,
               maxRetries: 1,
+              providerOptions: { openrouter: { session_id: turn.threadId } },
               system: SUMMARY_INSTRUCTIONS,
               prompt: `Conversa: ${turn.threadId}\nMemória anterior:\n${next}\nTrecho histórico:\n${source}`,
             });
 
-            const reported = z
-              .object({ usage: z.object({ cost: z.number() }) })
-              .safeParse(result.providerMetadata?.openrouter);
+            const charge = {
+              kind: "context_summary",
+              ref: result.response.modelId,
+              requestId: turn.requestId ?? turn.promptMessageId,
+              threadId: turn.threadId,
+              ...modelCharge(
+                result.response.modelId,
+                turn.subscription ? "openai" : "openrouter",
+                result.usage,
+                result.providerMetadata,
+              ),
+            };
 
-            if (reported.success) {
-              const charge = {
-                kind: "context_summary",
-                usd: reported.data.usage.cost,
-                ref: result.response.modelId,
-              };
+            if (turn.accountId) Object.assign(charge, { accountId: turn.accountId });
 
-              if (turn.accountId) Object.assign(charge, { accountId: turn.accountId });
-
-              if (turn.userId) Object.assign(charge, { userId: turn.userId });
-              await ctx.runMutation(internal.usage.charge, charge);
-            }
+            if (turn.userId) Object.assign(charge, { userId: turn.userId });
+            await ctx.runMutation(internal.usage.charge, charge);
 
             if (
               result.finishReason !== "stop" ||

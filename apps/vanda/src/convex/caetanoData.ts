@@ -355,6 +355,7 @@ export const prepareVandaTurn = internalMutation({
       accountId: account._id,
       threadId: target,
       promptMessageId: messageId,
+      requestId: sourcePromptMessageId ?? messageId,
       startedAt: Date.now(),
     });
 

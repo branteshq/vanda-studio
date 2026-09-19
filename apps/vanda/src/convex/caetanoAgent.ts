@@ -1,5 +1,5 @@
 import { Agent, createTool, stepCountIs, type ToolCtx } from "@convex-dev/agent";
-import { openrouterChatModel } from "./chatModel";
+import { chatUsageHandler, openrouterChatModel } from "./chatModel";
 import { z } from "zod";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -351,6 +351,7 @@ const askVanda = createTool({
     }
 
     if (input.threadId) actionArgs.threadId = input.threadId;
+
     const { resources, presented, ...data } = await ctx.runAction(
       internal.caetanoNode.askVanda,
       actionArgs,
@@ -370,10 +371,6 @@ const askVanda = createTool({
 
 export const caetanoLanguageModel = (preferred?: string | null) =>
   openrouterChatModel(resolveCaetanoModel(preferred));
-
-const FALLBACK_INPUT_USD = 2e-6;
-
-const FALLBACK_OUTPUT_USD = 8e-6;
 
 const INSTRUCTIONS = `Você é o Caetano, o macaquinho operador do Vanda Studio. Você é o ponto de entrada do dono para o produto inteiro.
 
@@ -455,27 +452,7 @@ export const caetanoToolDiscovery = toolDiscovery(tools, {
 export const caetano = new Agent<CaetanoCtx>(components.agent, {
   name: "caetano",
   languageModel: caetanoLanguageModel(),
-  usageHandler: async (ctx, { userId, usage, providerMetadata, model, provider }) => {
-    if (!userId?.startsWith("caetano:") || !provider.includes("openrouter")) return;
-    // SAFETY: startsWith above establishes that slicing removes only the routing prefix from a Convex user id.
-    const ownerUserId = userId.slice("caetano:".length) as Id<"users">;
-    const costSchema = z.object({ usage: z.object({ cost: z.number() }).optional() }).optional();
-    const reported = costSchema.safeParse(providerMetadata?.openrouter);
-
-    const usd =
-      reported.success && reported.data?.usage
-        ? reported.data.usage.cost
-        : (usage.inputTokens ?? 0) * FALLBACK_INPUT_USD +
-          (usage.outputTokens ?? 0) * FALLBACK_OUTPUT_USD;
-
-    if (usd <= 0) return;
-    await ctx.runMutation(internal.usage.charge, {
-      userId: ownerUserId,
-      kind: "caetano_chat",
-      usd,
-      ref: model,
-    });
-  },
+  usageHandler: chatUsageHandler("caetano_chat"),
   instructions: INSTRUCTIONS,
   tools: { ...tools, tool_search: caetanoToolDiscovery.search },
   stopWhen: stepCountIs(12),

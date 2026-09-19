@@ -51,6 +51,7 @@ interface MutableActionObservation<T> {
 
 interface ObservationSaveInput {
   accountId: Id<"accounts">;
+  activityId?: Id<"chatThreadActivity">;
   requestKey: string;
   operation: InstagramOperation;
   target: string;
@@ -213,6 +214,7 @@ const cachedRead = async <Data>(
   ctx: ActionCtx,
   input: {
     readonly accountId: Id<"accounts">;
+    readonly activityId?: Id<"chatThreadActivity"> | undefined;
     readonly operation: InstagramOperation;
     readonly request: InstagramRequest;
     readonly target: string;
@@ -307,6 +309,8 @@ const cachedRead = async <Data>(
 
   if (costUsd !== undefined) saveInput.costUsd = costUsd;
 
+  if (input.activityId) saveInput.activityId = input.activityId;
+
   if (observation.nextCursor) saveInput.nextCursor = observation.nextCursor;
 
   await ctx.runMutation(internal.instagramData.saveObservation, saveInput);
@@ -328,8 +332,13 @@ const cachedRead = async <Data>(
 };
 
 export const searchProfiles = internalAction({
-  args: { accountId: v.id("accounts"), query: v.string(), limit: v.optional(v.number()) },
-  handler: async (ctx, { accountId, query, limit }) => {
+  args: {
+    accountId: v.id("accounts"),
+    query: v.string(),
+    limit: v.optional(v.number()),
+    activityId: v.optional(v.id("chatThreadActivity")),
+  },
+  handler: async (ctx, { accountId, query, limit, activityId }) => {
     const normalizedQuery = query.trim();
 
     if (!normalizedQuery) throw new Error("empty Instagram search query");
@@ -338,6 +347,7 @@ export const searchProfiles = internalAction({
     return cachedRead(ctx, {
       accountId,
       operation: "search_profiles",
+      activityId,
       request: { query: normalizedQuery, limit: boundedLimit },
       target: `search:${normalizedQuery}`,
       workspacePath: instagramWorkspacePath({
@@ -355,10 +365,11 @@ export const searchProfiles = internalAction({
 export const readProfile = internalAction({
   args: {
     accountId: v.id("accounts"),
+    activityId: v.optional(v.id("chatThreadActivity")),
     scope: v.union(v.literal("connected"), v.literal("public")),
     handle: v.optional(v.string()),
   },
-  handler: async (ctx, { accountId, scope, handle }) => {
+  handler: async (ctx, { accountId, scope, handle, activityId }) => {
     const target: InstagramTarget =
       scope === "connected"
         ? await connectedTarget(ctx, accountId)
@@ -367,6 +378,7 @@ export const readProfile = internalAction({
     return cachedRead(ctx, {
       accountId,
       operation: "profile",
+      activityId,
       request: target,
       target: target.scope === "connected" ? "self" : `public:${target.handle}`,
       workspacePath: instagramWorkspacePath({
@@ -385,12 +397,13 @@ export const readProfile = internalAction({
 export const listPosts = internalAction({
   args: {
     accountId: v.id("accounts"),
+    activityId: v.optional(v.id("chatThreadActivity")),
     scope: v.union(v.literal("connected"), v.literal("public")),
     handle: v.optional(v.string()),
     limit: v.optional(v.number()),
     cursor: v.optional(v.string()),
   },
-  handler: async (ctx, { accountId, scope, handle, limit, cursor }) => {
+  handler: async (ctx, { accountId, scope, handle, limit, cursor, activityId }) => {
     const target: InstagramTarget =
       scope === "connected"
         ? await connectedTarget(ctx, accountId)
@@ -408,6 +421,7 @@ export const listPosts = internalAction({
     return cachedRead(ctx, {
       accountId,
       operation: "posts",
+      activityId,
       request,
       target: target.scope === "connected" ? "self" : `public:${target.handle}`,
       workspacePath: instagramWorkspacePath({
@@ -426,16 +440,18 @@ export const listPosts = internalAction({
 export const readPost = internalAction({
   args: {
     accountId: v.id("accounts"),
+    activityId: v.optional(v.id("chatThreadActivity")),
     postUrl: v.string(),
     includeTranscript: v.optional(v.boolean()),
   },
-  handler: async (ctx, { accountId, postUrl: rawPostUrl, includeTranscript }) => {
+  handler: async (ctx, { accountId, postUrl: rawPostUrl, includeTranscript, activityId }) => {
     const url = postUrl(rawPostUrl);
     const transcript = includeTranscript ?? false;
 
     return cachedRead(ctx, {
       accountId,
       operation: "post",
+      activityId,
       request: { postUrl: url, includeTranscript: transcript },
       target: `post:${url}`,
       workspacePath: instagramWorkspacePath({ operation: "post", postUrl: url }),
@@ -450,13 +466,17 @@ export const readPost = internalAction({
 export const listComments = internalAction({
   args: {
     accountId: v.id("accounts"),
+    activityId: v.optional(v.id("chatThreadActivity")),
     scope: v.union(v.literal("connected"), v.literal("public")),
     postId: v.optional(v.string()),
     postUrl: v.optional(v.string()),
     limit: v.optional(v.number()),
     cursor: v.optional(v.string()),
   },
-  handler: async (ctx, { accountId, scope, postId, postUrl: rawPostUrl, limit, cursor }) => {
+  handler: async (
+    ctx,
+    { accountId, scope, postId, postUrl: rawPostUrl, limit, cursor, activityId },
+  ) => {
     const target: InstagramTarget =
       scope === "connected"
         ? await connectedTarget(ctx, accountId)
@@ -484,6 +504,7 @@ export const listComments = internalAction({
     return cachedRead(ctx, {
       accountId,
       operation: "comments",
+      activityId,
       request,
       target: scope === "connected" ? `self:${postId}` : `post:${url}`,
       workspacePath: instagramWorkspacePath({

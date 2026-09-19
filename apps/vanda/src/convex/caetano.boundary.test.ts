@@ -66,10 +66,12 @@ describe("Caetano control plane", () => {
   it("sends delegation locators once while retaining presentation metadata", async () => {
     const link = { kind: "link" as const, url: "https://example.com/draft", title: "Rascunho" };
     const other = { kind: "link" as const, url: "https://example.com/source", title: "Fonte" };
+
     const output = capabilityResult(
       { response: "Rascunho pronto; não publicado", threadId: "vanda-thread" },
       { resources: [link, other], presented: [link] },
     );
+
     const projected = await caetano.options.tools.ask_vanda.toModelOutput!({
       toolCallId: "delegation",
       input: { request: "Crie um rascunho" },
@@ -222,6 +224,7 @@ describe("Caetano control plane", () => {
                 provider: connected ? "openai.responses" : expect.stringContaining("openrouter"),
               }),
               promptMessageId: "test-prompt",
+              maxOutputTokens: 4096,
               system: expect.stringContaining("Café da Ana"),
               prepareStep: caetanoToolDiscovery.prepareStep,
             }),
@@ -230,7 +233,6 @@ describe("Caetano control plane", () => {
               contextHandler: expect.any(Function),
             }),
           );
-          expect(stream.mock.calls.at(-1)?.[2]).not.toHaveProperty("maxOutputTokens");
         }
       } finally {
         stream.mockRestore();
@@ -572,7 +574,34 @@ describe("Caetano control plane", () => {
       expect(result.response).toBe("Rascunho pronto");
       expect(stream.mock.calls[0]?.[0]).toMatchObject({ accountId });
       expect(stream.mock.calls[0]?.[2].system).toContain("Café da Ana");
+      expect(stream.mock.calls[0]?.[2].maxOutputTokens).toBe(8192);
       expect(stream.mock.calls[0]?.[2].prepareStep).toBe(vandaToolDiscovery.prepareStep);
+      const usageHandler = stream.mock.calls[0]![3]!.usageHandler!;
+      await t.action(async (ctx) =>
+        usageHandler(ctx, {
+          userId: accountId,
+          threadId: result.threadId,
+          agentName: "vanda",
+          model: "anthropic/claude-opus-5",
+          provider: "openrouter.chat",
+          providerMetadata: { openrouter: { usage: { cost: 0.01 } } },
+          usage: {
+            inputTokens: 100,
+            outputTokens: 10,
+            totalTokens: 110,
+            inputTokenDetails: { noCacheTokens: 50, cacheReadTokens: 50, cacheWriteTokens: 0 },
+            outputTokenDetails: { textTokens: 10, reasoningTokens: 0 },
+          },
+        }),
+      );
+
+      const costs = await t.query(internal.usage.requestCosts, {
+        userId,
+        requestId: sent.messageId,
+      });
+
+      expect(costs.microUsd).toBe(10_000);
+      expect(costs.events[0]?.threadId).toBe(result.threadId);
 
       const [message] = await t.run((ctx) =>
         ctx.runQuery(components.agent.messages.getMessagesByIds, {

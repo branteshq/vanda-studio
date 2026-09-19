@@ -62,6 +62,7 @@ export const publicReadItemsSince = internalQuery({
 export const saveObservation = internalMutation({
   args: {
     accountId: v.id("accounts"),
+    activityId: v.optional(v.id("chatThreadActivity")),
     requestKey: v.string(),
     operation: v.string(),
     target: v.string(),
@@ -75,7 +76,7 @@ export const saveObservation = internalMutation({
     observedAt: v.number(),
     expiresAt: v.number(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, { activityId, ...args }) => {
     if (!(await ctx.db.get(args.accountId))) throw new Error("account not found");
 
     if (!args.workspacePath.startsWith("/instagram/")) {
@@ -116,6 +117,7 @@ export const saveObservation = internalMutation({
         kind: "instagram_apify",
         usd: args.costUsd,
         ref: `${args.operation}:${args.target}`,
+        activityId,
       });
     }
 

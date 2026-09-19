@@ -7,7 +7,10 @@ import type { InstagramOperation } from "../instagram/cache";
 import { summarizeInstagramResult } from "../instagram/toolSummary";
 import { capabilityResult, capabilityResultSchema, type ThreadResource } from "../resourceRefs";
 
-type InstagramToolCtx = ToolCtx & { accountId: Id<"accounts"> };
+type InstagramToolCtx = ToolCtx & {
+  accountId: Id<"accounts">;
+  activityId?: Id<"chatThreadActivity"> | undefined;
+};
 
 type Scope = "connected" | "public";
 
