@@ -61,8 +61,8 @@ export const ORCHESTRATOR_MODELS: readonly OrchestratorModel[] = [
     codexCapable: false,
   },
   {
-    id: "meta/muse-spark-1.3",
-    label: "Muse Spark 1.3",
+    id: "meta/muse-spark-1.3-contributor",
+    label: "Muse Spark 1.3 Contributor",
     maker: "Meta",
     tagline: "Modelo da Meta via OpenRouter.",
     codexCapable: false,

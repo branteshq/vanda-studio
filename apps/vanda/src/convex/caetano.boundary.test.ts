@@ -66,7 +66,7 @@ describe("Caetano control plane", () => {
   it("persists Muse for both agents on OpenRouter but not the ChatGPT transport", async () => {
     const { t, userId } = await setup();
     const owner = t.withIdentity({ subject: "ana" });
-    const modelId = "meta/muse-spark-1.3";
+    const modelId = "meta/muse-spark-1.3-contributor";
 
     for (const mutation of [api.users.setCaetanoModel, api.users.setAgentModel]) {
       await owner.mutation(mutation, { modelId });

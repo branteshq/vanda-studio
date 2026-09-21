@@ -46,7 +46,7 @@ describe("OpenRouter prompt caching", () => {
     expect(failures).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["anthropic/claude-opus-5", "openai/gpt-5.6-terra", "meta/muse-spark-1.3"])(
+  it.each(["anthropic/claude-opus-5", "openai/gpt-5.6-terra", "meta/muse-spark-1.3-contributor"])(
     "serializes cache boundaries only for Claude (%s)",
     async (modelId) => {
       const bodies: string[] = [];
