@@ -155,9 +155,11 @@ describe("usage metering", () => {
     expect(total.events).toHaveLength(6);
     expect(total.events.every((event) => event.requestId === requestId)).toBe(true);
     expect((await t.query(internal.usage.budget, { userId })).spentMicroUsd).toBe(1_089_600);
+
     const stranger = await t.run((ctx) =>
       ctx.db.insert("users", { clerkId: "stranger", name: "Bia", email: "bia@example.com" }),
     );
+
     expect(
       (await t.query(internal.usage.requestCosts, { userId: stranger, requestId })).events,
     ).toEqual([]);
