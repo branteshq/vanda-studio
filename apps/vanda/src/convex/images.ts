@@ -1,7 +1,7 @@
 "use node";
 
 import { Jimp } from "jimp";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import * as Effect from "effect/Effect";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -327,6 +327,22 @@ async function paintImage(
             Effect.provide(openRouterImageGeneratorLayer({ apiKey, model: selectedModel })),
             Effect.catchTag("ImageGenerationFailed", (error) => {
               console.error("Image generation failed", error);
+
+              if (error.recovery) {
+                const invalid =
+                  error.recovery.error === "unsupported_aspect_ratio" ||
+                  error.recovery.error === "invalid_image_request";
+
+                // Convex carries these safe details to the agent's tool result.
+                // UI errorMessage() still selects only the public error code.
+                return Effect.fail(
+                  new ConvexError({
+                    kind: "vanda-error",
+                    code: invalid ? "INVALID_INPUT" : "UNAVAILABLE",
+                    recovery: error.recovery,
+                  } as const),
+                );
+              }
 
               return Effect.fail(publicError("UNAVAILABLE"));
             }),

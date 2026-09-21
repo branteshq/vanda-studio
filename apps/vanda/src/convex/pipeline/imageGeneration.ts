@@ -15,7 +15,76 @@ export interface GeneratedVisual {
 export class ImageGenerationFailed extends Data.TaggedError("ImageGenerationFailed")<{
   readonly operation: string;
   readonly message: string;
+  /** Allowlisted diagnostics for the agent; never include raw provider text. */
+  readonly recovery?: {
+    readonly error: string;
+    readonly retryableWithoutChanges: boolean;
+    readonly instruction: string;
+    readonly httpStatus?: number;
+    readonly requested?: string;
+    readonly supported?: string[];
+  };
 }> {}
+
+const imageHttpFailure = (status: number, body: string, aspectRatio: string) => {
+  let message = "";
+
+  try {
+    message = Schema.decodeUnknownSync(
+      Schema.Struct({ error: Schema.Struct({ message: Schema.String }) }),
+    )(JSON.parse(body)).error.message;
+  } catch {
+    // HTML, malformed JSON and arbitrary provider text stay in server diagnostics.
+  }
+
+  // Extract only ratio literals, never forward the provider's prose or metadata.
+  const accepted = message.match(/aspect_ratio: not supported\. Accepted: ([^\n]+)/)?.[1];
+
+  const supported = (accepted ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => /^(?:1:1|3:2|2:3|4:3|3:4|4:5|5:4|16:9|9:16|21:9|auto)$/.test(value));
+
+  const invalid = status === 400 || status === 422;
+
+  const recovery: NonNullable<ImageGenerationFailed["recovery"]> =
+    invalid && supported.length > 0
+      ? {
+          error: "unsupported_aspect_ratio",
+          httpStatus: status,
+          requested: /^(?:1:1|4:5|9:16|16:9)$/.test(aspectRatio) ? aspectRatio : "unknown",
+          supported: [...new Set(supported)],
+          retryableWithoutChanges: false,
+          instruction:
+            "Choose an accepted ratio that the paint tool schema allows. If the final layout needs another ratio, compose it with run_code and inspect it. Do not repeat the rejected ratio or report a provider outage.",
+        }
+      : {
+          error: invalid
+            ? "invalid_image_request"
+            : status === 429
+              ? "image_rate_limited"
+              : status === 402
+                ? "image_provider_credit_limit"
+                : status === 401 || status === 403
+                  ? "image_provider_access_denied"
+                  : status >= 500 && status < 600
+                    ? "image_provider_unavailable"
+                    : "image_request_failed",
+          httpStatus: status,
+          retryableWithoutChanges: status === 429 || (status >= 500 && status < 600),
+          instruction: invalid
+            ? "The provider rejected the request parameters. Check the tool inputs before trying again; do not repeat unchanged or claim an outage."
+            : status === 429 || (status >= 500 && status < 600)
+              ? "Temporary provider failure. Retry at most once; if it fails again, stop and explain the failure."
+              : "Do not retry automatically. Report the failure without claiming the owner's app plan is exhausted or that the provider is down.",
+        };
+
+  return new ImageGenerationFailed({
+    operation: "generate",
+    message: `OpenRouter HTTP ${status}: ${body}`,
+    recovery,
+  });
+};
 
 export interface ImageAssetGeneratorService {
   readonly generate: (input: {
@@ -238,7 +307,7 @@ export const openRouterImageGeneratorLayer = (input: {
           const response = await fetch("https://openrouter.ai/api/v1/images", request);
 
           if (!response.ok)
-            throw new Error(`OpenRouter HTTP ${response.status}: ${await response.text()}`);
+            throw imageHttpFailure(response.status, await response.text(), payload.aspect_ratio);
           const json = Schema.decodeUnknownSync(OpenRouterImageResponse)(await response.json());
           const result = json.data?.[0];
 
@@ -252,9 +321,17 @@ export const openRouterImageGeneratorLayer = (input: {
           };
         },
         catch: (error) =>
-          new ImageGenerationFailed({
-            operation: "generate",
-            message: error instanceof Error ? error.message : String(error),
-          }),
+          error instanceof ImageGenerationFailed
+            ? error
+            : new ImageGenerationFailed({
+                operation: "generate",
+                message: error instanceof Error ? error.message : String(error),
+                recovery: {
+                  error: "image_generation_failed",
+                  retryableWithoutChanges: false,
+                  instruction:
+                    "Generation did not complete. The cause is not confirmed; do not claim a provider outage or retry repeatedly.",
+                },
+              }),
       }),
   });
