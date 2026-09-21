@@ -46,7 +46,7 @@ describe("OpenRouter prompt caching", () => {
     expect(failures).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["anthropic/claude-opus-5", "openai/gpt-5.6-terra"])(
+  it.each(["anthropic/claude-opus-5", "openai/gpt-5.6-terra", "meta/muse-spark-1.3-contributor"])(
     "serializes cache boundaries only for Claude (%s)",
     async (modelId) => {
       const bodies: string[] = [];
@@ -80,6 +80,7 @@ describe("OpenRouter prompt caching", () => {
       }
 
       const schema = z.object({
+        model: z.string(),
         messages: z.array(z.json()),
         session_id: z.string(),
         max_tokens: z.number(),
@@ -87,6 +88,7 @@ describe("OpenRouter prompt caching", () => {
 
       const first = schema.parse(JSON.parse(bodies[0]!));
       const second = schema.parse(JSON.parse(bodies[1]!));
+      expect(first.model).toBe(modelId);
       expect(first.session_id).toBe("thread-1");
       expect(first.max_tokens).toBe(4096);
       expect(first.messages.slice(0, 3)).toEqual(second.messages.slice(0, 3));

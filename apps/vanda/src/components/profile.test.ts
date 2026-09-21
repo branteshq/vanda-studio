@@ -145,7 +145,49 @@ it("enables the subscription image picker and displays the selected new models",
 
   expect(opus).toBeDefined();
   expect(opus?.getAttribute("aria-disabled")).toBe("true");
+
+  const muse = [...document.querySelectorAll('[role="option"]')].find((option) =>
+    option.textContent?.includes("Muse Spark 1.3 Contributor"),
+  );
+
+  expect(muse).toBeDefined();
+  expect(muse?.getAttribute("aria-disabled")).toBe("true");
 });
+
+it.each(["Modelo de conversa", "Modelo do Caetano"])(
+  "offers Muse with the Meta mark in %s and saves its OpenRouter id",
+  async (label) => {
+    const preferences = {
+      conectado: false,
+      orchestrator: "openai/gpt-5.6-terra",
+      caetano: "openai/gpt-5.6-terra",
+      image: "openai/gpt-image-2.5-flare",
+    };
+
+    mocks.query.mockImplementation((ref) => {
+      if (getFunctionName(ref) === "users:modelPreferences") return preferences;
+
+      return undefined;
+    });
+    await click("Modelos");
+    await click(label);
+
+    const muse = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((option) =>
+      option.textContent?.includes("Muse Spark 1.3 Contributor"),
+    );
+
+    expect(muse?.getAttribute("aria-disabled")).not.toBe("true");
+    expect(muse?.querySelector("svg path")?.getAttribute("d")).toMatch(/^M6\.915 4\.03/);
+    await act(async () => muse!.click());
+    expect(mocks.action).toHaveBeenLastCalledWith({ modelId: "meta/muse-spark-1.3-contributor" });
+    preferences.orchestrator = "meta/muse-spark-1.3-contributor";
+    preferences.caetano = "meta/muse-spark-1.3-contributor";
+    await act(async () => root.render(createElement(ProfilePage, { runtime })));
+    const trigger = container.querySelector(`[aria-label="${label}"]`);
+    expect(trigger?.textContent).toContain("Muse Spark 1.3 Contributor");
+    expect(trigger?.querySelector("svg path")?.getAttribute("d")).toMatch(/^M6\.915 4\.03/);
+  },
+);
 
 it("refreshes billing on arrival without opening the plan comparison", () => {
   expect(mocks.action).toHaveBeenCalledTimes(1);

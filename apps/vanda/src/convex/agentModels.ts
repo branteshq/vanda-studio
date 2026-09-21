@@ -11,7 +11,7 @@
  * enforces it on the server; the picker disables the same options in the UI.
  */
 
-export type ModelMaker = "OpenAI" | "Anthropic";
+export type ModelMaker = "OpenAI" | "Anthropic" | "Meta";
 
 export interface OrchestratorModel {
   /** OpenRouter model id — also what the codex adapter sends upstream. */
@@ -58,6 +58,13 @@ export const ORCHESTRATOR_MODELS: readonly OrchestratorModel[] = [
     label: "Claude Sonnet 5",
     maker: "Anthropic",
     tagline: "Escrita afiada com custo moderado.",
+    codexCapable: false,
+  },
+  {
+    id: "meta/muse-spark-1.3-contributor",
+    label: "Muse Spark 1.3 Contributor",
+    maker: "Meta",
+    tagline: "Modelo da Meta via OpenRouter.",
     codexCapable: false,
   },
 ];

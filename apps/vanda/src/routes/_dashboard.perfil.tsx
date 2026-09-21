@@ -34,6 +34,7 @@ import {
   AnthropicIcon,
   FluxIcon,
   GeminiIcon,
+  MetaIcon,
   OpenAiIcon,
 } from "@vanda-studio/ui/components/model-marks";
 import {
@@ -1086,6 +1087,7 @@ function MakerMark({ maker }: { maker: ModelMaker | ImageModel["maker"] }) {
   const Icon = {
     OpenAI: OpenAiIcon,
     Anthropic: AnthropicIcon,
+    Meta: MetaIcon,
     Google: GeminiIcon,
     "Black Forest Labs": FluxIcon,
   }[maker];

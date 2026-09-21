@@ -63,6 +63,40 @@ const setup = async () => {
 };
 
 describe("Caetano control plane", () => {
+  it("persists Muse for both agents on OpenRouter but not the ChatGPT transport", async () => {
+    const { t, userId } = await setup();
+    const owner = t.withIdentity({ subject: "ana" });
+    const modelId = "meta/muse-spark-1.3-contributor";
+
+    for (const mutation of [api.users.setCaetanoModel, api.users.setAgentModel]) {
+      await owner.mutation(mutation, { modelId });
+    }
+
+    expect(await owner.query(api.users.modelPreferences)).toMatchObject({
+      caetano: modelId,
+      orchestrator: modelId,
+      conectado: false,
+    });
+    expect(await t.query(internal.caetanoData.modelPreferences, { userId })).toMatchObject({
+      caetano: modelId,
+      orchestrator: modelId,
+    });
+
+    await t.run((ctx) =>
+      ctx.db.patch(userId, { planId: "conectado", openaiAccessCiphertext: "test-token" }),
+    );
+
+    for (const mutation of [api.users.setCaetanoModel, api.users.setAgentModel]) {
+      await expect(owner.mutation(mutation, { modelId })).rejects.toThrow("ChatGPT");
+    }
+
+    expect(await owner.query(api.users.modelPreferences)).toMatchObject({
+      caetano: "openai/gpt-5.6-terra",
+      orchestrator: "openai/gpt-5.6-terra",
+      conectado: true,
+    });
+  });
+
   it("sends delegation locators once while retaining presentation metadata", async () => {
     const link = { kind: "link" as const, url: "https://example.com/draft", title: "Rascunho" };
     const other = { kind: "link" as const, url: "https://example.com/source", title: "Fonte" };
