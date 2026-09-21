@@ -27,7 +27,7 @@ const emptyContext: Parameters<ContextHandler>[1] = {
   threadId: undefined,
 };
 
-async function setup(turns: number, textSize: number) {
+async function setup(turns: number, textSize: number, stalePending = false) {
   const t = convexTest(schema, modules);
   agentComponent.register(t);
 
@@ -54,12 +54,24 @@ async function setup(turns: number, textSize: number) {
 
       prompts.push(messageId);
 
+      if (stalePending && i === 2) {
+        await saveMessage(ctx, components.agent, {
+          threadId,
+          promptMessageId: messageId,
+          message: { role: "assistant", content: "" },
+          metadata: { status: "pending" },
+        });
+      }
+
       const reply = await saveMessage(ctx, components.agent, {
         threadId,
         promptMessageId: messageId,
         message: {
           role: "assistant",
-          content: `Resultado ${i}; rascunho não publicado. Correção da logo pendente.`,
+          content:
+            stalePending && i === 2
+              ? "Não foi possível concluir a tempo. Seu pedido foi salvo; tente novamente."
+              : `Resultado ${i}; rascunho não publicado. Correção da logo pendente.`,
         },
       });
 
@@ -148,6 +160,34 @@ describe("durable conversation context", () => {
     expect(summaryBoundary(history.filter((row) => row._id !== turn.replies[3]))).toBe(3);
   });
 
+  it("compacts past stale pending rows followed by a terminal response in the same turn", async () => {
+    const { t, ...turn } = await setup(10, 1100, true);
+    const model = summarizer();
+    const context = conversationContext("clock", { ...turn, summaryModel: model });
+    const messages = await t.action(async (ctx) => context(ctx, emptyContext));
+    const checkpoints = await t.run((ctx) => ctx.db.query("conversationSummaries").collect());
+
+    expect(checkpoints).toHaveLength(1);
+    expect(checkpoints[0]!.throughOrder).toBe(7);
+    expect(JSON.stringify(model.doGenerateCalls.map((call) => call.prompt))).toContain(
+      "Não foi possível concluir a tempo",
+    );
+    expect(JSON.stringify(messages)).not.toContain("Pedido 0.");
+    expect(JSON.stringify(messages)).toContain("Pedido 8.");
+    expect(estimatedHistoryTokens(messages)).toBeLessThan(HISTORY_HIGH_WATER_TOKENS);
+
+    const original = await t.run((ctx) =>
+      ctx.runQuery(components.agent.messages.listMessagesByThreadId, {
+        threadId: turn.threadId,
+        order: "asc",
+        paginationOpts: { cursor: null, numItems: 100 },
+      }),
+    );
+
+    expect(original.page.some((row) => row.order === 2 && row.status === "pending")).toBe(true);
+    expect(original.page.some((row) => row.text?.includes("Pedido 0."))).toBe(true);
+  });
+
   it("reads beyond 100 rows without sliding away the first exchange", async () => {
     const { t, ...turn } = await setup(55, 1);
     const model = summarizer();
@@ -172,20 +212,25 @@ describe("durable conversation context", () => {
       const model = summarizer(truncated);
       const context = conversationContext("clock", { ...turn, summaryModel: model });
       let messages: ModelMessage[] = [];
-      await t.action(async (ctx) => {
-        messages = await context(ctx, emptyContext);
-      });
+
+      if (truncated) {
+        await expect(t.action(async (ctx) => context(ctx, emptyContext))).rejects.toThrow(
+          "UNAVAILABLE",
+        );
+      } else {
+        messages = await t.action(async (ctx) => context(ctx, emptyContext));
+      }
+
       const checkpoints = await t.run((ctx) => ctx.db.query("conversationSummaries").collect());
       expect(model.doGenerateCalls.length).toBeGreaterThan(0);
       expect(JSON.stringify(model.doGenerateCalls[0]!.prompt)).toContain("Nunca altere o rosto");
-      expect(JSON.stringify(messages)).toContain("Pedido 8.");
-      expect(JSON.stringify(messages)).toContain("Pedido 9.");
-      expect(JSON.stringify(messages)).toContain("preserve o rosto");
 
       if (truncated) {
         expect(checkpoints).toHaveLength(0);
-        expect(JSON.stringify(messages)).toContain("Pedido 0.");
       } else {
+        expect(JSON.stringify(messages)).toContain("Pedido 8.");
+        expect(JSON.stringify(messages)).toContain("Pedido 9.");
+        expect(JSON.stringify(messages)).toContain("preserve o rosto");
         expect(checkpoints).toHaveLength(1);
         expect(checkpoints[0]!.throughOrder).toBe(7);
         expect(estimatedHistoryTokens(messages)).toBeLessThan(HISTORY_HIGH_WATER_TOKENS);
@@ -205,6 +250,62 @@ describe("durable conversation context", () => {
 
         expect(original?.text).toContain("Pedido 0.");
       }
+    },
+  );
+
+  it.each(["summary failure", "oversized recent turn", "pending turn"])(
+    "never calls the primary model with oversized history after %s",
+    async (failure) => {
+      const { t, ...turn } = await setup(failure === "oversized recent turn" ? 1 : 10, 9000);
+      const model = summarizer();
+
+      const summaryModel = new MockLanguageModelV3({
+        doGenerate: async () => {
+          throw new Error("summary provider unavailable");
+        },
+      });
+
+      if (failure === "pending turn") {
+        await t.run((ctx) =>
+          saveMessage(ctx, components.agent, {
+            threadId: turn.threadId,
+            promptMessageId: turn.prompts[0]!,
+            message: { role: "assistant", content: "" },
+            metadata: { status: "pending" },
+          }),
+        );
+      }
+
+      const agent = new Agent(components.agent, {
+        name: "test",
+        languageModel: model,
+        instructions: "Stable brand",
+      });
+
+      await expect(
+        t.action(async (ctx) => {
+          await agent.generateText(
+            ctx,
+            { threadId: turn.threadId },
+            { promptMessageId: turn.promptMessageId },
+            {
+              contextOptions: { recentMessages: 0 },
+              contextHandler: conversationContext("clock", { ...turn, summaryModel }),
+            },
+          );
+        }),
+      ).rejects.toThrow("UNAVAILABLE");
+      expect(model.doGenerateCalls).toHaveLength(0);
+      expect(summaryModel.doGenerateCalls.length > 0).toBe(failure === "summary failure");
+      expect(await t.run((ctx) => ctx.db.query("conversationSummaries").collect())).toEqual([]);
+
+      const [original] = await t.run((ctx) =>
+        ctx.runQuery(components.agent.messages.getMessagesByIds, {
+          messageIds: [turn.prompts[0]!],
+        }),
+      );
+
+      expect(original?.text).toContain("Pedido 0.");
     },
   );
 
