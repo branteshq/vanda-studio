@@ -211,15 +211,7 @@ describe("durable conversation context", () => {
       const { t, ...turn } = await setup(10, 1100);
       const model = summarizer(truncated);
       const context = conversationContext("clock", { ...turn, summaryModel: model });
-      let messages: ModelMessage[] = [];
-
-      if (truncated) {
-        await expect(t.action(async (ctx) => context(ctx, emptyContext))).rejects.toThrow(
-          "UNAVAILABLE",
-        );
-      } else {
-        messages = await t.action(async (ctx) => context(ctx, emptyContext));
-      }
+      const messages = await t.action(async (ctx) => context(ctx, emptyContext));
 
       const checkpoints = await t.run((ctx) => ctx.db.query("conversationSummaries").collect());
       expect(model.doGenerateCalls.length).toBeGreaterThan(0);
@@ -227,6 +219,9 @@ describe("durable conversation context", () => {
 
       if (truncated) {
         expect(checkpoints).toHaveLength(0);
+        expect(JSON.stringify(messages)).toContain("Pedido 0.");
+        expect(JSON.stringify(messages)).toContain("Resultado 9");
+        expect(estimatedHistoryTokens(messages)).toBeGreaterThan(HISTORY_HIGH_WATER_TOKENS);
       } else {
         expect(JSON.stringify(messages)).toContain("Pedido 8.");
         expect(JSON.stringify(messages)).toContain("Pedido 9.");
@@ -254,7 +249,7 @@ describe("durable conversation context", () => {
   );
 
   it.each(["summary failure", "oversized recent turn", "pending turn"])(
-    "never calls the primary model with oversized history after %s",
+    "continues to the primary model with preserved history after %s",
     async (failure) => {
       const { t, ...turn } = await setup(failure === "oversized recent turn" ? 1 : 10, 9000);
       const model = summarizer();
@@ -282,20 +277,25 @@ describe("durable conversation context", () => {
         instructions: "Stable brand",
       });
 
-      await expect(
-        t.action(async (ctx) => {
-          await agent.generateText(
-            ctx,
-            { threadId: turn.threadId },
-            { promptMessageId: turn.promptMessageId },
-            {
-              contextOptions: { recentMessages: 0 },
-              contextHandler: conversationContext("clock", { ...turn, summaryModel }),
-            },
-          );
-        }),
-      ).rejects.toThrow("UNAVAILABLE");
-      expect(model.doGenerateCalls).toHaveLength(0);
+      await t.action(async (ctx) => {
+        const result = await agent.generateText(
+          ctx,
+          { threadId: turn.threadId },
+          { promptMessageId: turn.promptMessageId },
+          {
+            contextOptions: { recentMessages: 0 },
+            contextHandler: conversationContext("clock", { ...turn, summaryModel }),
+          },
+        );
+
+        expect(result.text).toContain("Fatos e restrições");
+      });
+      expect(model.doGenerateCalls).toHaveLength(1);
+      const prompt = model.doGenerateCalls[0]!.prompt;
+      expect(JSON.stringify(prompt)).toContain("Pedido 0.");
+      expect(JSON.stringify(prompt)).toContain("Resultado 0");
+      expect(JSON.stringify(prompt).match(/Continue corrigindo/g)).toHaveLength(1);
+      expect(estimatedHistoryTokens(prompt)).toBeGreaterThan(HISTORY_HIGH_WATER_TOKENS);
       expect(summaryModel.doGenerateCalls.length > 0).toBe(failure === "summary failure");
       expect(await t.run((ctx) => ctx.db.query("conversationSummaries").collect())).toEqual([]);
 

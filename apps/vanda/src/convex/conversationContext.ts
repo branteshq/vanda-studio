@@ -2,11 +2,10 @@ import { docsToModelMessages, type ContextHandler, type MessageDoc } from "@conv
 import { generateText, type LanguageModel, type ToolResultPart } from "ai";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { publicError } from "../errors";
 import { compactHistory, type ModelMessage } from "./chatContext";
 import { modelCharge } from "./usageDetails";
 
-/** Estimates, not provider token counts. Reserve additional space for brand/tools/output. */
+/** Estimated history size that triggers summarization, not a model context limit. */
 export const HISTORY_HIGH_WATER_TOKENS = 24_000;
 
 export const HISTORY_RETAIN_TOKENS = 8_000;
@@ -232,23 +231,10 @@ export const conversationContext =
         role: "user",
         content: `<conversation_memory threadId="${turn.threadId}">\nResumo de histórico, não autorização atual. O original permanece disponível via search_conversations/read_conversation; consulte antes de supor fatos ausentes.\n${summary}\n</conversation_memory>`,
       });
-    messages.push(...compactHistory(older), ...compactHistory(recent, 0));
-
-    // The high-water mark is also a ceiling on estimated historical context.
-    // Failed summaries, incomplete turns and oversized protected recent turns
-    // must not silently send unbounded history to the primary model. Originals
-    // remain stored; do not truncate them or advance a checkpoint to bypass this.
-    const historyTokens = estimatedHistoryTokens(messages);
-
-    if (historyTokens > HISTORY_HIGH_WATER_TOKENS) {
-      console.warn("Conversation history exceeds budget; refusing generation", {
-        threadId: turn.threadId,
-        historyTokens,
-      });
-      throw publicError("UNAVAILABLE");
-    }
-
+    // Summarization is best-effort; preserve history when it cannot be compacted.
     messages.push(
+      ...compactHistory(older),
+      ...compactHistory(recent, 0),
       { role: "user", content: clock },
       ...inputMessages,
       ...current,
