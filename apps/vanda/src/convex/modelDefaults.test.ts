@@ -10,11 +10,12 @@ import {
   CONECTADO_IMAGE_MODELS,
   resolveConnectedImageModel,
   isKnownImageModel,
+  imageModelLabel,
   modelResolutions,
 } from "./imageModels";
 
 describe("model defaults", () => {
-  it("offers Astra on both text transports and both subscription image variants", () => {
+  it("offers Astra on both text transports and all subscription image options", () => {
     for (const conectado of [true, false]) {
       expect(resolveOrchestratorModel("openai/gpt-6-astra", { conectado })).toBe(
         "openai/gpt-6-astra",
@@ -24,7 +25,9 @@ describe("model defaults", () => {
     expect(CONECTADO_IMAGE_MODELS.map((model) => model.id)).toEqual([
       "openai/gpt-image-2.5-flare",
       "openai/gpt-image-2.5-sunburst",
+      "openai/gpt-image-2",
     ]);
+    expect(resolveConnectedImageModel("openai/gpt-image-2")).toBe("openai/gpt-image-2");
     expect(resolveConnectedImageModel("openai/gpt-image-2.5-sunburst")).toBe(
       "openai/gpt-image-2.5-sunburst",
     );
@@ -39,8 +42,10 @@ describe("model defaults", () => {
     );
   });
 
-  it("replaces GPT Image 2 with both 2.5 variants in the shared picker catalog", () => {
-    expect(isKnownImageModel("openai/gpt-image-2")).toBe(false);
+  it("offers GPT Image 2 alongside both 2.5 variants in the shared picker catalog", () => {
+    expect(isKnownImageModel("openai/gpt-image-2")).toBe(true);
+    expect(imageModelLabel("openai/gpt-image-2")).toBe("GPT Image 2");
+    expect(modelResolutions("openai/gpt-image-2")).toEqual(["1K"]);
 
     for (const id of ["openai/gpt-image-2.5-flare", "openai/gpt-image-2.5-sunburst"]) {
       expect(isKnownImageModel(id)).toBe(true);

@@ -8,29 +8,32 @@ import { imageModelOutput } from "../messageImages";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("ChatGPT image models", () => {
-  it.each(["flare", "sunburst"])("sends %s through subscription billing", async (variant) => {
-    const request = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(Response.json({ data: [{ b64_json: "aGk=" }] }));
+  it.each(["gpt-image-2", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst"])(
+    "sends %s through subscription billing",
+    async (model) => {
+      const request = vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(Response.json({ data: [{ b64_json: "aGk=" }] }));
 
-    vi.stubGlobal("fetch", request);
+      vi.stubGlobal("fetch", request);
 
-    const result = await codexGenerateImage({
-      auth: { access: "test-only", accountId: "test-only" },
-      model: `openai/gpt-image-2.5-${variant}`,
-      prompt: "A flower",
-      aspectRatio: "1:1",
-    });
+      const result = await codexGenerateImage({
+        auth: { access: "test-only", accountId: "test-only" },
+        model: `openai/${model}`,
+        prompt: "A flower",
+        aspectRatio: "1:1",
+      });
 
-    expect(request).toHaveBeenCalledOnce();
-    expect(request.mock.calls[0]?.[0]).toBe(
-      "https://chatgpt.com/backend-api/codex/images/generations",
-    );
-    expect(JSON.parse(z.string().parse(request.mock.calls[0]?.[1]?.body))).toMatchObject({
-      model: `gpt-image-2.5-${variant}`,
-    });
-    expect(result.costUsd).toBe(0);
-  });
+      expect(request).toHaveBeenCalledOnce();
+      expect(request.mock.calls[0]?.[0]).toBe(
+        "https://chatgpt.com/backend-api/codex/images/generations",
+      );
+      expect(JSON.parse(z.string().parse(request.mock.calls[0]?.[1]?.body))).toMatchObject({
+        model,
+      });
+      expect(result.costUsd).toBe(0);
+    },
+  );
 });
 
 describe("ChatGPT public errors", () => {

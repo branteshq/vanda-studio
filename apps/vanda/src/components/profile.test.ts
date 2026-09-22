@@ -115,14 +115,17 @@ afterEach(async () => {
   container.remove();
 });
 
-it("enables the subscription image picker and displays the selected new models", async () => {
+it.each([
+  ["openai/gpt-image-2.5-sunburst", "GPT Image 2.5 Sunburst"],
+  ["openai/gpt-image-2", "GPT Image 2"],
+])("enables the subscription image picker and displays %s", async (image, label) => {
   mocks.query.mockImplementation((ref) => {
     if (getFunctionName(ref) === "users:modelPreferences") {
       return {
         conectado: true,
         orchestrator: "openai/gpt-6-astra",
         caetano: "openai/gpt-6-astra",
-        image: "openai/gpt-image-2.5-sunburst",
+        image,
       };
     }
 
@@ -133,7 +136,7 @@ it("enables the subscription image picker and displays the selected new models",
 
   expect(picker).not.toBeNull();
   expect(picker?.hasAttribute("disabled")).toBe(false);
-  expect(picker?.textContent).toContain("GPT Image 2.5 Sunburst");
+  expect(picker?.textContent).toContain(label);
   expect(container.querySelector('[aria-label="Modelo de conversa"]')?.textContent).toContain(
     "GPT-6 Astra",
   );

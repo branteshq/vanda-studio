@@ -63,6 +63,14 @@ export const IMAGE_MODELS: ReadonlyArray<ImageModel> = [
     resolutions: ["1K"],
   },
   {
+    id: "openai/gpt-image-2",
+    label: "GPT Image 2",
+    maker: "OpenAI",
+    priceTier: "$$$",
+    blurb: "Geração e edição de imagens da OpenAI",
+    resolutions: ["1K"],
+  },
+  {
     id: "google/gemini-3-pro-image",
     label: "Nano Banana Pro",
     maker: "Google",
@@ -90,7 +98,9 @@ export const CONECTADO_IMAGE_MODEL = DEFAULT_IMAGE_MODEL;
 
 /** Models available through the separate subscription transport. */
 export const CONECTADO_IMAGE_MODELS: ReadonlyArray<ImageModel> = IMAGE_MODELS.flatMap((model) =>
-  model.id === "openai/gpt-image-2.5-flare" || model.id === "openai/gpt-image-2.5-sunburst"
+  model.id === "openai/gpt-image-2.5-flare" ||
+  model.id === "openai/gpt-image-2.5-sunburst" ||
+  model.id === "openai/gpt-image-2"
     ? [{ ...model, blurb: "Pela sua assinatura do ChatGPT" }]
     : [],
 );
@@ -112,8 +122,6 @@ export const CODE_IMAGE_MODEL = "python/pillow";
 /** The display label for a model id, falling back to the raw id if unknown. */
 export const imageModelLabel = (id: string | undefined): string => {
   if (id === CODE_IMAGE_MODEL) return "Pillow (código)";
-
-  if (id === "openai/gpt-image-2") return "GPT Image 2";
 
   return (id && BY_ID.get(id)?.label) ?? id ?? "Desconhecido";
 };
