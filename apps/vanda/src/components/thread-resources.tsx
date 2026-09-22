@@ -147,18 +147,18 @@ function PostResource({ resource }: { resource: Extract<ThreadResource, { kind: 
               src={url}
               alt={`Slide ${index + 1}`}
               loading="lazy"
-              className="aspect-[4/5] w-[72%] shrink-0 snap-center rounded-lg object-cover first:w-full"
+              className="aspect-4/5 w-3/4 shrink-0 snap-center rounded-lg object-cover first:w-full"
             />
           ))}
         </div>
       ) : null}
       <div className="space-y-2.5 p-3">
         <div className="flex items-center justify-between gap-3">
-          <span className="rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-text-3">
+          <span className="rounded-full bg-muted px-2 py-1 text-note font-medium text-text-3">
             {POST_STATUS[post.status] ?? post.status}
           </span>
           {post.scheduledFor ? (
-            <span className="text-[11px] text-text-4">
+            <span className="text-note text-text-4">
               {new Intl.DateTimeFormat("pt-BR", {
                 day: "2-digit",
                 month: "2-digit",
@@ -216,7 +216,7 @@ function DocumentResource({
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-medium text-text-2">
         <FileText className="size-4 text-text-4" />
         <span className="min-w-0 flex-1 truncate">{title}</span>
-        <span className="text-[11px] font-normal text-text-4">{resource.path}</span>
+        <span className="text-note font-normal text-text-4">{resource.path}</span>
       </summary>
       <div className="max-h-80 overflow-auto border-t border-border p-3 text-xs leading-5 text-text-3">
         {markdown ? (

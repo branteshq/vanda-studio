@@ -46,7 +46,7 @@ function NotFound() {
   return (
     <main className="grid min-h-svh place-items-center bg-app text-text">
       <div className="flex flex-col items-center gap-3 text-center">
-        <p className="text-[32px] font-semibold leading-none tracking-[-0.03em]">404</p>
+        <p className="text-3xl font-semibold leading-none tracking-tight">404</p>
         <p className="text-body text-text-3">Essa página não existe.</p>
         <Link to="/" className="text-body-sm text-brand-accent hover:underline">
           Voltar para a Vanda

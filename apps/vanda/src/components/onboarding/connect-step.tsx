@@ -37,12 +37,12 @@ export function ConnectStep({ accountId }: { accountId?: Id<"accounts"> }) {
       current="conectar"
       aperture={{ caption: "A orquídea como lente", sub: "Sempre no melhor momento de publicar" }}
     >
-      <h1 className="text-[30px] font-semibold leading-[1.12] tracking-[-0.03em]">
+      <h1 className="text-3xl font-semibold leading-tight tracking-tight">
         Sua agência de marketing,
         <br />
         no automático.
       </h1>
-      <p className="mt-3 text-[14.5px] leading-[1.55] text-text-3">
+      <p className="mt-3 text-sm leading-relaxed text-text-3">
         Conecte seu Instagram — a Vanda lê sua conta e já começa a entender seu negócio.
       </p>
 
@@ -58,14 +58,14 @@ export function ConnectStep({ accountId }: { accountId?: Id<"accounts"> }) {
       </Button>
 
       {status === "error" ? (
-        <p className="mt-3 text-[13px] text-amber">
+        <p className="mt-3 text-body text-amber">
           Não consegui conectar.{" "}
           <button type="button" className="underline underline-offset-2" onClick={connect}>
             Tentar de novo
           </button>
         </p>
       ) : (
-        <p className="mt-3 text-[12px] text-text-5">Conexão segura · você controla tudo</p>
+        <p className="mt-3 text-xs text-text-5">Conexão segura · você controla tudo</p>
       )}
     </OnboardingSplit>
   );

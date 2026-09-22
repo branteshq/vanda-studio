@@ -53,7 +53,7 @@ function DashboardGate() {
       <ModeNavProvider>
         <WorkRailProvider>
           <AppSidebar />
-          <SidebarInset className="relative flex h-svh flex-col overflow-hidden bg-app">
+          <SidebarInset className="relative flex h-svh flex-col overflow-hidden">
             <CollapsedSidebarControls />
             <CollapsedRailControls />
             <Outlet />

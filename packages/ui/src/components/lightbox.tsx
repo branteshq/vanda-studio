@@ -38,7 +38,7 @@ function LightboxContent({
     <DialogPrimitive.Portal>
       <DialogPrimitive.Backdrop
         data-slot="lightbox-overlay"
-        className="fixed inset-0 isolate z-50 bg-black/80 transition-opacity duration-200 ease-[var(--ease-out)] supports-backdrop-filter:backdrop-blur-sm data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none"
+        className="fixed inset-0 isolate z-50 bg-black/80 transition-opacity duration-200 ease-out supports-backdrop-filter:backdrop-blur-sm data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none"
       />
       <DialogPrimitive.Popup
         data-slot="lightbox-content"
@@ -53,7 +53,7 @@ function LightboxContent({
         }}
         className={cn(
           "pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4 outline-none md:p-6 lg:p-10",
-          "transition-[opacity,transform] duration-200 ease-[var(--ease-out)] data-ending-style:scale-[0.98] data-ending-style:opacity-0 data-starting-style:scale-[0.98] data-starting-style:opacity-0 motion-reduce:transform-none motion-reduce:transition-opacity",
+          "transition duration-200 ease-out data-ending-style:scale-98 data-ending-style:opacity-0 data-starting-style:scale-98 data-starting-style:opacity-0 motion-reduce:transform-none motion-reduce:transition-opacity",
           className,
         )}
         {...props}
@@ -65,7 +65,7 @@ function LightboxContent({
         <DialogPrimitive.Close
           data-slot="lightbox-close"
           aria-label="Fechar"
-          className="pointer-events-auto absolute top-4 right-4 flex size-9 items-center justify-center rounded-full border border-border bg-surface/90 text-text-3 outline-none backdrop-blur-sm transition-[background-color,color,transform] duration-150 ease-[var(--ease-out)] hover:bg-muted hover:text-text focus-visible:ring-2 focus-visible:ring-ring active:scale-95 motion-reduce:transform-none"
+          className="pointer-events-auto absolute top-4 right-4 flex size-9 items-center justify-center rounded-full border border-border bg-surface/90 text-text-3 outline-none backdrop-blur-sm transition duration-150 ease-out hover:bg-muted hover:text-text focus-visible:ring-2 focus-visible:ring-ring active:scale-95 motion-reduce:transform-none"
         >
           <XIcon className="size-4" />
         </DialogPrimitive.Close>
@@ -107,7 +107,7 @@ function LightboxPanel({ className, children, ...props }: React.ComponentProps<"
     <aside
       data-slot="lightbox-panel"
       className={cn(
-        "pointer-events-auto mt-3 flex max-h-[40vh] w-full min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-lg",
+        "pointer-events-auto mt-3 flex max-h-lightbox-panel w-full min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-lg",
         "md:absolute md:inset-y-0 md:left-full md:mt-0 md:ml-4 md:max-h-none md:w-80 lg:w-96",
         className,
       )}
@@ -129,7 +129,7 @@ function LightboxNav({ direction, onClick }: { direction: "prev" | "next"; onCli
       aria-label={prev ? "Anterior" : "Próxima"}
       onClick={onClick}
       className={cn(
-        "pointer-events-auto absolute top-1/2 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-surface/90 text-text-3 outline-none backdrop-blur-sm transition-[background-color,color,transform] duration-150 ease-[var(--ease-out)] hover:bg-muted hover:text-text focus-visible:ring-2 focus-visible:ring-ring active:scale-95 motion-reduce:transform-none md:flex",
+        "pointer-events-auto absolute top-1/2 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-surface/90 text-text-3 outline-none backdrop-blur-sm transition duration-150 ease-out hover:bg-muted hover:text-text focus-visible:ring-2 focus-visible:ring-ring active:scale-95 motion-reduce:transform-none md:flex",
         prev ? "left-4" : "right-4",
       )}
     >

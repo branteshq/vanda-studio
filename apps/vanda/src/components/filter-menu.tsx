@@ -11,7 +11,6 @@ import {
   DropdownMenuTrigger,
 } from "@vanda-studio/ui/components/dropdown-menu";
 import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
-import { cn } from "@vanda-studio/ui/lib/utils";
 
 export interface FilterOption<T extends string = string> {
   value: T;
@@ -64,13 +63,10 @@ export function FilterMenu({
         <DropdownMenuTrigger
           render={
             <Button
-              variant="ghost"
               size="icon-sm"
               aria-label={label}
-              className={cn(
-                "relative data-popup-open:bg-accent data-popup-open:text-text",
-                active ? "text-text" : "text-text-4 hover:text-text",
-              )}
+              variant={active ? "ghost" : "subtle"}
+              className="relative"
             />
           }
         >
@@ -95,7 +91,6 @@ export function FilterMenu({
                   key={option.value}
                   value={option.value}
                   // Only the check indicator animates — option icons stay put.
-                  className="[&_[data-slot=dropdown-menu-radio-item-indicator]_svg]:animate-in [&_[data-slot=dropdown-menu-radio-item-indicator]_svg]:zoom-in-50 [&_[data-slot=dropdown-menu-radio-item-indicator]_svg]:duration-200"
                 >
                   {option.icon}
                   {option.label}

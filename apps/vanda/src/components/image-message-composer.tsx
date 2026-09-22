@@ -395,7 +395,6 @@ export function ImageMessageComposer({
                       aria-label={`Remover ${attachment.fileName}`}
                       disabled={submitting}
                       onClick={() => removeAttachment(attachment)}
-                      className="bg-surface/90 shadow-sm"
                     >
                       <X />
                     </AttachmentAction>
@@ -422,12 +421,11 @@ export function ImageMessageComposer({
             <ActionTooltip label="Adicionar imagens" side="top">
               <Button
                 type="button"
-                variant="ghost"
+                variant="subtle"
                 size="icon-sm"
                 aria-label="Adicionar imagens"
                 disabled={!accountId || disabled || submitting || attachments.length >= 4}
                 onClick={() => inputRef.current?.click()}
-                className="text-text-4 hover:text-text"
               >
                 <Paperclip />
               </Button>
@@ -458,11 +456,11 @@ export function ImageMessageComposer({
           </div>
         </form>
         {error || submitError ? (
-          <p role="alert" className="mt-2 px-2 text-xs text-danger">
+          <p role="alert" className="mt-2 px-2 text-xs text-destructive">
             {error ?? submitError}
           </p>
         ) : null}
-        {hint ? <p className="mt-2 text-center text-[11px] text-text-3">{hint}</p> : null}
+        {hint ? <p className="mt-2 text-center text-note text-text-3">{hint}</p> : null}
       </div>
     </footer>
   );

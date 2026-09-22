@@ -254,7 +254,7 @@ function CaetanoFrame({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <header className="flex h-14 shrink-0 items-center justify-center border-b border-border/60 px-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-text-1">
+        <div className="flex items-center gap-2 text-sm font-semibold text-text">
           <span className="flex size-7 items-center justify-center overflow-hidden rounded-full bg-brand-accent/12">
             <img
               src={caetanoWelcomeUrl}
@@ -274,7 +274,7 @@ function CaetanoFrame({ children }: { children: React.ReactNode }) {
 function CaetanoWelcome() {
   return (
     <div className="mx-auto max-w-xl text-center">
-      <div className="mx-auto mb-5 flex size-16 items-center justify-center overflow-hidden rounded-2xl border border-border bg-surface-2 shadow-sm">
+      <div className="mx-auto mb-5 flex size-16 items-center justify-center overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
         <img
           src={caetanoWavingUrl}
           alt=""
@@ -282,7 +282,7 @@ function CaetanoWelcome() {
           className="size-20 max-w-none object-contain"
         />
       </div>
-      <h1 className="text-2xl font-semibold tracking-tight text-text-1">Fala com o Caetano</h1>
+      <h1 className="text-2xl font-semibold tracking-tight text-text">Fala com o Caetano</h1>
       <p className="mt-2 text-sm leading-6 text-text-3">
         Ele conhece o Vanda Studio, cuida das configurações e chama a Vanda quando tem trabalho de
         marketing para fazer.
@@ -295,7 +295,7 @@ function CaetanoWelcome() {
         ].map((suggestion) => (
           <span
             key={suggestion}
-            className="rounded-full border border-border bg-surface-1 px-3 py-1.5"
+            className="rounded-full border border-border bg-surface px-3 py-1.5"
           >
             {suggestion}
           </span>
@@ -328,7 +328,7 @@ function CaetanoMessage({
     if (textParts.length === 0 && attachments.length === 0) return null;
 
     return (
-      <Message align="end" className="animate-message-in">
+      <Message align="end" enter>
         <MessageContent>
           <MessageImageAttachments attachments={attachments} />
           {textParts.length > 0 ? (
@@ -358,7 +358,7 @@ function CaetanoMessage({
   const nothingYet = streaming && textParts.length === 0 && tools.length === 0;
 
   return (
-    <Message align="start" className="animate-message-in">
+    <Message align="start" enter>
       <MessageContent>
         {tools.length > 0 ? (
           <div className="space-y-1.5 py-1 text-xs text-text-3">
@@ -371,9 +371,9 @@ function CaetanoMessage({
                   className="flex items-center gap-2"
                 >
                   {runningTool(part) ? (
-                    <ThinkingOrb state="working" size={20} style={{ width: 16, height: 16 }} />
+                    <ThinkingOrb state="working" size={20} className="!size-4" />
                   ) : (
-                    <span className="flex size-4 items-center justify-center text-[10px] text-positive">
+                    <span className="flex size-4 items-center justify-center text-micro text-green">
                       ✓
                     </span>
                   )}
@@ -393,7 +393,7 @@ function CaetanoMessage({
         <ThreadResourceList resources={resources} />
         {nothingYet ? (
           <div className="flex items-center gap-2 text-sm text-text-3">
-            <ThinkingOrb state="breathing" size={20} style={{ width: 18, height: 18 }} />
+            <ThinkingOrb state="breathing" size={20} className="!size-4.5" />
             <span className="shimmer">Pensando…</span>
           </div>
         ) : null}

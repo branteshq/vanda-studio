@@ -32,7 +32,20 @@
     "perf": "warn"
   },
   "rules": {
-    "shadcn/no-restyle": "error",
+    "shadcn/no-restyle": [
+      "error",
+      {
+        "allow": ["layout"],
+        "contracts": [
+          { "pattern": "^Skeleton$", "allow": ["layout", "shape"] },
+          { "pattern": "^Spinner$", "allow": ["layout", "color"] },
+          {
+            "pattern": "^(SidebarProvider|Sidebar|SidebarHeader|SidebarFooter|SidebarContent|SidebarInset|SidebarMenu|MessageScrollerContent|MessageScrollerItem|AttachmentGroup|SheetHeader)$",
+            "allow": ["layout", "spacing"]
+          }
+        ]
+      }
+    ],
     "shadcn/no-raw-colors": "error",
     "shadcn/no-arbitrary-values": "error",
     "shadcn/no-inline-styles": "error",
@@ -66,5 +79,16 @@
     "anti-slop-effect/no-manual-tagged-construction": "error",
     "anti-slop-effect/no-service-constructor-imports": "error",
     "anti-slop-effect/prefer-effect-match": "error"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["packages/ui/src/components/**"],
+      "rules": {
+        "shadcn/no-restyle": [
+          "error",
+          { "allow": ["layout", "spacing", "color", "typography", "shape", "effects", "motion"] }
+        ]
+      }
+    }
+  ]
 }

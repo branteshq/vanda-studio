@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useAction } from "convex/react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { StatusRing } from "@vanda-studio/ui/components/status-ring";
@@ -91,13 +91,13 @@ export function ObservingStep({
           : { caption: "Lendo sua conta", sub: "Pode levar alguns segundos" }
       }
     >
-      <h1 className="text-[30px] font-semibold leading-[1.12] tracking-[-0.03em]">
+      <h1 className="text-3xl font-semibold leading-tight tracking-tight">
         {done ? "A Vanda já entende seu negócio." : "A Vanda está conhecendo seu negócio."}
       </h1>
 
       {error ? (
         <>
-          <p className="mt-3 text-[14px] text-text-3">
+          <p className="mt-3 text-sm text-text-3">
             Não consegui ler sua conta agora. Você pode tentar de novo — ou seguir sem a análise: a
             Vanda aprende sobre a sua marca conforme vocês conversam.
           </p>
@@ -126,11 +126,12 @@ export function ObservingStep({
             return (
               <li
                 key={line}
-                className="flex items-center gap-2.5 fade-in slide-in-from-bottom-1 animate-in fill-mode-both duration-300"
-                style={{ animationDelay: `${index * 60}ms` }}
+                // SAFETY: React accepts custom properties at runtime; CSSProperties omits their open-ended names.
+                style={{ "--animation-delay": `${index * 60}ms` } as CSSProperties}
+                className="flex items-center gap-2.5 fade-in slide-in-from-bottom-1 animate-in fill-mode-both duration-300 delay-(--animation-delay)"
               >
                 <StatusRing state={state} />
-                <span className={cn("text-[14px]", progressTextColor(state))}>{line}</span>
+                <span className={cn("text-sm", progressTextColor(state))}>{line}</span>
               </li>
             );
           })}

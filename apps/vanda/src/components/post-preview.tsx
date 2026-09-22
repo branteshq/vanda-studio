@@ -119,18 +119,16 @@ function PostPreviewBody({
   return (
     <LightboxMedia>
       {/* The media: an Instagram-faithful card instead of a bare image. */}
-      <div className="w-[min(24rem,90vw)] overflow-hidden rounded-xl border border-border bg-surface shadow-lg">
+      <div className="w-(--spacing-post-preview) overflow-hidden rounded-xl border border-border bg-surface shadow-lg">
         <div className="flex items-center gap-2.5 px-3 py-2.5">
           <Avatar className="size-8">
-            <AvatarFallback className="text-xs font-semibold">
-              {handle.slice(0, 2).toUpperCase()}
-            </AvatarFallback>
+            <AvatarFallback>{handle.slice(0, 2).toUpperCase()}</AvatarFallback>
           </Avatar>
           <span className="text-body-sm font-semibold text-text">{handle}</span>
           <MoreHorizontal className="ml-auto size-4 text-text-3" />
         </div>
 
-        <div className="relative aspect-[4/5] bg-inset">
+        <div className="relative aspect-4/5 bg-inset">
           {post === undefined ? (
             <div className="absolute inset-0 grid place-items-center">
               <Spinner className="size-5 text-text-4" />
@@ -170,7 +168,7 @@ function PostPreviewBody({
                   <ChevronRight className="size-4" />
                 </button>
               </ActionTooltip>
-              <span className="absolute top-2 right-2 rounded-full bg-black/60 px-2 py-0.5 font-mono text-[11px] text-white">
+              <span className="absolute top-2 right-2 rounded-full bg-black/60 px-2 py-0.5 font-mono text-note text-white">
                 {current + 1}/{total}
               </span>
             </>
@@ -324,7 +322,7 @@ function CaptionEditor({
       aria-label="Legenda do post"
       maxLength={2200}
       rows={6}
-      className="w-full resize-y rounded-lg border border-transparent bg-muted p-2.5 text-body-sm leading-relaxed text-text-2 outline-none transition-colors duration-150 ease-[var(--ease-out)] hover:border-border focus-visible:border-border"
+      className="w-full resize-y rounded-lg border border-transparent bg-muted p-2.5 text-body-sm leading-relaxed text-text-2 outline-none transition-colors duration-150 ease-out hover:border-border focus-visible:border-border"
     />
   );
 }
@@ -366,7 +364,7 @@ function PanelAction({
         aria-label={label}
         onClick={onClick}
         className={cn(
-          "flex size-8 items-center justify-center rounded-lg text-text-4 outline-none transition-[background-color,color,transform] duration-150 ease-[var(--ease-out)] hover:bg-muted hover:text-text focus-visible:ring-2 focus-visible:ring-ring active:scale-95 motion-reduce:transform-none [&_svg]:size-4",
+          "flex size-8 items-center justify-center rounded-lg text-text-4 outline-none transition-all duration-150 ease-out hover:bg-muted hover:text-text focus-visible:ring-2 focus-visible:ring-ring active:scale-95 motion-reduce:transform-none [&_svg]:size-4",
           className,
         )}
       >

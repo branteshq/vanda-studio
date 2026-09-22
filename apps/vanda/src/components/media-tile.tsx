@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { Check } from "lucide-react";
 import { Spinner } from "@vanda-studio/ui/components/spinner";
 import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
@@ -47,7 +47,7 @@ export function MediaTile({
       data-selected={selected || undefined}
       data-selecting={selecting || undefined}
       className={cn(
-        "group/tile relative w-full overflow-hidden rounded-xl border bg-surface transition-[border-color,box-shadow] duration-150 ease-[var(--ease-out)]",
+        "group/tile relative w-full overflow-hidden rounded-xl border bg-surface transition-all duration-150 ease-out",
         selected
           ? "border-brand-accent/60 ring-2 ring-brand-accent/50"
           : "border-border hover:border-border-strong",
@@ -60,7 +60,7 @@ export function MediaTile({
         aria-label={label}
         aria-pressed={selecting ? selected : undefined}
         onClick={selecting ? onToggleSelect : onOpen}
-        className="absolute inset-0 z-[1] rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+        className="absolute inset-0 z-1 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
       />
     </div>
   );
@@ -78,10 +78,11 @@ export function MediaTileMedia({
 }) {
   return (
     <div
-      style={aspectRatio ? { aspectRatio } : undefined}
-      className={cn("w-full bg-muted", className)}
+      // SAFETY: React accepts custom properties at runtime; CSSProperties omits their open-ended names.
+      style={aspectRatio ? ({ "--media-tile-aspect": aspectRatio } as CSSProperties) : undefined}
+      className={cn("aspect-(--media-tile-aspect) w-full bg-muted", className)}
     >
-      <div className="size-full overflow-hidden rounded-xl transition-transform duration-500 ease-[var(--ease-out)] group-hover/tile:scale-[1.04] group-data-[selected]/tile:scale-[0.96] motion-reduce:transition-none motion-reduce:group-hover/tile:scale-100">
+      <div className="size-full overflow-hidden rounded-xl transition-transform duration-500 ease-out group-hover/tile:scale-104 group-data-[selected]/tile:scale-96 motion-reduce:transition-none motion-reduce:group-hover/tile:scale-100">
         {children}
       </div>
     </div>
@@ -90,7 +91,7 @@ export function MediaTileMedia({
 
 /** Shared reveal: hidden at rest, settles in on hover/focus, pinned while selecting. */
 const reveal =
-  "opacity-0 -translate-y-1 transition-[opacity,transform] duration-200 ease-[var(--ease-out)] group-hover/tile:translate-y-0 group-hover/tile:opacity-100 focus-within:translate-y-0 focus-within:opacity-100 group-data-[selecting]/tile:translate-y-0 group-data-[selecting]/tile:opacity-100 motion-reduce:translate-y-0 motion-reduce:transition-none";
+  "opacity-0 -translate-y-1 transition-all duration-200 ease-out group-hover/tile:translate-y-0 group-hover/tile:opacity-100 focus-within:translate-y-0 focus-within:opacity-100 group-data-[selecting]/tile:translate-y-0 group-data-[selecting]/tile:opacity-100 motion-reduce:translate-y-0 motion-reduce:transition-none";
 
 /** The circular selection toggle, top-left — pinned whenever a selection exists. */
 export function MediaTileSelect({
@@ -103,7 +104,7 @@ export function MediaTileSelect({
   label?: string;
 }) {
   return (
-    <span className={cn("absolute top-2 left-2 z-[2]", reveal)}>
+    <span className={cn("absolute top-2 left-2 z-2", reveal)}>
       <button
         type="button"
         role="checkbox"
@@ -111,7 +112,7 @@ export function MediaTileSelect({
         aria-label={label}
         onClick={onToggle}
         className={cn(
-          "flex size-7 items-center justify-center rounded-full border outline-none transition-[background-color,border-color,transform] duration-150 ease-[var(--ease-out)] focus-visible:ring-2 focus-visible:ring-brand-accent/60 active:scale-95 motion-reduce:transform-none",
+          "flex size-7 items-center justify-center rounded-full border outline-none transition-all duration-150 ease-out focus-visible:ring-2 focus-visible:ring-brand-accent/60 active:scale-95 motion-reduce:transform-none",
           selected
             ? "border-transparent bg-brand-accent text-white"
             : "border-white/80 bg-black/35 text-white backdrop-blur-md hover:bg-black/55",
@@ -120,7 +121,7 @@ export function MediaTileSelect({
         <Check
           strokeWidth={3}
           className={cn(
-            "size-3.5 transition-[opacity,transform] duration-150 ease-[var(--ease-out)]",
+            "size-3.5 transition-all duration-150 ease-out",
             selected ? "scale-100 opacity-100" : "scale-50 opacity-0",
           )}
         />
@@ -132,7 +133,7 @@ export function MediaTileSelect({
 /** Top-right cluster of action chips. */
 export function MediaTileActions({ children }: { children: ReactNode }) {
   return (
-    <div className={cn("absolute top-2 right-2 z-[2] flex items-center gap-1", reveal)}>
+    <div className={cn("absolute top-2 right-2 z-2 flex items-center gap-1", reveal)}>
       {children}
     </div>
   );
@@ -157,7 +158,7 @@ export function MediaTileAction({
         aria-label={label}
         onClick={onClick}
         className={cn(
-          "flex size-7 items-center justify-center rounded-lg bg-black/45 text-white outline-none backdrop-blur-md transition-[background-color,transform] duration-150 ease-[var(--ease-out)] hover:bg-black/65 focus-visible:ring-2 focus-visible:ring-white/70 active:scale-95 motion-reduce:transform-none [&_svg]:size-3.5",
+          "flex size-7 items-center justify-center rounded-lg bg-black/45 text-white outline-none backdrop-blur-md transition-all duration-150 ease-out hover:bg-black/65 focus-visible:ring-2 focus-visible:ring-white/70 active:scale-95 motion-reduce:transform-none [&_svg]:size-3.5",
           className,
         )}
       >
@@ -178,7 +179,7 @@ export function MediaTileBadge({ label, children }: { label: string; children: R
     <span
       role="img"
       aria-label={label}
-      className="pointer-events-none absolute bottom-2 left-2 z-[1] flex size-6 items-center justify-center rounded-md bg-black/45 text-white backdrop-blur-md transition-opacity duration-200 ease-[var(--ease-out)] group-hover/tile:opacity-0 group-data-[selecting]/tile:opacity-0 motion-reduce:transition-none [&_svg]:size-3"
+      className="pointer-events-none absolute bottom-2 left-2 z-1 flex size-6 items-center justify-center rounded-md bg-black/45 text-white backdrop-blur-md transition-opacity duration-200 ease-out group-hover/tile:opacity-0 group-data-[selecting]/tile:opacity-0 motion-reduce:transition-none [&_svg]:size-3"
     >
       {children}
     </span>
@@ -189,7 +190,7 @@ export function MediaTileBadge({ label, children }: { label: string; children: R
  *  Mirrors the top reveal but rises from below, so the tile "opens" outward. */
 export function MediaTileCaption({ children }: { children: ReactNode }) {
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] translate-y-1 bg-gradient-to-t from-black/70 to-transparent p-2.5 opacity-0 transition-[opacity,transform] duration-200 ease-[var(--ease-out)] group-hover/tile:translate-y-0 group-hover/tile:opacity-100 group-data-[selecting]/tile:translate-y-0 group-data-[selecting]/tile:opacity-100 motion-reduce:translate-y-0 motion-reduce:transition-none">
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-2 translate-y-1 bg-gradient-to-t from-black/70 to-transparent p-2.5 opacity-0 transition-all duration-200 ease-out group-hover/tile:translate-y-0 group-hover/tile:opacity-100 group-data-[selecting]/tile:translate-y-0 group-data-[selecting]/tile:opacity-100 motion-reduce:translate-y-0 motion-reduce:transition-none">
       {children}
     </div>
   );

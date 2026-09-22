@@ -55,8 +55,8 @@ export function OrchidAperture() {
     >
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#f48bb5" />
-          <stop offset="100%" stopColor="#c4277f" />
+          <stop offset="0%" stopColor="var(--color-orchid-petal)" />
+          <stop offset="100%" stopColor="var(--color-primary)" />
         </linearGradient>
       </defs>
 
@@ -67,7 +67,7 @@ export function OrchidAperture() {
           cy={CENTER}
           r={r}
           fill="none"
-          stroke="#ee7aaa"
+          stroke="var(--color-orchid-petal)"
           strokeWidth={1}
           opacity={opacity}
         />
@@ -83,7 +83,7 @@ export function OrchidAperture() {
             y1={CENTER}
             x2={x}
             y2={y}
-            stroke="#ee7aaa"
+            stroke="var(--color-orchid-petal)"
             strokeWidth={1}
             opacity={0.045}
           />
@@ -97,7 +97,7 @@ export function OrchidAperture() {
           y1={t.y1}
           x2={t.x2}
           y2={t.y2}
-          stroke="#ee7aaa"
+          stroke="var(--color-orchid-petal)"
           strokeWidth={1}
           opacity={t.major ? 0.16 : 0.09}
         />
@@ -108,12 +108,12 @@ export function OrchidAperture() {
         y1={ay1}
         x2={ax2}
         y2={ay2}
-        stroke="#f6b6d2"
+        stroke="var(--color-orchid-highlight)"
         strokeWidth={2}
         opacity={0.95}
         strokeLinecap="round"
       />
-      <circle cx={adx} cy={ady} r={3.2} fill="#f6b6d2" />
+      <circle cx={adx} cy={ady} r={3.2} fill="var(--color-orchid-highlight)" />
 
       <g
         transform={`translate(${CENTER} ${CENTER}) rotate(36) scale(4.05) translate(-50 -50)`}
@@ -124,7 +124,7 @@ export function OrchidAperture() {
             key={deg}
             d={PETAL}
             fill="none"
-            stroke="#ee7aaa"
+            stroke="var(--color-orchid-petal)"
             strokeWidth={0.4}
             transform={`rotate(${deg} 50 50)`}
           />
@@ -146,11 +146,12 @@ export function OrchidAperture() {
         cx={CENTER}
         cy={CENTER}
         r={11}
-        fill="#150b16"
-        stroke="rgba(246,182,210,0.55)"
+        fill="var(--color-orchid-core)"
+        stroke="var(--color-orchid-highlight)"
+        strokeOpacity={0.55}
         strokeWidth={1.4}
       />
-      <circle cx={CENTER} cy={CENTER} r={3} fill="#f6b6d2" />
+      <circle cx={CENTER} cy={CENTER} r={3} fill="var(--color-orchid-highlight)" />
     </svg>
   );
 }

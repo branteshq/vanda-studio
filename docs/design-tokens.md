@@ -21,7 +21,7 @@ Every token is both a CSS variable (`var(--surface)`) and a Tailwind utility
 | Status surfaces               | `--needs-bg/-border` `--creating-bg/-border` | `bg-needs-bg` `bg-creating-bg`                                     |
 | Radii (chip·btn·card·lg·pill) | `7 · 9 · 12 · 16 · ∞`                        | `rounded-sm` `rounded-md` `rounded-lg` `rounded-xl` `rounded-full` |
 | Elevation                     | `--shadow-sm --shadow --shadow-lg`           | `shadow-sm` `shadow`                                               |
-| Motion                        | `--ease-out --ease-in-out`                   | `ease-[var(--ease-out)]`                                           |
+| Motion                        | `--ease-out --ease-in-out`                   | `ease-out`                                                         |
 
 shadcn names (`bg-background`, `text-foreground`, `bg-primary`, `text-muted-foreground`,
 `bg-card`, `bg-accent`, …) still work — they're mapped onto the tokens above, so
@@ -54,5 +54,25 @@ Recurring patterns are components, not ad-hoc classes — import from
 - **Mono labels** (`font-mono`) are uppercase, wide tracking, `text-text-5`.
 - North star: Linear — calm, dense-but-quiet, little chrome. Less noise, more signal.
 
-A third-party logo that must keep its brand colors (e.g. the Google "G") uses SVG
-`fill="#…"` attributes (not flagged) or a line-level `token-guard-ignore` comment.
+## Lint enforcement
+
+`pnpm lint` runs all six `@shadcn/lint` rules as errors, plus the gradient/color
+guard. Contracts live in `.oxlintrc.json`; do not disable rules to make a screen pass.
+
+- App code may position components with layout classes. Appearance belongs in
+  shared variants (`Button.variant`, `Input.variant`, `Avatar.size`, etc.).
+- Skeletons accept shape/layout, spinners accept color/layout, and the listed
+  layout containers accept spacing. These are explicit component contracts,
+  not permission to restyle every control.
+- Shared component implementations own their styling categories. They still
+  enforce token colors, known/static classes, no arbitrary values, and no inline
+  CSS properties. Prefer Tailwind v4 numeric scales and the existing type tokens.
+- Runtime data (brand swatches, aspect ratios, progress) goes through typed CSS
+  custom properties consumed by static classes, not dynamically built class names.
+- Brand artwork uses the fixed `orchid-*` theme colors. SVG fills/strokes are
+  checked too; a `token-guard-ignore` comment does not bypass the shadcn rules.
+- The UI package declares Tailwind and animation CSS dependencies so lint resolves
+  its actual theme instead of silently falling back to a bundled grammar.
+
+After UI changes, run `pnpm lint` and fix all errors. The design-contract test
+checks that every rule rejects an invalid fixture and accepts approved composition.

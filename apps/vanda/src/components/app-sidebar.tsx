@@ -20,6 +20,7 @@ import {
 import caetanoWelcomeUrl from "@vanda-studio/ui/assets/caetano/caetano-expression-welcome.png?url";
 import { Avatar, AvatarFallback, AvatarImage } from "@vanda-studio/ui/components/avatar";
 import { Button } from "@vanda-studio/ui/components/button";
+import { Input } from "@vanda-studio/ui/components/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,7 +30,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@vanda-studio/ui/components/dropdown-menu";
-import { Input } from "@vanda-studio/ui/components/input";
 import {
   Sidebar,
   SidebarContent,
@@ -133,7 +133,7 @@ function ProfileDock() {
                   aria-pressed={selected}
                   onClick={() => handleSelect(account)}
                   className={cn(
-                    "flex size-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold text-sidebar-foreground/70 transition-[background-color,color,box-shadow,transform] duration-150 ease-[var(--ease-out)] active:scale-[0.97]",
+                    "flex size-8 shrink-0 items-center justify-center rounded-lg text-note font-semibold text-sidebar-foreground/70 transition-all duration-150 ease-out active:scale-95",
                     selected
                       ? "bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-sidebar-border"
                       : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
@@ -152,10 +152,10 @@ function ProfileDock() {
           <DropdownMenuTrigger
             render={
               <Button
-                variant="ghost"
+                variant="sidebar"
                 size="icon"
                 aria-label="Selecionar negócio"
-                className="size-9 shrink-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
+                className="size-9 shrink-0"
               />
             }
           >
@@ -163,32 +163,26 @@ function ProfileDock() {
           </DropdownMenuTrigger>
         </ActionTooltip>
         <DropdownMenuContent
-          className="min-w-64 rounded-lg"
+          className="min-w-64"
           align="end"
           side={isMobile ? "top" : "right"}
           sideOffset={6}
         >
           <DropdownMenuGroup>
-            <DropdownMenuLabel className="text-xs text-muted-foreground">
-              Negócios
-            </DropdownMenuLabel>
+            <DropdownMenuLabel>Negócios</DropdownMenuLabel>
             {accounts?.map((account) => (
-              <DropdownMenuItem
-                key={account.id}
-                className="gap-2 p-2"
-                onClick={() => handleSelect(account)}
-              >
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-border-strong text-[10px] font-semibold text-text-2">
+              <DropdownMenuItem key={account.id} onClick={() => handleSelect(account)}>
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-border-strong text-micro font-semibold text-text-2">
                   {getInitials(account.name) || "?"}
                 </span>
                 <span className="min-w-0 flex-1 truncate">
                   {account.name}
                   {account.handle ? (
-                    <span className="block text-[10px] text-muted-foreground">
+                    <span className="block text-micro text-muted-foreground">
                       @{account.handle}
                     </span>
                   ) : account.onboardedAt === null ? (
-                    <span className="block text-[10px] text-muted-foreground">
+                    <span className="block text-micro text-muted-foreground">
                       Configuração pendente
                     </span>
                   ) : null}
@@ -200,7 +194,6 @@ function ProfileDock() {
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuItem
-              className="gap-2 p-2"
               onClick={() => void navigate({ to: "/onboarding", search: { flow: "add" } })}
             >
               <span className="flex size-7 shrink-0 items-center justify-center rounded-md border">
@@ -210,7 +203,6 @@ function ProfileDock() {
             </DropdownMenuItem>
             <DropdownMenuItem
               variant="destructive"
-              className="gap-2 p-2"
               disabled={!active || removing}
               onClick={() => void handleRemoveCurrent()}
             >
@@ -246,15 +238,15 @@ function AccountMenu() {
   return (
     <ActionTooltip label="Minha conta" side="top">
       <Button
-        variant="ghost"
-        size="icon"
+        variant="sidebar"
+        size="icon-profile"
         aria-label="Abrir minha conta"
         onClick={() => void navigate({ to: "/perfil" })}
-        className="size-10 shrink-0 rounded-full p-0 hover:bg-sidebar-accent"
+        className="shrink-0"
       >
         <Avatar className="size-8">
           <AvatarImage src={user?.imageUrl} alt={name} />
-          <AvatarFallback className="text-[11px] font-semibold">{initials}</AvatarFallback>
+          <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
       </Button>
     </ActionTooltip>
@@ -281,7 +273,7 @@ function ThreadTitle({ title }: { title: string | null }) {
       <span className="flex h-full items-center" role="status" aria-label="Gerando título">
         <span
           aria-hidden
-          className="h-3 w-32 max-w-[75%] rounded-full bg-sidebar-foreground/20 blur-[3px]"
+          className="h-3 w-32 max-w-3/4 rounded-full bg-sidebar-foreground/20 blur-xs"
         />
       </span>
     );
@@ -409,10 +401,11 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
       <SidebarMenu className="px-1 pt-1">
         <SidebarMenuItem>
           <SidebarMenuButton
-            size="lg"
+            size="action"
             tooltip="Nova conversa"
             onClick={startThread}
-            className="h-11 justify-center gap-2.5 border border-sidebar-primary-soft-border bg-sidebar-primary-soft px-3 text-body font-semibold text-sidebar-foreground hover:bg-sidebar-primary-soft hover:brightness-110 active:bg-sidebar-primary-soft group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0!"
+            variant="primary-soft"
+            className="h-11 justify-center group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center"
           >
             <PencilLine className="size-4" />
             <span className="group-data-[collapsible=icon]:hidden">Nova conversa</span>
@@ -428,7 +421,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Buscar conversas…"
           aria-label="Buscar conversas"
-          className="h-9 w-full rounded-md border border-transparent bg-transparent pr-2 pl-8 text-[13px] text-sidebar-foreground outline-none transition-colors duration-150 ease-[var(--ease-out)] placeholder:text-sidebar-foreground/50 hover:bg-sidebar-accent focus:border-sidebar-ring focus:bg-sidebar-accent"
+          className="h-9 w-full rounded-md border border-transparent bg-transparent pr-2 pl-8 text-body text-sidebar-foreground outline-none transition-colors duration-150 ease-out placeholder:text-sidebar-foreground/50 hover:bg-sidebar-accent focus:border-sidebar-ring focus:bg-sidebar-accent"
         />
       </div>
 
@@ -459,7 +452,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                       <div
                         key={thread.threadId}
                         className={cn(
-                          "group/thread relative flex h-9 min-w-0 items-center rounded-md border transition-colors duration-150 ease-[var(--ease-out)] focus-within:bg-sidebar-accent",
+                          "group/thread relative flex h-9 min-w-0 items-center rounded-md border transition-colors duration-150 ease-out focus-within:bg-sidebar-accent",
                           active
                             ? "border-sidebar-border bg-sidebar-accent"
                             : "border-transparent hover:bg-sidebar-accent",
@@ -467,13 +460,17 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                       >
                         {editing ? (
                           <form
-                            className="flex h-full min-w-0 flex-1"
+                            className={cn(
+                              "flex h-full min-w-0 flex-1 text-sidebar-accent-foreground",
+                              active && "font-medium",
+                            )}
                             onSubmit={(event) => {
                               event.preventDefault();
                               saveRename();
                             }}
                           >
                             <Input
+                              variant="inline"
                               aria-label="Nome da conversa"
                               value={renameTitle}
                               onChange={(event) => setRenameTitle(event.target.value)}
@@ -488,14 +485,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                               maxLength={80}
                               autoComplete="off"
                               autoFocus
-                              style={{
-                                fontSize: "var(--text-body)",
-                                lineHeight: "var(--text-body--line-height)",
-                              }}
-                              className={cn(
-                                "h-full rounded-md border-0 bg-transparent px-2.5 py-2 text-sidebar-accent-foreground focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent",
-                                active && "font-medium",
-                              )}
+                              className="flex-1"
                             />
                           </form>
                         ) : (
@@ -507,7 +497,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                               type="button"
                               onClick={() => openThread(thread.threadId)}
                               className={cn(
-                                "h-full w-full min-w-0 truncate px-2.5 py-2 text-left text-body outline-none transition-colors duration-150 ease-[var(--ease-out)] group-hover/thread:pr-16 group-hover/thread:text-sidebar-accent-foreground group-focus-within/thread:pr-16 focus-visible:text-sidebar-accent-foreground",
+                                "h-full w-full min-w-0 truncate px-2.5 py-2 text-left text-body outline-none transition-colors duration-150 ease-out group-hover/thread:pr-16 group-hover/thread:text-sidebar-accent-foreground group-focus-within/thread:pr-16 focus-visible:text-sidebar-accent-foreground",
                                 thread.processing && "pr-8",
                                 active
                                   ? "font-medium text-sidebar-accent-foreground"
@@ -518,17 +508,18 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                             </button>
                             {thread.processing ? (
                               <Spinner
+                                variant="thread"
                                 aria-label="Vanda está trabalhando nesta conversa"
-                                className="absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-brand-accent transition-opacity duration-100 group-hover/thread:opacity-0 group-focus-within/thread:opacity-0 motion-reduce:transition-none"
+                                className="absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-brand-accent"
                               />
                             ) : null}
-                            <div className="pointer-events-none absolute inset-y-0 right-1 flex items-center gap-0.5 opacity-0 transition-opacity duration-150 ease-[var(--ease-out)] group-hover/thread:pointer-events-auto group-hover/thread:opacity-100 group-focus-within/thread:pointer-events-auto group-focus-within/thread:opacity-100 motion-reduce:transition-none">
+                            <div className="pointer-events-none absolute inset-y-0 right-1 flex items-center gap-0.5 opacity-0 transition-opacity duration-150 ease-out group-hover/thread:pointer-events-auto group-hover/thread:opacity-100 group-focus-within/thread:pointer-events-auto group-focus-within/thread:opacity-100 motion-reduce:transition-none">
                               <ActionTooltip label="Renomear" side="bottom">
                                 <button
                                   type="button"
                                   aria-label="Renomear conversa"
                                   onClick={() => rename(thread)}
-                                  className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-[color,transform] duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-[0.94] motion-reduce:transform-none"
+                                  className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-all duration-150 ease-out hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-95 motion-reduce:transform-none"
                                 >
                                   <Pencil className="size-3.5" />
                                 </button>
@@ -538,7 +529,7 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                                   type="button"
                                   aria-label="Arquivar conversa"
                                   onClick={() => archive(thread)}
-                                  className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-[color,transform] duration-150 ease-[var(--ease-out)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-[0.94] motion-reduce:transform-none"
+                                  className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-all duration-150 ease-out hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-95 motion-reduce:transform-none"
                                 >
                                   <Archive className="size-3.5" />
                                 </button>
@@ -622,14 +613,14 @@ function CaetanoNav() {
     <SidebarMenu className="px-1 pt-1 pb-2">
       <SidebarMenuItem>
         <SidebarMenuButton
-          size="lg"
+          size="navigation"
           isActive={active}
           tooltip="Caetano"
           onClick={() => {
             setOpenMobile(false);
             void navigate({ to: "/caetano" });
           }}
-          className="h-10 gap-2.5 px-3 text-body font-semibold"
+          className="h-10"
         >
           <span
             className="flex size-5 items-center justify-center overflow-hidden rounded-full bg-brand-accent/12"
@@ -654,12 +645,7 @@ export function AppSidebar() {
   const { galleryActive, toChat, toGallery } = useModeNav();
 
   return (
-    <Sidebar
-      collapsible="offcanvas"
-      resizable
-      resizeLabel="Redimensionar barra lateral"
-      className="border-sidebar-border transition-[left,right] duration-200 ease-[var(--ease-out)]"
-    >
+    <Sidebar collapsible="offcanvas" resizable resizeLabel="Redimensionar barra lateral">
       <SidebarHeader className="gap-2 px-2 pt-2.5 pb-1.5">
         <div className="relative flex h-9 items-center justify-center overflow-hidden px-0.5">
           <span className="absolute inset-y-0 left-0 flex items-center">
@@ -668,13 +654,13 @@ export function AppSidebar() {
               side="bottom"
             >
               <Button
-                variant="ghost"
+                variant="sidebar"
                 size="icon-sm"
                 aria-label={
                   state === "collapsed" ? "Expandir barra lateral" : "Recolher barra lateral"
                 }
                 onClick={toggleSidebar}
-                className="shrink-0 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                className="shrink-0"
               >
                 {state === "collapsed" ? <PanelLeftOpen /> : <PanelLeftClose />}
               </Button>
@@ -689,11 +675,11 @@ export function AppSidebar() {
           <span className="absolute inset-y-0 right-0 flex items-center group-data-[collapsible=icon]:hidden">
             <ActionTooltip label={galleryActive ? "Conversas" : "Galeria"} side="bottom">
               <Button
-                variant="ghost"
+                variant="sidebar"
                 size="icon-sm"
                 onClick={galleryActive ? toChat : toGallery}
                 aria-label={galleryActive ? "Ir para conversas" : "Ir para a galeria"}
-                className="shrink-0 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                className="shrink-0"
               >
                 {galleryActive ? <MessageSquareText /> : <Images />}
               </Button>

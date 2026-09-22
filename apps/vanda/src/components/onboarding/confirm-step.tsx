@@ -21,7 +21,7 @@ import type { BrandKindValue, CorpusStats, EditableAnalysis, GroupKey } from "./
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="mt-5 border-t border-border pt-5">
-      <span className="text-[13px] font-medium text-text-2">{label}</span>
+      <span className="text-body font-medium text-text-2">{label}</span>
       <div className="mt-2">{children}</div>
     </div>
   );
@@ -54,7 +54,7 @@ function ChipEditor({
       {items.map((item) => (
         <span
           key={item}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-inset px-2.5 py-1 text-[13px] text-text-2"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-inset px-2.5 py-1 text-body text-text-2"
         >
           {item}
           <ActionTooltip label={`Remover ${item}`} side="top">
@@ -86,13 +86,13 @@ function ChipEditor({
               setAdding(false);
             }
           }}
-          className="h-[28px] w-28 rounded-md border border-border-strong bg-transparent px-2 text-[13px] text-text-2 transition-colors outline-none placeholder:text-text-5 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40"
+          className="h-7 w-28 rounded-md border border-border-strong bg-transparent px-2 text-body text-text-2 transition-colors outline-none placeholder:text-text-5 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40"
         />
       ) : (
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="inline-flex items-center gap-1 rounded-md border border-dashed border-border-strong px-2.5 py-1 text-[13px] text-text-4 transition-colors hover:text-text-2 focus-visible:text-text-2 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+          className="inline-flex items-center gap-1 rounded-md border border-dashed border-border-strong px-2.5 py-1 text-body text-text-4 transition-colors hover:text-text-2 focus-visible:text-text-2 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
         >
           <Plus className="size-3" /> adicionar
         </button>
@@ -121,7 +121,7 @@ function KindOption({
   return (
     <label
       className={cn(
-        "cursor-pointer rounded-xl border px-3.5 py-2.5 transition-colors duration-150 ease-[var(--ease-out)]",
+        "cursor-pointer rounded-xl border px-3.5 py-2.5 transition-colors duration-150 ease-out",
         "border-border bg-surface hover:border-border-strong",
         "has-[:checked]:border-brand-accent has-[:checked]:bg-brand-accent/10",
         "has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/40",
@@ -135,8 +135,8 @@ function KindOption({
         onChange={onSelect}
         className="sr-only"
       />
-      <span className="block text-[13.5px] font-medium text-text">{label}</span>
-      <span className="mt-0.5 block text-[12.5px] text-text-4">{desc}</span>
+      <span className="block text-card-title font-medium text-text">{label}</span>
+      <span className="mt-0.5 block text-body-sm text-text-4">{desc}</span>
     </label>
   );
 }
@@ -183,8 +183,8 @@ function ReferencePhotos({ accountId }: { accountId: Id<"accounts"> }) {
 
   return (
     <div className="mt-3 rounded-xl border border-border bg-inset p-4">
-      <p className="text-[13px] text-text-2">Envie algumas fotos suas</p>
-      <p className="mt-0.5 text-[12.5px] leading-[1.5] text-text-4">
+      <p className="text-body text-text-2">Envie algumas fotos suas</p>
+      <p className="mt-0.5 text-body-sm leading-normal text-text-4">
         A Vanda usa pra criar posts com você — adicionar depois também funciona.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
@@ -218,7 +218,7 @@ function ReferencePhotos({ accountId }: { accountId: Id<"accounts"> }) {
           </button>
         </ActionTooltip>
       </div>
-      {error ? <p className="mt-2 text-[12.5px] text-amber">{error}</p> : null}
+      {error ? <p className="mt-2 text-body-sm text-amber">{error}</p> : null}
       <input
         ref={inputRef}
         type="file"
@@ -264,38 +264,36 @@ export function ConfirmStep({
 
   return (
     <div className="flex min-h-svh flex-col bg-app text-text antialiased">
-      <header className="mx-auto flex w-full max-w-[680px] items-center justify-between gap-4 px-6 pt-9">
+      <header className="mx-auto flex w-full max-w-170 items-center justify-between gap-4 px-6 pt-9">
         <OnboardingHeader />
         <StepIndicator current="confirmar" />
       </header>
 
-      <div className="mx-auto w-full max-w-[680px] flex-1 overflow-y-auto px-6 pt-10 pb-12">
-        <h1 className="text-[26px] font-semibold tracking-[-0.025em]">
-          Confirme o que a Vanda entendeu.
-        </h1>
-        <p className="mt-2 text-[14px] leading-[1.55] text-text-3">
+      <div className="mx-auto w-full max-w-170 flex-1 overflow-y-auto px-6 pt-10 pb-12">
+        <h1 className="text-2xl font-semibold tracking-tight">Confirme o que a Vanda entendeu.</h1>
+        <p className="mt-2 text-sm leading-relaxed text-text-3">
           A Vanda leu {stats.posts} posts e {stats.comments} comentários. Ajuste o que precisar — o
           resto você refine depois no Perfil.
         </p>
 
         {/* Resumo — the hero, as an obvious input */}
         <div className="mt-7 border-t border-border pt-5">
-          <span className="text-[13px] font-medium text-text-2">Resumo</span>
+          <span className="text-body font-medium text-text-2">Resumo</span>
           <textarea
             value={draft.summary.text}
             rows={5}
             aria-label="Resumo"
             onChange={(event) => setText("summary", event.target.value)}
-            className="mt-2 w-full resize-y rounded-lg border border-border bg-inset px-3.5 py-3 text-[17px] leading-[1.6] text-text-2 outline-none transition-colors duration-150 ease-[var(--ease-out)] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+            className="mt-2 w-full resize-y rounded-lg border border-border bg-inset px-3.5 py-3 text-base leading-relaxed text-text-2 outline-none transition-colors duration-150 ease-out focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
           />
         </div>
 
         <Field label="Identidade">
           <Input
+            variant="inset"
             aria-label="Identidade"
             value={draft.identity.text}
             onChange={(event) => setText("identity", event.target.value)}
-            className="h-10 border-border bg-inset px-3.5 text-[15px] text-text-2 md:text-[15px] dark:bg-inset focus-visible:ring-ring/30"
           />
         </Field>
 
@@ -308,7 +306,7 @@ export function ConfirmStep({
         </Field>
 
         <div className="mt-5 border-t border-border pt-5">
-          <span className="text-[13px] font-medium text-text-2">Tipo de marca</span>
+          <span className="text-body font-medium text-text-2">Tipo de marca</span>
           <div
             className="mt-2 grid grid-cols-2 gap-2.5"
             role="radiogroup"
@@ -360,12 +358,12 @@ export function ConfirmStep({
       </div>
 
       <div className="shrink-0 border-t border-border bg-app">
-        <div className="mx-auto flex w-full max-w-[680px] items-center gap-4 px-6 py-4">
+        <div className="mx-auto flex w-full max-w-170 items-center gap-4 px-6 py-4">
           <Button variant="brand" size="lg" onClick={() => onContinue(draft)}>
             Continuar
             <ArrowRight />
           </Button>
-          <span className="text-[13px] text-text-4">Ajuste o resto depois, no Perfil.</span>
+          <span className="text-body text-text-4">Ajuste o resto depois, no Perfil.</span>
         </div>
       </div>
     </div>

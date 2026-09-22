@@ -92,7 +92,7 @@ export function ImageLightbox({
               // padding): the browser then derives the width from the aspect
               // ratio, so the element box hugs the visible pixels and the
               // panel docks flush against the real edge — no letterbox gap.
-              className="max-h-[50svh] max-w-full rounded-xl object-contain shadow-lg md:max-h-[calc(100svh-3rem)] lg:max-h-[calc(100svh-5rem)]"
+              className="max-h-(--spacing-lightbox-mobile) max-w-full rounded-xl object-contain shadow-lg md:max-h-(--spacing-lightbox-tablet) lg:max-h-(--spacing-lightbox-desktop)"
             />
           ) : (
             <Spinner className="size-6 text-white/70" />
@@ -254,7 +254,7 @@ function NameInput({ name, onRename }: { name: string | null; onRename: (name: s
       placeholder="Sem nome"
       aria-label="Nome da imagem"
       maxLength={120}
-      className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 py-0.5 text-card-title font-semibold text-text outline-none transition-colors duration-150 ease-[var(--ease-out)] hover:border-border focus-visible:border-border"
+      className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 py-0.5 text-card-title font-semibold text-text outline-none transition-colors duration-150 ease-out hover:border-border focus-visible:border-border"
     />
   );
 }
@@ -305,7 +305,7 @@ function PanelAction({
         aria-label={label}
         onClick={onClick}
         className={cn(
-          "flex size-8 items-center justify-center rounded-lg text-text-4 outline-none transition-[background-color,color,transform] duration-150 ease-[var(--ease-out)] hover:bg-muted hover:text-text focus-visible:ring-2 focus-visible:ring-ring active:scale-95 motion-reduce:transform-none [&_svg]:size-4",
+          "flex size-8 items-center justify-center rounded-lg text-text-4 outline-none transition-all duration-150 ease-out hover:bg-muted hover:text-text focus-visible:ring-2 focus-visible:ring-ring active:scale-95 motion-reduce:transform-none [&_svg]:size-4",
           className,
         )}
       >

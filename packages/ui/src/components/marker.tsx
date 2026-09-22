@@ -50,12 +50,26 @@ function MarkerIcon({ className, ...props }: React.ComponentProps<"span">) {
   );
 }
 
-function MarkerContent({ className, ...props }: React.ComponentProps<"span">) {
+function MarkerContent({
+  className,
+  tone = "default",
+  loading = false,
+  inline = false,
+  ...props
+}: React.ComponentProps<"span"> & {
+  tone?: "default" | "muted" | "destructive";
+  loading?: boolean;
+  inline?: boolean;
+}) {
   return (
     <span
       data-slot="marker-content"
       className={cn(
         "min-w-0 wrap-break-word group-data-[variant=separator]/marker:flex-none group-data-[variant=separator]/marker:text-center *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
+        tone === "muted" && "text-text-4",
+        tone === "destructive" && "text-destructive",
+        loading && "shimmer",
+        inline && "inline-flex items-center gap-1",
         className,
       )}
       {...props}

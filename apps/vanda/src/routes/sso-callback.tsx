@@ -11,7 +11,7 @@ function SsoCallback() {
     <main className="grid min-h-svh place-items-center bg-app">
       <div className="flex flex-col items-center gap-4">
         <Spinner className="size-5 text-text-3" />
-        <p className="text-[13px] text-text-3">Entrando…</p>
+        <p className="text-body text-text-3">Entrando…</p>
       </div>
       <AuthenticateWithRedirectCallback signInForceRedirectUrl="/" signUpForceRedirectUrl="/" />
     </main>

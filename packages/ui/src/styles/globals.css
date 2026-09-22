@@ -194,6 +194,11 @@
   --color-brand: var(--brand);
   --color-brand-accent: var(--brand-accent);
   --color-brand-soft: var(--brand-soft);
+  /* Fixed brand artwork colors, independent of the interface theme. */
+  --color-orchid-highlight: #f6b6d2;
+  --color-orchid-core: #150b16;
+  --color-orchid-petal: #f48bb5;
+  --color-orchid-center: #fbeff6;
   --color-green: var(--green);
   --color-amber: var(--amber);
   --color-peri: var(--peri);
@@ -207,6 +212,18 @@
   --radius-md: 9px;
   --radius-lg: 12px;
   --radius-xl: 16px;
+
+  /* Media overlays leave room for their controls on every viewport. */
+  --spacing-lightbox-mobile: 50svh;
+  --spacing-lightbox-panel: 40vh;
+  --spacing-lightbox-tablet: calc(100svh - 3rem);
+  --spacing-lightbox-desktop: calc(100svh - 5rem);
+  --spacing-post-preview: min(24rem, 90vw);
+  --spacing-empty-state: 50vh;
+  --spacing-settings-sidebar-height: calc(100svh - 3rem);
+
+  /* Retain Vanda's easing when using the standard Tailwind utility. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 
   /* Type */
   --text-tiny: 0.5625rem;
@@ -234,6 +251,25 @@
   --font-weight-medium: 510;
   --font-weight-semibold: 590;
   --font-weight-bold: 680;
+}
+
+/* Scroll containment is behavior, shared by the message viewport and its items. */
+@utility scrollbar-stable {
+  scrollbar-gutter: stable both-edges;
+}
+
+@utility content-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 10rem;
+}
+
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @utility gap-automatico-board {

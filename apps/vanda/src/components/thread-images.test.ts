@@ -84,6 +84,7 @@ afterEach(async () => {
 
 describe("thread image presentation", () => {
   it("uses the same card for generated and presented images", async () => {
+    mocks.query.mockReturnValue({ ...image, width: 800, height: 1000 });
     await render();
     const presented = container.innerHTML;
     expect(container.querySelector("a")).toBeNull();
@@ -91,15 +92,15 @@ describe("thread image presentation", () => {
     expect(button("Baixar", container)).toBeDefined();
     expect(button("Excluir", container)).toBeDefined();
     expect(container.textContent).toContain("GPT Image 2");
-    expect(container.querySelector("img")?.parentElement?.parentElement?.style.aspectRatio).toBe(
-      "1 / 1",
-    );
+    const frame = container.querySelector("img")?.parentElement?.parentElement;
+    expect(frame?.style.getPropertyValue("--media-tile-aspect")).toBe("0.8");
+    expect(frame?.classList.contains("aspect-(--media-tile-aspect)")).toBe(true);
     await act(async () =>
       root.render(
         withRuntime(
           createElement(ThreadImage, {
             accountId: resource.accountId,
-            image: { imageId: resource.imageId, width: 1024, height: 1024 },
+            image: { imageId: resource.imageId, width: 800, height: 1000 },
             onOpen: vi.fn(),
           }),
         ),

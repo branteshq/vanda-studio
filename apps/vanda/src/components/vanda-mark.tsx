@@ -47,7 +47,7 @@ export function VandaMark({
           <path key={deg} d={PETAL} transform={`translate(50,50) rotate(${deg})`} />
         ))}
       </g>
-      {monochrome ? null : <circle cx="50" cy="50" r="6" fill="#FBEFF6" />}
+      {monochrome ? null : <circle cx="50" cy="50" r="6" fill="var(--color-orchid-center)" />}
     </svg>
   );
 }

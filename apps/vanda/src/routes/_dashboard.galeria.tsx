@@ -4,6 +4,7 @@ import { usePaginatedQuery, useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type * as React from "react";
+import type { CSSProperties } from "react";
 import { z } from "zod";
 import {
   ArrowDownWideNarrow,
@@ -320,33 +321,15 @@ function SelectionBar({
         <span className="text-body font-medium text-text tabular-nums">
           {count} {count === 1 ? "selecionada" : "selecionadas"}
         </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onSelectAll}
-          disabled={allSelected}
-          className="rounded-full"
-        >
+        <Button variant="ghost" size="sm" onClick={onSelectAll} disabled={allSelected}>
           Selecionar todas
         </Button>
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={onDelete}
-          disabled={deleting}
-          className="rounded-full"
-        >
+        <Button variant="destructive" size="sm" onClick={onDelete} disabled={deleting}>
           {deleting ? <Spinner className="size-3.5" /> : <Trash2 className="size-3.5" />}
           Excluir
         </Button>
         <ActionTooltip label="Limpar seleção" side="top">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Limpar seleção"
-            onClick={onClear}
-            className="rounded-full text-text-4 hover:text-text"
-          >
+          <Button variant="subtle" size="icon-sm" aria-label="Limpar seleção" onClick={onClear}>
             <X />
           </Button>
         </ActionTooltip>
@@ -385,11 +368,11 @@ function GalleryHeader({
       {state === "collapsed" && (
         <ActionTooltip label="Abrir barra lateral" side="bottom">
           <Button
-            variant="ghost"
+            variant="subtle"
             size="icon-sm"
             aria-label="Abrir barra lateral"
             onClick={() => setOpen(true)}
-            className="hidden shrink-0 text-text-4 hover:text-text md:inline-flex"
+            className="hidden shrink-0 md:inline-flex"
           >
             <PanelLeftOpen />
           </Button>
@@ -403,7 +386,7 @@ function GalleryHeader({
           onChange={(event) => onQuery(event.target.value)}
           placeholder="Buscar imagens…"
           aria-label="Buscar na galeria"
-          className="h-9 w-full rounded-md border border-transparent bg-transparent pr-2 pl-8 text-body text-text outline-none transition-colors duration-150 ease-[var(--ease-out)] placeholder:text-text-4 hover:bg-muted focus:border-border-strong focus:bg-muted"
+          className="h-9 w-full rounded-md border border-transparent bg-transparent pr-2 pl-8 text-body text-text outline-none transition-colors duration-150 ease-out placeholder:text-text-4 hover:bg-muted focus:border-border-strong focus:bg-muted"
         />
       </div>
       <div className="ml-auto flex items-center gap-1">
@@ -452,11 +435,11 @@ function RailOpenButton() {
   return (
     <ActionTooltip label="Abrir posts" side="bottom">
       <Button
-        variant="ghost"
+        variant="subtle"
         size="icon-sm"
         aria-label="Abrir posts"
         onClick={() => rail.setOpen(true)}
-        className="hidden shrink-0 text-text-4 hover:text-text md:inline-flex"
+        className="hidden shrink-0 md:inline-flex"
       >
         <CalendarDays />
       </Button>
@@ -528,12 +511,11 @@ function UploadButton({ accountId }: { accountId: Id<"accounts"> }) {
       />
       <ActionTooltip label="Enviar imagens" side="bottom">
         <Button
-          variant="ghost"
+          variant="subtle"
           size="icon-sm"
           aria-label="Enviar imagens"
           disabled={busy}
           onClick={() => inputRef.current?.click()}
-          className="text-text-4 hover:text-text"
         >
           {busy ? <Spinner className="size-4" /> : <ImagePlus className="size-4" />}
         </Button>
@@ -550,10 +532,13 @@ function GeneratingCard({ item }: { item: GalleryItem }) {
 
   return (
     <div
-      style={{ aspectRatio: ratio }}
+      style={
+        // SAFETY: React forwards CSS variables; aspect-ratio accepts a unitless number.
+        { "--media-aspect": ratio } as CSSProperties
+      }
       role="status"
       aria-label="Gerando imagem"
-      className="relative w-full overflow-hidden rounded-xl border border-border"
+      className="relative aspect-(--media-aspect) w-full overflow-hidden rounded-xl border border-border"
     >
       <Skeleton className="absolute inset-0 rounded-none" />
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
@@ -598,8 +583,11 @@ function FailedCard({
 
   return (
     <div
-      style={{ aspectRatio: ratio }}
-      className="relative flex w-full flex-col items-center justify-center gap-1.5 overflow-hidden rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-center"
+      style={
+        // SAFETY: React forwards CSS variables; aspect-ratio accepts a unitless number.
+        { "--media-aspect": ratio } as CSSProperties
+      }
+      className="relative flex aspect-(--media-aspect) w-full flex-col items-center justify-center gap-1.5 overflow-hidden rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-center"
     >
       <GalleryFailureMessage code={code} />
       {item.model && <p className="text-note text-text-4">{imageModelLabel(item.model)}</p>}
@@ -608,7 +596,7 @@ function FailedCard({
           type="button"
           aria-label="Descartar geração falha"
           onClick={() => void remove({ accountId, imageId: galleryImageId(item.id) })}
-          className="absolute top-2 right-2 flex size-7 items-center justify-center rounded-lg text-text-4 outline-none transition-colors duration-150 ease-[var(--ease-out)] hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-destructive/50"
+          className="absolute top-2 right-2 flex size-7 items-center justify-center rounded-lg text-text-4 outline-none transition-colors duration-150 ease-out hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-destructive/50"
         >
           <X className="size-3.5" />
         </button>
@@ -853,8 +841,11 @@ function MasonrySkeleton() {
       {Array.from({ length: 20 }, (_, i) => (
         <Skeleton
           key={i}
-          className="w-full rounded-xl"
-          style={{ height: heights[i % heights.length] }}
+          className="h-(--skeleton-height) w-full rounded-xl"
+          style={
+            // SAFETY: React forwards CSS variables; the height includes its pixel unit.
+            { "--skeleton-height": `${heights[i % heights.length]}px` } as CSSProperties
+          }
         />
       ))}
     </div>

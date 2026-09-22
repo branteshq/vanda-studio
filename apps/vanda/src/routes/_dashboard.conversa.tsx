@@ -86,7 +86,7 @@ const toolLabelOf = (name: string): string =>
 
 /** A 20px-preset orb scaled into the 16px marker-icon slot. */
 function MarkerOrb({ state }: { state: OrbState }) {
-  return <ThinkingOrb state={state} size={20} style={{ width: 16, height: 16 }} />;
+  return <ThinkingOrb state={state} size={20} className="!size-4" />;
 }
 
 /** The shared thinking state: a breathing orb where the answer will appear. */
@@ -96,7 +96,7 @@ function ThinkingMarker() {
       <MarkerIcon>
         <MarkerOrb state="breathing" />
       </MarkerIcon>
-      <MarkerContent className="shimmer">Pensando…</MarkerContent>
+      <MarkerContent loading>Pensando…</MarkerContent>
     </Marker>
   );
 }
@@ -432,9 +432,9 @@ function NewConversationHero() {
         size={500}
         from="currentColor"
         to="currentColor"
-        className="pointer-events-none absolute h-auto w-[min(30rem,76vw)] text-brand-accent opacity-[0.035]"
+        className="pointer-events-none absolute h-auto w-3/4 max-w-120 text-brand-accent opacity-5"
       />
-      <h1 className="relative max-w-2xl text-2xl leading-tight font-medium tracking-tight text-text md:text-[28px]">
+      <h1 className="relative max-w-2xl text-2xl leading-tight font-medium tracking-tight text-text md:text-3xl">
         {firstName ? `No que a Vanda pode ajudar, ${firstName}?` : "No que a Vanda pode ajudar?"}
       </h1>
     </section>
@@ -626,7 +626,7 @@ function ChatMessage({
     if (!text && attachments.length === 0) return null;
 
     return (
-      <Message align="end" className={cn(enter && "animate-message-in")}>
+      <Message align="end" enter={enter}>
         <MessageContent>
           <MessageImageAttachments attachments={attachments} />
           {text ? (
@@ -703,7 +703,7 @@ function ChatMessage({
   );
 
   return (
-    <Message align="start" className={cn(enter && "animate-message-in")}>
+    <Message align="start" enter={enter}>
       <MessageContent>
         {toolRows.length > 0 ? <ToolTrace parts={toolRows} running={anyToolRunning} /> : null}
         {answers.map(({ key, text }) => (
@@ -767,7 +767,7 @@ function ToolTrace({ parts, running }: { parts: ToolPartView[]; running: boolean
           aria-expanded={open}
           className="cursor-pointer transition-colors hover:text-text-3"
         >
-          <MarkerContent className={cn("inline-flex items-center gap-1", running && "shimmer")}>
+          <MarkerContent inline loading={running}>
             {label}
             <ChevronDown
               className={cn("size-3.5 transition-transform duration-200", open && "rotate-180")}
@@ -808,9 +808,7 @@ function ToolRow({ part }: { part: ToolPartView }) {
           <Check className="text-text-5" />
         )}
       </MarkerIcon>
-      <MarkerContent
-        className={cn("text-text-4", running && "shimmer", failed && "text-destructive")}
-      >
+      <MarkerContent tone={failed ? "destructive" : "muted"} loading={running}>
         {label}
         {toolPathOf(part) ? <span className="font-mono"> {toolPathOf(part)}</span> : null}
         {failed ? " — Não foi possível concluir esta etapa." : null}
@@ -844,9 +842,7 @@ function CodeRunRow({ part }: { part: ToolPartView }) {
             <Check className="text-text-5" />
           )}
         </MarkerIcon>
-        <MarkerContent
-          className={cn("text-text-4", running && "shimmer", errored && "text-destructive")}
-        >
+        <MarkerContent tone={errored ? "destructive" : "muted"} loading={running}>
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}

@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useState,
+  type CSSProperties,
   type ComponentType,
   type ReactNode,
 } from "react";
@@ -298,12 +299,11 @@ function ProfilePageContent() {
 
   return (
     <div className="min-h-svh bg-app text-text">
-      <header className="sticky top-0 z-20 grid h-12 grid-cols-[auto_minmax(0,1fr)_auto] items-center border-b border-border bg-surface md:grid-cols-[224px_minmax(0,1fr)]">
-        <div className="px-2 md:px-4">
+      <header className="sticky top-0 z-20 flex h-12 items-center border-b border-border bg-surface">
+        <div className="px-2 md:w-56 md:shrink-0 md:px-4">
           <Button
-            variant="ghost"
+            variant="subtle"
             size="sm"
-            className="text-text-3"
             aria-label="Voltar à Vanda"
             onClick={() => void navigate({ to: "/conversa", search: {} })}
           >
@@ -314,7 +314,7 @@ function ProfilePageContent() {
         <div
           aria-label="Escopo das configurações"
           role="group"
-          className="flex h-full min-w-0 items-stretch gap-1 overflow-x-auto px-2 md:px-6"
+          className="flex h-full min-w-0 flex-1 items-stretch gap-1 overflow-x-auto px-2 md:px-6"
         >
           {[
             { id: null, label: personalLabel },
@@ -335,9 +335,9 @@ function ProfilePageContent() {
               )}
             >
               {id === null ? (
-                <Avatar className="size-5">
+                <Avatar size="xs">
                   <AvatarImage src={user?.imageUrl} alt="" />
-                  <AvatarFallback className="text-[9px]">{getInitials(name)}</AvatarFallback>
+                  <AvatarFallback>{getInitials(name)}</AvatarFallback>
                 </Avatar>
               ) : (
                 <Building2 className="size-4" />
@@ -348,17 +348,17 @@ function ProfilePageContent() {
           {accounts === undefined ? <Skeleton className="my-auto h-5 w-28 shrink-0" /> : null}
         </div>
         <Button
-          variant="ghost"
+          variant="subtle"
           size="icon-sm"
-          className="justify-self-end text-text-3 md:hidden"
+          className="md:hidden"
           aria-label="Sair da conta"
           onClick={() => void handleSignOut()}
         >
           <LogOut />
         </Button>
       </header>
-      <div className="md:grid md:grid-cols-[224px_minmax(0,1fr)]">
-        <aside className="border-b border-border bg-sidebar md:sticky md:top-12 md:flex md:h-[calc(100svh-3rem)] md:flex-col md:overflow-y-auto md:border-r md:border-b-0">
+      <div className="md:flex">
+        <aside className="border-b border-border bg-sidebar md:sticky md:top-12 md:flex md:h-(--spacing-settings-sidebar-height) md:w-56 md:shrink-0 md:flex-col md:overflow-y-auto md:border-r md:border-b-0">
           <nav
             aria-label="Perfil e configurações"
             className="flex gap-1 overflow-x-auto p-3 md:flex-col"
@@ -385,9 +385,9 @@ function ProfilePageContent() {
           </nav>
           <div className="mt-auto hidden p-4 md:block">
             <Button
-              variant="ghost"
+              variant="subtle"
               size="sm"
-              className="w-full justify-start text-text-3"
+              className="w-full justify-start"
               onClick={() => void handleSignOut()}
             >
               <LogOut />
@@ -395,7 +395,7 @@ function ProfilePageContent() {
             </Button>
           </div>
         </aside>
-        <main className="min-w-0 p-4 sm:p-6 lg:p-8">
+        <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
           {tab === "inicio" ? (
             <div className="space-y-6">
               <h1 className="sr-only">Conta</h1>
@@ -407,16 +407,16 @@ function ProfilePageContent() {
                   </Button>
                 </div>
                 <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:gap-6 sm:p-6">
-                  <Avatar className="size-16 shrink-0">
+                  <Avatar size="xl">
                     <AvatarImage src={user?.imageUrl} alt={name} />
-                    <AvatarFallback className="text-lg">{getInitials(name) || "MC"}</AvatarFallback>
+                    <AvatarFallback>{getInitials(name) || "MC"}</AvatarFallback>
                   </Avatar>
-                  <dl className="grid min-w-0 flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:gap-10">
+                  <dl className="grid min-w-0 flex-1 gap-5 lg:grid-cols-3 lg:gap-10">
                     <div>
                       <dt className="text-xs font-medium text-text-3">Nome</dt>
                       <dd className="mt-1.5 break-words text-body">{name}</dd>
                     </div>
-                    <div>
+                    <div className="lg:col-span-2">
                       <dt className="text-xs font-medium text-text-3">E-mail</dt>
                       <dd className="mt-1.5 break-all text-body">{email ?? "Não informado"}</dd>
                     </div>
@@ -486,8 +486,8 @@ function ProfilePageContent() {
           ) : null}
           {businessSection && viewed && tab !== "instagram" ? (
             <Button
-              variant="ghost"
-              className="mt-6 text-text-3"
+              variant="subtle"
+              className="mt-6"
               onClick={() => {
                 if (viewed) selectAccount(viewed.id);
                 void navigate({ to: "/conversa", search: {} });
@@ -558,10 +558,13 @@ function UsageCard({ action }: { action?: ReactNode }) {
             >
               <div
                 className={cn(
-                  "h-full rounded-full transition-[width] duration-300 ease-[var(--ease-out)]",
+                  "h-full w-(--progress) rounded-full transition-all duration-300 ease-out",
                   summary?.limited ? "bg-destructive" : "bg-brand-accent",
                 )}
-                style={{ width: `${pct}%` }}
+                style={
+                  // SAFETY: React forwards CSS variables; the progress value includes its percentage unit.
+                  { "--progress": `${pct}%` } as CSSProperties
+                }
               />
             </div>
             <p className="mt-3 text-body-sm leading-relaxed text-text-3">
@@ -800,7 +803,7 @@ function AccountTab() {
             aria-pressed={interval === key}
             onClick={() => setInterval(key)}
             className={cn(
-              "rounded-md px-3.5 py-1.5 text-body-sm font-medium transition-colors duration-150 ease-[var(--ease-out)]",
+              "rounded-md px-3.5 py-1.5 text-body-sm font-medium transition-colors duration-150 ease-out",
               interval === key ? "bg-muted text-text" : "text-text-3 hover:text-text",
             )}
           >
@@ -1257,9 +1260,7 @@ function OpenAiConnectCard() {
             </a>{" "}
             e digite o código:
           </p>
-          <p className="mt-2 font-mono text-2xl font-semibold tracking-[0.3em]">
-            {device.userCode}
-          </p>
+          <p className="mt-2 font-mono text-2xl font-semibold tracking-widest">{device.userCode}</p>
           <p className="mt-2 flex items-center justify-center gap-2 text-xs text-text-4">
             <Spinner className="size-3" /> aguardando aprovação…
           </p>
@@ -1299,7 +1300,7 @@ function PlanCard({
     >
       <div className="mb-3 min-h-6">
         {badge ? (
-          <span className="inline-block rounded-md bg-brand-accent/10 px-2 py-1 text-[10px] font-medium text-brand-soft">
+          <span className="inline-block rounded-md bg-brand-accent/10 px-2 py-1 text-micro font-medium text-brand-soft">
             {badge}
           </span>
         ) : null}
@@ -1361,7 +1362,7 @@ function SkillsTab({ accountId }: { accountId: Id<"accounts"> }) {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="font-mono text-body font-semibold">{skill.name}</h3>
-                  <span className="rounded-full bg-brand-accent/10 px-2 py-0.5 text-[11px] font-medium text-brand-accent">
+                  <span className="rounded-full bg-brand-accent/10 px-2 py-0.5 text-note font-medium text-brand-accent">
                     {skill.alwaysApply ? "Sempre ativa" : "Ativa"}
                   </span>
                 </div>
@@ -1451,8 +1452,11 @@ function BrandTab({ accountId }: { accountId: Id<"accounts"> }) {
           </div>
           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
             <div
-              className="h-full rounded-full bg-brand-accent transition-[width] duration-300 ease-[var(--ease-out)]"
-              style={{ width: `${readiness}%` }}
+              className="h-full w-(--progress) rounded-full bg-brand-accent transition-all duration-300 ease-out"
+              style={
+                // SAFETY: React forwards CSS variables; the progress value includes its percentage unit.
+                { "--progress": `${readiness}%` } as CSSProperties
+              }
             />
           </div>
           <p className="mt-2 text-xs text-text-4">
@@ -1507,13 +1511,16 @@ function BrandKitCard({ accountId }: { accountId: Id<"accounts"> }) {
                 <div key={color.hex} className="overflow-hidden rounded-lg border border-border">
                   <span
                     aria-hidden
-                    className="block h-24 w-full"
-                    style={{ backgroundColor: color.hex }}
+                    className="block h-24 w-full bg-(--swatch)"
+                    style={
+                      // SAFETY: React forwards CSS variables; this is the customer's color swatch, not UI chrome.
+                      { "--swatch": color.hex } as CSSProperties
+                    }
                   />
                   <div className="p-3">
                     <span className="font-mono text-xs text-text-2">{color.hex}</span>
                     {color.name || color.role ? (
-                      <span className="mt-1 block truncate text-[11px] text-text-3">
+                      <span className="mt-1 block truncate text-note text-text-3">
                         {color.name ?? color.role}
                       </span>
                     ) : null}
@@ -1532,13 +1539,18 @@ function BrandKitCard({ accountId }: { accountId: Id<"accounts"> }) {
                 >
                   <span
                     aria-hidden
-                    className="text-3xl leading-tight text-text"
-                    style={{ fontFamily: `"${font.family}", sans-serif` }}
+                    className="font-(family-name:--brand-font) text-3xl leading-tight text-text"
+                    style={
+                      // SAFETY: React forwards custom properties; CSSProperties omits their open-ended names.
+                      {
+                        "--brand-font": `"${font.family}", sans-serif`,
+                      } as CSSProperties
+                    }
                   >
                     Aa
                   </span>
                   <span className="mt-1 text-body-sm font-medium">{font.family}</span>
-                  {font.role ? <span className="text-[11px] text-text-4">{font.role}</span> : null}
+                  {font.role ? <span className="text-note text-text-4">{font.role}</span> : null}
                 </div>
               ))}
             </div>
@@ -1640,7 +1652,7 @@ function FolderTab({
               aria-pressed={active}
               onClick={() => setSelectedName(entry.name)}
               className={cn(
-                "flex w-full items-baseline gap-3 rounded-lg border px-3 py-2 text-left transition-colors duration-150 ease-[var(--ease-out)]",
+                "flex w-full items-baseline gap-3 rounded-lg border px-3 py-2 text-left transition-colors duration-150 ease-out",
                 active ? "border-border-strong bg-surface" : "border-transparent hover:bg-surface",
               )}
             >

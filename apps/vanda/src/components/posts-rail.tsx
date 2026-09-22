@@ -120,9 +120,8 @@ function PostsRail() {
       collapsible="offcanvas"
       resizable
       resizeLabel="Redimensionar painel de posts"
-      className="border-sidebar-border transition-[left,right] duration-200 ease-[var(--ease-out)]"
     >
-      <SidebarHeader className="flex-row items-center gap-2 border-b border-sidebar-border px-3 py-2.5">
+      <SidebarHeader divider className="flex-row items-center gap-2 px-3 py-2.5">
         {rail.view.kind !== "list" ? (
           <Button
             variant="ghost"
@@ -190,18 +189,14 @@ function PostList({ accountId }: { accountId: Id<"accounts"> }) {
         fullWidth
         selected={selectedDay}
         onSelect={setSelectedDay}
-        modifiers={{ hasPosts: postDays }}
-        modifiersClassNames={{
-          hasPosts:
-            "relative after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-brand-accent after:content-[''] data-[selected-single=true]:after:bg-primary-foreground",
-        }}
+        markedDays={postDays}
         className="shrink-0"
       />
       {posts.length === 0 ? (
         <div className="border-t border-sidebar-border px-4 py-8 text-center">
           <CalendarDays className="mx-auto size-5 text-text-5" />
           <p className="mt-2 text-body-sm text-text-3">Nenhum post ainda</p>
-          <p className="mt-1 text-[12px] leading-relaxed text-text-5">
+          <p className="mt-1 text-xs leading-relaxed text-text-5">
             Peça na conversa: "posta essa foto pra mim" — rascunhos, agendamentos e publicações
             aparecem aqui.
           </p>
@@ -218,8 +213,8 @@ function PostList({ accountId }: { accountId: Id<"accounts"> }) {
               return (
                 <SidebarMenuItem key={post.postId}>
                   <SidebarMenuButton
-                    size="lg"
-                    className="h-auto items-center gap-2.5 py-2"
+                    variant="primary-soft"
+                    size="post"
                     onClick={() => rail.openPost(post.postId)}
                   >
                     {post.thumbnailUrl !== null ? (
@@ -239,7 +234,7 @@ function PostList({ accountId }: { accountId: Id<"accounts"> }) {
                       </span>
                       <span className="mt-0.5 flex items-center gap-1.5">
                         <StatusPill tone={meta.tone}>{meta.label}</StatusPill>
-                        <span className="truncate text-[11px] text-text-5">
+                        <span className="truncate text-note text-text-5">
                           {post.scheduledFor !== null
                             ? formatWhen(post.scheduledFor)
                             : formatWhen(post.createdAt)}
@@ -265,7 +260,7 @@ function PostDetail({ accountId, postId }: { accountId: Id<"accounts">; postId: 
   if (post === undefined) {
     return (
       <div className="space-y-3 p-3">
-        <Skeleton className="aspect-[4/5] w-full rounded-lg" />
+        <Skeleton className="aspect-4/5 w-full rounded-lg" />
         <Skeleton className="h-16 w-full rounded-lg" />
       </div>
     );
@@ -283,14 +278,14 @@ function PostDetail({ accountId, postId }: { accountId: Id<"accounts">; postId: 
     <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
       <div className="flex items-center justify-between gap-2">
         <StatusPill tone={meta.tone}>{meta.label}</StatusPill>
-        <span className="text-[11px] text-text-5">
+        <span className="text-note text-text-5">
           {post.scheduledFor !== null ? formatWhen(post.scheduledFor) : formatWhen(post.createdAt)}
         </span>
       </div>
 
       {url !== undefined ? (
         <div className="relative overflow-hidden rounded-lg border border-border bg-inset">
-          <img src={url} alt="" className="aspect-[4/5] w-full object-cover" />
+          <img src={url} alt="" className="aspect-4/5 w-full object-cover" />
           {post.imageUrls.length > 1 ? (
             <>
               <Button
@@ -313,7 +308,7 @@ function PostDetail({ accountId, postId }: { accountId: Id<"accounts">; postId: 
               >
                 <ChevronRight />
               </Button>
-              <span className="absolute right-1.5 bottom-1.5 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] text-white">
+              <span className="absolute right-1.5 bottom-1.5 rounded-md bg-black/60 px-1.5 py-0.5 text-note text-white">
                 {current + 1}/{post.imageUrls.length}
               </span>
             </>

@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@vanda-studio/ui/lib/utils";
 
 const tag = cva(
-  "inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap",
+  "inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-note font-medium whitespace-nowrap",
   {
     variants: {
       // Periwinkle is the neutral-informative tone: signal categories, trends, links.

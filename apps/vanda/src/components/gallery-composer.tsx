@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
 import { Check, Sparkles } from "lucide-react";
@@ -197,8 +197,14 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
                 >
                   <span className="flex h-4 items-center justify-center">
                     <span
-                      style={{ width: dims.w, height: dims.h }}
-                      className="rounded-sm border border-current"
+                      // SAFETY: React accepts custom properties at runtime; CSSProperties omits their open-ended names.
+                      style={
+                        {
+                          "--preview-width": `${dims.w}px`,
+                          "--preview-height": `${dims.h}px`,
+                        } as CSSProperties
+                      }
+                      className="h-(--preview-height) w-(--preview-width) rounded-sm border border-current"
                     />
                   </span>
                   <span className="text-note font-medium">{value}</span>
@@ -260,8 +266,8 @@ export function GalleryComposer({ accountId }: { accountId: Id<"accounts"> }) {
         <Button
           onClick={() => void run()}
           disabled={!canGenerate}
-          variant="ghost"
-          className="h-11 w-full gap-2 border border-sidebar-primary-soft-border bg-sidebar-primary-soft font-semibold text-sidebar-foreground hover:bg-sidebar-primary-soft hover:brightness-110 active:bg-sidebar-primary-soft"
+          variant="sidebar-soft"
+          className="h-11 w-full"
         >
           {busy ? <Spinner className="size-4" /> : <Sparkles className="size-4" />}
           Gerar {total} {total === 1 ? "imagem" : "imagens"}

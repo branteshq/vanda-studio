@@ -15,14 +15,16 @@ function MessageGroup({ className, ...props }: React.ComponentProps<"div">) {
 function Message({
   className,
   align = "start",
+  enter = false,
   ...props
-}: React.ComponentProps<"div"> & { align?: "start" | "end" }) {
+}: React.ComponentProps<"div"> & { align?: "start" | "end"; enter?: boolean }) {
   return (
     <div
       data-slot="message"
       data-align={align}
       className={cn(
         "group/message relative flex w-full min-w-0 gap-2 text-sm data-[align=end]:flex-row-reverse",
+        enter && "animate-message-in",
         className,
       )}
       {...props}

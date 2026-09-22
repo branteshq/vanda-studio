@@ -116,7 +116,7 @@ function CalendarioPage() {
 
       <main className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
         {items !== undefined && items.length === 0 ? (
-          <div className="flex min-h-[50vh] flex-col items-center justify-center text-center">
+          <div className="flex min-h-(--spacing-empty-state) flex-col items-center justify-center text-center">
             <div className="flex size-14 items-center justify-center rounded-2xl border border-border bg-surface text-text-4 shadow-sm">
               <CalendarDays className="size-5" />
             </div>
@@ -131,7 +131,7 @@ function CalendarioPage() {
               {WEEKDAYS.map((weekday) => (
                 <div
                   key={weekday}
-                  className="bg-surface px-2 py-1.5 text-center font-mono text-[10px] tracking-wide text-text-5 uppercase"
+                  className="bg-surface px-2 py-1.5 text-center font-mono text-micro tracking-wide text-text-5 uppercase"
                 >
                   {weekday}
                 </div>
@@ -145,7 +145,7 @@ function CalendarioPage() {
                     <>
                       <span
                         className={cn(
-                          "inline-flex size-5 items-center justify-center rounded-full font-mono text-[11px] text-text-4",
+                          "inline-flex size-5 items-center justify-center rounded-full font-mono text-note text-text-4",
                           isToday(date) && "bg-brand-accent font-semibold text-primary-foreground",
                         )}
                       >
@@ -173,7 +173,7 @@ function CalendarioPage() {
                                 </span>
                               )}
                               <div className="min-w-0 flex-1">
-                                <p className="truncate text-[11px] leading-tight text-text-2">
+                                <p className="truncate text-note leading-tight text-text-2">
                                   {new Date(item.scheduledFor).toLocaleTimeString("pt-BR", {
                                     hour: "2-digit",
                                     minute: "2-digit",
