@@ -69,6 +69,8 @@ export const codexChatModel = (auth: CodexAuth, modelId: string): LanguageModel 
 
         const parsed = z.record(z.string(), z.json()).parse(JSON.parse(encodedBody));
 
+        // ChatGPT rejects the API's output cap, including caps supplied by agents.
+        delete parsed.max_output_tokens;
         body = JSON.stringify({ ...parsed, store: false });
       } catch {
         // non-JSON body passes through untouched

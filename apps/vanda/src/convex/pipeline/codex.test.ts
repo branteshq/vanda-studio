@@ -157,6 +157,7 @@ describe("ChatGPT public errors", () => {
         "openai/gpt-5.6-terra",
       ),
       prompt: "Olá",
+      maxOutputTokens: 8192,
       maxRetries: 0,
       onError: () => {},
     });
