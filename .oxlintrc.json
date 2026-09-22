@@ -21,6 +21,7 @@
     "scripts/oxlint/anti-slop/**"
   ],
   "jsPlugins": [
+    "@shadcn/lint",
     { "name": "anti-slop", "specifier": "./scripts/oxlint/anti-slop/index.ts" },
     { "name": "anti-slop-effect", "specifier": "./scripts/oxlint/anti-slop/effect/index.ts" }
   ],

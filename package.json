@@ -17,7 +17,8 @@
     "clean": "turbo run clean && rm -rf node_modules .turbo apps/*/dist apps/*/.output packages/*/dist"
   },
   "devDependencies": {
-    "@oxlint/plugins": "1.70.0",
+    "@oxlint/plugins": "1.80.0",
+    "@shadcn/lint": "0.2.0",
     "@types/node": "^24.10.13",
     "oxfmt": "^0.40.0",
     "oxlint": "catalog:",
