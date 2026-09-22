@@ -26,6 +26,27 @@ export interface OrchestratorModel {
 
 export const ORCHESTRATOR_MODELS: readonly OrchestratorModel[] = [
   {
+    id: "openai/gpt-6-luna",
+    label: "GPT-6 Luna",
+    maker: "OpenAI",
+    tagline: "Modelo OpenAI pela assinatura conectada ou via OpenRouter.",
+    codexCapable: true,
+  },
+  {
+    id: "openai/gpt-6-sol",
+    label: "GPT-6 Sol",
+    maker: "OpenAI",
+    tagline: "Modelo OpenAI pela assinatura conectada ou via OpenRouter.",
+    codexCapable: true,
+  },
+  {
+    id: "anthropic/claude-opus-5.5",
+    label: "Claude Opus 5.5",
+    maker: "Anthropic",
+    tagline: "Modelo da Anthropic via OpenRouter.",
+    codexCapable: false,
+  },
+  {
     id: "openai/gpt-6-astra",
     label: "GPT-6 Astra",
     maker: "OpenAI",

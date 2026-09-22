@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_CODEX_ORCHESTRATOR_MODEL,
   DEFAULT_ORCHESTRATOR_MODEL,
+  requireTextModel,
   resolveOrchestratorModel,
 } from "./agentModels";
 import {
@@ -15,6 +16,23 @@ import {
 } from "./imageModels";
 
 describe("model defaults", () => {
+  it("offers GPT-6 Luna and Sol on both transports and Opus 5.5 only on OpenRouter", () => {
+    for (const id of ["openai/gpt-6-luna", "openai/gpt-6-sol"]) {
+      for (const conectado of [true, false]) {
+        expect(requireTextModel(id, conectado).maker).toBe("OpenAI");
+        expect(resolveOrchestratorModel(id, { conectado })).toBe(id);
+      }
+    }
+
+    const opus = "anthropic/claude-opus-5.5";
+    expect(requireTextModel(opus, false).maker).toBe("Anthropic");
+    expect(resolveOrchestratorModel(opus, { conectado: false })).toBe(opus);
+    expect(() => requireTextModel(opus, true)).toThrow("assinatura conectada");
+    expect(resolveOrchestratorModel(opus, { conectado: true })).toBe(
+      DEFAULT_CODEX_ORCHESTRATOR_MODEL,
+    );
+  });
+
   it("offers Astra on both text transports and all subscription image options", () => {
     for (const conectado of [true, false]) {
       expect(resolveOrchestratorModel("openai/gpt-6-astra", { conectado })).toBe(
