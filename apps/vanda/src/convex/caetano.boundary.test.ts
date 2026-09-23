@@ -1,10 +1,12 @@
 // @vitest-environment edge-runtime
+import { createThread, saveMessage } from "@convex-dev/agent";
 import agentComponent from "@convex-dev/agent/test";
 import { convertArrayToReadableStream, MockLanguageModelV3 } from "ai/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it, vi } from "vitest";
 import { api, components, internal } from "./_generated/api";
 import { caetano, caetanoToolDiscovery } from "./caetanoAgent";
+import { failedModelAttempt } from "./chatModel";
 import { vanda, vandaToolDiscovery } from "./vanda";
 import { capabilityResult } from "./resourceRefs";
 import schema from "./schema";
@@ -583,9 +585,28 @@ describe("Caetano control plane", () => {
   it("passes brand context into a Vanda turn without model-driven retrieval", async () => {
     const { t, userId, accountId } = await setup();
 
-    const sent = await t.withIdentity({ subject: "ana" }).mutation(api.caetano.sendMessage, {
-      prompt: "Faça um post sem falar de desconto",
+    // Seed the delegation source without scheduling an unrelated live Caetano turn.
+    const sent = await t.run(async (ctx) => {
+      const threadId = await createThread(ctx, components.agent, { userId: `caetano:${userId}` });
+
+      const { messageId } = await saveMessage(ctx, components.agent, {
+        threadId,
+        message: { role: "user", content: "Faça um post sem falar de desconto" },
+      });
+
+      return { threadId, messageId };
     });
+
+    // A request can contain Caetano attempts before the delegated Vanda charge.
+    await t.action((ctx) =>
+      failedModelAttempt(ctx, {
+        userId,
+        threadId: sent.threadId,
+        requestId: sent.messageId,
+        model: "openai/gpt-5.6-terra",
+        kind: "caetano_chat",
+      }),
+    );
 
     type VandaStreamResult = Awaited<ReturnType<typeof vanda.streamText>>;
 
@@ -635,7 +656,11 @@ describe("Caetano control plane", () => {
       });
 
       expect(costs.microUsd).toBe(10_000);
-      expect(costs.events[0]?.threadId).toBe(result.threadId);
+      expect(costs.events).toHaveLength(2);
+      expect(costs.events.find((event) => event.kind === "chat")).toMatchObject({
+        threadId: result.threadId,
+        microUsd: 10_000,
+      });
 
       const [message] = await t.run((ctx) =>
         ctx.runQuery(components.agent.messages.getMessagesByIds, {
