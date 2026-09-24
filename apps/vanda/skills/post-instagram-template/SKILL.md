@@ -1,6 +1,6 @@
 ---
 name: post-instagram-template
-description: Monta posts e carrosséis de Instagram com 141 templates Python/Pillow, aplicando cores, fontes, fotos e textos da marca. Use quando o dono pedir uma arte baseada em template ou um carrossel com layout preciso.
+description: "Monta posts e carrosséis de Instagram com 141 templates Python/Pillow. Use sempre que o pedido corresponder a um formato estruturado disponível, mesmo sem mencionar ‘template’: mito x verdade, checklist, depoimento, comparativo, antes e depois, glossário, passo a passo, perguntas frequentes, lista, oferta, comunicado, enquete, mini-aula ou carrossel. Também use quando o dono pedir template ou layout preciso."
 allowed-tools: list read paint run_code create_post
 ---
 

@@ -42,6 +42,17 @@ describe("skill catalog", () => {
     );
   });
 
+  it("exposes template format triggers before the skill body is loaded", () => {
+    const template = installedSkillSummaries().find(
+      (entry) => entry.name === "post-instagram-template",
+    );
+
+    expect(template?.description).toContain("mesmo sem mencionar ‘template’");
+    expect(template?.description).toContain("mito x verdade");
+    expect(template?.description).toContain("checklist");
+    expect(template?.description).toContain("carrossel");
+  });
+
   it("injects always-on instructions in full", () => {
     const prompt = formatSkillsForSystemPrompt([
       skill({ name: "always", body: "Apply this to every answer.", alwaysApply: true }),
