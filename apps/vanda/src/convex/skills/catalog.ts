@@ -60,8 +60,9 @@ export const formatSkillsForSystemPrompt = (
 
   if (available.length > 0) {
     const lines = [
-      "As habilidades abaixo trazem instruções especializadas para tarefas específicas.",
-      "Quando uma tarefa combinar com a descrição, use read para carregar o SKILL.md completo antes de agir.",
+      "As descrições abaixo são um índice leve das habilidades disponíveis; os corpos e recursos não estão no contexto.",
+      "Antes de agir, compare o pedido com todas as descrições. Quando houver correspondência plausível, use read para carregar somente o SKILL.md correspondente e siga a descoberta progressiva indicada nele.",
+      "Não liste /skills nem carregue habilidades ou recursos sem relação com o pedido.",
       "Resolva referências relativas a partir do diretório pai do SKILL.md.",
       "",
       "<available_skills>",

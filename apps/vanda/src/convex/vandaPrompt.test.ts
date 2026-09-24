@@ -6,14 +6,14 @@ describe("Vanda routing prompt", () => {
     const prompt = systemPrompt();
 
     const skillPriority = prompt.indexOf(
-      "Antes de escolher paint ou run_code, compare o formato pedido com as habilidades disponíveis.",
+      "Uma habilidade aplicável tem precedência sobre os caminhos padrão abaixo.",
     );
 
     const paintFallback = prompt.indexOf("Arte nova sem habilidade aplicável:");
 
     expect(skillPriority).toBeGreaterThan(-1);
     expect(paintFallback).toBeGreaterThan(skillPriority);
-    expect(prompt).toContain("mito x verdade");
-    expect(prompt).toContain("mesmo sem mencionar ‘template’");
+    expect(prompt).toContain("Antes de agir, compare o pedido com todas as descrições.");
+    expect(prompt).not.toContain("S04.py");
   });
 });

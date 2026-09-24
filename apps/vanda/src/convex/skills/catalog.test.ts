@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatSkillsForSystemPrompt, installedSkillSummaries } from "./catalog";
+import { formatSkillsForSystemPrompt, installedSkills, installedSkillSummaries } from "./catalog";
 import type { InstalledSkill } from "./types";
 
 const skill = (patch: Partial<InstalledSkill> = {}): InstalledSkill => ({
@@ -42,15 +42,64 @@ describe("skill catalog", () => {
     );
   });
 
-  it("exposes template format triggers before the skill body is loaded", () => {
-    const template = installedSkillSummaries().find(
-      (entry) => entry.name === "post-instagram-template",
+  it("indexes every bundled Python template without putting templates in the prompt", () => {
+    const template = installedSkills().find((entry) => entry.name === "post-instagram-template");
+    const catalog = template?.body ?? "";
+    const modelLines = (template?.files["references/modelos.md"] ?? "").split("\n");
+
+    const indexedAssets = [...catalog.matchAll(/`([A-Za-z0-9]+(?:-\{1\.\.\d+\})?\.py)`/g)]
+      .flatMap(([, spec]) => {
+        const range = spec?.match(/^(.+)-\{1\.\.(\d+)\}\.py$/);
+
+        if (!range) return spec ? [spec] : [];
+
+        return Array.from(
+          { length: Number(range[2]) },
+          (_, index) => `${range[1]}-${index + 1}.py`,
+        );
+      })
+      .toSorted();
+
+    const bundledAssets = Object.keys(template?.files ?? {})
+      .filter((path) => path.startsWith("assets/py/") && path.endsWith(".py"))
+      .map((path) => path.slice("assets/py/".length))
+      .toSorted();
+
+    expect(indexedAssets).toEqual(bundledAssets);
+
+    const indexedSections = [
+      ...catalog.matchAll(
+        /^\| (Main|S\d{2}|C\d{2}|T\d{2}|TC\d{2}) \|.*\| offset (\d+), limit (\d+) \|$/gm,
+      ),
+    ];
+
+    expect(indexedSections).toHaveLength(60);
+
+    for (const [, id, offset, limit] of indexedSections) {
+      const section = modelLines.slice(Number(offset) - 1, Number(offset) - 1 + Number(limit));
+
+      expect(section[0]).toContain(id);
+    }
+
+    const prompt = formatSkillsForSystemPrompt();
+
+    expect(prompt).toContain(template?.description);
+    expect(prompt).not.toContain("S04.py");
+  });
+
+  it("discloses every on-demand skill through metadata without loading its body", () => {
+    const prompt = formatSkillsForSystemPrompt();
+
+    const onDemand = installedSkills().filter(
+      (entry) => !entry.alwaysApply && !entry.disableModelInvocation,
     );
 
-    expect(template?.description).toContain("mesmo sem mencionar ‘template’");
-    expect(template?.description).toContain("mito x verdade");
-    expect(template?.description).toContain("checklist");
-    expect(template?.description).toContain("carrossel");
+    for (const entry of onDemand) {
+      expect(prompt).toContain(`<name>${entry.name}</name>`);
+      expect(prompt).toContain(`<description>${entry.description}</description>`);
+      expect(prompt).toContain(`<location>${entry.location}</location>`);
+      expect(prompt).not.toContain(entry.body.slice(0, 100));
+    }
   });
 
   it("injects always-on instructions in full", () => {
