@@ -112,6 +112,8 @@ describe("workspace navigation", () => {
       expect(listing.entries).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ name: "instagram-market-research", kind: "dir" }),
+          expect.objectContaining({ name: "post-instagram-template", kind: "dir" }),
+          expect.objectContaining({ name: "prompt-foto-fiel", kind: "dir" }),
           expect.objectContaining({ name: "unslop", kind: "dir" }),
         ]),
       );
@@ -138,6 +140,18 @@ describe("workspace navigation", () => {
 
     if (license.ok && license.file.kind === "text") {
       expect(license.file.text).toContain("MIT License");
+    }
+
+    const pythonTemplate = await t.query(internal.workspaceData.read, {
+      accountId,
+      path: "/skills/post-instagram-template/assets/py/Main.py",
+    });
+
+    expect(pythonTemplate.ok).toBe(true);
+
+    if (pythonTemplate.ok && pythonTemplate.file.kind === "text") {
+      expect(pythonTemplate.file.text).toContain('OUTPUT = "/home/user/out/main.png"');
+      expect(pythonTemplate.file.text).toContain("def desenhar():");
     }
   });
 

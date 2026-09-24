@@ -16,12 +16,22 @@ const skill = (patch: Partial<InstalledSkill> = {}): InstalledSkill => ({
 });
 
 describe("skill catalog", () => {
-  it("installs unslop as an always-on skill", () => {
+  it("installs the bundled skills with the expected activation mode", () => {
     expect(installedSkillSummaries()).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           name: "instagram-market-research",
           alwaysApply: false,
+        }),
+        expect.objectContaining({
+          name: "post-instagram-template",
+          alwaysApply: false,
+          location: "/skills/post-instagram-template/SKILL.md",
+        }),
+        expect.objectContaining({
+          name: "prompt-foto-fiel",
+          alwaysApply: false,
+          location: "/skills/prompt-foto-fiel/SKILL.md",
         }),
         expect.objectContaining({
           name: "unslop",
