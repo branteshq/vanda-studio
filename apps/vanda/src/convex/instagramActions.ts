@@ -53,6 +53,7 @@ interface MutableActionObservation<T> {
 interface ObservationSaveInput {
   accountId: Id<"accounts">;
   activityId?: AgentActivityId;
+  activityIdentity?: { requestId: string; threadId: string };
   requestKey: string;
   operation: InstagramOperation;
   target: string;
@@ -230,6 +231,13 @@ const cachedRead = async <Data>(
 ): Promise<ActionObservation<Data>> => {
   const requestKey = instagramRequestKey(input.operation, input.request);
 
+  const activityIdentity = input.activityId
+    ? await ctx.runQuery(internal.instagramData.authorizeActivity, {
+        accountId: input.accountId,
+        activityId: input.activityId,
+      })
+    : undefined;
+
   const cached = await ctx.runQuery(internal.instagramData.readCachedObservation, {
     accountId: input.accountId,
     requestKey,
@@ -310,11 +318,16 @@ const cachedRead = async <Data>(
 
   if (costUsd !== undefined) saveInput.costUsd = costUsd;
 
-  if (input.activityId) saveInput.activityId = input.activityId;
+  if (input.activityId) {
+    saveInput.activityId = input.activityId;
+    saveInput.activityIdentity = activityIdentity!;
+  }
 
   if (observation.nextCursor) saveInput.nextCursor = observation.nextCursor;
 
-  await ctx.runMutation(internal.instagramData.saveObservation, saveInput);
+  const saved = await ctx.runMutation(internal.instagramData.saveObservation, saveInput);
+
+  if (saved.cancelled) throw new Error("leitura do Instagram interrompida pelo dono");
 
   const result: MutableActionObservation<Data> = {
     data: observation.data,

@@ -4,6 +4,11 @@ import { internalMutation, internalQuery } from "./_generated/server";
 import { chargeUsage } from "./usage";
 import { agentActivityIdValidator, requireOwnedAgentActivity } from "./agentActivity";
 
+const activityIdentityValidator = v.object({
+  requestId: v.string(),
+  threadId: v.string(),
+});
+
 interface InstagramReadEvent {
   accountId: Id<"accounts">;
   operation: string;
@@ -60,10 +65,31 @@ export const publicReadItemsSince = internalQuery({
   },
 });
 
+/** Validate an originating turn before an external provider starts, and retain
+ * the immutable attribution needed if that turn is cancelled while it runs. */
+export const authorizeActivity = internalQuery({
+  args: {
+    accountId: v.id("accounts"),
+    activityId: agentActivityIdValidator,
+  },
+  handler: async (ctx, { accountId, activityId }) => {
+    const activity = await requireOwnedAgentActivity(ctx, accountId, activityId);
+
+    return {
+      requestId:
+        "accountId" in activity
+          ? (activity.requestId ?? activity.promptMessageId)
+          : activity.promptMessageId,
+      threadId: activity.threadId,
+    };
+  },
+});
+
 export const saveObservation = internalMutation({
   args: {
     accountId: v.id("accounts"),
     activityId: v.optional(agentActivityIdValidator),
+    activityIdentity: v.optional(activityIdentityValidator),
     requestKey: v.string(),
     operation: v.string(),
     target: v.string(),
@@ -77,29 +103,50 @@ export const saveObservation = internalMutation({
     observedAt: v.number(),
     expiresAt: v.number(),
   },
-  handler: async (ctx, { activityId, ...args }) => {
+  handler: async (ctx, { activityId, activityIdentity, ...args }) => {
     if (!(await ctx.db.get(args.accountId))) throw new Error("account not found");
 
-    if (activityId) await requireOwnedAgentActivity(ctx, args.accountId, activityId);
+    if (activityId && !activityIdentity) {
+      await requireOwnedAgentActivity(ctx, args.accountId, activityId);
+    }
 
     if (!args.workspacePath.startsWith("/instagram/")) {
       throw new Error("invalid Instagram workspace path");
     }
 
-    const existing = await ctx.db
-      .query("instagramObservations")
-      .withIndex("by_account_request", (q) =>
-        q.eq("accountId", args.accountId).eq("requestKey", args.requestKey),
-      )
-      .unique();
+    let cancelled = false;
 
-    let observationId;
+    if (activityId && activityIdentity) {
+      const activity = await ctx.db.get(activityId);
 
-    if (existing) {
-      await ctx.db.patch(existing._id, args);
-      observationId = existing._id;
-    } else {
-      observationId = await ctx.db.insert("instagramObservations", args);
+      if (activity) await requireOwnedAgentActivity(ctx, args.accountId, activityId);
+
+      cancelled =
+        !activity ||
+        ("accountId" in activity
+          ? activity.accountId !== args.accountId ||
+            (activity.requestId ?? activity.promptMessageId) !== activityIdentity.requestId ||
+            activity.threadId !== activityIdentity.threadId
+          : activity.promptMessageId !== activityIdentity.requestId ||
+            activity.threadId !== activityIdentity.threadId);
+    }
+
+    let observationId: Id<"instagramObservations"> | undefined;
+
+    if (!cancelled) {
+      const existing = await ctx.db
+        .query("instagramObservations")
+        .withIndex("by_account_request", (q) =>
+          q.eq("accountId", args.accountId).eq("requestKey", args.requestKey),
+        )
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, args);
+        observationId = existing._id;
+      } else {
+        observationId = await ctx.db.insert("instagramObservations", args);
+      }
     }
 
     const readEvent: InstagramReadEvent = {
@@ -120,10 +167,10 @@ export const saveObservation = internalMutation({
         kind: "instagram_apify",
         usd: args.costUsd,
         ref: `${args.operation}:${args.target}`,
-        activityId,
+        ...(activityIdentity ?? { activityId }),
       });
     }
 
-    return observationId;
+    return { observationId, cancelled };
   },
 });

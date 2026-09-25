@@ -2,6 +2,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { internal } from "./_generated/api";
+import * as instagramCache from "./instagram/cache";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -14,6 +15,112 @@ afterEach(() => {
 });
 
 describe("tool output activity identity", () => {
+  it.each(["vanda", "caetano"])(
+    "accounts for a completed Instagram read after its %s turn is cancelled",
+    async (agent) => {
+      vi.stubEnv("APIFY_API_TOKEN", "test-only");
+      // Isolate cancellation from the pre-existing stable() recursion on string cache inputs.
+      vi.spyOn(instagramCache, "instagramRequestKey").mockReturnValue("search:late-profile");
+      const t = convexTest(schema, modules);
+
+      const setup = await t.run(async (ctx) => {
+        const now = Date.now();
+
+        const ownerUserId = await ctx.db.insert("users", {
+          clerkId: "instagram-owner",
+          name: "Owner",
+          email: "instagram-owner@example.com",
+          createdAt: now,
+        });
+
+        const accountId = await ctx.db.insert("accounts", {
+          ownerUserId,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        const activityA =
+          agent === "caetano"
+            ? await ctx.db.insert("caetanoThreadActivity", {
+                userId: ownerUserId,
+                threadId: "instagram-thread",
+                promptMessageId: "instagram-request-a",
+                startedAt: now,
+              })
+            : await ctx.db.insert("chatThreadActivity", {
+                accountId,
+                threadId: "instagram-thread",
+                promptMessageId: "instagram-prompt-a",
+                requestId: "instagram-request-a",
+                startedAt: now,
+              });
+
+        return { accountId, activityA, now };
+      });
+
+      let started!: () => void;
+
+      const requestStarted = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+
+      let finish!: (response: Response) => void;
+
+      const providerResponse = new Promise<Response>((resolve) => {
+        finish = resolve;
+      });
+
+      const fetch = vi.fn(() => {
+        started();
+
+        return providerResponse;
+      });
+
+      vi.stubGlobal("fetch", fetch);
+
+      const read = t.action(internal.instagramActions.searchProfiles, {
+        accountId: setup.accountId,
+        activityId: setup.activityA,
+        query: "late profile",
+        limit: 1,
+      });
+
+      const cancelled = expect(read).rejects.toThrow("leitura do Instagram interrompida");
+      await Promise.race([requestStarted, read]);
+
+      const activityB = await t.run(async (ctx) => {
+        await ctx.db.delete(setup.activityA);
+
+        return ctx.db.insert("chatThreadActivity", {
+          accountId: setup.accountId,
+          threadId: "instagram-thread",
+          promptMessageId: "instagram-prompt-b",
+          requestId: "instagram-request-b",
+          startedAt: setup.now + 1,
+        });
+      });
+
+      finish(Response.json([{ id: "profile-1", username: "late-profile" }]));
+      await cancelled;
+      expect(fetch).toHaveBeenCalledTimes(1);
+
+      expect(await t.run((ctx) => ctx.db.query("instagramObservations").collect())).toEqual([]);
+      const reads = await t.run((ctx) => ctx.db.query("instagramReadEvents").collect());
+      expect(reads).toHaveLength(1);
+      expect(reads[0]).toMatchObject({ accountId: setup.accountId, source: "apify", itemCount: 1 });
+      const charges = await t.run((ctx) => ctx.db.query("usageEvents").collect());
+      expect(charges).toHaveLength(1);
+      expect(charges[0]).toMatchObject({
+        requestId: "instagram-request-a",
+        threadId: "instagram-thread",
+        kind: "instagram_apify",
+        microUsd: 2_700,
+      });
+      expect(await t.run((ctx) => ctx.db.get(activityB))).not.toBeNull();
+      expect(await t.run((ctx) => ctx.db.query("threadResourceManifests").collect())).toEqual([]);
+    },
+  );
+
   it("aborts A's in-flight image request while B remains active", async () => {
     vi.stubEnv("OPENROUTER_API_KEY", "test-only");
     vi.spyOn(console, "error").mockImplementation(() => {});
