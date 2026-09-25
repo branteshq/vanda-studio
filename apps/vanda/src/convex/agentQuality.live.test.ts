@@ -8,6 +8,7 @@ import { convexTest } from "convex-test";
 import { expect, it, vi } from "vitest";
 import { z } from "zod";
 import { brands, cases } from "../../evals/fixtures";
+import { benchmarkMethods, imageBenchmarkCases } from "../../evals/imageBenchmark";
 import { referenceImage } from "../../evals/references";
 import {
   assertImagesWereInspected,
@@ -34,7 +35,15 @@ const fullArtTrial = process.env.VANDA_EVAL_FULL_ART === "1";
 
 const selected = new Set(process.env.VANDA_EVAL_CASES?.split(",").filter(Boolean));
 
-const suite = cases.filter((entry) => (selected.size ? selected.has(entry.id) : !entry.holdout));
+const method = z.enum(["template", "raw"]).optional().parse(process.env.VANDA_EVAL_METHOD);
+
+const imageModel = process.env.VANDA_EVAL_IMAGE_MODEL ?? "openai/gpt-image-2.5-flare";
+
+const quality = z.enum(["high", "max"]).parse(process.env.VANDA_EVAL_IMAGE_QUALITY ?? "high");
+
+const suite = (method ? imageBenchmarkCases : cases).filter((entry) =>
+  selected.size ? selected.has(entry.id) : !entry.holdout,
+);
 
 const outputRoot = resolve(
   process.env.VANDA_EVAL_OUTPUT ?? "../../.amp/in/artifacts/agent-quality",
@@ -51,8 +60,15 @@ it.skipIf(!enabled).each(suite)(
     requireTextModel(model, true);
     const authPath = process.env.VANDA_EVAL_AUTH_FILE;
 
-    if (!authPath) throw new Error("Set VANDA_EVAL_AUTH_FILE to a private ChatGPT auth JSON file");
-    const auth = authSchema.parse(JSON.parse(await readFile(authPath, "utf8"))).tokens;
+    const authJson = authPath
+      ? await readFile(authPath, "utf8")
+      : process.env.AMP_CODEX_CHATGPT_AUTH;
+
+    if (!authJson)
+      throw new Error(
+        "Set VANDA_EVAL_AUTH_FILE or supply subscription auth in AMP_CODEX_CHATGPT_AUTH",
+      );
+    const auth = authSchema.parse(JSON.parse(authJson)).tokens;
     const brand = brands.find((value) => value.id === entry.brandId)!;
     const directory = resolve(outputRoot, entry.id);
     await mkdir(directory, { recursive: true });
@@ -60,6 +76,19 @@ it.skipIf(!enabled).each(suite)(
     agentComponent.register(t);
     const startedAt = Date.now();
     const trace: EvalTraceStep[] = [];
+
+    const imageRequests: {
+      model: string;
+      quality: string;
+      size: string;
+      prompt: string;
+      references: number;
+      elapsedMs: number;
+      status: number;
+      usage: unknown;
+      returnedModel: unknown;
+    }[] = [];
+
     const network: { host: string; path: string; status: number; error?: string }[] = [];
     const scheduleAttempts: { postId: string; scheduledFor?: string | undefined }[] = [];
     const schedules: { postId: string; scheduledFor?: string | undefined }[] = [];
@@ -116,7 +145,33 @@ it.skipIf(!enabled).each(suite)(
         init = { ...init, body: encoded };
       }
 
+      const isImage =
+        url.hostname === "chatgpt.com" && /\/images\/(generations|edits)$/.test(url.pathname);
+
+      const imagePayload = isImage ? JSON.parse(String(init?.body)) : undefined;
+
+      if (imagePayload) {
+        imagePayload.quality = quality;
+        init = { ...init, body: JSON.stringify(imagePayload) };
+      }
+
+      const requestStarted = Date.now();
       const response = await realFetch(input, init);
+
+      if (imagePayload) {
+        const metadata = response.ok ? await response.clone().json() : {};
+        imageRequests.push({
+          model: imagePayload.model,
+          quality: imagePayload.quality,
+          size: imagePayload.size,
+          prompt: imagePayload.prompt,
+          references: imagePayload.images?.length ?? 0,
+          elapsedMs: Date.now() - requestStarted,
+          status: response.status,
+          usage: metadata.usage ?? null,
+          returnedModel: metadata.model ?? null,
+        });
+      }
 
       if (url.protocol !== "data:") {
         const request = { host: url.hostname, path: url.pathname, status: response.status };
@@ -138,7 +193,7 @@ it.skipIf(!enabled).each(suite)(
         planId: "conectado",
         orchestratorModel: model,
         caetanoModel: model,
-        imageModel: "openai/gpt-image-2.5-flare",
+        imageModel,
       });
 
       const accountId = await ctx.db.insert("accounts", {
@@ -212,6 +267,9 @@ it.skipIf(!enabled).each(suite)(
     vi.spyOn(vanda, "streamText").mockImplementation(async (ctx, thread, options, persistence) => {
       const system =
         (options.system ?? "") +
+        (method
+          ? `\n\n${benchmarkMethods[method]}\nEntregue rascunho, sem publicar. Inspecione todos os slides. Máximo de duas rodadas de correções concretas.`
+          : "") +
         (fullArtTrial
           ? "\n\nExperimento de produção: para novas peças, use paint para gerar a arte COMPLETA, inclusive tipografia, marca e preço. Isto substitui a regra de separar texto em Python. Planeje a hierarquia, passe a grafia exata, inspecione o resultado e corrija erros concretos. Não use run_code só por hábito; reserve para precisão exigida ou correção localizada."
           : "");
@@ -479,6 +537,10 @@ it.skipIf(!enabled).each(suite)(
             entry,
             brand,
             model,
+            imageModel,
+            quality,
+            method,
+            imageRequests,
             fullArtTrial,
             transport: "chatgpt-subscription",
             elapsedMs: Date.now() - startedAt,
@@ -513,6 +575,31 @@ it.skipIf(!enabled).each(suite)(
         expect(state.posts[0]?.imageIds.length).toBeGreaterThan(0);
 
         if (entry.id === "orvalho-product-draft") expect(state.posts[0]?.imageIds).toHaveLength(3);
+        const benchmark = imageBenchmarkCases.find((item) => item.id === entry.id);
+
+        if (benchmark) expect(state.posts[0]?.imageIds).toHaveLength(benchmark.slides);
+      }
+
+      if (method === "raw") expect(state.runs).toHaveLength(0);
+
+      if (method === "template") {
+        expect(state.runs.length).toBeGreaterThan(0);
+
+        if (entry.kind === "creative") {
+          const templateReads = trace
+            .flatMap((step) => step.calls ?? [])
+            .filter((call) => {
+              const input = z.object({ path: z.string() }).safeParse(call.input);
+
+              return (
+                call.toolName === "read" &&
+                input.success &&
+                /^\/skills\/post-instagram-template\/assets\/py\/.+\.py$/.test(input.data.path)
+              );
+            });
+
+          expect(templateReads.length, "read an actual template script").toBeGreaterThan(0);
+        }
       }
 
       const finalImageIds = state.posts.flatMap((post) => post.imageIds);
@@ -560,6 +647,31 @@ it.skipIf(!enabled).each(suite)(
           Date.parse("2026-09-22T17:00:00Z"),
         );
       }
+    } catch (error) {
+      await writeFile(
+        resolve(directory, "failure.json"),
+        JSON.stringify(
+          {
+            entry,
+            model,
+            imageModel,
+            method,
+            quality,
+            imageRequests,
+            network,
+            trace,
+            elapsedMs: Date.now() - startedAt,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          (_key, value) => {
+            const imageUrl = z.string().startsWith("data:image/").safeParse(value);
+
+            return imageUrl.success ? "[image bytes omitted]" : value;
+          },
+          2,
+        ),
+      );
+      throw error;
     } finally {
       vi.restoreAllMocks();
       vi.unstubAllGlobals();

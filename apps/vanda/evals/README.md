@@ -42,3 +42,57 @@ For a formal preference comparison, blind reviewers should see anonymized output
 Record objective failures separately from the blind label. Examples include a wrong price or color, an invented claim, changing protected product details, treating a date in a creative brief as a scheduling command, claiming a failed tool succeeded, or invoking anything other than the supplied mock publisher. This separation prevents subjective polish from hiding factual or safety failures.
 
 Tag every run as either a **first attempt** or **revision**. First attempts test interpretation and brand application; revisions test whether requested changes are isolated while protected details remain stable. Keep results from these groups separate. Repeat cases across runs to check consistency, but retain each repeat as an individual observation rather than selecting the best output. Report the model/configuration, fixture version, run count, blind-label counts, and objective-failure counts; do not present these fixtures themselves as measured performance.
+
+## Template versus GPT Image 2.5 benchmark
+
+`imageBenchmark.ts` adds six fixed-copy cases: three three-slide carousels (repairs,
+cosmetics, stationery), a café photo offer, a dense service card, and a protected
+background revision. Set `VANDA_EVAL_METHOD=template` or `raw` to select this suite.
+Both execute Vanda itself, not a replacement prompt runner. Template trials must
+read actual template scripts and execute Python; raw trials must not execute Python.
+Trace checks are only structural: review template adaptation and output pixels too.
+
+Run each arm separately from the repository root (existing private-file auth works;
+the orb's `AMP_CODEX_CHATGPT_AUTH` is also accepted without writing it to disk):
+
+```sh
+VANDA_LIVE_EVAL=1 VANDA_EVAL_METHOD=template VANDA_EVAL_IMAGE_QUALITY=max \
+  VANDA_EVAL_OUTPUT=../../.amp/in/artifacts/image-benchmark/template \
+  pnpm --filter @vanda-studio/vanda test:run src/convex/agentQuality.live.test.ts
+
+VANDA_LIVE_EVAL=1 VANDA_EVAL_METHOD=raw VANDA_EVAL_IMAGE_QUALITY=max \
+  VANDA_EVAL_IMAGE_MODEL=openai/gpt-image-2.5-flare \
+  VANDA_EVAL_OUTPUT=../../.amp/in/artifacts/image-benchmark/flare-max \
+  pnpm --filter @vanda-studio/vanda test:run src/convex/agentQuality.live.test.ts
+
+VANDA_LIVE_EVAL=1 VANDA_EVAL_METHOD=raw VANDA_EVAL_IMAGE_QUALITY=max \
+  VANDA_EVAL_IMAGE_MODEL=openai/gpt-image-2.5-sunburst \
+  VANDA_EVAL_OUTPUT=../../.amp/in/artifacts/image-benchmark/sunburst-max \
+  pnpm --filter @vanda-studio/vanda test:run src/convex/agentQuality.live.test.ts
+
+uv run --with pillow apps/vanda/evals/summarize-image-benchmark.py \
+  .amp/in/artifacts/image-benchmark
+```
+
+`VANDA_EVAL_CASES` selects a subset for repeats; `VANDA_EVAL_IMAGE_QUALITY=high`
+tests the current production quality setting. `max` is an evaluation-only wire
+override, not an application behavior change. Requested model/quality, prompts,
+reference count, response usage, elapsed time and returned model (if provided) are
+recorded for image requests. No model-identity echo means the serving snapshot is
+not independently verified. Failed assertions retain `failure.json` alongside
+available results. Keep all attempts. The same exact-copy instructions and brand
+facts apply to every arm; reference-led series and scoped edits follow OpenAI's
+[prompting guide](https://developers.openai.com/api/docs/guides/image-prompting).
+
+The summarizer writes CSV/JSON measurements and mobile-size comparison sheets.
+Image API-equivalent costs value observed tokens at $5/M text input, $8/M image
+input and $30/M image output; absent image-cache detail is valued uncached. Terra
+orchestration is valued at $2/M input, $0.20/M cached input and $12/M output, with
+the documented long-context premium. Sandbox cost comes from Vanda's duration
+estimate. These are **not invoices**: subscription charges, quota depletion,
+untraced background activity, and human repair time are not measured. The tracked
+total includes retries and agent orchestration, not just successful images.
+Missing image usage produces an unknown image/total estimate rather than zero.
+
+Read the dated findings in `docs/image-benchmark-2026-09-25.md`. Automated checks
+are not OCR, taste judgments, or proof that a customer would publish the result.
