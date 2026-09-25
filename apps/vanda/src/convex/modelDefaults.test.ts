@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_CAETANO_MODEL,
   DEFAULT_CODEX_ORCHESTRATOR_MODEL,
   DEFAULT_ORCHESTRATOR_MODEL,
   requireTextModel,
+  resolveCaetanoModel,
   resolveOrchestratorModel,
 } from "./agentModels";
 import {
@@ -52,11 +54,25 @@ describe("model defaults", () => {
     expect(resolveConnectedImageModel("google/gemini-3-pro-image")).toBe(DEFAULT_IMAGE_MODEL);
   });
 
-  it("uses Opus 5 and GPT Image 2.5 Flare by default", () => {
-    expect(DEFAULT_ORCHESTRATOR_MODEL).toBe("anthropic/claude-opus-5");
-    expect(DEFAULT_IMAGE_MODEL).toBe("openai/gpt-image-2.5-flare");
-    expect(resolveOrchestratorModel(undefined, { conectado: false })).toBe(
-      DEFAULT_ORCHESTRATOR_MODEL,
+  it("defaults both agents to Luna on both transports and images to Sunburst", () => {
+    expect(DEFAULT_ORCHESTRATOR_MODEL).toBe("openai/gpt-6-luna");
+    expect(DEFAULT_CAETANO_MODEL).toBe("openai/gpt-6-luna");
+    expect(DEFAULT_IMAGE_MODEL).toBe("openai/gpt-image-2.5-sunburst");
+
+    for (const conectado of [false, true]) {
+      for (const preferred of [undefined, null, "retired/model"]) {
+        expect(resolveOrchestratorModel(preferred, { conectado })).toBe("openai/gpt-6-luna");
+        expect(resolveCaetanoModel(preferred, { conectado })).toBe("openai/gpt-6-luna");
+      }
+
+      expect(resolveCaetanoModel("openai/gpt-5.6-terra", { conectado })).toBe(
+        "openai/gpt-5.6-terra",
+      );
+    }
+
+    expect(resolveConnectedImageModel(undefined)).toBe("openai/gpt-image-2.5-sunburst");
+    expect(resolveConnectedImageModel("openai/gpt-image-2.5-flare")).toBe(
+      "openai/gpt-image-2.5-flare",
     );
   });
 
@@ -73,7 +89,7 @@ describe("model defaults", () => {
   });
 
   it("keeps Conectado on a model its OpenAI transport can serve", () => {
-    expect(DEFAULT_CODEX_ORCHESTRATOR_MODEL).toBe("openai/gpt-5.6-terra");
+    expect(DEFAULT_CODEX_ORCHESTRATOR_MODEL).toBe("openai/gpt-6-luna");
     expect(resolveOrchestratorModel(undefined, { conectado: true })).toBe(
       DEFAULT_CODEX_ORCHESTRATOR_MODEL,
     );

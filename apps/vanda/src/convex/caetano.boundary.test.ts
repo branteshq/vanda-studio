@@ -93,8 +93,8 @@ describe("Caetano control plane", () => {
     }
 
     expect(await owner.query(api.users.modelPreferences)).toMatchObject({
-      caetano: "openai/gpt-5.6-terra",
-      orchestrator: "openai/gpt-5.6-terra",
+      caetano: "openai/gpt-6-luna",
+      orchestrator: "openai/gpt-6-luna",
       conectado: true,
     });
   });
@@ -103,8 +103,9 @@ describe("Caetano control plane", () => {
     const { t, userId, foreignUserId } = await setup();
     const owner = t.withIdentity({ subject: "ana" });
     expect(await owner.query(api.users.modelPreferences)).toMatchObject({
-      caetano: "openai/gpt-5.6-terra",
-      orchestrator: "anthropic/claude-opus-5",
+      caetano: "openai/gpt-6-luna",
+      orchestrator: "openai/gpt-6-luna",
+      image: "openai/gpt-image-2.5-sunburst",
     });
     await t.run((ctx) =>
       ctx.db.patch(userId, { planId: "conectado", openaiAccessCiphertext: "test-token" }),
@@ -128,12 +129,12 @@ describe("Caetano control plane", () => {
     // Preferences saved before a plan change must resolve to a supported model.
     await t.run((ctx) => ctx.db.patch(userId, { caetanoModel: "anthropic/claude-opus-5" }));
     expect(await owner.query(api.users.modelPreferences)).toMatchObject({
-      caetano: "openai/gpt-5.6-terra",
-      orchestrator: "openai/gpt-5.6-terra",
+      caetano: "openai/gpt-6-luna",
+      orchestrator: "openai/gpt-6-luna",
       conectado: true,
     });
     expect(await t.query(internal.caetanoData.modelPreferences, { userId })).toMatchObject({
-      caetano: "openai/gpt-5.6-terra",
+      caetano: "openai/gpt-6-luna",
     });
     expect((await t.run((ctx) => ctx.db.get(foreignUserId)))?.caetanoModel).toBeUndefined();
     await expect(owner.mutation(api.users.setCaetanoModel, { modelId: "unknown" })).rejects.toThrow(
@@ -151,9 +152,9 @@ describe("Caetano control plane", () => {
       t.mutation(internal.caetanoData.setModelPreferences, { userId, caetano: "unknown" }),
     ).rejects.toThrow("modelo desconhecido");
     await t.run((ctx) => ctx.db.patch(userId, { caetanoModel: "retired/model" }));
-    expect((await owner.query(api.users.modelPreferences))?.caetano).toBe("openai/gpt-5.6-terra");
+    expect((await owner.query(api.users.modelPreferences))?.caetano).toBe("openai/gpt-6-luna");
     expect((await t.query(internal.caetanoData.modelPreferences, { userId })).caetano).toBe(
-      "openai/gpt-5.6-terra",
+      "openai/gpt-6-luna",
     );
   });
 
@@ -233,7 +234,7 @@ describe("Caetano control plane", () => {
                 modelId: connected
                   ? modelId.startsWith("openai/")
                     ? "gpt-5.6-sol"
-                    : "gpt-5.6-terra"
+                    : "gpt-6-luna"
                   : modelId,
                 provider: connected ? "openai.responses" : expect.stringContaining("openrouter"),
               }),

@@ -51,7 +51,7 @@ export const IMAGE_MODELS: ReadonlyArray<ImageModel> = [
     label: "GPT Image 2.5 Flare",
     maker: "OpenAI",
     priceTier: "$$$",
-    blurb: "Modelo de imagem da OpenAI, padrão da Vanda",
+    blurb: "Modelo de imagem da OpenAI para geração e edição",
     resolutions: ["1K"],
   },
   {
@@ -89,7 +89,7 @@ export const IMAGE_MODELS: ReadonlyArray<ImageModel> = [
 ];
 
 /** The painter's default when no model is chosen. */
-export const DEFAULT_IMAGE_MODEL = "openai/gpt-image-2.5-flare";
+export const DEFAULT_IMAGE_MODEL = "openai/gpt-image-2.5-sunburst";
 
 /**
  * Default painter on the owner's ChatGPT subscription.

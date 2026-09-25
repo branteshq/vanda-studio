@@ -71,7 +71,7 @@ export const ORCHESTRATOR_MODELS: readonly OrchestratorModel[] = [
     id: "anthropic/claude-opus-5",
     label: "Claude Opus 5",
     maker: "Anthropic",
-    tagline: "O padrão da Vanda para texto e planejamento — consome mais uso.",
+    tagline: "Texto e planejamento — consome mais uso.",
     codexCapable: false,
   },
   {
@@ -91,13 +91,13 @@ export const ORCHESTRATOR_MODELS: readonly OrchestratorModel[] = [
 ];
 
 /** The OpenRouter default — what a user who never chose anything runs on. */
-export const DEFAULT_ORCHESTRATOR_MODEL = "anthropic/claude-opus-5";
+export const DEFAULT_ORCHESTRATOR_MODEL = "openai/gpt-6-luna";
 
 /** Conectado can only use the owner's OpenAI subscription. */
-export const DEFAULT_CODEX_ORCHESTRATOR_MODEL = "openai/gpt-5.6-terra";
+export const DEFAULT_CODEX_ORCHESTRATOR_MODEL = DEFAULT_ORCHESTRATOR_MODEL;
 
 /** Caetano uses the same catalog and subscription routing as Vanda. */
-export const DEFAULT_CAETANO_MODEL = "openai/gpt-5.6-terra";
+export const DEFAULT_CAETANO_MODEL = DEFAULT_ORCHESTRATOR_MODEL;
 
 export const orchestratorModel = (id: string | null | undefined): OrchestratorModel | undefined =>
   ORCHESTRATOR_MODELS.find((model) => model.id === id);
