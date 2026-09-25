@@ -875,12 +875,15 @@ describe("Caetano control plane", () => {
         expect(steps.flatMap((step) => step.content)).toContainEqual(
           expect.objectContaining({ type: "tool-error", toolName: "select_account" }),
         );
+        expect(steps.flatMap((step) => step.content)).toContainEqual(
+          expect.objectContaining({ type: "tool-error", toolName: "write" }),
+        );
         expect(
           await t.query(internal.workspaceData.read, {
             accountId,
             path: "/memory/switch.md",
           }),
-        ).toMatchObject({ ok: true, file: { kind: "text", text: "conta selecionada" } });
+        ).toMatchObject({ ok: false });
       } else {
         expect(steps[1]!.toolResults).toContainEqual(
           expect.objectContaining({

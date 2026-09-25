@@ -41,11 +41,27 @@ export const productTools = {
         );
       // SAFETY: selectAccount checks account ownership and onboarding.
       const typedAccountId = accountId as Id<"accounts">;
-      const args = { userId: await agentOwner(ctx), accountId: typedAccountId };
-      await ctx.runMutation(internal.caetanoData.selectAccount, args);
-      const brandContext = await ctx.runQuery(internal.brandContext.conversation, args);
+      const scope = ctx.accountScope;
+      const previousSelection = scope?.selection;
 
-      if (ctx.accountScope) ctx.accountScope.accountId = typedAccountId;
+      let selection!: Promise<unknown>;
+      selection = (async () => {
+        // Explicit selections are ordered, but a failed one must not prevent a later retry.
+        if (previousSelection) await previousSelection.catch(() => undefined);
+
+        const args = { userId: await agentOwner(ctx), accountId: typedAccountId };
+        await ctx.runMutation(internal.caetanoData.selectAccount, args);
+        const brandContext = await ctx.runQuery(internal.brandContext.conversation, args);
+
+        // A newer selection owns the scope until it settles.
+        if (scope?.selection === selection) scope.accountId = typedAccountId;
+
+        return brandContext;
+      })();
+
+      // Register before yielding so subsequently-started account tools cannot observe the old scope.
+      if (scope) scope.selection = selection;
+      const brandContext = await selection;
 
       const operation: ThreadResource = {
         kind: "operation",

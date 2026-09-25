@@ -7,7 +7,10 @@ export type AgentCtx = {
   accountId?: Id<"accounts">;
   ownerUserId?: Id<"users">;
   // Shared by the tool contexts within one owner turn; only select_account changes it.
-  accountScope?: { accountId: Id<"accounts"> | undefined };
+  accountScope?: {
+    accountId: Id<"accounts"> | undefined;
+    selection?: Promise<unknown>;
+  };
   activityId?: AgentActivityId | undefined;
   caetanoThreadId?: string | undefined;
 };
@@ -28,6 +31,14 @@ export const agentOwner = async (ctx: ToolCtx & AgentCtx): Promise<Id<"users">> 
 
 export const agentIdentity = async (ctx: ToolCtx & AgentCtx, requested?: string) => {
   const userId = await agentOwner(ctx);
+
+  // A second selection may have been queued while we waited for the first.
+  let selection;
+
+  do {
+    selection = ctx.accountScope?.selection;
+    await selection;
+  } while (selection !== ctx.accountScope?.selection);
 
   // SAFETY: the receiving account queries validate ownership of requested account IDs.
   const accountId = requested
