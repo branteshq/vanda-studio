@@ -10,7 +10,7 @@ import { z } from "zod";
 import { brands, cases } from "../../evals/fixtures";
 import { referenceImage } from "../../evals/references";
 import {
-  assertDelegatedImagesWereInspected,
+  assertImagesWereInspected,
   assertProtectedPixelsPreserved,
   assertRejectedPaintWasReported,
   type EvalTraceStep,
@@ -540,8 +540,11 @@ it.skipIf(!enabled).each(suite)(
         assertRejectedPaintWasReported(trace, response);
       }
 
-      if (entry.agent === "caetano" && (entry.kind === "creative" || entry.kind === "revision"))
-        assertDelegatedImagesWereInspected(trace, finalImageIds);
+      if (entry.kind === "creative" || entry.kind === "revision")
+        assertImagesWereInspected(trace, finalImageIds);
+
+      if (entry.agent === "caetano")
+        expect(trace.some((step) => step.agent === "vanda")).toBe(false);
 
       if (entry.id === "pimba-past-preference") expect(response).toContain("Bora rabiscar?");
 

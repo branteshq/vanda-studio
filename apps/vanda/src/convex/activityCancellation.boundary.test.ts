@@ -184,4 +184,129 @@ describe("tool output activity identity", () => {
     expect((await t.run((ctx) => ctx.db.get(runA)))?.status).toBe("running");
     expect((await t.run((ctx) => ctx.db.get(runB)))?.status).toBe("ok");
   });
+
+  it("bounds Caetano persistence and charges to the exact owned activity", async () => {
+    const t = convexTest(schema, modules);
+
+    const setup = await t.run(async (ctx) => {
+      const now = Date.now();
+
+      const ownerId = await ctx.db.insert("users", {
+        clerkId: "owner",
+        name: "Owner",
+        email: "owner@example.com",
+        createdAt: now,
+      });
+
+      const foreignId = await ctx.db.insert("users", {
+        clerkId: "foreign",
+        name: "Foreign",
+        email: "foreign@example.com",
+        createdAt: now,
+      });
+
+      const accountId = await ctx.db.insert("accounts", {
+        ownerUserId: ownerId,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const activityA = await ctx.db.insert("caetanoThreadActivity", {
+        userId: ownerId,
+        threadId: "same-caetano-thread",
+        promptMessageId: "prompt-a",
+        startedAt: now,
+      });
+
+      const activityB = await ctx.db.insert("caetanoThreadActivity", {
+        userId: ownerId,
+        threadId: "same-caetano-thread",
+        promptMessageId: "prompt-b",
+        startedAt: now + 1,
+      });
+
+      const foreignActivity = await ctx.db.insert("caetanoThreadActivity", {
+        userId: foreignId,
+        threadId: "foreign-thread",
+        promptMessageId: "foreign-prompt",
+        startedAt: now,
+      });
+
+      await ctx.db.delete(activityA);
+
+      return {
+        accountId,
+        activityA,
+        activityB,
+        foreignActivity,
+        storageId: await ctx.storage.store(new Blob(["image"])),
+      };
+    });
+
+    const imageArgs = {
+      accountId: setup.accountId,
+      storageId: setup.storageId,
+      prompt: "resultado",
+      mimeType: "image/png",
+      width: 1,
+      height: 1,
+      costUsd: 0.01,
+    };
+
+    await expect(
+      t.mutation(internal.imagesData.savePaintedImage, {
+        ...imageArgs,
+        activityId: setup.activityA,
+      }),
+    ).rejects.toThrow("activity expired");
+    await expect(
+      t.mutation(internal.imagesData.savePaintedImage, {
+        ...imageArgs,
+        activityId: setup.foreignActivity,
+      }),
+    ).rejects.toThrow("activity expired");
+
+    const imageId = await t.mutation(internal.imagesData.savePaintedImage, {
+      ...imageArgs,
+      activityId: setup.activityB,
+    });
+
+    expect(await t.run((ctx) => ctx.db.get(imageId))).not.toBeNull();
+
+    const runId = await t.mutation(internal.codeRunsData.beginCodeRun, {
+      accountId: setup.accountId,
+      code: "print('ok')",
+      description: "Caetano run",
+    });
+
+    await expect(
+      t.mutation(internal.codeRunsData.finishCodeRun, {
+        codeRunId: runId,
+        status: "ok",
+        costUsd: 0.02,
+        activityId: setup.activityA,
+      }),
+    ).rejects.toThrow("activity expired");
+    await expect(
+      t.mutation(internal.codeRunsData.finishCodeRun, {
+        codeRunId: runId,
+        status: "ok",
+        costUsd: 0.02,
+        activityId: setup.foreignActivity,
+      }),
+    ).rejects.toThrow("activity expired");
+    await t.mutation(internal.codeRunsData.finishCodeRun, {
+      codeRunId: runId,
+      status: "ok",
+      costUsd: 0.02,
+      activityId: setup.activityB,
+    });
+
+    const events = await t.run((ctx) => ctx.db.query("usageEvents").collect());
+    expect(events).toHaveLength(2);
+    expect(events.map(({ requestId, threadId }) => ({ requestId, threadId }))).toEqual([
+      { requestId: "prompt-b", threadId: "same-caetano-thread" },
+      { requestId: "prompt-b", threadId: "same-caetano-thread" },
+    ]);
+  });
 });

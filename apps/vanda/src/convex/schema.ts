@@ -192,8 +192,7 @@ export default defineSchema({
     // Threads are now keyed in the agent component by String(accountId); this
     // field remains only for the one-time chat:migrateThreadKeys backfill.
     vandaThreadId: v.optional(v.string()),
-    // The default account-scoped Vanda thread Caetano continues. Manual Vanda
-    // conversations remain independent in the agent component.
+    // Legacy delegation pointer; retained for existing documents, no longer used.
     caetanoVandaThreadId: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -218,6 +217,7 @@ export default defineSchema({
     userId: v.id("users"),
     threadId: v.string(),
     promptMessageId: v.string(),
+    // Legacy delegation field; retained until pre-shared-capability rows expire.
     activeVandaThreadId: v.optional(v.string()),
     startedAt: v.number(),
   }).index("by_user", ["userId"]),

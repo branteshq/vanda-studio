@@ -23,6 +23,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { resolveOrchestratorModel } from "./agentModels";
+import { agentActivityIdValidator } from "./agentActivity";
 import { requireOwnedAccount } from "./authz";
 import { codexChatModel, codexResponsesText } from "./pipeline/codex";
 import { budgetOf } from "./usage";
@@ -563,7 +564,7 @@ export const expireStaleActivities = internalMutation({
 });
 
 export const activityExists = internalQuery({
-  args: { activityId: v.id("chatThreadActivity") },
+  args: { activityId: agentActivityIdValidator },
   handler: async (ctx, { activityId }) => (await ctx.db.get(activityId)) !== null,
 });
 

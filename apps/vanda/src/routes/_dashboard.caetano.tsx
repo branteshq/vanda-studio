@@ -51,7 +51,6 @@ const TOOL_LABELS = {
   set_model_preferences: "Atualizando os modelos",
   list_vanda_threads: "Procurando conversas da Vanda",
   present: "Mostrando resultado",
-  ask_vanda: "Vanda está trabalhando",
 };
 
 const toolName = (part: ToolPart): string =>

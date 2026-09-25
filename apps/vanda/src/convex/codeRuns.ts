@@ -15,6 +15,7 @@ import { CODE_IMAGE_MODEL } from "./imageModels";
 import { publicError } from "../errors";
 import { sniffImage } from "./pipeline/imageBytes";
 import { entityName } from "./workspace/types";
+import { agentActivityIdValidator, type AgentActivityId } from "./agentActivity";
 
 /** Sandbox output above this is rejected: nothing legitimate composes >32MP. */
 const MAX_OUTPUT_PIXELS = 32_000_000;
@@ -74,7 +75,7 @@ interface SaveCodeImageInput {
   name: string;
   promptAuthor: "vanda";
   codeRunId: Id<"codeRuns">;
-  activityId?: Id<"chatThreadActivity">;
+  activityId?: AgentActivityId;
 }
 
 interface SaveArtifactInput {
@@ -82,7 +83,7 @@ interface SaveArtifactInput {
   filename: string;
   mimeType: string;
   content: string;
-  activityId?: Id<"chatThreadActivity">;
+  activityId?: AgentActivityId;
 }
 
 interface FinishCodeRunInput {
@@ -93,7 +94,7 @@ interface FinishCodeRunInput {
   durationMs: number;
   costUsd: number;
   imageIds: Id<"images">[];
-  activityId?: Id<"chatThreadActivity">;
+  activityId?: AgentActivityId;
 }
 
 const resolveSourceUrl = async (ctx: ActionCtx, source: ResolvedSource): Promise<string> => {
@@ -147,7 +148,7 @@ export const run = internalAction({
     // Chat runs carry their thread so the owner's stop cancels them mid-flight.
     threadId: v.optional(v.string()),
     // Identifies the exact originating turn. Optional for non-chat runs.
-    activityId: v.optional(v.id("chatThreadActivity")),
+    activityId: v.optional(agentActivityIdValidator),
   },
   handler: async (
     ctx,

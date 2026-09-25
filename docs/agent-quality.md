@@ -3,6 +3,26 @@
 Working notes from the September 18, 2026 discussion with Davi. This is a living
 document for continued investigation and implementation, not a finished design.
 
+## Shared capabilities — September 25, 2026
+
+Vanda and Caetano now use one tool catalog, discovery configuration, and execution
+prompt. Only persona and channel instructions differ. Caetano executes marketing
+directly in its existing web/WhatsApp conversation; `ask_vanda`, its delegation
+action, and duplicate image-inspection/presentation tools were removed. Both use
+`paint`/`read` for inspection, retain draft-first publication rules, and can access
+product/account tools. Web Caetano remains available.
+
+Account-scoped conversations stay pinned. Owner-scoped Caetano turns snapshot the
+selected business; `select_account` explicitly updates that turn's scope and brand
+context. Long-running tools carry the exact originating activity for cancellation
+and usage attribution. Existing delegated conversations and legacy stored fields
+remain readable; no migration or deletion of customer history is required.
+
+The notes below describe earlier implementations and evaluation results, including
+the now-removed delegation design. They are historical evidence, not the current
+tool contract. New evaluations use `pimba-caetano-draft` and
+`pimba-caetano-revision` and check direct execution and pixel-returning tools.
+
 ## Confirmed scope and implementation status
 
 - Brand context must always be included. Previous conversations and media should

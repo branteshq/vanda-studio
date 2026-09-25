@@ -24,6 +24,7 @@ import type {
   InstagramTarget,
 } from "./instagram/types";
 import { publicError } from "../errors";
+import { agentActivityIdValidator, type AgentActivityId } from "./agentActivity";
 
 const MAX_SEARCH = 20;
 
@@ -51,7 +52,7 @@ interface MutableActionObservation<T> {
 
 interface ObservationSaveInput {
   accountId: Id<"accounts">;
-  activityId?: Id<"chatThreadActivity">;
+  activityId?: AgentActivityId;
   requestKey: string;
   operation: InstagramOperation;
   target: string;
@@ -214,7 +215,7 @@ const cachedRead = async <Data>(
   ctx: ActionCtx,
   input: {
     readonly accountId: Id<"accounts">;
-    readonly activityId?: Id<"chatThreadActivity"> | undefined;
+    readonly activityId?: AgentActivityId | undefined;
     readonly operation: InstagramOperation;
     readonly request: InstagramRequest;
     readonly target: string;
@@ -336,7 +337,7 @@ export const searchProfiles = internalAction({
     accountId: v.id("accounts"),
     query: v.string(),
     limit: v.optional(v.number()),
-    activityId: v.optional(v.id("chatThreadActivity")),
+    activityId: v.optional(agentActivityIdValidator),
   },
   handler: async (ctx, { accountId, query, limit, activityId }) => {
     const normalizedQuery = query.trim();
@@ -365,7 +366,7 @@ export const searchProfiles = internalAction({
 export const readProfile = internalAction({
   args: {
     accountId: v.id("accounts"),
-    activityId: v.optional(v.id("chatThreadActivity")),
+    activityId: v.optional(agentActivityIdValidator),
     scope: v.union(v.literal("connected"), v.literal("public")),
     handle: v.optional(v.string()),
   },
@@ -397,7 +398,7 @@ export const readProfile = internalAction({
 export const listPosts = internalAction({
   args: {
     accountId: v.id("accounts"),
-    activityId: v.optional(v.id("chatThreadActivity")),
+    activityId: v.optional(agentActivityIdValidator),
     scope: v.union(v.literal("connected"), v.literal("public")),
     handle: v.optional(v.string()),
     limit: v.optional(v.number()),
@@ -440,7 +441,7 @@ export const listPosts = internalAction({
 export const readPost = internalAction({
   args: {
     accountId: v.id("accounts"),
-    activityId: v.optional(v.id("chatThreadActivity")),
+    activityId: v.optional(agentActivityIdValidator),
     postUrl: v.string(),
     includeTranscript: v.optional(v.boolean()),
   },
@@ -466,7 +467,7 @@ export const readPost = internalAction({
 export const listComments = internalAction({
   args: {
     accountId: v.id("accounts"),
-    activityId: v.optional(v.id("chatThreadActivity")),
+    activityId: v.optional(agentActivityIdValidator),
     scope: v.union(v.literal("connected"), v.literal("public")),
     postId: v.optional(v.string()),
     postUrl: v.optional(v.string()),

@@ -71,7 +71,7 @@ export const compactHistory = (
               ("mediaType" in content && content.mediaType.startsWith("image/"))
                 ? {
                     type: "text" as const,
-                    text: "[Pixels históricos omitidos; use read/inspect_image com o imageId acima se precisar rever. A inspeção anterior não substitui uma revisão atual.]",
+                    text: "[Pixels históricos omitidos; use read em /images/<imageId> com o imageId acima se precisar rever. A inspeção anterior não substitui uma revisão atual.]",
                   }
                 : content,
             ),

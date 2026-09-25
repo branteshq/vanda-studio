@@ -4,7 +4,7 @@ Kapso transports messages. Caetano remains the existing Convex Agent, with one c
 
 ## Scope
 
-Implemented: text, secure account linking, BSUID/phone recipients, signed v2 webhooks, buffered bursts, durable ingestion, per-message deduplication, canonical chat queue, Vanda delegation, `parar`, read/typing receipt, outbound chunking, delivery status, bounded rate-limit retries, user-confirmed resends, and 24-hour window handling.
+Implemented: text, secure account linking, BSUID/phone recipients, signed v2 webhooks, buffered bursts, durable ingestion, per-message deduplication, canonical chat queue, direct execution through the shared Vanda/Caetano tools, `parar`, read/typing receipt, outbound chunking, delivery status, bounded rate-limit retries, user-confirmed resends, and 24-hour window handling.
 
 The sandbox does not support templates. A response outside the service window stays in the web history and waits in the outbox until the user messages again. Web-only turns never enqueue WhatsApp replies. Caetano's normal allowance applies; linking, stopping and delivery do not invoke a model.
 
@@ -17,7 +17,6 @@ Images, voice transcription, document ingestion, generated-image delivery and pr
 3. From that phone, send Kapso's six-character activation code to the displayed sandbox number. The code expires after 15 minutes. This step proves control of the test phone and cannot be done by this repository.
 4. Find Sandbox WhatsApp under WhatsApp → Configurations. Record its phone number ID and the digits-only sandbox destination number. These are different values.
 5. Set these secrets on the **development** Convex deployment, using the dashboard or a secure environment workflow. Do not commit them:
-
    - `KAPSO_API_KEY`: project API key
    - `KAPSO_PHONE_NUMBER_ID`: Sandbox WhatsApp configuration's number ID
    - `KAPSO_WHATSAPP_NUMBER`: digits-only number used by `wa.me`
@@ -67,7 +66,7 @@ The application stores only a SHA-256 token hash, valid for 10 minutes and consu
 - Link an activated sandbox phone. Confirm the web card becomes connected.
 - Send `Oi` and see the same prompt and response in `/caetano`.
 - Send three short messages quickly. Confirm one buffered turn.
-- Ask Caetano to ask Vanda for the active brand name, without creating or publishing anything.
+- Ask Caetano for the active brand name, without creating or publishing anything. Confirm it answers directly without starting a Vanda thread.
 - Send a web-only prompt. Confirm no WhatsApp delivery is created.
 - Submit from web and WhatsApp while a turn is active. Confirm serialized execution.
 - Send `parar`. Confirm queued and active work stop and no late response is sent. Completed publications cannot be undone by stop.

@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery } from "./_generated/server";
 import { chargeUsage } from "./usage";
+import { agentActivityIdValidator, requireOwnedAgentActivity } from "./agentActivity";
 
 interface InstagramReadEvent {
   accountId: Id<"accounts">;
@@ -62,7 +63,7 @@ export const publicReadItemsSince = internalQuery({
 export const saveObservation = internalMutation({
   args: {
     accountId: v.id("accounts"),
-    activityId: v.optional(v.id("chatThreadActivity")),
+    activityId: v.optional(agentActivityIdValidator),
     requestKey: v.string(),
     operation: v.string(),
     target: v.string(),
@@ -78,6 +79,8 @@ export const saveObservation = internalMutation({
   },
   handler: async (ctx, { activityId, ...args }) => {
     if (!(await ctx.db.get(args.accountId))) throw new Error("account not found");
+
+    if (activityId) await requireOwnedAgentActivity(ctx, args.accountId, activityId);
 
     if (!args.workspacePath.startsWith("/instagram/")) {
       throw new Error("invalid Instagram workspace path");

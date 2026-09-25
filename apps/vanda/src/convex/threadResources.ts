@@ -126,7 +126,7 @@ export const postPublicationFollowup = internalMutation({
       .then((account) => (account?.ownerUserId ? ctx.db.get(account.ownerUserId) : null));
 
     const destinations = [
-      ...(post.originThreadId
+      ...(post.originThreadId && post.originThreadId !== post.caetanoThreadId
         ? [
             {
               threadId: post.originThreadId,

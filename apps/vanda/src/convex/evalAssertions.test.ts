@@ -1,7 +1,7 @@
 import { Jimp } from "jimp";
 import { describe, expect, it } from "vitest";
 import {
-  assertDelegatedImagesWereInspected,
+  assertImagesWereInspected,
   assertProtectedPixelsPreserved,
   assertRejectedPaintWasReported,
   type EvalTraceStep,
@@ -9,34 +9,74 @@ import {
 import { referenceImage } from "../../evals/references";
 
 describe("evaluation guards", () => {
-  it("requires successful inspection of every final image after the latest delegation", () => {
-    const delegation: EvalTraceStep = { agent: "caetano", results: [{ toolName: "ask_vanda" }] };
-    const trace: EvalTraceStep[] = [delegation];
-    const check = () => assertDelegatedImagesWereInspected(trace, ["final-a", "final-b"]);
-    expect(check).toThrow("inspect_image");
+  it("requires pixels for every final image, not presentation metadata or failed reads", () => {
+    const trace: EvalTraceStep[] = [
+      {
+        agent: "caetano",
+        results: [
+          {
+            toolName: "present",
+            output: {
+              resources: [
+                { kind: "image", imageId: "final-a" },
+                { kind: "image", imageId: "final-b" },
+              ],
+            },
+          },
+        ],
+      },
+    ];
+
+    const check = () => assertImagesWereInspected(trace, ["final-a", "final-b"]);
+    expect(check).toThrow("pixel result");
     trace.push({
       agent: "caetano",
-      calls: [{ toolName: "inspect_image" }],
-      errors: [{ toolName: "inspect_image" }],
+      calls: [{ toolName: "read" }],
+      errors: [{ toolName: "read" }],
     });
-    expect(check).toThrow("inspect_image");
+    expect(check).toThrow("pixel result");
 
     for (const imageId of ["reference", "final-a", "final-b"]) {
-      expect(check).toThrow("inspect_image");
+      expect(check).toThrow("pixel result");
       trace.push({
         agent: "caetano",
         results: [
           {
-            toolName: "inspect_image",
-            output: { imageId, url: "https://example.com/image.png", mimeType: "image/png" },
+            toolName: "read",
+            output: {
+              data: {
+                ok: true,
+                file: {
+                  kind: "image",
+                  imageId,
+                  url: "https://example.com/image.png",
+                  mimeType: "image/png",
+                },
+              },
+            },
           },
         ],
       });
     }
 
     expect(check).not.toThrow();
-    trace.push(delegation);
-    expect(check).toThrow("inspect_image");
+    expect(() => assertImagesWereInspected(trace, ["corrected-image"])).toThrow("pixel result");
+    trace.push({
+      agent: "caetano",
+      results: [
+        {
+          toolName: "paint",
+          output: {
+            data: {
+              imageId: "corrected-image",
+              url: "https://example.com/corrected.png",
+              mimeType: "image/png",
+            },
+          },
+        },
+      ],
+    });
+    expect(() => assertImagesWereInspected(trace, ["corrected-image"])).not.toThrow();
   });
 
   it("rejects success prose after a failed paint and requires an actual rejection", () => {

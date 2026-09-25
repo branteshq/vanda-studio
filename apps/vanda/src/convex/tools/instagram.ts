@@ -1,16 +1,13 @@
 import { createTool, type ToolCtx } from "@convex-dev/agent";
 import type { ToolExecutionOptions } from "ai";
 import { z } from "zod";
-import type { Id } from "../_generated/dataModel";
+import { agentAccount, type AgentCtx } from "../agentContext";
 import { recordCapabilityResult } from "../capabilityTools";
 import type { InstagramOperation } from "../instagram/cache";
 import { summarizeInstagramResult } from "../instagram/toolSummary";
 import { capabilityResult, capabilityResultSchema, type ThreadResource } from "../resourceRefs";
 
-type InstagramToolCtx = ToolCtx & {
-  accountId: Id<"accounts">;
-  activityId?: Id<"chatThreadActivity"> | undefined;
-};
+type InstagramToolCtx = ToolCtx & AgentCtx;
 
 type Scope = "connected" | "public";
 
@@ -71,14 +68,13 @@ const instagramResult = async (
   ctx: InstagramToolCtx,
   options: ToolExecutionOptions,
   operation: InstagramOperation,
-  run: () => Promise<InstagramToolResult>,
+  run: (ctx: InstagramToolCtx) => Promise<InstagramToolResult>,
 ) => {
-  const result = instagramToolResultSchema.parse(await run());
+  const accountId = await agentAccount(ctx);
+  const result = instagramToolResultSchema.parse(await run({ ...ctx, accountId }));
   const data = summarizeInstagramResult(operation, result);
 
-  const resources: ThreadResource[] = [
-    { kind: "document", accountId: ctx.accountId, path: result.savedTo },
-  ];
+  const resources: ThreadResource[] = [{ kind: "document", accountId, path: result.savedTo }];
 
   return recordCapabilityResult(ctx, options, capabilityResult(data, { resources }));
 };
@@ -94,7 +90,9 @@ export const makeInstagramTools = (runners: InstagramToolRunners) => {
     }),
     outputSchema: capabilityResultSchema,
     execute: (ctx: InstagramToolCtx, args, options) =>
-      instagramResult(ctx, options, "search_profiles", () => runners.searchProfiles(ctx, args)),
+      instagramResult(ctx, options, "search_profiles", (scoped) =>
+        runners.searchProfiles(scoped, args),
+      ),
   });
 
   const readInstagramProfile = createTool({
@@ -106,7 +104,7 @@ export const makeInstagramTools = (runners: InstagramToolRunners) => {
     }),
     outputSchema: capabilityResultSchema,
     execute: (ctx: InstagramToolCtx, args, options) =>
-      instagramResult(ctx, options, "profile", () => runners.readProfile(ctx, args)),
+      instagramResult(ctx, options, "profile", (scoped) => runners.readProfile(scoped, args)),
   });
 
   const readInstagramPosts = createTool({
@@ -120,7 +118,7 @@ export const makeInstagramTools = (runners: InstagramToolRunners) => {
     }),
     outputSchema: capabilityResultSchema,
     execute: (ctx: InstagramToolCtx, args, options) =>
-      instagramResult(ctx, options, "posts", () => runners.listPosts(ctx, args)),
+      instagramResult(ctx, options, "posts", (scoped) => runners.listPosts(scoped, args)),
   });
 
   const readInstagramPost = createTool({
@@ -132,7 +130,7 @@ export const makeInstagramTools = (runners: InstagramToolRunners) => {
     }),
     outputSchema: capabilityResultSchema,
     execute: (ctx: InstagramToolCtx, args, options) =>
-      instagramResult(ctx, options, "post", () => runners.readPost(ctx, args)),
+      instagramResult(ctx, options, "post", (scoped) => runners.readPost(scoped, args)),
   });
 
   const readInstagramComments = createTool({
@@ -147,7 +145,7 @@ export const makeInstagramTools = (runners: InstagramToolRunners) => {
     }),
     outputSchema: capabilityResultSchema,
     execute: (ctx: InstagramToolCtx, args, options) =>
-      instagramResult(ctx, options, "comments", () => runners.listComments(ctx, args)),
+      instagramResult(ctx, options, "comments", (scoped) => runners.listComments(scoped, args)),
   });
 
   const readInstagramMetrics = createTool({
@@ -158,7 +156,7 @@ export const makeInstagramTools = (runners: InstagramToolRunners) => {
     }),
     outputSchema: capabilityResultSchema,
     execute: (ctx: InstagramToolCtx, args, options) =>
-      instagramResult(ctx, options, "insights", () => runners.readMetrics(ctx, args)),
+      instagramResult(ctx, options, "insights", (scoped) => runners.readMetrics(scoped, args)),
   });
 
   return {

@@ -10,6 +10,7 @@ import { codexGenerateImage } from "./pipeline/codex";
 import { ImageAssetGenerator, openRouterImageGeneratorLayer } from "./pipeline/imageGeneration";
 import { MAX_DECODE_PIXELS, sniffImage } from "./pipeline/imageBytes";
 import { errorCode, publicError } from "../errors";
+import { agentActivityIdValidator, type AgentActivityId } from "./agentActivity";
 import {
   resolveConnectedImageModel,
   isConnectedImageModel,
@@ -83,7 +84,7 @@ type SavePaintedImageArgs = {
   promptAuthor?: "vanda" | "user";
   placeholderId?: Id<"images">;
   editOfImageId?: Id<"images">;
-  activityId?: Id<"chatThreadActivity">;
+  activityId?: AgentActivityId;
 };
 
 const resolveSourceUrl = async (ctx: ActionCtx, source: ResolvedSource): Promise<string> => {
@@ -139,7 +140,7 @@ export const paint = internalAction({
     // Chat paints carry their thread so the owner's stop cancels them mid-flight.
     threadId: v.optional(v.string()),
     // Identifies the exact originating turn. Optional for gallery/background paints.
-    activityId: v.optional(v.id("chatThreadActivity")),
+    activityId: v.optional(agentActivityIdValidator),
   },
   handler: async (
     ctx,
@@ -195,7 +196,7 @@ async function paintImage(
     resolution?: ImageResolution | undefined;
     placeholderImageId?: Id<"images"> | undefined;
     threadId?: string | undefined;
-    activityId?: Id<"chatThreadActivity"> | undefined;
+    activityId?: AgentActivityId | undefined;
   },
 ): Promise<{
   imageId: Id<"images">;

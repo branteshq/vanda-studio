@@ -21,7 +21,7 @@ export type EvalCase = {
   kind: "creative" | "revision" | "retrieval" | "help" | "safety";
   holdout?: boolean;
   agent?: "vanda" | "caetano";
-  /** Reference artwork to attach. Explicit because delegated cases must not infer it from their id. */
+  /** Reference artwork to attach when the case id differs from the reference id. */
   referenceId?:
     | "caju-background-revision"
     | "orvalho-product-identity-revision"
@@ -390,28 +390,28 @@ export const cases: EvalCase[] = [
     kind: "help",
   },
   {
-    id: "pimba-delegated-draft",
+    id: "pimba-caetano-draft",
     brandId: "pimba-papelaria",
     agent: "caetano",
     prompt: "Faça um post do Kit Rabisco. Use as três cores das canetas e o preço certo.",
     expectations: [
-      "Delega a criação para Vanda preservando o pedido e os fatos da marca.",
+      "Executa a criação diretamente, preservando o pedido e os fatos da marca.",
       "Entrega um rascunho com três canetas rosa, roxa e verde e preço R$ 32.",
       "Caetano inspeciona a imagem antes de endossar o resultado.",
     ],
     kind: "creative",
   },
   {
-    id: "pimba-delegated-revision",
+    id: "pimba-caetano-revision",
     brandId: "pimba-papelaria",
     agent: "caetano",
     referenceId: "pimba-kit-revision",
     prompt:
-      "Peça para a Vanda trocar somente o fundo para rosa marca-texto. Preserve as três canetas, inclusive a roxa, o preço e o título; confira a imagem antes de me entregar.",
+      "Troque somente o fundo para rosa marca-texto. Preserve as três canetas, inclusive a roxa, o preço e o título; confira a imagem antes de me entregar.",
     expectations: [
-      "Delega o pedido e a imagem original para Vanda.",
+      "Edita a imagem original diretamente nesta conversa.",
       "Preserva os pixels protegidos das três canetas, preço e título, inclusive a caneta roxa sobre o fundo roxo original.",
-      "Caetano executa inspect_image sobre a saída delegada antes de endossá-la.",
+      "Caetano inspeciona os pixels via paint ou read antes de endossar a saída.",
     ],
     kind: "revision",
   },

@@ -99,28 +99,6 @@ describe("Caetano control plane", () => {
     });
   });
 
-  it("sends delegation locators once while retaining presentation metadata", async () => {
-    const link = { kind: "link" as const, url: "https://example.com/draft", title: "Rascunho" };
-    const other = { kind: "link" as const, url: "https://example.com/source", title: "Fonte" };
-
-    const output = capabilityResult(
-      { response: "Rascunho pronto; não publicado", threadId: "vanda-thread" },
-      { resources: [link, other], presented: [link] },
-    );
-
-    const projected = await caetano.options.tools.ask_vanda.toModelOutput!({
-      toolCallId: "delegation",
-      input: { request: "Crie um rascunho" },
-      output,
-    });
-
-    expect(projected).toEqual({
-      type: "json",
-      value: { data: output.data, resources: [link, other] },
-    });
-    expect(output.presented).toEqual([link]);
-  });
-
   it("persists a separate owner-scoped model, including on the ChatGPT plan", async () => {
     const { t, userId, foreignUserId } = await setup();
     const owner = t.withIdentity({ subject: "ana" });
@@ -248,7 +226,7 @@ describe("Caetano control plane", () => {
 
           expect(await t.action(internal.caetano.generateResponse, turn)).toBe("Feito");
           expect(stream).toHaveBeenLastCalledWith(
-            expect.objectContaining({ ownerUserId: userId }),
+            expect.objectContaining({ ownerUserId: userId, activityId: turn.activityId }),
             { threadId: "test-thread" },
             expect.objectContaining({
               model: expect.objectContaining({
@@ -260,7 +238,7 @@ describe("Caetano control plane", () => {
                 provider: connected ? "openai.responses" : expect.stringContaining("openrouter"),
               }),
               promptMessageId: "test-prompt",
-              maxOutputTokens: 4096,
+              maxOutputTokens: 8192,
               system: expect.stringContaining("Café da Ana"),
               prepareStep: caetanoToolDiscovery.prepareStep,
             }),
@@ -288,37 +266,93 @@ describe("Caetano control plane", () => {
     ).rejects.toThrow("conta não encontrada");
   });
 
-  it("creates and reuses one default Vanda thread for the active account", async () => {
+  it("allows product settings from Vanda but keeps its conversation pinned to its account", async () => {
     const { t, userId, accountId } = await setup();
 
-    const first = await t.mutation(internal.caetanoData.prepareVandaTurn, {
-      userId,
-      request: "Crie um post para amanhã",
-    });
-
-    const second = await t.mutation(internal.caetanoData.prepareVandaTurn, {
-      userId,
-      request: "Agora ajuste a legenda",
-    });
-
-    expect(first.accountId).toBe(accountId);
-    expect(second.threadId).toBe(first.threadId);
-
-    const account = await t.run((ctx) => ctx.db.get(accountId));
-    expect(account?.caetanoVandaThreadId).toBe(first.threadId);
-    const threads = await t.query(internal.caetanoData.listVandaThreads, { userId });
-    expect(threads).toEqual([
-      expect.objectContaining({ threadId: first.threadId, caetanoDefault: true }),
-    ]);
-
-    const activity = await t.run((ctx) =>
-      ctx.db
-        .query("chatThreadActivity")
-        .withIndex("by_thread", (q) => q.eq("threadId", first.threadId))
-        .collect(),
+    const otherAccountId = await t.run((ctx) =>
+      ctx.db.insert("accounts", {
+        ownerUserId: userId,
+        name: "Padaria da Ana",
+        onboardedAt: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      }),
     );
 
-    expect(activity).toHaveLength(2);
+    await t.action(async (ctx) => {
+      const toolCtx = { ...ctx, accountId };
+
+      const preferences = Object.assign({}, vanda.options.tools!.model_preferences, {
+        ctx: toolCtx,
+      });
+
+      await expect(
+        preferences.execute({}, { toolCallId: "preferences", messages: [] }),
+      ).resolves.toHaveProperty("data.orchestrator");
+
+      const update = Object.assign({}, vanda.options.tools!.set_model_preferences, {
+        ctx: toolCtx,
+      });
+
+      await update.execute(
+        { caetano: "openai/gpt-6-luna" },
+        { toolCallId: "update", messages: [] },
+      );
+
+      const select = Object.assign({}, vanda.options.tools!.select_account, { ctx: toolCtx });
+      await expect(
+        select.execute({ accountId: otherAccountId }, { toolCallId: "retarget", messages: [] }),
+      ).rejects.toThrow("conversa");
+    });
+    expect((await t.run((ctx) => ctx.db.get(userId)))?.activeAccountId).toBe(accountId);
+    expect((await t.run((ctx) => ctx.db.get(userId)))?.caetanoModel).toBe("openai/gpt-6-luna");
+  });
+
+  it("does not retarget an in-flight Caetano turn when another tab switches accounts", async () => {
+    const { t, userId, accountId } = await setup();
+
+    const otherAccountId = await t.run((ctx) =>
+      ctx.db.insert("accounts", {
+        ownerUserId: userId,
+        name: "Outro negócio",
+        onboardedAt: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    );
+
+    const accountScope = { accountId };
+    await t.mutation(internal.caetanoData.selectAccount, { userId, accountId: otherAccountId });
+    await t.action(async (ctx) => {
+      const write = Object.assign({}, caetano.options.tools!.write, {
+        ctx: { ...ctx, ownerUserId: userId, accountScope },
+      });
+
+      await write.execute(
+        { path: "/memory/pinned.md", content: "Somente Café da Ana" },
+        {
+          toolCallId: "write",
+          messages: [],
+        },
+      );
+
+      const status = Object.assign({}, caetano.options.tools!.account_status, {
+        ctx: { ...ctx, ownerUserId: userId, accountScope },
+      });
+
+      await expect(
+        status.execute({}, { toolCallId: "status", messages: [] }),
+      ).resolves.toHaveProperty("data.accountId", accountId);
+    });
+    expect(
+      await t.query(internal.workspaceData.read, { accountId, path: "/memory/pinned.md" }),
+    ).toMatchObject({ ok: true, file: { text: "Somente Café da Ana" } });
+    expect(
+      await t.query(internal.workspaceData.read, {
+        accountId: otherAccountId,
+        path: "/memory/pinned.md",
+      }),
+    ).toHaveProperty("ok", false);
   });
 
   it("keeps one canonical user thread and exposes it through the public chat API", async () => {
@@ -377,6 +411,125 @@ describe("Caetano control plane", () => {
     );
   });
 
+  it("creates a draft from an owned attachment in the Caetano thread and records resources", async () => {
+    const { t, userId, accountId } = await setup();
+    const owner = t.withIdentity({ subject: "ana" });
+    const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["product-photo"])));
+
+    const { imageId } = await owner.mutation(api.imageUploads.addImage, {
+      accountId,
+      storageId,
+      mimeType: "image/png",
+      width: 800,
+      height: 600,
+    });
+
+    const sent = await owner.mutation(api.caetano.sendMessage, {
+      prompt: "Crie um rascunho com esta foto",
+      imageIds: [imageId],
+    });
+
+    let call = 0;
+
+    const model = new MockLanguageModelV3({
+      supportedUrls: { "image/*": [/^https?:\/\/.*$/] },
+      doStream: async () => {
+        const create = call++ === 0;
+
+        return {
+          stream: convertArrayToReadableStream([
+            { type: "stream-start" as const, warnings: [] },
+            ...(create
+              ? [
+                  {
+                    type: "tool-call" as const,
+                    toolCallId: "create-draft",
+                    toolName: "create_post",
+                    input: JSON.stringify({
+                      imageIds: [imageId],
+                      caption: "Café feito com calma.",
+                    }),
+                  },
+                ]
+              : []),
+            {
+              type: "finish" as const,
+              finishReason: {
+                unified: create ? ("tool-calls" as const) : ("stop" as const),
+                raw: undefined,
+              },
+              usage: {
+                inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+                outputTokens: { total: 1, text: 1, reasoning: 0 },
+              },
+            },
+          ]),
+        };
+      },
+    });
+
+    await t.action(async (ctx) => {
+      const result = await caetano.streamText(
+        {
+          ...ctx,
+          ownerUserId: userId,
+          accountScope: { accountId },
+          caetanoThreadId: sent.threadId,
+        },
+        { threadId: sent.threadId },
+        { promptMessageId: sent.messageId, model, prepareStep: caetanoToolDiscovery.prepareStep },
+      );
+
+      await result.consumeStream();
+    });
+
+    const posts = await t.run((ctx) => ctx.db.query("posts").collect());
+    expect(posts).toHaveLength(1);
+    expect(posts[0]).toMatchObject({
+      accountId,
+      status: "draft",
+      imageIds: [imageId],
+      caption: "Café feito com calma.",
+      originThreadId: sent.threadId,
+      caetanoThreadId: sent.threadId,
+    });
+    const manifests = await t.run((ctx) => ctx.db.query("threadResourceManifests").collect());
+    expect(manifests).toContainEqual(
+      expect.objectContaining({
+        threadId: sent.threadId,
+        toolCallId: "create-draft",
+        resources: expect.arrayContaining([expect.objectContaining({ kind: "post", accountId })]),
+      }),
+    );
+    expect((await t.run((ctx) => ctx.db.get(accountId)))?.caetanoVandaThreadId).toBeUndefined();
+    expect(await t.query(internal.caetanoData.listVandaThreads, { userId })).toEqual([]);
+
+    // Completion must return to Caetano even when both origin fields name the same thread.
+    const scheduledPostId = await t.run((ctx) =>
+      ctx.db.insert("scheduledPosts", {
+        accountId,
+        postId: posts[0]!._id,
+        scheduledFor: 1,
+        status: "published",
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    );
+
+    await t.mutation(internal.threadResources.postPublicationFollowup, { scheduledPostId });
+
+    const messages = await owner.query(api.caetano.listMessages, {
+      threadId: sent.threadId,
+      paginationOpts: { cursor: null, numItems: 20 },
+    });
+
+    expect(
+      messages.page.filter(
+        (message) => message.text === "A publicação terminou e já está no Instagram.",
+      ),
+    ).toHaveLength(1);
+  });
+
   it("refuses an image from another account", async () => {
     const { t, foreignAccountId } = await setup();
 
@@ -401,8 +554,8 @@ describe("Caetano control plane", () => {
     ).rejects.toThrow("image not found");
   });
 
-  it("preserves the exact request and only its attachments through delegation", async () => {
-    const { t, userId, accountId, foreignUserId } = await setup();
+  it("preserves the exact request and attachments in the original conversation", async () => {
+    const { t, accountId } = await setup();
     const owner = t.withIdentity({ subject: "ana" });
     const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["product-photo"])));
 
@@ -423,22 +576,14 @@ describe("Caetano control plane", () => {
 
     const next = await owner.mutation(api.caetano.sendMessage, { prompt: "Explique os planos" });
 
-    const delegated = await t.mutation(internal.caetanoData.prepareVandaTurn, {
-      userId,
-      request: "Melhore a foto",
-      caetanoThreadId: sent.threadId,
-      sourcePromptMessageId: sent.messageId,
-    });
-
     const [message] = await t.run((ctx) =>
       ctx.runQuery(components.agent.messages.getMessagesByIds, {
-        messageIds: [delegated.promptMessageId],
+        messageIds: [sent.messageId],
       }),
     );
 
     expect(message?.text).toContain(original);
     expect(message?.text).toContain(`imageId=${imageId}`);
-    expect(message?.text).toContain("Melhore a foto");
     expect(message?.message?.content).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -448,16 +593,9 @@ describe("Caetano control plane", () => {
       ]),
     );
 
-    const textOnly = await t.mutation(internal.caetanoData.prepareVandaTurn, {
-      userId,
-      request: "Planos",
-      caetanoThreadId: next.threadId,
-      sourcePromptMessageId: next.messageId,
-    });
-
     const [plain] = await t.run((ctx) =>
       ctx.runQuery(components.agent.messages.getMessagesByIds, {
-        messageIds: [textOnly.promptMessageId],
+        messageIds: [next.messageId],
       }),
     );
 
@@ -466,37 +604,6 @@ describe("Caetano control plane", () => {
     expect(plain?.message?.content).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ type: "image" })]),
     );
-
-    await expect(
-      t.mutation(internal.caetanoData.prepareVandaTurn, {
-        userId: foreignUserId,
-        request: "Use a foto",
-        caetanoThreadId: sent.threadId,
-        sourcePromptMessageId: sent.messageId,
-        accountId: (await t.query(internal.caetanoData.listAccounts, { userId: foreignUserId }))[0]!
-          .accountId,
-      }),
-    ).rejects.toThrow("mensagem de origem");
-
-    const otherAccount = await t.run((ctx) =>
-      ctx.db.insert("accounts", {
-        ownerUserId: userId,
-        name: "Outro negócio",
-        onboardedAt: 1,
-        createdAt: 1,
-        updatedAt: 1,
-      }),
-    );
-
-    await expect(
-      t.mutation(internal.caetanoData.prepareVandaTurn, {
-        userId,
-        accountId: otherAccount,
-        request: "Use a foto",
-        caetanoThreadId: sent.threadId,
-        sourcePromptMessageId: sent.messageId,
-      }),
-    ).rejects.toThrow("image not found");
   });
 
   it("includes brand facts, kit and preferences but not foreign data or the media archive", async () => {
@@ -585,9 +692,9 @@ describe("Caetano control plane", () => {
   it("passes brand context into a Vanda turn without model-driven retrieval", async () => {
     const { t, userId, accountId } = await setup();
 
-    // Seed the delegation source without scheduling an unrelated live Caetano turn.
+    // Seed the original request without scheduling a live turn.
     const sent = await t.run(async (ctx) => {
-      const threadId = await createThread(ctx, components.agent, { userId: `caetano:${userId}` });
+      const threadId = await createThread(ctx, components.agent, { userId: String(accountId) });
 
       const { messageId } = await saveMessage(ctx, components.agent, {
         threadId,
@@ -597,14 +704,14 @@ describe("Caetano control plane", () => {
       return { threadId, messageId };
     });
 
-    // A request can contain Caetano attempts before the delegated Vanda charge.
+    // A request can contain failed attempts before its successful charge.
     await t.action((ctx) =>
       failedModelAttempt(ctx, {
         userId,
         threadId: sent.threadId,
         requestId: sent.messageId,
         model: "openai/gpt-5.6-terra",
-        kind: "caetano_chat",
+        kind: "chat",
       }),
     );
 
@@ -619,14 +726,13 @@ describe("Caetano control plane", () => {
     const stream = vi.spyOn(vanda, "streamText").mockResolvedValue(result as VandaStreamResult);
 
     try {
-      const result = await t.action(internal.caetanoNode.askVanda, {
-        userId,
-        caetanoThreadId: sent.threadId,
-        sourcePromptMessageId: sent.messageId,
-        request: "Faça um post",
+      const result = await t.action(internal.chat.generateResponse, {
+        accountId,
+        threadId: sent.threadId,
+        promptMessageId: sent.messageId,
       });
 
-      expect(result.response).toBe("Rascunho pronto");
+      expect(result).toBe("Rascunho pronto");
       expect(stream.mock.calls[0]?.[0]).toMatchObject({ accountId });
       expect(stream.mock.calls[0]?.[2].system).toContain("Café da Ana");
       expect(stream.mock.calls[0]?.[2].maxOutputTokens).toBe(8192);
@@ -635,7 +741,7 @@ describe("Caetano control plane", () => {
       await t.action(async (ctx) =>
         usageHandler(ctx, {
           userId: accountId,
-          threadId: result.threadId,
+          threadId: sent.threadId,
           agentName: "vanda",
           model: "anthropic/claude-opus-5",
           provider: "openrouter.chat",
@@ -658,7 +764,7 @@ describe("Caetano control plane", () => {
       expect(costs.microUsd).toBe(10_000);
       expect(costs.events).toHaveLength(2);
       expect(costs.events.find((event) => event.kind === "chat")).toMatchObject({
-        threadId: result.threadId,
+        threadId: sent.threadId,
         microUsd: 10_000,
       });
 
@@ -698,6 +804,7 @@ describe("Caetano control plane", () => {
       const calls = [
         { name: "tool_search", input: { query: "select_account" } },
         { name: "select_account", input: { accountId: target } },
+        { name: "write", input: { path: "/memory/switch.md", content: "conta selecionada" } },
       ];
 
       let step = 0;
@@ -742,8 +849,7 @@ describe("Caetano control plane", () => {
           {
             ...ctx,
             ownerUserId: userId,
-            caetanoThreadId: sent.threadId,
-            sourcePromptMessageId: sent.messageId,
+            accountScope: { accountId },
           },
           { threadId: sent.threadId },
           { promptMessageId: sent.messageId, model, prepareStep: caetanoToolDiscovery.prepareStep },
@@ -754,7 +860,7 @@ describe("Caetano control plane", () => {
         steps = await result.steps;
       });
 
-      expect(model.doStreamCalls).toHaveLength(3);
+      expect(model.doStreamCalls).toHaveLength(4);
       expect(model.doStreamCalls[0]!.tools!.map((tool) => tool.name)).not.toContain(
         "select_account",
       );
@@ -768,7 +874,12 @@ describe("Caetano control plane", () => {
         expect(steps.flatMap((step) => step.content)).toContainEqual(
           expect.objectContaining({ type: "tool-error", toolName: "select_account" }),
         );
-        expect(manifests).toEqual([]);
+        expect(
+          await t.query(internal.workspaceData.read, {
+            accountId,
+            path: "/memory/switch.md",
+          }),
+        ).toMatchObject({ ok: true, file: { kind: "text", text: "conta selecionada" } });
       } else {
         expect(steps[1]!.toolResults).toContainEqual(
           expect.objectContaining({
@@ -790,11 +901,17 @@ describe("Caetano control plane", () => {
             ],
           }),
         );
+        expect(
+          await t.query(internal.workspaceData.read, {
+            accountId: secondAccountId,
+            path: "/memory/switch.md",
+          }),
+        ).toMatchObject({ ok: true, file: { kind: "text", text: "conta selecionada" } });
       }
     },
   );
 
-  it("lets Caetano inspect owned images and rejects foreign images and accounts", async () => {
+  it("lets Caetano inspect owned images through read and rejects foreign images", async () => {
     const { t, userId, accountId, foreignAccountId } = await setup();
 
     const imageId = await t.run((ctx) =>
@@ -808,19 +925,6 @@ describe("Caetano control plane", () => {
       }),
     );
 
-    expect(await t.query(internal.caetanoData.inspectImage, { userId, imageId })).toEqual({
-      imageId,
-      url: "https://example.com/result.png",
-      mimeType: "image/png",
-    });
-    await expect(
-      t.query(internal.caetanoData.inspectImage, {
-        userId,
-        accountId: foreignAccountId,
-        imageId,
-      }),
-    ).rejects.toThrow("conta não encontrada");
-
     const foreignImage = await t.run((ctx) =>
       ctx.db.insert("images", {
         accountId: foreignAccountId,
@@ -831,9 +935,18 @@ describe("Caetano control plane", () => {
       }),
     );
 
-    await expect(
-      t.query(internal.caetanoData.inspectImage, { userId, imageId: foreignImage }),
-    ).rejects.toThrow("image not found");
+    await t.action(async (ctx) => {
+      const read = Object.assign({}, caetano.options.tools!.read, {
+        ctx: { ...ctx, ownerUserId: userId, accountScope: { accountId } },
+      });
+
+      await expect(
+        read.execute({ path: `/images/${imageId}` }, { toolCallId: "own", messages: [] }),
+      ).resolves.toHaveProperty("data.file.imageId", imageId);
+      await expect(
+        read.execute({ path: `/images/${foreignImage}` }, { toolCallId: "foreign", messages: [] }),
+      ).resolves.toHaveProperty("data.ok", false);
+    });
   });
 
   it("gives generated code images an exact readable locator instead of a guessed filename", async () => {
@@ -859,7 +972,7 @@ describe("Caetano control plane", () => {
     expect(result).toHaveProperty("resources.0.imageId", "image-123");
   });
 
-  it("returns image pixels to both agents instead of only JSON metadata", async () => {
+  it("returns image pixels through shared paint and read projections", async () => {
     const image = {
       imageId: "test-image",
       url: "https://example.com/review.png",
@@ -867,7 +980,7 @@ describe("Caetano control plane", () => {
     };
 
     const paint = Object.assign({}, vanda.options.tools!.paint, { ctx: {} });
-    const inspect = Object.assign({}, caetano.options.tools!.inspect_image, { ctx: {} });
+    const read = Object.assign({}, caetano.options.tools!.read, { ctx: {} });
 
     const expected = {
       type: "content",
@@ -888,7 +1001,24 @@ describe("Caetano control plane", () => {
       }),
     ).toEqual(expected);
     expect(
-      await inspect.toModelOutput({ toolCallId: "inspect", input: {}, output: image }),
-    ).toEqual(expected);
+      await read.toModelOutput({
+        toolCallId: "read",
+        input: {},
+        output: {
+          data: {
+            ok: true,
+            path: "/images/test-image",
+            file: { kind: "image", ...image, header: "imagem" },
+          },
+          resources: [],
+        },
+      }),
+    ).toEqual({
+      type: "content",
+      value: [
+        { type: "text", text: expect.stringContaining("/images/test-image") },
+        { type: "image-url", url: "https://example.com/review.png" },
+      ],
+    });
   });
 });

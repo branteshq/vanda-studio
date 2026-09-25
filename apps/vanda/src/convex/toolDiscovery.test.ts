@@ -77,66 +77,68 @@ const setup = () => {
 };
 
 describe("role-specific discovery", () => {
+  const core = [
+    "account_status",
+    "create_post",
+    "list",
+    "paint",
+    "present",
+    "read",
+    "run_code",
+    "tool_search",
+    "write",
+  ];
+
+  const deferred = [
+    "cancel_schedule",
+    "delete_post",
+    "list_accounts",
+    "list_vanda_threads",
+    "model_preferences",
+    "product_help",
+    "read_conversation",
+    "read_instagram_comments",
+    "read_instagram_metrics",
+    "read_instagram_post",
+    "read_instagram_posts",
+    "read_instagram_profile",
+    "schedule_post",
+    "search_conversations",
+    "search_instagram_profiles",
+    "search_media",
+    "select_account",
+    "set_model_preferences",
+    "usage_status",
+  ];
+
+  it("shares the complete tool catalog and discovery instance", () => {
+    expect(caetano.options.tools).toBe(vanda.options.tools);
+    expect(caetanoToolDiscovery).toBe(vandaToolDiscovery);
+    expect(Object.keys(caetano.options.tools!).toSorted()).toEqual(
+      [...core, ...deferred].toSorted(),
+    );
+  });
+
   it.each([
-    {
-      name: "Vanda",
-      tools: vanda.options.tools!,
-      discovery: vandaToolDiscovery,
-      core: ["create_post", "list", "paint", "present", "read", "run_code", "tool_search", "write"],
-      deferred: [
-        "cancel_schedule",
-        "delete_post",
-        "product_help",
-        "read_conversation",
-        "read_instagram_comments",
-        "read_instagram_metrics",
-        "read_instagram_post",
-        "read_instagram_posts",
-        "read_instagram_profile",
-        "schedule_post",
-        "search_conversations",
-        "search_instagram_profiles",
-        "search_media",
-      ],
-    },
-    {
-      name: "Caetano",
-      tools: caetano.options.tools!,
-      discovery: caetanoToolDiscovery,
-      core: ["account_status", "ask_vanda", "inspect_image", "present", "tool_search"],
-      deferred: [
-        "list_accounts",
-        "list_vanda_threads",
-        "model_preferences",
-        "product_help",
-        "read_conversation",
-        "search_conversations",
-        "search_media",
-        "select_account",
-        "set_model_preferences",
-        "usage_status",
-      ],
-    },
-  ])(
-    "exposes only $name's core initially, then its own catalog",
-    async ({ tools, discovery, core, deferred }) => {
-      const model = scriptedModel([call("tool_search", { query: "*" }), done()]);
+    { name: "Vanda", tools: vanda.options.tools! },
+    { name: "Caetano", tools: caetano.options.tools! },
+  ])("exposes shared core initially, then the shared catalog for $name", async ({ tools }) => {
+    const model = scriptedModel([call("tool_search", { query: "*" }), done()]);
 
-      const result = streamText({
-        model,
-        tools,
-        prompt: "Quais ferramentas existem?",
-        prepareStep: discovery.prepareStep,
-        stopWhen: stepCountIs(3),
-      });
+    const result = streamText({
+      model,
+      tools,
+      prompt: "Quais ferramentas existem?",
+      prepareStep: vandaToolDiscovery.prepareStep,
+      stopWhen: stepCountIs(3),
+    });
 
-      await result.consumeStream();
+    await result.consumeStream();
 
-      expect(await result.text).toBe("Feito");
-      expect(modelTools(model, 0)).toEqual(core);
-      expect(modelTools(model, 1)).toEqual([...core, ...deferred].toSorted());
-    },
-  );
+    expect(await result.text).toBe("Feito");
+    expect(modelTools(model, 0)).toEqual(core);
+    expect(modelTools(model, 1)).toEqual([...core, ...deferred].toSorted());
+  });
 
   it.each([
     ["vanda", "Quero pesquisar concorrentes", "search_instagram_profiles", "read"],
@@ -147,6 +149,8 @@ describe("role-specific discovery", () => {
     ["caetano", "usage quota", "usage_status", "read"],
     ["caetano", "conversas anteriores", "list_vanda_threads", "read"],
     ["caetano", "model_preferences", "model_preferences", "read"],
+    ["vanda", "mudar de negócio", "select_account", "write"],
+    ["vanda", "usage quota", "usage_status", "read"],
     ["vanda", "product_help", "product_help", "read"],
     ["caetano", "search_media", "search_media", "read"],
     ["vanda", "search_conversations", "search_conversations", "read"],

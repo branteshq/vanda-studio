@@ -10,6 +10,7 @@ import {
 import { PLAN_TIERS, tierOfPlan } from "./billing/plans";
 import { isConnectedSubscriber } from "./openaiSub";
 import { modelUsageValidator } from "./usageDetails";
+import type { AgentActivityId } from "./agentActivity";
 
 /**
  * The usage meter: every real-money cost (model calls, image generation,
@@ -107,7 +108,7 @@ export const chargeUsage = async (
     ref?: string | undefined;
     requestId?: string | undefined;
     threadId?: string | undefined;
-    activityId?: Id<"chatThreadActivity"> | undefined;
+    activityId?: AgentActivityId | undefined;
     modelUsage?: Doc<"usageEvents">["modelUsage"];
   },
 ): Promise<void> => {
@@ -141,9 +142,17 @@ export const chargeUsage = async (
   if (args.activityId) {
     const activity = await ctx.db.get(args.activityId);
 
-    if (activity && activity.accountId === args.accountId)
+    if (
+      activity &&
+      ("accountId" in activity
+        ? activity.accountId === args.accountId
+        : activity.userId === user._id)
+    )
       Object.assign(event, {
-        requestId: activity.requestId ?? activity.promptMessageId,
+        requestId:
+          "accountId" in activity
+            ? (activity.requestId ?? activity.promptMessageId)
+            : activity.promptMessageId,
         threadId: activity.threadId,
       });
   }

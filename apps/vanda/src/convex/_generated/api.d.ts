@@ -9,6 +9,8 @@
  */
 
 import type * as accounts from "../accounts.js";
+import type * as agentActivity from "../agentActivity.js";
+import type * as agentContext from "../agentContext.js";
 import type * as agentModels from "../agentModels.js";
 import type * as authz from "../authz.js";
 import type * as autumn from "../autumn.js";
@@ -22,7 +24,6 @@ import type * as brandProfileNode from "../brandProfileNode.js";
 import type * as caetano from "../caetano.js";
 import type * as caetanoAgent from "../caetanoAgent.js";
 import type * as caetanoData from "../caetanoData.js";
-import type * as caetanoNode from "../caetanoNode.js";
 import type * as calendar from "../calendar.js";
 import type * as capabilityTools from "../capabilityTools.js";
 import type * as chat from "../chat.js";
@@ -93,7 +94,9 @@ import type * as threadResources from "../threadResources.js";
 import type * as toolDiscovery from "../toolDiscovery.js";
 import type * as tools_instagram from "../tools/instagram.js";
 import type * as tools_previousWork from "../tools/previousWork.js";
+import type * as tools_product from "../tools/product.js";
 import type * as usage from "../usage.js";
+import type * as usageDetails from "../usageDetails.js";
 import type * as users from "../users.js";
 import type * as vanda from "../vanda.js";
 import type * as visualBrand from "../visualBrand.js";
@@ -117,14 +120,12 @@ import type * as workspace_types from "../workspace/types.js";
 import type * as workspaceData from "../workspaceData.js";
 import type * as workspacePublic from "../workspacePublic.js";
 
-import type {
-  ApiFromModules,
-  FilterApi,
-  FunctionReference,
-} from "convex/server";
+import type { ApiFromModules, FilterApi, FunctionReference } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
   accounts: typeof accounts;
+  agentActivity: typeof agentActivity;
+  agentContext: typeof agentContext;
   agentModels: typeof agentModels;
   authz: typeof authz;
   autumn: typeof autumn;
@@ -138,7 +139,6 @@ declare const fullApi: ApiFromModules<{
   caetano: typeof caetano;
   caetanoAgent: typeof caetanoAgent;
   caetanoData: typeof caetanoData;
-  caetanoNode: typeof caetanoNode;
   calendar: typeof calendar;
   capabilityTools: typeof capabilityTools;
   chat: typeof chat;
@@ -209,7 +209,9 @@ declare const fullApi: ApiFromModules<{
   toolDiscovery: typeof toolDiscovery;
   "tools/instagram": typeof tools_instagram;
   "tools/previousWork": typeof tools_previousWork;
+  "tools/product": typeof tools_product;
   usage: typeof usage;
+  usageDetails: typeof usageDetails;
   users: typeof users;
   vanda: typeof vanda;
   visualBrand: typeof visualBrand;
@@ -242,10 +244,7 @@ declare const fullApi: ApiFromModules<{
  * const myFunctionReference = api.myModule.myFunction;
  * ```
  */
-export declare const api: FilterApi<
-  typeof fullApi,
-  FunctionReference<any, "public">
->;
+export declare const api: FilterApi<typeof fullApi, FunctionReference<any, "public">>;
 
 /**
  * A utility for referencing Convex functions in your app's internal API.
@@ -255,10 +254,7 @@ export declare const api: FilterApi<
  * const myFunctionReference = internal.myModule.myFunction;
  * ```
  */
-export declare const internal: FilterApi<
-  typeof fullApi,
-  FunctionReference<any, "internal">
->;
+export declare const internal: FilterApi<typeof fullApi, FunctionReference<any, "internal">>;
 
 export declare const components: {
   agent: import("@convex-dev/agent/_generated/component.js").ComponentApi<"agent">;

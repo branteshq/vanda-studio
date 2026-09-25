@@ -5,6 +5,7 @@ import { chargeUsage } from "./usage";
 import { readPath } from "./workspace";
 import { resolveImagePath } from "./workspace/resolveImage";
 import { entityName, imageFileParts } from "./workspace/types";
+import { agentActivityIdValidator, requireOwnedAgentActivity } from "./agentActivity";
 
 /** Max run_code executions per account inside the rate window. */
 export const CODE_RUN_RATE_LIMIT = 20;
@@ -147,7 +148,7 @@ export const saveCodeRunArtifact = internalMutation({
     filename: v.string(),
     mimeType: v.string(),
     content: v.string(),
-    activityId: v.optional(v.id("chatThreadActivity")),
+    activityId: v.optional(agentActivityIdValidator),
   },
   handler: async (ctx, args) => {
     const run = await ctx.db.get(args.codeRunId);
@@ -155,9 +156,7 @@ export const saveCodeRunArtifact = internalMutation({
     if (!run) throw new Error("code run not found");
 
     if (args.activityId) {
-      const activity = await ctx.db.get(args.activityId);
-
-      if (!activity || activity.accountId !== run.accountId) throw new Error("activity expired");
+      await requireOwnedAgentActivity(ctx, run.accountId, args.activityId);
     }
 
     if (args.content.length > 1024 * 1024) throw new Error("artifact larger than 1MB");
@@ -188,7 +187,7 @@ export const finishCodeRun = internalMutation({
     durationMs: v.optional(v.number()),
     costUsd: v.optional(v.number()),
     imageIds: v.optional(v.array(v.id("images"))),
-    activityId: v.optional(v.id("chatThreadActivity")),
+    activityId: v.optional(agentActivityIdValidator),
   },
   handler: async (ctx, { codeRunId, activityId, ...outcome }) => {
     const run = await ctx.db.get(codeRunId);
@@ -196,9 +195,7 @@ export const finishCodeRun = internalMutation({
     if (!run || run.status !== "running") return;
 
     if (activityId) {
-      const activity = await ctx.db.get(activityId);
-
-      if (!activity || activity.accountId !== run.accountId) throw new Error("activity expired");
+      await requireOwnedAgentActivity(ctx, run.accountId, activityId);
     }
 
     await ctx.db.patch(codeRunId, outcome);

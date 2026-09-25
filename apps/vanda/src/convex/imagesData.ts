@@ -4,13 +4,18 @@ import { internalMutation, internalQuery, type QueryCtx } from "./_generated/ser
 import { chargeUsage } from "./usage";
 import { isErrorCode } from "../errors";
 import { errorCodeValidator } from "./publicErrors";
+import {
+  agentActivityIdValidator,
+  requireOwnedAgentActivity,
+  type AgentActivityId,
+} from "./agentActivity";
 
 interface PaintCharge {
   accountId: Id<"accounts">;
   kind: string;
   usd: number;
   ref?: string;
-  activityId?: Id<"chatThreadActivity">;
+  activityId?: AgentActivityId;
 }
 
 const loadOwnedImage = async (ctx: QueryCtx, accountId: Id<"accounts">, imageId: Id<"images">) => {
@@ -82,17 +87,13 @@ export const savePaintedImage = internalMutation({
     // that row in place (keeping its grid position) instead of inserting.
     placeholderId: v.optional(v.id("images")),
     // Chat output may persist only while its exact originating turn is active.
-    activityId: v.optional(v.id("chatThreadActivity")),
+    activityId: v.optional(agentActivityIdValidator),
   },
   handler: async (ctx, args) => {
     if (!(await ctx.db.get(args.accountId))) throw new Error("account not found");
 
     if (args.activityId) {
-      const activity = await ctx.db.get(args.activityId);
-
-      if (!activity || activity.accountId !== args.accountId) {
-        throw new Error("activity expired");
-      }
+      await requireOwnedAgentActivity(ctx, args.accountId, args.activityId);
     }
 
     const fields: Pick<

@@ -358,20 +358,29 @@ export const generateResponse = internalAction({
               }),
             );
 
-      const brand = await ctx.runQuery(internal.brandContext.conversation, { userId });
+      const accounts = await ctx.runQuery(internal.caetanoData.listAccounts, { userId });
+      const accountScope = { accountId: accounts.find((account) => account.active)?.accountId };
+
+      const brand = accountScope.accountId
+        ? await ctx.runQuery(internal.brandContext.conversation, {
+            userId,
+            accountId: accountScope.accountId,
+          })
+        : "Nenhum negócio ativo. Não invente uma identidade de marca.";
 
       const result = await caetano.streamText(
         {
           ...ctx,
           ownerUserId: userId,
+          accountScope,
+          activityId,
           caetanoThreadId: threadId,
-          sourcePromptMessageId: promptMessageId,
         },
         { threadId },
         {
           promptMessageId,
           model,
-          maxOutputTokens: 4096,
+          maxOutputTokens: 8192,
           providerOptions: { openrouter: { session_id: threadId } },
           prepareStep: caetanoToolDiscovery.prepareStep,
           system:
@@ -500,17 +509,6 @@ const stopForUser = async (ctx: MutationCtx, userId: Id<"users">, threadId: stri
   await abortThread(ctx, threadId, "interrompido pelo dono");
 
   for (const row of relevant) {
-    if (row.activeVandaThreadId) {
-      await abortThread(ctx, row.activeVandaThreadId, "interrompido pelo dono");
-
-      const vandaActivity = await ctx.db
-        .query("chatThreadActivity")
-        .withIndex("by_thread", (q) => q.eq("threadId", row.activeVandaThreadId!))
-        .collect();
-
-      await Promise.all(vandaActivity.map((item) => ctx.db.delete(item._id)));
-    }
-
     if (row.inboxId) await ctx.db.patch(row.inboxId, { status: "stopped" });
     await ctx.db.delete(row._id);
   }

@@ -1,4 +1,5 @@
 import { Jimp } from "jimp";
+import { z } from "zod";
 import { imagePreviewSchema } from "../src/convex/messageImages";
 
 export type EvalTraceStep = {
@@ -12,33 +13,37 @@ export type EvalTraceStep = {
 };
 
 /** Structural execution evidence; prose mentioning inspection is intentionally insufficient. */
-export function assertDelegatedImagesWereInspected(
+export function assertImagesWereInspected(
   trace: readonly EvalTraceStep[],
   imageIds: readonly string[],
 ): void {
-  const delegatedAt = trace.findLastIndex(
-    (step) =>
-      step.agent === "caetano" &&
-      (step.results ?? []).some((result) => result.toolName === "ask_vanda"),
-  );
-
   const inspected = new Set<string>();
 
-  for (const step of trace.slice(delegatedAt + 1)) {
-    if (step.agent !== "caetano") continue;
-
+  for (const step of trace) {
     for (const result of step.results ?? []) {
-      if (result.toolName !== "inspect_image") continue;
-      const image = imagePreviewSchema.safeParse(result.output);
+      if (result.toolName === "paint") {
+        const image = z.object({ data: imagePreviewSchema }).safeParse(result.output);
 
-      if (image.success) inspected.add(image.data.imageId);
+        if (image.success) inspected.add(image.data.data.imageId);
+      }
+
+      if (result.toolName === "read") {
+        const image = z
+          .object({
+            data: z.object({
+              ok: z.literal(true),
+              file: imagePreviewSchema.extend({ kind: z.literal("image") }),
+            }),
+          })
+          .safeParse(result.output);
+
+        if (image.success) inspected.add(image.data.data.file.imageId);
+      }
     }
   }
 
-  if (delegatedAt < 0 || imageIds.length === 0 || imageIds.some((id) => !inspected.has(id)))
-    throw new Error(
-      "each final delegated image must have a successful Caetano inspect_image result",
-    );
+  if (imageIds.length === 0 || imageIds.some((id) => !inspected.has(id)))
+    throw new Error("each final image must have a successful paint or read pixel result");
 }
 
 /** Checks execution plus a conservative disclosure signal, not semantic truthfulness. */
