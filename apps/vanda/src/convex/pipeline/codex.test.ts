@@ -8,6 +8,24 @@ import { imageModelOutput } from "../messageImages";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("ChatGPT image models", () => {
+  it.each([
+    ["3:4", "960x1280"],
+    ["4:5", "1024x1280"],
+  ])("sends portrait %s as exact size %s", async (aspectRatio, size) => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ data: [{ b64_json: "aGk=" }] }));
+
+    vi.stubGlobal("fetch", request);
+    await codexGenerateImage({
+      auth: { access: "test-only", accountId: "test-only" },
+      model: "openai/gpt-image-2.5-flare",
+      prompt: "Portrait",
+      aspectRatio,
+    });
+    expect(JSON.parse(z.string().parse(request.mock.calls[0]?.[1]?.body))).toMatchObject({ size });
+  });
+
   it.each(["gpt-image-2", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst"])(
     "sends %s through subscription billing",
     async (model) => {

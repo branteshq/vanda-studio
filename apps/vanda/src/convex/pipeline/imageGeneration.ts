@@ -52,7 +52,7 @@ const imageHttpFailure = (status: number, body: string, aspectRatio: string) => 
       ? {
           error: "unsupported_aspect_ratio",
           httpStatus: status,
-          requested: /^(?:1:1|4:5|9:16|16:9)$/.test(aspectRatio) ? aspectRatio : "unknown",
+          requested: /^(?:1:1|3:4|4:5|9:16|16:9)$/.test(aspectRatio) ? aspectRatio : "unknown",
           supported: [...new Set(supported)],
           retryableWithoutChanges: false,
           instruction:
@@ -275,12 +275,20 @@ export const openRouterImageGeneratorLayer = (input: {
     generate: ({ prompt, referenceUrls, aspectRatio, resolution, signal }) =>
       Effect.tryPromise({
         try: async () => {
+          const ratio = aspectRatio ?? "4:5";
+
+          // These endpoints reject aspect_ratio=4:5 but accept exact pixels.
+          // Verified against both models; do not send conflicting ratio/tier fields.
+          const explicitPortraitSize =
+            ratio === "4:5" &&
+            (input.model === "openai/gpt-image-2.5-sunburst" ||
+              input.model === "openai/gpt-image-2.5-flare");
+
           const payload = {
             model: input.model,
             prompt,
             n: 1,
-            aspect_ratio: aspectRatio ?? "4:5",
-            resolution,
+            ...(explicitPortraitSize ? { size: "1024x1280" } : { aspect_ratio: ratio, resolution }),
             quality: "high",
             output_format: "jpeg",
             output_compression: 90,
@@ -306,8 +314,7 @@ export const openRouterImageGeneratorLayer = (input: {
           if (signal !== undefined) request.signal = signal;
           const response = await fetch("https://openrouter.ai/api/v1/images", request);
 
-          if (!response.ok)
-            throw imageHttpFailure(response.status, await response.text(), payload.aspect_ratio);
+          if (!response.ok) throw imageHttpFailure(response.status, await response.text(), ratio);
           const json = Schema.decodeUnknownSync(OpenRouterImageResponse)(await response.json());
           const result = json.data?.[0];
 

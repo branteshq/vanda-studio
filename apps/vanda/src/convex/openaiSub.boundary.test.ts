@@ -54,48 +54,54 @@ describe("conectado plan", () => {
     expect(allowanceForPlan("conectado")).toBe(TIER_ALLOWANCE_MICRO_USD.conectado);
   });
 
-  it("routes through the subscription only when plan AND tokens are present", async () => {
-    const connected = await setup({
-      planId: "conectado",
-      openaiAccountId: "acc_1",
-      openaiAccessCiphertext: "x",
-      openaiAccessIv: "y",
-      openaiAccessAuthTag: "z",
-    });
+  it.each([{ planId: "conectado" }, {}])(
+    "routes connected users with plan %j through their subscription",
+    async (plan) => {
+      const connected = await setup({
+        ...plan,
+        openaiAccountId: "acc_1",
+        openaiAccessCiphertext: "x",
+        openaiAccessIv: "y",
+        openaiAccessAuthTag: "z",
+      });
 
-    const state = await connected.t.query(internal.openaiSub.subscriberState, {
-      accountId: connected.accountId,
-    });
+      const state = await connected.t.query(internal.openaiSub.subscriberState, {
+        accountId: connected.accountId,
+      });
 
-    expect(state.active).toBe(true);
-    expect(state.userId).toBe(connected.userId);
-  });
+      expect(state.active).toBe(true);
+      expect(state.userId).toBe(connected.userId);
+    },
+  );
 
-  it("stays inactive without tokens or on other plans", async () => {
-    const planNoTokens = await setup({ planId: "conectado" });
-    expect(
-      (
-        await planNoTokens.t.query(internal.openaiSub.subscriberState, {
-          accountId: planNoTokens.accountId,
-        })
-      ).active,
-    ).toBe(false);
+  it.each(["conectado", undefined])(
+    "stays inactive without tokens for plan %s or on other plans",
+    async (planId) => {
+      const planNoTokens = await setup(planId === undefined ? {} : { planId });
+      expect(
+        (
+          await planNoTokens.t.query(internal.openaiSub.subscriberState, {
+            accountId: planNoTokens.accountId,
+          })
+        ).active,
+      ).toBe(false);
 
-    const tokensWrongPlan = await setup({
-      planId: "basico",
-      openaiAccessCiphertext: "x",
-      openaiAccessIv: "y",
-      openaiAccessAuthTag: "z",
-    });
+      const tokensWrongPlan = await setup({
+        planId: "basico",
+        openaiAccessCiphertext: "x",
+        openaiAccessIv: "y",
+        openaiAccessAuthTag: "z",
+      });
 
-    expect(
-      (
-        await tokensWrongPlan.t.query(internal.openaiSub.subscriberState, {
-          accountId: tokensWrongPlan.accountId,
-        })
-      ).active,
-    ).toBe(false);
-  });
+      expect(
+        (
+          await tokensWrongPlan.t.query(internal.openaiSub.subscriberState, {
+            accountId: tokensWrongPlan.accountId,
+          })
+        ).active,
+      ).toBe(false);
+    },
+  );
 
   it("disconnect clears the connection", async () => {
     const { t } = await setup({

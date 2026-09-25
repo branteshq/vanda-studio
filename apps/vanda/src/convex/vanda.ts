@@ -68,7 +68,7 @@ type PaintArgs = {
   accountId: Id<"accounts">;
   prompt: string;
   name: string;
-  aspectRatio: "1:1" | "4:5" | "9:16" | "16:9";
+  aspectRatio: "1:1" | "3:4" | "4:5" | "9:16" | "16:9";
   promptAuthor: "vanda";
   threadId?: string;
   activityId?: AgentActivityId;
@@ -611,7 +611,7 @@ const paint = createTool({
   inputSchema: z.object({
     prompt: z.string().describe("prompt visual detalhado escrito por você"),
     name: z.string().describe("nome curto e descritivo para a imagem na galeria (2–4 palavras)"),
-    aspectRatio: z.enum(["1:1", "4:5", "9:16", "16:9"]).default("4:5"),
+    aspectRatio: z.enum(["1:1", "3:4", "4:5", "9:16", "16:9"]).default("4:5"),
     resolution: z
       .enum(["1K", "2K", "4K"])
       .optional()
@@ -628,7 +628,7 @@ const paint = createTool({
     args: {
       prompt: string;
       name: string;
-      aspectRatio: "1:1" | "4:5" | "9:16" | "16:9";
+      aspectRatio: "1:1" | "3:4" | "4:5" | "9:16" | "16:9";
       resolution?: "1K" | "2K" | "4K" | undefined;
       referenceImageIds?: string[] | undefined;
       editOfImageId?: string | undefined;

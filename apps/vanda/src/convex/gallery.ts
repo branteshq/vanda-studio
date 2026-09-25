@@ -20,6 +20,7 @@ import { isErrorCode, type ErrorCode } from "../errors";
 
 const aspectRatioValidator = v.union(
   v.literal("1:1"),
+  v.literal("3:4"),
   v.literal("4:5"),
   v.literal("9:16"),
   v.literal("16:9"),
@@ -276,8 +277,9 @@ export const generate = mutation({
   },
 });
 
-const RATIO_DIMS: Record<"1:1" | "4:5" | "9:16" | "16:9", readonly [number, number]> = {
+const RATIO_DIMS: Record<"1:1" | "3:4" | "4:5" | "9:16" | "16:9", readonly [number, number]> = {
   "1:1": [1024, 1024],
+  "3:4": [960, 1280],
   "4:5": [1024, 1280],
   "9:16": [720, 1280],
   "16:9": [1280, 720],
@@ -286,7 +288,7 @@ const RATIO_DIMS: Record<"1:1" | "4:5" | "9:16" | "16:9", readonly [number, numb
 type PaintRequest = {
   accountId: Id<"accounts">;
   prompt: string;
-  aspectRatio: "1:1" | "4:5" | "9:16" | "16:9";
+  aspectRatio: "1:1" | "3:4" | "4:5" | "9:16" | "16:9";
   model: string;
   promptAuthor: "user";
   placeholderImageId: Id<"images">;

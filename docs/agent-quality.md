@@ -3,6 +3,26 @@
 Working notes from the September 18, 2026 discussion with Davi. This is a living
 document for continued investigation and implementation, not a finished design.
 
+## Portrait transport correction — September 25, 2026
+
+OpenRouter's Sunburst and Flare endpoint metadata excludes `aspect_ratio: "4:5"`,
+and the dentist run received that exact HTTP 400 rejection. However, two direct
+live probes with `size: "1024x1280"`, no `aspect_ratio`, `quality: "low"`, and
+`n: 1` both returned HTTP 200 and decoded to exactly 1024×1280. Each cost
+$0.005275 ($0.01055 total). These were dimension probes, not quality evaluations.
+The OpenRouter adapter now uses explicit pixels for 4:5 on these two models;
+other models and ratios retain their existing parameter handling.
+
+The shared paint tool, image actions and subscription size mapping also accept
+3:4. The carousel skill keeps 4:5 as default and explains how to change the actual
+tool argument if a provider requires a portrait alternative.
+
+The affected owner's OAuth connection was ignored because `planId` was absent.
+Connected users without a plan now route through ChatGPT; explicit non-Conectado
+plans retain their prior routing. Regression tests cover both missing-plan states,
+explicit plans, provider serialization, agent validation and 3:4 image storage.
+These changes require backend deployment to affect existing dev accounts.
+
 ## Shared capabilities — September 25, 2026
 
 Image creation now uses `paint` exclusively, guided by the bundled

@@ -21,15 +21,17 @@ import {
 
 const aspectRatioValidator = v.union(
   v.literal("1:1"),
+  v.literal("3:4"),
   v.literal("4:5"),
   v.literal("9:16"),
   v.literal("16:9"),
 );
 
-type AspectRatio = "1:1" | "4:5" | "9:16" | "16:9";
+type AspectRatio = "1:1" | "3:4" | "4:5" | "9:16" | "16:9";
 
 const RATIO_PARTS: Record<AspectRatio, readonly [width: number, height: number]> = {
   "1:1": [1, 1],
+  "3:4": [3, 4],
   "4:5": [4, 5],
   "9:16": [9, 16],
   "16:9": [16, 9],

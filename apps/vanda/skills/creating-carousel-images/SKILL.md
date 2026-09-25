@@ -26,6 +26,8 @@ Escolha uma linguagem que sirva à profissão e à marca. Varie o ritmo da séri
 
 Use normalmente 4:5 para feed, mesma proporção em toda a série e fundo explicitamente opaco. Peça margens generosas (cerca de 6–8%), alto contraste e texto confortável em uma visualização de aproximadamente 360 px de largura. Não prometa 1080×1350 só porque pediu 4:5: confira as dimensões retornadas. Nada de moldura de celular, montagem com várias páginas numa imagem ou transparência involuntária.
 
+Se o provedor rejeitar 4:5, consulte `recovery` e prefira 3:4 quando aceito para manter o formato retrato. Mude o argumento `aspectRatio` junto com o prompt: escrever “3:4” no texto e continuar enviando `aspectRatio: "4:5"` repete o erro. Explique a mudança de formato; não passe para quadrado por hábito.
+
 ## 3. Referências têm funções distintas
 
 - Inspecione referências antes de usá-las. Diga no prompt o papel de cada imagem: identidade da pessoa, produto/logo ou direção de arte.

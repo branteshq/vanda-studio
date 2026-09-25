@@ -182,6 +182,7 @@ export const codexResponsesText = async (args: {
 /** aspectRatio → gpt-image-2 size (multiples of 16, within pixel bounds). */
 export const CODEX_IMAGE_SIZES = {
   "1:1": "1024x1024",
+  "3:4": "960x1280",
   "4:5": "1024x1280",
   "9:16": "864x1536",
   "16:9": "1536x864",

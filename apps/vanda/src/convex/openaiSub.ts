@@ -323,8 +323,9 @@ export const connectionStatus = query({
 });
 
 export const isConnectedSubscriber = (user: Doc<"users">): boolean =>
-  user.planId !== undefined &&
-  tierOfPlan(user.planId) === CONNECTED_TIER &&
+  // Legacy connections can predate plan assignment. An explicit other plan
+  // still opts into Vanda billing; an absent plan must not ignore OAuth.
+  (user.planId === undefined || tierOfPlan(user.planId) === CONNECTED_TIER) &&
   user.openaiAccessCiphertext !== undefined;
 
 /**
