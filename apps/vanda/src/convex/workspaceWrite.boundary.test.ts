@@ -165,7 +165,7 @@ describe("workspace writes", () => {
     const cases: Array<[string, string]> = [
       ["/images/promo.jpg", "paint"],
       ["/market/last-scan.json", "ferramentas Instagram"],
-      ["/runs/x.json", "/templates"],
+      ["/runs/x.json", "somente leitura"],
       ["/brand/memory.md", "notes.md"],
       ["/nao-existe/x.md", "/memory"],
     ];

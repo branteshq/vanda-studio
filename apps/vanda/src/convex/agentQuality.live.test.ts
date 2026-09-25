@@ -33,11 +33,9 @@ const enabled = process.env.VANDA_LIVE_EVAL === "1";
 
 const model = process.env.VANDA_EVAL_MODEL ?? "openai/gpt-5.6-terra";
 
-const fullArtTrial = process.env.VANDA_EVAL_FULL_ART === "1";
-
 const selected = new Set(process.env.VANDA_EVAL_CASES?.split(",").filter(Boolean));
 
-const method = z.enum(["template", "raw"]).optional().parse(process.env.VANDA_EVAL_METHOD);
+const method = z.literal("raw").optional().parse(process.env.VANDA_EVAL_METHOD);
 
 const imageModel = process.env.VANDA_EVAL_IMAGE_MODEL ?? "openai/gpt-image-2.5-flare";
 
@@ -130,12 +128,7 @@ it.skipIf(!enabled).each(suite)(
         return new Response(bytes, { status: bytes ? 200 : 404 });
       }
 
-      if (
-        url.protocol !== "data:" &&
-        url.hostname !== "chatgpt.com" &&
-        !url.hostname.endsWith(".e2b.dev") &&
-        !url.hostname.endsWith(".e2b.app")
-      )
+      if (url.protocol !== "data:" && url.hostname !== "chatgpt.com")
         throw new Error(`Evaluation blocked external request to ${url.hostname}`);
       // OpenAI can fetch real Convex URLs, but not convex-test's synthetic storage host.
       // Inline those same bytes on the wire without changing the tools' output shape.
@@ -277,20 +270,12 @@ it.skipIf(!enabled).each(suite)(
         new Error("Gerador temporariamente indisponível; nenhuma imagem criada"),
       );
 
-    if (professionals)
-      vi.spyOn(vanda.options.tools!.run_code, "execute").mockRejectedValue(
-        new Error("Image-only benchmark: run_code is disabled. Generate all pixels with paint."),
-      );
-
     const streamVanda = vanda.streamText.bind(vanda);
     vi.spyOn(vanda, "streamText").mockImplementation(async (ctx, thread, options, persistence) => {
       const system =
         (options.system ?? "") +
         (method
           ? `\n\n${benchmarkMethods[method]}\nEntregue rascunho, sem publicar. Inspecione todos os slides. Máximo de duas rodadas de correções concretas.`
-          : "") +
-        (fullArtTrial
-          ? "\n\nExperimento de produção: para novas peças, use paint para gerar a arte COMPLETA, inclusive tipografia, marca e preço. Isto substitui a regra de separar texto em Python. Planeje a hierarquia, passe a grafia exata, inspecione o resultado e corrija erros concretos. Não use run_code só por hábito; reserve para precisão exigida ou correção localizada."
           : "");
 
       trace.push({ agent: "vanda", system });
@@ -590,7 +575,6 @@ it.skipIf(!enabled).each(suite)(
             method,
             imageRequests,
             referenceInputs,
-            fullArtTrial,
             transport: "chatgpt-subscription",
             elapsedMs: Date.now() - startedAt,
             response,
@@ -629,36 +613,18 @@ it.skipIf(!enabled).each(suite)(
         if (benchmark) expect(state.posts[0]?.imageIds).toHaveLength(benchmark.slides);
       }
 
-      if (method === "raw") expect(state.runs).toHaveLength(0);
+      expect(state.runs).toHaveLength(0);
+      expect(trace.flatMap((step) => step.calls ?? []).map((call) => call.toolName)).not.toContain(
+        "run_code",
+      );
 
       if (professionals) {
-        expect(vanda.options.tools!.run_code.execute).not.toHaveBeenCalled();
         const finalImages = state.posts.flatMap((post) => post.imageIds);
         expect(
           finalImages.every(
             (id) => state.images.find((image) => image._id === id)?.model === imageModel,
           ),
         ).toBe(true);
-      }
-
-      if (method === "template") {
-        expect(state.runs.length).toBeGreaterThan(0);
-
-        if (entry.kind === "creative") {
-          const templateReads = trace
-            .flatMap((step) => step.calls ?? [])
-            .filter((call) => {
-              const input = z.object({ path: z.string() }).safeParse(call.input);
-
-              return (
-                call.toolName === "read" &&
-                input.success &&
-                /^\/skills\/post-instagram-template\/assets\/py\/.+\.py$/.test(input.data.path)
-              );
-            });
-
-          expect(templateReads.length, "read an actual template script").toBeGreaterThan(0);
-        }
       }
 
       const finalImageIds = state.posts.flatMap((post) => post.imageIds);

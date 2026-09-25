@@ -9,7 +9,6 @@ import { memoryMount } from "./mounts/memory";
 import { postsMount } from "./mounts/posts";
 import { runsMount } from "./mounts/runs";
 import { skillsMount } from "./mounts/skills";
-import { templatesMount } from "./mounts/templates";
 import type { WorkspaceEntry, WorkspaceFile, WorkspaceMount, WorkspaceWriteResult } from "./types";
 
 const MOUNTS: readonly WorkspaceMount[] = [
@@ -21,7 +20,6 @@ const MOUNTS: readonly WorkspaceMount[] = [
       "documentos longos e detalhes arquivados; consulte quando necessário, fora da memória automática",
     extension: ".md",
   }),
-  templatesMount,
   skillsMount,
   imagesMount,
   instagramMount,
@@ -119,7 +117,7 @@ export const readPath = async (
 export type WriteResult = WorkspaceWriteResult;
 
 const WRITABLE_HELP =
-  "graváveis: /memory/<nome>.md, /notes/<nome>.md, /templates/<nome>.py, /brand/notes.md e /brand/kit.json";
+  "graváveis: /memory/<nome>.md, /notes/<nome>.md, /brand/notes.md e /brand/kit.json";
 
 /**
  * One write surface, per-mount handlers underneath (the VFS shape — like

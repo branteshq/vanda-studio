@@ -5,6 +5,7 @@ import { getFunctionName } from "convex/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+import { installedSkillSummaries } from "../convex/skills/catalog";
 import { ProfilePage } from "../routes/_dashboard.perfil";
 
 // SAFETY: test IDs model opaque identifiers without pretending to be account records.
@@ -96,6 +97,8 @@ beforeEach(async () => {
     if (name === "usage:summary") return { plan: "profissional", usedPct: 37 };
 
     if (name === "workspacePublic:browse") return { ok: true, entries: [] };
+
+    if (name === "workspacePublic:installedSkills") return installedSkillSummaries();
 
     if (name === "workspacePublic:file") return args === "skip" ? undefined : { ok: false };
 
@@ -244,13 +247,17 @@ it("offers a business-scoped path from empty memory back to the conversation", a
 it("remembers each scope's destination instead of showing the wrong settings", async () => {
   await click("Modelos");
   await click("Business A");
-  await click("Templates");
+  expect(container.querySelector("aside")?.textContent).not.toContain("Templates");
+  await click("Skills");
+  expect(container.textContent).toContain("creating-carousel-images");
+  expect(container.textContent).not.toContain("post-instagram-template");
+  expect(container.textContent).not.toContain("prompt-foto-fiel");
   await click("Test");
   expect(container.querySelector("h1")?.textContent).toBe("Modelos");
   expect(container.querySelector('[aria-current="page"]')?.textContent).toBe("Modelos");
   await click("Business A");
-  expect(container.querySelector("h1")?.textContent).toBe("Templates");
-  expect(container.querySelector('[aria-current="page"]')?.textContent).toBe("Templates");
+  expect(container.querySelector("h1")?.textContent).toBe("Skills");
+  expect(container.querySelector('[aria-current="page"]')?.textContent).toBe("Skills");
 });
 
 it("opens the real profile editor and routes plan management to billing", async () => {

@@ -7,7 +7,7 @@ import { listPath, readPath, type ListResult, type ReadResult } from "./workspac
 /**
  * The owner-facing window into the agent's workspace — the same resolver the
  * list/read tools use, gated by account ownership. What Vanda sees, the owner
- * can see: memory, templates and brand notes stop being invisible state.
+ * can see: memory, skills and brand notes stop being invisible state.
  */
 
 export const browse = query({

@@ -4,7 +4,7 @@
 
 ## Running
 
-The opt-in harness is `src/convex/agentQuality.live.test.ts`. Ordinary tests skip it. It runs the real Vanda/Caetano actions, tools, subscription transport, and (when called) image generation and E2B Python. Each case gets an isolated `convex-test` database. No deployment or Convex credentials are needed. Scheduling execution is replaced by a local mock; external requests are restricted to ChatGPT and E2B. These are live provider calls and consume subscription/sandbox resources.
+The opt-in harness is `src/convex/agentQuality.live.test.ts`. Ordinary tests skip it. It runs the real Vanda/Caetano actions, tools, subscription transport, and image generation. Each case gets an isolated `convex-test` database. No deployment or Convex credentials are needed. Scheduling execution is replaced by a local mock; external requests are restricted to ChatGPT. These are live provider calls and consume subscription resources.
 
 From the repository root:
 
@@ -18,7 +18,6 @@ The private JSON must contain `tokens.access_token`, `tokens.refresh_token`, and
 
 - Default: 15 development cases, GPT-5.6 Terra, GPT Image 2.5 Flare. `VANDA_EVAL_MODEL` can select another subscription-compatible GPT orchestrator.
 - `VANDA_EVAL_CASES=caju-combo-draft,pimba-kit-revision` selects cases explicitly. The four `holdout: true` cases require explicit selection. These mark the original split; they were first reviewed on September 18 and are now regression cases, not untouched holdouts. Add new unseen cases before claiming generalization.
-- `VANDA_EVAL_FULL_ART=1` appends the experimental complete-art instruction used for the original hybrid-versus-full-generation comparison. Leave unset when evaluating current production instructions, which now allow full generation by default.
 - `VANDA_EVAL_OUTPUT` changes the output parent; default is `.amp/in/artifacts/agent-quality/<timestamp>/<case>/`.
 
 There are four fictional brands and 19 cases, including direct Caetano draft/revision cases and live-state product help. Both agents use the same tools; Caetano cases assert that no Vanda turn runs. Historical preferences are seeded in a **different thread**, not handed to the model as current conversation context. Revision cases attach deterministic reference PNGs rendered by `references.ts`; they are synthetic diagrams, not real packaging/product photos. Revision fixtures name their reference explicitly when case IDs differ. The harness records the same attachment manifest as production ingress and checks that the original image resource is present. The purple pen deliberately matches its original background color, so a global color replacement destroys the product and should fail review.
@@ -43,23 +42,21 @@ Record objective failures separately from the blind label. Examples include a wr
 
 Tag every run as either a **first attempt** or **revision**. First attempts test interpretation and brand application; revisions test whether requested changes are isolated while protected details remain stable. Keep results from these groups separate. Repeat cases across runs to check consistency, but retain each repeat as an individual observation rather than selecting the best output. Report the model/configuration, fixture version, run count, blind-label counts, and objective-failure counts; do not present these fixtures themselves as measured performance.
 
-## Template versus GPT Image 2.5 benchmark
+## GPT Image 2.5 benchmark
 
 `imageBenchmark.ts` adds six fixed-copy cases: three three-slide carousels (repairs,
 cosmetics, stationery), a café photo offer, a dense service card, and a protected
-background revision. Set `VANDA_EVAL_METHOD=template` or `raw` to select this suite.
-Both execute Vanda itself, not a replacement prompt runner. Template trials must
-read actual template scripts and execute Python; raw trials must not execute Python.
-Trace checks are only structural: review template adaptation and output pixels too.
+background revision. Set `VANDA_EVAL_METHOD=raw` to select this suite.
+It executes Vanda itself, not a replacement prompt runner. Python execution and the
+template arm have been removed. Historical comparison results remain in the dated
+reports; replaying that old arm requires its historical checkout. Trace checks are
+only structural: review output pixels too. Leave the method unset to evaluate normal
+production guidance without additional benchmark art-direction instructions.
 
 Run each arm separately from the repository root (existing private-file auth works;
 the orb's `AMP_CODEX_CHATGPT_AUTH` is also accepted without writing it to disk):
 
 ```sh
-VANDA_LIVE_EVAL=1 VANDA_EVAL_METHOD=template VANDA_EVAL_IMAGE_QUALITY=max \
-  VANDA_EVAL_OUTPUT=../../.amp/in/artifacts/image-benchmark/template \
-  pnpm --filter @vanda-studio/vanda test:run src/convex/agentQuality.live.test.ts
-
 VANDA_LIVE_EVAL=1 VANDA_EVAL_METHOD=raw VANDA_EVAL_IMAGE_QUALITY=max \
   VANDA_EVAL_IMAGE_MODEL=openai/gpt-image-2.5-flare \
   VANDA_EVAL_OUTPUT=../../.amp/in/artifacts/image-benchmark/flare-max \
@@ -89,7 +86,7 @@ Image API-equivalent costs value observed tokens at $5/M text input, $8/M image
 input and $30/M image output; absent image-cache detail is valued uncached. Terra
 orchestration is valued at $2/M input, $0.20/M cached input and $12/M output, with
 the documented long-context premium. Sandbox cost comes from Vanda's duration
-estimate. These are **not invoices**: subscription charges, quota depletion,
+estimate in historical runs only. These are **not invoices**: subscription charges, quota depletion,
 untraced background activity, and human repair time are not measured. The tracked
 total includes retries and agent orchestration, not just successful images.
 Missing image usage produces an unknown image/total estimate rather than zero.
@@ -116,7 +113,7 @@ Use `openai/gpt-image-2.5-sunburst` and a separate output directory for the othe
 arm. Reference files are loaded as genuine attached image bytes, copied into each
 trial's artifacts and hashed in `referenceInputs`. They are not committed into the
 fixture source. Normal subscription auth requirements still apply. The professional
-suite requires raw mode and exactly two references; `run_code` is disabled, attempts
+suite requires raw mode and exactly two references; `run_code` no longer exists, attempts
 to call it fail the benchmark, and every final image must have the selected image
 model provenance. This is generation-only: the existing summarizer may make review
 contact sheets, but never modifies final artwork. Medical copy is educational;

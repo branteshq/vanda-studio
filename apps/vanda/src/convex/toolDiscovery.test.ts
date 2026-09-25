@@ -84,7 +84,6 @@ describe("role-specific discovery", () => {
     "paint",
     "present",
     "read",
-    "run_code",
     "tool_search",
     "write",
   ];

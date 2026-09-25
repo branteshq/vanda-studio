@@ -762,9 +762,8 @@ export default defineSchema({
     observedAt: v.number(),
   }).index("by_account_observed", ["accountId", "observedAt"]),
 
-  // Audit log of run_code executions: the agent-authored Python, its output, and
-  // the images it produced. Doubles as the rate-limit counter and the seed for
-  // promoting successful runs into reusable templates later.
+  // Legacy execution records retained for old conversations and /runs reads.
+  // Code execution and all writers have been retired; do not delete customer history.
   codeRunArtifacts: defineTable({
     accountId: v.id("accounts"),
     codeRunId: v.id("codeRuns"),
@@ -792,7 +791,7 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_account_created", ["accountId", "createdAt"]),
 
-  // Writable workspace documents (/memory, /templates, /brand/notes.md). Unlike
+  // Writable workspace documents (/memory, /notes, /brand/notes.md). Unlike
   // the projected views, these files ARE the data: this table holds the head of
   // each file; every write also appends to workspaceFileRevisions.
   workspaceFiles: defineTable({

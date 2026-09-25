@@ -38,7 +38,7 @@ const originLabel = (image: Doc<"images">): string =>
 export const imagesMount: WorkspaceMount = {
   root: "images",
   summary: "galeria da conta (geradas e enviadas), mais recentes primeiro",
-  writeHint: "a galeria muda por paint ou run_code, não por write.",
+  writeHint: "a galeria muda por paint, não por write.",
   list: async (ctx, accountId, segments): Promise<WorkspaceEntry[] | null> => {
     if (segments.length !== 0) return null;
     const images = await loadGallery(ctx, accountId);

@@ -56,7 +56,7 @@ const imageHttpFailure = (status: number, body: string, aspectRatio: string) => 
           supported: [...new Set(supported)],
           retryableWithoutChanges: false,
           instruction:
-            "Choose an accepted ratio that the paint tool schema allows. If the final layout needs another ratio, compose it with run_code and inspect it. Do not repeat the rejected ratio or report a provider outage.",
+            "Choose an accepted ratio that the paint tool schema allows and explain any remaining format limitation. Do not repeat the rejected ratio or report a provider outage.",
         }
       : {
           error: invalid

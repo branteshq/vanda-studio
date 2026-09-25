@@ -24,14 +24,9 @@ describe("skill catalog", () => {
           alwaysApply: false,
         }),
         expect.objectContaining({
-          name: "post-instagram-template",
+          name: "creating-carousel-images",
           alwaysApply: false,
-          location: "/skills/post-instagram-template/SKILL.md",
-        }),
-        expect.objectContaining({
-          name: "prompt-foto-fiel",
-          alwaysApply: false,
-          location: "/skills/prompt-foto-fiel/SKILL.md",
+          location: "/skills/creating-carousel-images/SKILL.md",
         }),
         expect.objectContaining({
           name: "unslop",
@@ -42,49 +37,18 @@ describe("skill catalog", () => {
     );
   });
 
-  it("indexes every bundled Python template without putting templates in the prompt", () => {
-    const template = installedSkills().find((entry) => entry.name === "post-instagram-template");
-    const catalog = template?.body ?? "";
-    const modelLines = (template?.files["references/modelos.md"] ?? "").split("\n");
+  it("replaces rendering packages with an image-only skill and no executable assets", () => {
+    const skills = installedSkills();
+    expect(skills.map((entry) => entry.name)).not.toContain("post-instagram-template");
+    expect(skills.map((entry) => entry.name)).not.toContain("prompt-foto-fiel");
+    const carousel = skills.find((entry) => entry.name === "creating-carousel-images");
+    expect(carousel?.allowedTools).toBe("list read paint create_post present");
+    expect(Object.keys(carousel?.files ?? {})).toEqual(["SKILL.md"]);
 
-    const indexedAssets = [...catalog.matchAll(/`([A-Za-z0-9]+(?:-\{1\.\.\d+\})?\.py)`/g)]
-      .flatMap(([, spec]) => {
-        const range = spec?.match(/^(.+)-\{1\.\.(\d+)\}\.py$/);
-
-        if (!range) return spec ? [spec] : [];
-
-        return Array.from(
-          { length: Number(range[2]) },
-          (_, index) => `${range[1]}-${index + 1}.py`,
-        );
-      })
-      .toSorted();
-
-    const bundledAssets = Object.keys(template?.files ?? {})
-      .filter((path) => path.startsWith("assets/py/") && path.endsWith(".py"))
-      .map((path) => path.slice("assets/py/".length))
-      .toSorted();
-
-    expect(indexedAssets).toEqual(bundledAssets);
-
-    const indexedSections = [
-      ...catalog.matchAll(
-        /^\| (Main|S\d{2}|C\d{2}|T\d{2}|TC\d{2}) \|.*\| offset (\d+), limit (\d+) \|$/gm,
-      ),
-    ];
-
-    expect(indexedSections).toHaveLength(60);
-
-    for (const [, id, offset, limit] of indexedSections) {
-      const section = modelLines.slice(Number(offset) - 1, Number(offset) - 1 + Number(limit));
-
-      expect(section[0]).toContain(id);
+    for (const entry of skills) {
+      expect(entry.allowedTools ?? "").not.toContain("run_code");
+      expect(Object.keys(entry.files).some((path) => path.endsWith(".py"))).toBe(false);
     }
-
-    const prompt = formatSkillsForSystemPrompt();
-
-    expect(prompt).toContain(template?.description);
-    expect(prompt).not.toContain("S04.py");
   });
 
   it("discloses every on-demand skill through metadata without loading its body", () => {

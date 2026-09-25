@@ -87,7 +87,6 @@ describe("workspace navigation", () => {
         "brand",
         "memory",
         "notes",
-        "templates",
         "skills",
         "images",
         "instagram",
@@ -112,8 +111,7 @@ describe("workspace navigation", () => {
       expect(listing.entries).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ name: "instagram-market-research", kind: "dir" }),
-          expect.objectContaining({ name: "post-instagram-template", kind: "dir" }),
-          expect.objectContaining({ name: "prompt-foto-fiel", kind: "dir" }),
+          expect.objectContaining({ name: "creating-carousel-images", kind: "dir" }),
           expect.objectContaining({ name: "unslop", kind: "dir" }),
         ]),
       );
@@ -142,17 +140,48 @@ describe("workspace navigation", () => {
       expect(license.file.text).toContain("MIT License");
     }
 
-    const pythonTemplate = await t.query(internal.workspaceData.read, {
+    const carousel = await t.query(internal.workspaceData.read, {
       accountId,
-      path: "/skills/post-instagram-template/assets/py/Main.py",
+      path: "/skills/creating-carousel-images/SKILL.md",
     });
 
-    expect(pythonTemplate.ok).toBe(true);
+    expect(carousel.ok).toBe(true);
 
-    if (pythonTemplate.ok && pythonTemplate.file.kind === "text") {
-      expect(pythonTemplate.file.text).toContain('OUTPUT = "/home/user/out/main.png"');
-      expect(pythonTemplate.file.text).toContain("def desenhar():");
+    if (carousel.ok && carousel.file.kind === "text") {
+      expect(carousel.file.text).toContain("# Carrosséis profissionais");
+      expect(carousel.file.text).toContain("editOfImageId");
     }
+  });
+
+  it("does not expose retired template paths even when old documents remain", async () => {
+    const { t, accountId } = await setup();
+    await t.run((ctx) =>
+      ctx.db.insert("workspaceFiles", {
+        accountId,
+        path: "/templates/moldura.py",
+        content: "old rendering code",
+        updatedAt: 1,
+        updatedBy: "vanda",
+      }),
+    );
+
+    for (const path of [
+      "/templates/moldura.py",
+      "/skills/post-instagram-template/SKILL.md",
+      "/skills/prompt-foto-fiel/SKILL.md",
+    ]) {
+      expect(await t.query(internal.workspaceData.read, { accountId, path })).toMatchObject({
+        ok: false,
+      });
+    }
+
+    expect(
+      await t.mutation(internal.workspaceData.write, {
+        accountId,
+        path: "/templates/new.py",
+        content: "new rendering code",
+      }),
+    ).toMatchObject({ ok: false });
   });
 
   it("answers a miss with the nearest listing, never a bare not-found", async () => {
@@ -201,6 +230,40 @@ describe("installed skills public query", () => {
 });
 
 describe("workspace renders", () => {
+  it("keeps legacy execution artifacts readable only by their account", async () => {
+    const { t, accountId, foreignAccountId } = await setup();
+
+    const runId = await t.run(async (ctx) => {
+      const codeRunId = await ctx.db.insert("codeRuns", {
+        accountId,
+        code: "print('legacy')",
+        description: "legacy",
+        status: "ok",
+        createdAt: 1,
+      });
+
+      await ctx.db.insert("codeRunArtifacts", {
+        accountId,
+        codeRunId,
+        filename: "result.txt",
+        mimeType: "text/plain",
+        content: "historical result",
+        createdAt: 1,
+      });
+
+      return codeRunId;
+    });
+
+    const path = `/runs/legacy-${entitySuffix(runId)}/outputs/result.txt`;
+    expect(await t.query(internal.workspaceData.read, { accountId, path })).toMatchObject({
+      ok: true,
+      file: { kind: "text", text: "historical result" },
+    });
+    expect(
+      await t.query(internal.workspaceData.read, { accountId: foreignAccountId, path }),
+    ).toMatchObject({ ok: false });
+  });
+
   it("renders brand memory with confirmed facts", async () => {
     const { t, accountId } = await setup();
 

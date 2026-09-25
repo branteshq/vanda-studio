@@ -1,7 +1,7 @@
 ---
 name: instagram-market-research
-description: Investigue concorrentes, criadores, tendências, referências, desempenho e oportunidades no Instagram compondo leituras públicas/conectadas com análise Python. Use quando o dono pedir pesquisa de mercado, benchmark, análise de concorrentes, ideias baseadas em tendências, comparação de perfis ou diagnóstico de desempenho.
-allowed-tools: list read write search_instagram_profiles read_instagram_profile read_instagram_posts read_instagram_post read_instagram_comments read_instagram_metrics run_code
+description: Investiga concorrentes, criadores, tendências, referências, desempenho e oportunidades no Instagram com leituras públicas e conectadas. Use para pesquisa de mercado, benchmark, comparação de perfis ou diagnóstico de desempenho.
+allowed-tools: list read write search_instagram_profiles read_instagram_profile read_instagram_posts read_instagram_post read_instagram_comments read_instagram_metrics
 ---
 
 # Pesquisa de mercado no Instagram
@@ -17,7 +17,7 @@ Investigue com ferramentas primitivas. Não acione uma varredura opaca e não pr
 5. Leia posts somente dos 3–5 candidatos mais relevantes. Comece com 10–25 posts por perfil.
 6. Use `read_instagram_post` com transcrição apenas nos reels que realmente merecem análise detalhada.
 7. Leia comentários somente nos posts finalistas. Comentários públicos podem ser parciais; não os apresente como amostra completa.
-8. Passe os caminhos JSON em `/instagram` para `run_code` quando houver comparação, ranking, tendência ou volume que se beneficie de cálculo. Salve resultados estruturados em `/home/user/out/`.
+8. Consulte os dados completos nos caminhos JSON em `/instagram` com `read`, usando `offset` e `limit` quando necessário. Compare apenas os dados realmente lidos; não apresente uma prévia limitada como análise de toda a amostra.
 9. Explique a conclusão com URLs, números, fonte e horário de observação. Diferencie evidência observada de hipótese criativa.
 
 ## Regras de métricas
@@ -29,18 +29,9 @@ Investigue com ferramentas primitivas. Não acione uma varredura opaca e não pr
 - Calcule taxas com denominador explícito. Exemplo: `(likes + comments) / followers`.
 - Trate campo ausente como desconhecido, nunca como zero.
 
-## Uso de Python
+## Limites da análise
 
-Use Python para trabalho mecânico que o modelo faria pior manualmente:
-
-- taxas de engajamento e medianas;
-- frequência de publicação;
-- detecção de outliers por perfil;
-- comparação de formatos;
-- agrupamento de hashtags, temas e chamadas;
-- tabelas e gráficos de benchmark.
-
-O sandbox não tem internet. Primeiro adquira os dados com as ferramentas Instagram; depois passe os caminhos em `inputPaths`.
+Não há execução de código. Baseie conclusões nas métricas retornadas e nos conteúdos lidos. Para cálculos simples, mostre os valores e o denominador; não afirme ter executado análises estatísticas em lote ou produzido gráficos calculados. Declare amostras parciais e limitações de volume. Salve conclusões relevantes em `/notes` com as fontes.
 
 ## Saída
 
@@ -50,4 +41,4 @@ Entregue uma resposta curta com:
 2. o que está funcionando e para quem;
 3. o que é transferível para a marca sem copiar;
 4. a próxima ação concreta;
-5. os caminhos em `/instagram` e `/runs` usados como evidência.
+5. os caminhos em `/instagram` usados como evidência.

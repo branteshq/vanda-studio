@@ -7,7 +7,7 @@ import { requireOwnedAccount } from "./authz";
 /**
  * THE post path: gallery image(s) + caption → draft → schedule → publish.
  * A carousel is just a post with more images; produced work differs only in
- * how its images get made (paint + run_code), never in how it publishes.
+ * how its images get made (paint or upload), never in how it publishes.
  */
 
 const MAX_POST_IMAGES = 10;

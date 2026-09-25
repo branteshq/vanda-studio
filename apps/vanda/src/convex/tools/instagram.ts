@@ -83,7 +83,7 @@ const instagramResult = async (
 export const makeInstagramTools = (runners: InstagramToolRunners) => {
   const searchInstagramProfiles = createTool({
     description:
-      "Busca perfis públicos do Instagram por palavras-chave. Use para descobrir negócios, criadores e concorrentes; retorna resumos de perfis sem posts aninhados. Os dados completos ficam em /instagram/searches; para analisar em lote, use run_code com inputPaths.",
+      "Busca perfis públicos do Instagram por palavras-chave. Use para descobrir negócios, criadores e concorrentes; retorna resumos de perfis sem posts aninhados. Os dados completos ficam em /instagram/searches, acessíveis com read.",
     inputSchema: z.object({
       query: z.string().describe("consulta curta, ex.: cafeteria pinheiros"),
       limit: z.number().int().min(1).max(20).optional().describe("máximo de perfis; padrão 10"),
@@ -109,7 +109,7 @@ export const makeInstagramTools = (runners: InstagramToolRunners) => {
 
   const readInstagramPosts = createTool({
     description:
-      "Lista posts/reels/carrosséis. scope=connected lê o catálogo oficial da conta; scope=public lê um perfil público. Use cursor para continuar uma leitura conectada. Retorna uma prévia limitada com IDs, URLs e métricas; o resultado completo fica em /instagram. Analise grandes volumes com run_code e inputPaths.",
+      "Lista posts/reels/carrosséis. scope=connected lê o catálogo oficial da conta; scope=public lê um perfil público. Use cursor para continuar uma leitura conectada. Retorna uma prévia limitada com IDs, URLs e métricas; o resultado completo fica em /instagram, acessível com read.",
     inputSchema: z.object({
       scope: scopeSchema,
       handle: z.string().optional().describe("@handle obrigatório quando scope=public"),
@@ -150,7 +150,7 @@ export const makeInstagramTools = (runners: InstagramToolRunners) => {
 
   const readInstagramMetrics = createTool({
     description:
-      "Lê insights privados da conta Instagram conectada. Sem postId retorna métricas resumidas da conta; com postId retorna alcance, visualizações, saves, shares e engajamento daquele post, inclusive orgânico. Demografia e dados completos ficam no workspace para análise com run_code.",
+      "Lê insights privados da conta Instagram conectada. Sem postId retorna métricas resumidas da conta; com postId retorna alcance, visualizações, saves, shares e engajamento daquele post, inclusive orgânico. Demografia e dados completos ficam no workspace, acessíveis com read.",
     inputSchema: z.object({
       postId: z.string().optional().describe("media id; omita para métricas da conta"),
     }),

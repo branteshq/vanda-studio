@@ -109,18 +109,6 @@ describe("usage metering", () => {
       costUsd: 0.07,
     });
 
-    const codeRunId = await t.mutation(internal.codeRunsData.beginCodeRun, {
-      accountId,
-      code: "print(1)",
-      description: "test",
-    });
-
-    await t.mutation(internal.codeRunsData.finishCodeRun, {
-      codeRunId,
-      activityId,
-      status: "ok",
-      costUsd: 0.002,
-    });
     await t.mutation(internal.instagramData.saveObservation, {
       accountId,
       activityId,
@@ -143,7 +131,7 @@ describe("usage metering", () => {
     });
     const total = await t.query(internal.usage.requestCosts, { userId, requestId });
     expect(total).toMatchObject({
-      microUsd: 99_600,
+      microUsd: 97_600,
       inputTokens: 2000,
       outputTokens: 100,
       cacheReadTokens: 1400,
@@ -152,9 +140,9 @@ describe("usage metering", () => {
       estimatedSteps: 0,
       unpricedAttempts: 1,
     });
-    expect(total.events).toHaveLength(6);
+    expect(total.events).toHaveLength(5);
     expect(total.events.every((event) => event.requestId === requestId)).toBe(true);
-    expect((await t.query(internal.usage.budget, { userId })).spentMicroUsd).toBe(1_089_600);
+    expect((await t.query(internal.usage.budget, { userId })).spentMicroUsd).toBe(1_087_600);
 
     const stranger = await t.run((ctx) =>
       ctx.db.insert("users", { clerkId: "stranger", name: "Bia", email: "bia@example.com" }),

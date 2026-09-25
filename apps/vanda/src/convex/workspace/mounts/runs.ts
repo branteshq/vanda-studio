@@ -27,9 +27,8 @@ const loadArtifacts = async (ctx: QueryCtx, codeRunId: Id<"codeRuns">) =>
 
 export const runsMount: WorkspaceMount = {
   root: "runs",
-  summary: "execuções de run_code: código, logs e artefatos produzidos",
-  writeHint:
-    "histórico de execuções — somente leitura; promova código que deu certo para /templates/.",
+  summary: "histórico legado de execuções: código, logs e artefatos produzidos",
+  writeHint: "histórico legado de execuções — somente leitura; novas artes são criadas com paint.",
   list: async (ctx, accountId, segments): Promise<WorkspaceEntry[] | null> => {
     const runs = await loadRuns(ctx, accountId);
 

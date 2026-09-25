@@ -953,29 +953,6 @@ describe("Caetano control plane", () => {
     });
   });
 
-  it("gives generated code images an exact readable locator instead of a guessed filename", async () => {
-    const ctx = {
-      accountId: "test-account",
-      runAction: vi.fn().mockResolvedValue({
-        ok: true,
-        stdout: "",
-        stderr: "",
-        artifacts: [],
-        images: [{ imageId: "image-123", name: "Peça com espaços", width: 1080, height: 1350 }],
-      }),
-    };
-
-    const run = Object.assign({}, vanda.options.tools!.run_code, { ctx });
-
-    const result = await run.execute(
-      { code: "print('test')", description: "test" },
-      { toolCallId: "code", messages: [] },
-    );
-
-    expect(result).toHaveProperty("data.images.0.path", "/images/image-123");
-    expect(result).toHaveProperty("resources.0.imageId", "image-123");
-  });
-
   it("returns image pixels through shared paint and read projections", async () => {
     const image = {
       imageId: "test-image",

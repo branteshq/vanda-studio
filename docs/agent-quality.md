@@ -5,6 +5,25 @@ document for continued investigation and implementation, not a finished design.
 
 ## Shared capabilities — September 25, 2026
 
+Image creation now uses `paint` exclusively, guided by the bundled
+`creating-carousel-images` skill. The 141 Python layouts, template and portrait
+prompt packages, reusable-template workspace/UI, `run_code`, E2B runner and build
+dependencies are removed. Both agents load the new skill for creative work.
+Research tools still read Instagram data, but no longer offer Python batch analysis.
+Legacy images, execution records and conversation traces remain readable; no
+customer data was deleted. Earlier template comparisons below are historical only.
+
+Verification after removal: 356 offline tests passed, 15 opt-in live cases skipped;
+app typecheck passed. A separate ChatGPT-subscription run of
+`orvalho-product-draft,pimba-caetano-draft` passed both cases with normal production
+instructions (no benchmark-method override), Terra orchestration and Flare at high
+quality. Both agents read the new skill. Four final images, four paint calls, zero
+code executions and draft-only posts were observed. The three-slide carousel took
+114 seconds and the single post 46 seconds. Visual inspection found coherent,
+readable artwork and correct prices; small footers and a background seam remain
+quality limitations. These are smoke checks, not a new blinded model comparison.
+The rendered business settings view shows the new skill and no Templates tab.
+
 Vanda and Caetano now use one tool catalog, discovery configuration, and execution
 prompt. Only persona and channel instructions differ. Caetano executes marketing
 directly in its existing web/WhatsApp conversation; `ask_vanda`, its delegation

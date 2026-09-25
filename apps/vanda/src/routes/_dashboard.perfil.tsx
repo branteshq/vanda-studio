@@ -19,7 +19,6 @@ import {
   ChevronRight,
   CreditCard,
   ExternalLink,
-  FileCode2,
   LogOut,
   NotebookPen,
   Palette,
@@ -166,7 +165,7 @@ const ProfileRuntimeContext = createContext(defaultRuntime);
 
 /**
  * The owner-facing window into what Vanda knows: brand memory, durable notes
- * and reusable templates — per business, with a switcher. Renders full-bleed
+ * and installed skills — per business, with a switcher. Renders full-bleed
  * (the dashboard layout skips the sidebar chrome for this route).
  */
 
@@ -178,7 +177,6 @@ type TabKey =
   | "instagram"
   | "marca"
   | "memoria"
-  | "templates"
   | "skills";
 
 const TABS = [
@@ -217,12 +215,6 @@ const TABS = [
     label: "Memória",
     icon: NotebookPen,
     description: "Preferências e instruções salvas para este negócio.",
-  },
-  {
-    key: "templates",
-    label: "Templates",
-    icon: FileCode2,
-    description: "Códigos de edição salvos para reutilizar nas próximas criações.",
   },
   {
     key: "skills",
@@ -462,20 +454,9 @@ function ProfilePageContent() {
                 <FolderTab
                   accountId={viewed.id}
                   folder="/memory"
-                  format="markdown"
                   emptyIcon={NotebookPen}
                   emptyTitle="Nenhuma nota ainda"
                   emptyBody={`As notas duráveis da Vanda sobre este negócio moram aqui. Diga na conversa algo como "nunca use vermelho nas artes" — ela grava, e o que está gravado ela não esquece.`}
-                />
-              ) : null}
-              {tab === "templates" ? (
-                <FolderTab
-                  accountId={viewed.id}
-                  folder="/templates"
-                  format="code"
-                  emptyIcon={FileCode2}
-                  emptyTitle="Nenhum template ainda"
-                  emptyBody={`Códigos de edição de imagem que deram certo podem virar templates reutilizáveis. Peça na conversa: "salve esse código como template" — ele aparece aqui.`}
                 />
               ) : null}
               {tab === "skills" ? <SkillsTab accountId={viewed.id} /> : null}
@@ -1469,10 +1450,10 @@ function BrandTab({ accountId }: { accountId: Id<"accounts"> }) {
 
       <div className="grid gap-6 xl:grid-cols-2">
         <SectionCard title="Memória de marca" caption="fatos confirmados por você">
-          <FileBody result={memory} format="markdown" />
+          <FileBody result={memory} />
         </SectionCard>
         <SectionCard title="Anotações da Vanda" caption="sempre com a sua aprovação">
-          <FileBody result={notes} format="markdown" />
+          <FileBody result={notes} />
         </SectionCard>
       </div>
     </>
@@ -1567,7 +1548,7 @@ function BrandKitCard({ accountId }: { accountId: Id<"accounts"> }) {
   );
 }
 
-function FileBody({ result, format }: { result: FileResult; format: "markdown" | "code" }) {
+function FileBody({ result }: { result: FileResult }) {
   if (result.loading) {
     return (
       <div className="space-y-2" aria-hidden>
@@ -1581,28 +1562,18 @@ function FileBody({ result, format }: { result: FileResult; format: "markdown" |
   if (!result.text)
     return <p className="text-body-sm text-text-3">Nada registrado por aqui ainda.</p>;
 
-  if (format === "code") {
-    return (
-      <pre className="overflow-x-auto rounded-lg border border-border bg-muted/40 p-3 font-mono text-body-sm leading-relaxed whitespace-pre text-text-2">
-        {result.text}
-      </pre>
-    );
-  }
-
   return <Markdown variant="reading">{result.text}</Markdown>;
 }
 
 function FolderTab({
   accountId,
   folder,
-  format,
   emptyIcon: EmptyIcon,
   emptyTitle,
   emptyBody,
 }: {
   accountId: Id<"accounts">;
   folder: string;
-  format: "markdown" | "code";
   emptyIcon: typeof NotebookPen;
   emptyTitle: string;
   emptyBody: string;
@@ -1667,7 +1638,7 @@ function FolderTab({
         })}
       </div>
       <SectionCard title={selected ?? ""}>
-        <FileBody result={file} format={format} />
+        <FileBody result={file} />
       </SectionCard>
     </>
   );

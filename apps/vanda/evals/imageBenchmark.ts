@@ -62,7 +62,5 @@ export const imageBenchmarkCases: (EvalCase & { slides: number })[] = [
 ];
 
 export const benchmarkMethods = {
-  template:
-    "Experimento controlado: use os templates reais de /skills/post-instagram-template. Leia o SKILL.md, escolha e leia o script adequado e adapte-o. Componha TODO texto e layout final por run_code/Pillow. Pode usar paint apenas para ativos visuais sem texto se necessário, nunca para a peça completa. Preserve a qualidade do template e adapte paleta, fontes e espaçamento ao conteúdo. Para revisão, use Python para alterar só a região autorizada.",
   raw: "Experimento controlado: use paint para TODA a composição final, inclusive tipografia, preços e marca; não use run_code, SVG ou overlays para criar ou corrigir pixels. Faça uma imagem por slide. Escreva prompts como especificações de arte: objetivo, hierarquia visual, direção artística, texto exato entre aspas, uma ocorrência por trecho, sem texto extra. Para carrosséis, use o primeiro slide como referência de identidade nos seguintes, explicitando que é referência de estilo, não de conteúdo. Para revisões, use a imagem fornecida como referência e nomeie o que muda e tudo que deve permanecer. Inspecione o resultado, corrigindo defeitos concretos no máximo duas vezes. Não aceite texto ilegível só porque a arte é bonita.",
 };

@@ -79,8 +79,6 @@ export const savePaintedImage = internalMutation({
     generationMs: v.optional(v.number()),
     name: v.optional(v.string()),
     promptAuthor: v.optional(v.union(v.literal("vanda"), v.literal("user"))),
-    // Links a run_code output back to its execution record.
-    codeRunId: v.optional(v.id("codeRuns")),
     // Links a paint edit back to the image it modified.
     editOfImageId: v.optional(v.id("images")),
     // Gallery fan-outs pre-insert a "generating" row; passing it here fills
@@ -103,13 +101,7 @@ export const savePaintedImage = internalMutation({
       Partial<
         Pick<
           Doc<"images">,
-          | "name"
-          | "model"
-          | "costUsd"
-          | "generationMs"
-          | "promptAuthor"
-          | "codeRunId"
-          | "editOfImageId"
+          "name" | "model" | "costUsd" | "generationMs" | "promptAuthor" | "editOfImageId"
         >
       > = {
       storageId: args.storageId,
@@ -131,13 +123,9 @@ export const savePaintedImage = internalMutation({
 
     if (args.promptAuthor) fields.promptAuthor = args.promptAuthor;
 
-    if (args.codeRunId) fields.codeRunId = args.codeRunId;
-
     if (args.editOfImageId) fields.editOfImageId = args.editOfImageId;
 
-    // run_code images carry a share of the sandbox cost for display, but the
-    // sandbox itself is charged once in finishCodeRun — only paints bill here.
-    if (args.costUsd && !args.codeRunId) {
+    if (args.costUsd) {
       const charge: PaintCharge = {
         accountId: args.accountId,
         kind: "paint",

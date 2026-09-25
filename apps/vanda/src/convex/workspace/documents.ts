@@ -10,7 +10,7 @@ import {
 
 /**
  * Document store backing the writable files of the workspace (/memory,
- * /templates, /brand/notes.md). Unlike the projected views, these files ARE
+ * /notes, /brand/notes.md). Unlike the projected views, these files ARE
  * the data: workspaceFiles holds the head of each file, workspaceFileRevisions
  * an append-only history of every write (audit trail and undo safety).
  */

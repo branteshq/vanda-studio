@@ -242,54 +242,6 @@ describe("tool output activity identity", () => {
     });
 
     expect(await t.run((ctx) => ctx.db.get(imageB))).not.toBeNull();
-
-    const runA = await t.mutation(internal.codeRunsData.beginCodeRun, {
-      accountId: setup.accountId,
-      code: "print('a')",
-      description: "A",
-    });
-
-    const runB = await t.mutation(internal.codeRunsData.beginCodeRun, {
-      accountId: setup.accountId,
-      code: "print('b')",
-      description: "B",
-    });
-
-    const artifactArgs = {
-      filename: "result.txt",
-      mimeType: "text/plain",
-      content: "result",
-    };
-
-    await expect(
-      t.mutation(internal.codeRunsData.saveCodeRunArtifact, {
-        ...artifactArgs,
-        codeRunId: runA,
-        activityId: setup.activityA,
-      }),
-    ).rejects.toThrow("activity expired");
-
-    const artifactB = await t.mutation(internal.codeRunsData.saveCodeRunArtifact, {
-      ...artifactArgs,
-      codeRunId: runB,
-      activityId: setup.activityB,
-    });
-
-    expect((await t.run((ctx) => ctx.db.get(artifactB)))?.content).toBe("result");
-    await expect(
-      t.mutation(internal.codeRunsData.finishCodeRun, {
-        codeRunId: runA,
-        status: "ok",
-        activityId: setup.activityA,
-      }),
-    ).rejects.toThrow("activity expired");
-    await t.mutation(internal.codeRunsData.finishCodeRun, {
-      codeRunId: runB,
-      status: "ok",
-      activityId: setup.activityB,
-    });
-    expect((await t.run((ctx) => ctx.db.get(runA)))?.status).toBe("running");
-    expect((await t.run((ctx) => ctx.db.get(runB)))?.status).toBe("ok");
   });
 
   it("bounds Caetano persistence and charges to the exact owned activity", async () => {
@@ -380,39 +332,9 @@ describe("tool output activity identity", () => {
 
     expect(await t.run((ctx) => ctx.db.get(imageId))).not.toBeNull();
 
-    const runId = await t.mutation(internal.codeRunsData.beginCodeRun, {
-      accountId: setup.accountId,
-      code: "print('ok')",
-      description: "Caetano run",
-    });
-
-    await expect(
-      t.mutation(internal.codeRunsData.finishCodeRun, {
-        codeRunId: runId,
-        status: "ok",
-        costUsd: 0.02,
-        activityId: setup.activityA,
-      }),
-    ).rejects.toThrow("activity expired");
-    await expect(
-      t.mutation(internal.codeRunsData.finishCodeRun, {
-        codeRunId: runId,
-        status: "ok",
-        costUsd: 0.02,
-        activityId: setup.foreignActivity,
-      }),
-    ).rejects.toThrow("activity expired");
-    await t.mutation(internal.codeRunsData.finishCodeRun, {
-      codeRunId: runId,
-      status: "ok",
-      costUsd: 0.02,
-      activityId: setup.activityB,
-    });
-
     const events = await t.run((ctx) => ctx.db.query("usageEvents").collect());
-    expect(events).toHaveLength(2);
+    expect(events).toHaveLength(1);
     expect(events.map(({ requestId, threadId }) => ({ requestId, threadId }))).toEqual([
-      { requestId: "prompt-b", threadId: "same-caetano-thread" },
       { requestId: "prompt-b", threadId: "same-caetano-thread" },
     ]);
   });

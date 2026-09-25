@@ -162,7 +162,7 @@ export const summarizeInstagramResult = <Input>(operation: InstagramOperation, v
       shownItems: items.length,
       omittedItems: totalItems - items.length,
       notice:
-        "Resumo limitado: textos podem estar cortados; posts aninhados, mídia, respostas e demografia foram omitidos. Dados completos em savedTo. Use run_code com inputPaths para analisar o arquivo completo sem copiá-lo para a conversa.",
+        "Resumo limitado: textos podem estar cortados; posts aninhados, mídia, respostas e demografia foram omitidos. Dados completos em savedTo. Use read com offset/limit para consultar os trechos relevantes.",
     },
   };
 

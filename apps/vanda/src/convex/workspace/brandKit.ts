@@ -3,7 +3,7 @@
  * exact colors, fonts, tagline. Stored as a workspace document; this module is
  * its per-target parser (the first projection-style write handler): writes are
  * validated and normalized so the file is always clean JSON both the owner's
- * kit card and the agent's code (exact hexes into run_code) can trust.
+ * kit card and the agent's image prompts can trust.
  * Shared by the brand mount (validation) and the perfil page (rendering).
  */
 import { z } from "zod";

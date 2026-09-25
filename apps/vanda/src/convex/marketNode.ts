@@ -878,7 +878,7 @@ export const directOpportunity = internalAction({
       );
 
       // The brief is research output: Vanda reads it via /market and produces
-      // the post herself (paint + run_code + create_post) — no auto-factory.
+      // the post herself (paint + create_post) — no auto-factory.
       return briefId;
     } catch (error) {
       await ctx.runMutation(internal.market.setOpportunityStatus, {
