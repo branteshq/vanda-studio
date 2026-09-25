@@ -304,7 +304,7 @@ function CaetanoWelcome() {
   );
 }
 
-function CaetanoMessage({
+export function CaetanoMessage({
   message,
   resources,
 }: {
@@ -382,13 +382,17 @@ function CaetanoMessage({
             })}
           </div>
         ) : null}
-        {textParts.map((text) => (
-          <Bubble key={`${text.length}-${text.slice(0, 48)}`} variant="ghost">
-            <BubbleContent>
-              <CaetanoStreamingText text={text} streaming={streaming} />
-            </BubbleContent>
-          </Bubble>
-        ))}
+        {message.parts.map((part, index) =>
+          part.type === "text" && part.text.trim() ? (
+            // Keep smoothing state alive as the text grows. Parts retain their stream order.
+            // oxlint-disable-next-line react/no-array-index-key -- Text parts have no ID; their unfiltered stream position is stable.
+            <Bubble key={index} variant="ghost">
+              <BubbleContent>
+                <CaetanoStreamingText text={part.text} streaming={streaming} />
+              </BubbleContent>
+            </Bubble>
+          ) : null,
+        )}
         <ThreadResourceList resources={resources} />
         {nothingYet ? (
           <div className="flex items-center gap-2 text-sm text-text-3">
