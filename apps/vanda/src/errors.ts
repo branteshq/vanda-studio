@@ -4,6 +4,7 @@ import { z } from "zod";
 /** Public copy is selected here, never taken from an exception or provider response. */
 export const errorCodes = [
   "USAGE_LIMIT",
+  "WEB_LIMIT",
   "PROVIDER_LIMIT",
   "RECONNECT_REQUIRED",
   "UNAUTHENTICATED",
@@ -22,6 +23,11 @@ export const errorCopy = {
     message: "Seu limite de uso foi atingido. Confira seu plano em Perfil para continuar.",
     action: "Ver plano",
     href: "/perfil",
+  },
+  WEB_LIMIT: {
+    title: "Limite de pesquisa web atingido",
+    message:
+      "A pesquisa web atingiu o limite deste pedido ou das últimas 24 horas. Use as fontes já consultadas e tente novamente mais tarde.",
   },
   PROVIDER_LIMIT: {
     title: "Limite do ChatGPT atingido",

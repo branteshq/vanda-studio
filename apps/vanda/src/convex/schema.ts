@@ -167,6 +167,18 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_user_period", ["userId", "periodKey"]),
 
+  // Admission reservations bound concurrent web spend as well as sequential calls.
+  webRequests: defineTable({
+    accountId: v.id("accounts"),
+    userId: v.id("users"),
+    operation: v.union(v.literal("search"), v.literal("read")),
+    activityId: v.optional(v.union(v.id("chatThreadActivity"), v.id("caetanoThreadActivity"))),
+    requestId: v.string(),
+    threadId: v.string(),
+    status: v.union(v.literal("pending"), v.literal("finished")),
+    createdAt: v.number(),
+  }).index("by_user_created", ["userId", "createdAt"]),
+
   // `accounts` is created by publisherConnect.startConnect; brandCanon by
   // onboarding's approve. Instagram is reached through the publisher port
   // (Upload-Post) — the customer's tokens never touch our database.

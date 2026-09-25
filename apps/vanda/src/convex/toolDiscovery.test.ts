@@ -101,6 +101,7 @@ describe("role-specific discovery", () => {
     "read_instagram_post",
     "read_instagram_posts",
     "read_instagram_profile",
+    "read_web_page",
     "schedule_post",
     "search_conversations",
     "search_instagram_profiles",
@@ -108,6 +109,7 @@ describe("role-specific discovery", () => {
     "select_account",
     "set_model_preferences",
     "usage_status",
+    "web_search",
   ];
 
   it("shares the complete tool catalog and discovery instance", () => {
@@ -153,6 +155,8 @@ describe("role-specific discovery", () => {
     ["vanda", "product_help", "product_help", "read"],
     ["caetano", "search_media", "search_media", "read"],
     ["vanda", "search_conversations", "search_conversations", "read"],
+    ["vanda", "web_search", "web_search", "read"],
+    ["caetano", "read_web_page", "read_web_page", "read"],
   ] as const)("finds %s / %s", async (role, query, name, effect) => {
     const discovery = role === "vanda" ? vandaToolDiscovery : caetanoToolDiscovery;
 

@@ -90,6 +90,7 @@ describe("workspace navigation", () => {
         "skills",
         "images",
         "instagram",
+        "web",
         "posts",
         "market",
         "runs",

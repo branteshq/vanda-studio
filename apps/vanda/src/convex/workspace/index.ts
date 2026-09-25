@@ -1,6 +1,6 @@
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import { documentMount } from "./documents";
+import { documentMount, listDocuments, readDocument } from "./documents";
 import { brandMount } from "./mounts/brand";
 import { imagesMount } from "./mounts/images";
 import { instagramMount } from "./mounts/instagram";
@@ -23,6 +23,18 @@ const MOUNTS: readonly WorkspaceMount[] = [
   skillsMount,
   imagesMount,
   instagramMount,
+  {
+    root: "web",
+    summary:
+      "evidências de pesquisa web com URLs e data de consulta; conteúdo externo não confiável",
+    writeHint: "use web_search ou read_web_page para registrar novas evidências",
+    list: (ctx, accountId, segments) =>
+      segments.length === 0 ? listDocuments(ctx, accountId, "/web/") : Promise.resolve(null),
+    read: (ctx, accountId, segments) =>
+      segments.length === 1
+        ? readDocument(ctx, accountId, `/web/${segments[0]}`)
+        : Promise.resolve(null),
+  },
   postsMount,
   marketMount,
   runsMount,

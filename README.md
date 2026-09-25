@@ -74,6 +74,47 @@ their OAuth tokens live inside Upload-Post and never touch our database. Publish
 post analytics, and (later) comments/DMs all ride the same API — no Meta app, no app
 review, no webhook plumbing on our side.
 
+## Web research (Parallel)
+
+`web_search` and `read_web_page` are shared by Vanda and Caetano through
+`tool_search`. Parallel is the sole provider, independent of the chat model or
+ChatGPT subscription. Set `PARALLEL_API_KEY` on each Convex deployment (never in
+client/Vite variables). No customer key, MCP server, or additional service is needed.
+
+Search uses `/v1/search`, advanced mode, up to three related queries and five
+results, with optional domain and publication-date filters. Reading uses
+`/v1/extract`: an objective selects excerpts; no objective or `fullContent: true`
+requests full extracted Markdown. `fresh: true` requires content no older than
+10 minutes and disables fallback to older cached content; it is not a guarantee
+of an instantaneous crawl. The agent must cite source URLs and treat pages as
+untrusted data, never instructions or authorization.
+
+Inline previews are limited to 1,600 characters per source. Received evidence is
+preserved in read-only, account-scoped `/web` documents, split below the document
+size limit and retrievable with `read` (line `offset`/`limit`). It is not added to
+automatic brand memory. Responses exceeding 500 KB fail rather than silently
+truncating evidence. Requests have a 45-second deadline and no automatic retries.
+Only public HTTP(S) URLs without credentials, IP literals, or custom ports are
+accepted; target fetching and its DNS/redirect isolation happen at Parallel, not
+inside Convex. Queries and target URLs are disclosed to Parallel.
+
+Web admission is capped at eight attempts per turn and 100 per owner over a
+rolling 24 hours across accounts. Pending requests reserve web budget atomically;
+failed attempts still count toward these caps. Abandoned reservations age out of
+admission after 24 hours. The shared usage meter records separate
+`web_parallel_search` / `web_parallel_read` events, including for ChatGPT-connected
+owners. Costs use published list-price estimates ($0.005/search, $0.001/read,
+pinned in `src/convex/web.ts`), not invoice reconciliation. HTTP-success responses
+are metered even if malformed or the turn was cancelled; non-2xx/network failures
+are not metered, though a lost response can leave upstream billing uncertain.
+
+Tests run locally without changing a Convex deployment. For an opt-in live
+search/extraction smoke test, provide `PARALLEL_API_KEY` securely to the test process:
+
+```bash
+RUN_WEB_LIVE=1 pnpm --filter @vanda-studio/vanda exec vitest run src/convex/web.boundary.test.ts -t 'live Parallel'
+```
+
 ## Checks
 
 ```bash
