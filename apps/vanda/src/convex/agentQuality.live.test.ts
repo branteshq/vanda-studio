@@ -9,6 +9,7 @@ import { expect, it, vi } from "vitest";
 import { z } from "zod";
 import { brands, cases } from "../../evals/fixtures";
 import { benchmarkMethods, imageBenchmarkCases } from "../../evals/imageBenchmark";
+import { professionalBrands, professionalCases } from "../../evals/professionalBenchmark";
 import { referenceImage } from "../../evals/references";
 import {
   assertImagesWereInspected,
@@ -23,6 +24,7 @@ import { requireTextModel } from "./agentModels";
 import { vanda } from "./vanda";
 import { messageWithImages } from "./messageImages";
 import { capabilityResult } from "./resourceRefs";
+import { sniffImage } from "./pipeline/imageBytes";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -41,7 +43,18 @@ const imageModel = process.env.VANDA_EVAL_IMAGE_MODEL ?? "openai/gpt-image-2.5-f
 
 const quality = z.enum(["high", "max"]).parse(process.env.VANDA_EVAL_IMAGE_QUALITY ?? "high");
 
-const suite = (method ? imageBenchmarkCases : cases).filter((entry) =>
+const professionals = process.env.VANDA_EVAL_PROFESSIONALS === "1";
+
+const referenceFiles = z
+  .array(z.string())
+  .parse(JSON.parse(process.env.VANDA_EVAL_REFERENCE_FILES ?? "[]"));
+
+const benchmarkCases = professionals ? professionalCases : imageBenchmarkCases;
+
+if (professionals && (method !== "raw" || referenceFiles.length !== 2))
+  throw new Error("Professional benchmark requires raw method and two local reference files");
+
+const suite = (method ? benchmarkCases : cases).filter((entry) =>
   selected.size ? selected.has(entry.id) : !entry.holdout,
 );
 
@@ -69,13 +82,14 @@ it.skipIf(!enabled).each(suite)(
         "Set VANDA_EVAL_AUTH_FILE or supply subscription auth in AMP_CODEX_CHATGPT_AUTH",
       );
     const auth = authSchema.parse(JSON.parse(authJson)).tokens;
-    const brand = brands.find((value) => value.id === entry.brandId)!;
+    const brand = [...brands, ...professionalBrands].find((value) => value.id === entry.brandId)!;
     const directory = resolve(outputRoot, entry.id);
     await mkdir(directory, { recursive: true });
     const t = convexTest(schema, modules);
     agentComponent.register(t);
     const startedAt = Date.now();
     const trace: EvalTraceStep[] = [];
+    const referenceInputs: { name: string; sha256: string }[] = [];
 
     const imageRequests: {
       model: string;
@@ -263,6 +277,11 @@ it.skipIf(!enabled).each(suite)(
         new Error("Gerador temporariamente indisponível; nenhuma imagem criada"),
       );
 
+    if (professionals)
+      vi.spyOn(vanda.options.tools!.run_code, "execute").mockRejectedValue(
+        new Error("Image-only benchmark: run_code is disabled. Generate all pixels with paint."),
+      );
+
     const streamVanda = vanda.streamText.bind(vanda);
     vi.spyOn(vanda, "streamText").mockImplementation(async (ctx, thread, options, persistence) => {
       const system =
@@ -355,6 +374,35 @@ it.skipIf(!enabled).each(suite)(
         });
 
       const attachments: { imageId: Id<"images">; url: string; mimeType: string }[] = [];
+
+      for (const [index, file] of referenceFiles.entries()) {
+        const bytes = await readFile(file);
+        const metadata = sniffImage(bytes);
+
+        if (!metadata) throw new Error("Reference must be PNG or JPEG");
+        const name = `style-reference-${index + 1}`;
+        const sha256 = createHash("sha256").update(bytes).digest("hex");
+        referenceInputs.push({ name, sha256 });
+        await writeFile(
+          resolve(directory, `${name}.${metadata.mimeType === "image/png" ? "png" : "jpg"}`),
+          bytes,
+        );
+        const url = `data:${metadata.mimeType};base64,${bytes.toString("base64")}`;
+
+        const imageId = await t.run((ctx) =>
+          ctx.db.insert("images", {
+            accountId: ids.accountId,
+            name,
+            origin: "uploaded",
+            purpose: "post",
+            externalUrl: url,
+            ...metadata,
+            createdAt: startedAt,
+          }),
+        );
+
+        attachments.push({ imageId, url, mimeType: metadata.mimeType });
+      }
 
       let referenceBytes: Uint8Array | undefined;
       let referenceImageId: Id<"images"> | undefined;
@@ -541,6 +589,7 @@ it.skipIf(!enabled).each(suite)(
             quality,
             method,
             imageRequests,
+            referenceInputs,
             fullArtTrial,
             transport: "chatgpt-subscription",
             elapsedMs: Date.now() - startedAt,
@@ -551,7 +600,7 @@ it.skipIf(!enabled).each(suite)(
             state,
             trace,
             fixtureHash: createHash("sha256")
-              .update(JSON.stringify({ entry, brand }))
+              .update(JSON.stringify({ entry, brand, referenceInputs }))
               .digest("hex"),
             tasteLabel: null,
             reviewReason: null,
@@ -575,12 +624,22 @@ it.skipIf(!enabled).each(suite)(
         expect(state.posts[0]?.imageIds.length).toBeGreaterThan(0);
 
         if (entry.id === "orvalho-product-draft") expect(state.posts[0]?.imageIds).toHaveLength(3);
-        const benchmark = imageBenchmarkCases.find((item) => item.id === entry.id);
+        const benchmark = benchmarkCases.find((item) => item.id === entry.id);
 
         if (benchmark) expect(state.posts[0]?.imageIds).toHaveLength(benchmark.slides);
       }
 
       if (method === "raw") expect(state.runs).toHaveLength(0);
+
+      if (professionals) {
+        expect(vanda.options.tools!.run_code.execute).not.toHaveBeenCalled();
+        const finalImages = state.posts.flatMap((post) => post.imageIds);
+        expect(
+          finalImages.every(
+            (id) => state.images.find((image) => image._id === id)?.model === imageModel,
+          ),
+        ).toBe(true);
+      }
 
       if (method === "template") {
         expect(state.runs.length).toBeGreaterThan(0);

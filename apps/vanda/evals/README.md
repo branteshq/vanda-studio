@@ -96,3 +96,28 @@ Missing image usage produces an unknown image/total estimate rather than zero.
 
 Read the dated findings in `docs/image-benchmark-2026-09-25.md`. Automated checks
 are not OCR, taste judgments, or proof that a customer would publish the result.
+
+### Reference-led professional carousels: images only
+
+`professionalBenchmark.ts` provides three two-slide briefs: ophthalmology, civil
+engineering and dentistry. Each uses a fictional professional, fixed Portuguese
+copy, a portrait-led cover and a dense educational 2×2 diagram page. The two supplied
+reference images guide the art direction, not the person's identity or clinic logo.
+
+```sh
+VANDA_LIVE_EVAL=1 VANDA_EVAL_PROFESSIONALS=1 VANDA_EVAL_METHOD=raw \
+  VANDA_EVAL_IMAGE_MODEL=openai/gpt-image-2.5-flare VANDA_EVAL_IMAGE_QUALITY=max \
+  VANDA_EVAL_REFERENCE_FILES='["/absolute/cover.png","/absolute/educational.png"]' \
+  VANDA_EVAL_OUTPUT=../../.amp/in/artifacts/professional-benchmark/flare-max \
+  pnpm --filter @vanda-studio/vanda test:run src/convex/agentQuality.live.test.ts
+```
+
+Use `openai/gpt-image-2.5-sunburst` and a separate output directory for the other
+arm. Reference files are loaded as genuine attached image bytes, copied into each
+trial's artifacts and hashed in `referenceInputs`. They are not committed into the
+fixture source. Normal subscription auth requirements still apply. The professional
+suite requires raw mode and exactly two references; `run_code` is disabled, attempts
+to call it fail the benchmark, and every final image must have the selected image
+model provenance. This is generation-only: the existing summarizer may make review
+contact sheets, but never modifies final artwork. Medical copy is educational;
+these fictional examples are not reviewed clinical advertising.
