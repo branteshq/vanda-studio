@@ -203,7 +203,7 @@ describe("Caetano control plane", () => {
           });
         }
 
-        for (const modelId of ["openai/gpt-5.6-sol", "anthropic/claude-sonnet-5"]) {
+        for (const modelId of ["openai/gpt-5.6-sol", "anthropic/claude-sonnet-5.5"]) {
           // Exercise legacy preferences from before a subscription plan switch.
           await t.run((ctx) => ctx.db.patch(userId, { caetanoModel: modelId }));
 

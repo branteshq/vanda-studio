@@ -75,8 +75,8 @@ export const ORCHESTRATOR_MODELS: readonly OrchestratorModel[] = [
     codexCapable: false,
   },
   {
-    id: "anthropic/claude-sonnet-5",
-    label: "Claude Sonnet 5",
+    id: "anthropic/claude-sonnet-5.5",
+    label: "Claude Sonnet 5.5",
     maker: "Anthropic",
     tagline: "Escrita afiada com custo moderado.",
     codexCapable: false,
