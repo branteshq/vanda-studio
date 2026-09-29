@@ -68,6 +68,7 @@ describe("Caetano control plane", () => {
   it.each([false, true])("persists GPT-6.1 Sol for both agents (connected: %s)", async (connected) => {
     const { t, userId } = await setup();
     const owner = t.withIdentity({ subject: "ana" });
+
     if (connected) {
       await t.run((ctx) =>
         ctx.db.patch(userId, { planId: "conectado", openaiAccessCiphertext: "test-token" }),
@@ -77,6 +78,7 @@ describe("Caetano control plane", () => {
     for (const mutation of [api.users.setCaetanoModel, api.users.setAgentModel]) {
       await owner.mutation(mutation, { modelId: "openai/gpt-6.1-sol" });
     }
+
     expect(await owner.query(api.users.modelPreferences)).toMatchObject({
       caetano: "openai/gpt-6.1-sol",
       orchestrator: "openai/gpt-6.1-sol",
