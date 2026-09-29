@@ -830,6 +830,9 @@ export default defineSchema({
     type: v.union(...postTypes.map((type) => v.literal(type))),
     imageIds: v.array(v.id("images")),
     caption: v.string(),
+    // Retained for compatibility with existing posts; new posts may omit these.
+    purpose: v.optional(v.string()),
+    secondaryPurpose: v.optional(v.string()),
     platform: v.string(),
     status: v.union(...postStatuses.map((status) => v.literal(status))),
     opportunityId: v.optional(v.id("opportunities")),
