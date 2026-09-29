@@ -124,6 +124,8 @@ describe("evaluation guards", () => {
         assertProtectedPixelsPreserved(referenceId, original, output),
       ).resolves.toBeUndefined();
     },
+    // Rendering and comparing 1024×1280 PNGs exceeds the default 5s on macOS CI.
+    30_000,
   );
 
   it("detects a single changed protected pixel, including unsampled purple pen pixels", async () => {
