@@ -3,6 +3,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
+import type { PostPurpose } from "./postPurposes";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -38,6 +39,125 @@ const setup = async () => {
 };
 
 describe("posts.createPostInternal — the light post path", () => {
+  it("enforces type and format, stores the justification and keeps stories unscheduled", async () => {
+    const { t, accountId, imageId } = await setup();
+
+    const sized = (width: number, height: number) =>
+      t.run((ctx) =>
+        ctx.db.insert("images", {
+          accountId,
+          origin: "generated",
+          purpose: "post",
+          externalUrl: `https://example.com/${width}x${height}.jpg`,
+          width,
+          height,
+          createdAt: 1,
+        }),
+      );
+
+    const verticalId = await sized(1080, 1920);
+    const portraitId = await sized(1080, 1350);
+    const squareId = await sized(1080, 1080);
+
+    const rationale =
+      "  image porque é uma novidade curta; anuncio porque há data; 4:5 porque ocupa mais tela.  ";
+
+    const create = (
+      type: "image" | "carousel" | "story",
+      format: "1:1" | "4:5" | "3:4" | "9:16",
+      imageIds: (typeof imageId)[],
+      extra: { rationale?: string; purpose?: PostPurpose } = { purpose: "anuncio", rationale },
+    ) =>
+      t.mutation(internal.posts.createPostInternal, {
+        accountId,
+        imageIds,
+        caption: "Abrimos às 7h",
+        type,
+        format,
+        ...extra,
+      });
+
+    const postId = await create("image", "4:5", [portraitId]);
+    expect(await t.run((ctx) => ctx.db.get(postId))).toMatchObject({
+      type: "image",
+      format: "4:5",
+      purpose: "anuncio",
+      rationale: rationale.trim(),
+    });
+
+    // Unknown dimensions are trusted; known ones must match the declared format.
+    await create("image", "1:1", [imageId]);
+    await expect(create("image", "4:5", [squareId])).rejects.toThrow("1080×1080, não 4:5");
+    await expect(create("carousel", "4:5", [portraitId, squareId])).rejects.toThrow("mesmo format");
+    const carouselId = await create("carousel", "4:5", [portraitId, portraitId]);
+    expect(await t.run((ctx) => ctx.db.get(carouselId))).toMatchObject({ type: "carousel" });
+
+    await expect(create("image", "4:5", [portraitId, portraitId])).rejects.toThrow(
+      "image precisa de exatamente 1 imagem",
+    );
+    await expect(create("carousel", "4:5", [portraitId])).rejects.toThrow(
+      "carrossel precisa de 2 a 10",
+    );
+    await expect(create("story", "4:5", [portraitId])).rejects.toThrow("story é sempre 9:16");
+    await expect(create("image", "9:16", [verticalId])).rejects.toThrow("image não usa 9:16");
+    await expect(create("story", "9:16", [squareId])).rejects.toThrow("não 9:16");
+    await expect(create("image", "4:5", [portraitId], { rationale })).rejects.toThrow(
+      "exige um propósito",
+    );
+    await expect(
+      create("image", "4:5", [portraitId], { purpose: "anuncio", rationale: "x".repeat(401) }),
+    ).rejects.toThrow("400");
+
+    const storyId = await create("story", "9:16", [verticalId]);
+    await expect(
+      t.mutation(internal.posts.schedulePostInternal, { accountId, postId: storyId }),
+    ).rejects.toThrow("stories ainda não são publicados");
+    expect(await t.run((ctx) => ctx.db.query("scheduledPosts").collect())).toEqual([]);
+  });
+
+  it("infers carousel for legacy callers without a type", async () => {
+    const { t, accountId, imageId } = await setup();
+
+    const postId = await t.mutation(internal.posts.createPostInternal, {
+      accountId,
+      imageIds: [imageId, imageId],
+      caption: "Dois slides",
+    });
+
+    expect(await t.run((ctx) => ctx.db.get(postId))).toMatchObject({ type: "carousel" });
+    await expect(
+      t.mutation(internal.posts.createPostInternal, {
+        accountId,
+        imageIds: [imageId],
+        caption: "x",
+        format: "1:1",
+      }),
+    ).rejects.toThrow("format exige um type");
+  });
+
+  it("stores the post purpose and validates the secondary one", async () => {
+    const { t, accountId, imageId } = await setup();
+
+    const create = (purposes: { purpose?: PostPurpose; secondaryPurpose?: PostPurpose }) =>
+      t.mutation(internal.posts.createPostInternal, {
+        accountId,
+        imageIds: [imageId],
+        caption: "Bolo de cenoura, R$ 45, sábado",
+        ...purposes,
+      });
+
+    const postId = await create({ purpose: "anuncio", secondaryPurpose: "promocional" });
+    expect(await t.run((ctx) => ctx.db.get(postId))).toMatchObject({
+      purpose: "anuncio",
+      secondaryPurpose: "promocional",
+    });
+
+    await expect(create({ purpose: "anuncio", secondaryPurpose: "anuncio" })).rejects.toThrow(
+      "diferente do principal",
+    );
+    await expect(create({ secondaryPurpose: "produto" })).rejects.toThrow("propósito principal");
+  });
+
   it("creates a draft from owned images and rejects foreign or empty input", async () => {
     const { t, accountId, imageId } = await setup();
 

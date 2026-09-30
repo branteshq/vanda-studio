@@ -52,6 +52,7 @@ import type * as market from "../market.js";
 import type * as marketActions from "../marketActions.js";
 import type * as marketNode from "../marketNode.js";
 import type * as messageImages from "../messageImages.js";
+import type * as migrations from "../migrations.js";
 import type * as modelTelemetry from "../modelTelemetry.js";
 import type * as openaiSub from "../openaiSub.js";
 import type * as openaiSubNode from "../openaiSubNode.js";
@@ -75,6 +76,7 @@ import type * as pipeline_publisher from "../pipeline/publisher.js";
 import type * as pipeline_sourceUnderstanding from "../pipeline/sourceUnderstanding.js";
 import type * as pipeline_storage from "../pipeline/storage.js";
 import type * as pipeline_testLanguageModel from "../pipeline/testLanguageModel.js";
+import type * as postPurposes from "../postPurposes.js";
 import type * as posts from "../posts.js";
 import type * as previousWork from "../previousWork.js";
 import type * as productHelp from "../productHelp.js";
@@ -119,7 +121,11 @@ import type * as workspace_types from "../workspace/types.js";
 import type * as workspaceData from "../workspaceData.js";
 import type * as workspacePublic from "../workspacePublic.js";
 
-import type { ApiFromModules, FilterApi, FunctionReference } from "convex/server";
+import type {
+  ApiFromModules,
+  FilterApi,
+  FunctionReference,
+} from "convex/server";
 
 declare const fullApi: ApiFromModules<{
   accounts: typeof accounts;
@@ -166,6 +172,7 @@ declare const fullApi: ApiFromModules<{
   marketActions: typeof marketActions;
   marketNode: typeof marketNode;
   messageImages: typeof messageImages;
+  migrations: typeof migrations;
   modelTelemetry: typeof modelTelemetry;
   openaiSub: typeof openaiSub;
   openaiSubNode: typeof openaiSubNode;
@@ -189,6 +196,7 @@ declare const fullApi: ApiFromModules<{
   "pipeline/sourceUnderstanding": typeof pipeline_sourceUnderstanding;
   "pipeline/storage": typeof pipeline_storage;
   "pipeline/testLanguageModel": typeof pipeline_testLanguageModel;
+  postPurposes: typeof postPurposes;
   posts: typeof posts;
   previousWork: typeof previousWork;
   productHelp: typeof productHelp;
@@ -242,7 +250,10 @@ declare const fullApi: ApiFromModules<{
  * const myFunctionReference = api.myModule.myFunction;
  * ```
  */
-export declare const api: FilterApi<typeof fullApi, FunctionReference<any, "public">>;
+export declare const api: FilterApi<
+  typeof fullApi,
+  FunctionReference<any, "public">
+>;
 
 /**
  * A utility for referencing Convex functions in your app's internal API.
@@ -252,7 +263,10 @@ export declare const api: FilterApi<typeof fullApi, FunctionReference<any, "publ
  * const myFunctionReference = internal.myModule.myFunction;
  * ```
  */
-export declare const internal: FilterApi<typeof fullApi, FunctionReference<any, "internal">>;
+export declare const internal: FilterApi<
+  typeof fullApi,
+  FunctionReference<any, "internal">
+>;
 
 export declare const components: {
   agent: import("@convex-dev/agent/_generated/component.js").ComponentApi<"agent">;

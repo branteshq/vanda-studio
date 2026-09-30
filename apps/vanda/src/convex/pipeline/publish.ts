@@ -17,12 +17,13 @@ export interface PublishJob {
 }
 
 /**
- * Publish a feed post (single image or 2–10 image carousel) to Instagram:
+ * Publish a single image or 2–10 image carousel to Instagram:
  * validate the shape, then hand it to the publisher port in one call.
  * Deterministic given the Publisher's responses — no LLM, no hidden state.
  */
 export const publishPost = Effect.fn("pipeline.publishPost")(function* (job: PublishJob) {
-  if (job.type !== "feed" && job.type !== "image") {
+  // `feed` is the legacy carousel value until migrations:feedToCarousel runs everywhere.
+  if (job.type !== "image" && job.type !== "carousel" && job.type !== "feed") {
     return yield* new UnsupportedFormat({ type: job.type });
   }
 
@@ -30,7 +31,7 @@ export const publishPost = Effect.fn("pipeline.publishPost")(function* (job: Pub
 
   if (count < 1 || count > MAX_CAROUSEL_ITEMS) {
     return yield* new InvalidPost({
-      reason: `a feed post needs 1-${MAX_CAROUSEL_ITEMS} images, got ${count}`,
+      reason: `a post needs 1-${MAX_CAROUSEL_ITEMS} images, got ${count}`,
     });
   }
 

@@ -4,6 +4,7 @@ import { errorCodeValidator } from "./publicErrors";
 import { threadResourceValidator } from "./resourceRefs";
 import { modelUsageValidator } from "./usageDetails";
 import { brandCanonColumns } from "./pipeline/storage";
+import { postPurposeValidator } from "./postPurposes";
 import {
   brandKinds,
   imageOrigins,
@@ -20,6 +21,7 @@ import {
   opportunityStatuses,
   opportunityTriggers,
   postStatuses,
+  postFormats,
   postTypes,
   scheduledStatuses,
   sourceContentTypes,
@@ -828,6 +830,13 @@ export default defineSchema({
     originThreadId: v.optional(v.string()),
     caetanoThreadId: v.optional(v.string()),
     type: v.union(...postTypes.map((type) => v.literal(type))),
+    // Aspect ratio shared by every image; optional for legacy posts.
+    format: v.optional(v.union(...postFormats.map((format) => v.literal(format)))),
+    // Why the post exists (design-theory category); optional for legacy posts.
+    purpose: v.optional(postPurposeValidator),
+    secondaryPurpose: v.optional(postPurposeValidator),
+    // Why this format and purpose were chosen (post-production justification).
+    rationale: v.optional(v.string()),
     imageIds: v.array(v.id("images")),
     caption: v.string(),
     platform: v.string(),

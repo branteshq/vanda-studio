@@ -3,6 +3,8 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
+import { postPurposeValidator } from "./postPurposes";
+import { postFormats, type postTypes } from "./pipeline/constants";
 
 /**
  * THE post path: gallery image(s) + caption → draft → schedule → publish.
@@ -14,6 +16,11 @@ const MAX_POST_IMAGES = 10;
 
 export const MAX_CAPTION_CHARS = 2200;
 
+const MAX_RATIONALE_CHARS = 400;
+
+// Providers round pixel sizes; 3% still separates 4:5 (0.8) from 3:4 (0.75).
+const FORMAT_TOLERANCE = 0.03;
+
 /** Create a draft post from account-owned gallery images. */
 export const createPostInternal = internalMutation({
   args: {
@@ -22,10 +29,28 @@ export const createPostInternal = internalMutation({
     caption: v.string(),
     originThreadId: v.optional(v.string()),
     caetanoThreadId: v.optional(v.string()),
+    // Chosen format; without it the type is inferred from the image count.
+    type: v.optional(v.union(v.literal("image"), v.literal("carousel"), v.literal("story"))),
+    // Aspect ratio of every image; story must be 9:16, image/carousel never.
+    format: v.optional(v.union(...postFormats.map((format) => v.literal(format)))),
+    purpose: v.optional(postPurposeValidator),
+    secondaryPurpose: v.optional(postPurposeValidator),
+    rationale: v.optional(v.string()),
   },
   handler: async (
     ctx,
-    { accountId, imageIds, caption, originThreadId, caetanoThreadId },
+    {
+      accountId,
+      imageIds,
+      caption,
+      originThreadId,
+      caetanoThreadId,
+      type,
+      format,
+      purpose,
+      secondaryPurpose,
+      rationale,
+    },
   ): Promise<Id<"posts">> => {
     if (imageIds.length < 1 || imageIds.length > MAX_POST_IMAGES) {
       throw new Error(
@@ -34,6 +59,42 @@ export const createPostInternal = internalMutation({
     }
 
     if (caption.trim() === "") throw new Error("a legenda não pode ser vazia");
+
+    if (secondaryPurpose !== undefined && purpose === undefined) {
+      throw new Error("propósito secundário exige um propósito principal");
+    }
+
+    if (secondaryPurpose !== undefined && secondaryPurpose === purpose) {
+      throw new Error("o propósito secundário deve ser diferente do principal");
+    }
+
+    const trimmedRationale = rationale?.trim();
+
+    if (trimmedRationale !== undefined && purpose === undefined) {
+      throw new Error("a justificativa exige um propósito");
+    }
+
+    if (trimmedRationale !== undefined && trimmedRationale.length > MAX_RATIONALE_CHARS) {
+      throw new Error(`justificativa acima de ${MAX_RATIONALE_CHARS} caracteres`);
+    }
+
+    if (type === "carousel" && imageIds.length < 2) {
+      throw new Error(
+        `carrossel precisa de 2 a ${MAX_POST_IMAGES} imagens (recebi ${imageIds.length})`,
+      );
+    }
+
+    if ((type === "image" || type === "story") && imageIds.length !== 1) {
+      throw new Error(`${type} precisa de exatamente 1 imagem (recebi ${imageIds.length})`);
+    }
+
+    if (format !== undefined && type === undefined) throw new Error("format exige um type");
+
+    if (format !== undefined && (type === "story") !== (format === "9:16")) {
+      throw new Error(
+        type === "story" ? "story é sempre 9:16" : `${type} não usa 9:16; 9:16 é só para story`,
+      );
+    }
 
     if (caption.length > MAX_CAPTION_CHARS) {
       throw new Error(`legenda acima do limite do Instagram (${MAX_CAPTION_CHARS} caracteres)`);
@@ -45,11 +106,24 @@ export const createPostInternal = internalMutation({
       if (image === null || image.accountId !== accountId) {
         throw new Error(`imagem ${imageId} não encontrada nesta conta`);
       }
+
+      if (format && image.width && image.height) {
+        const [w = 1, h = 1] = format.split(":").map(Number);
+
+        if (Math.abs(image.width / image.height / (w / h) - 1) > FORMAT_TOLERANCE) {
+          throw new Error(
+            `imagem ${imageId} é ${image.width}×${image.height}, não ${format}; todas as imagens do post precisam do mesmo format`,
+          );
+        }
+      }
     }
+
+    const resolvedType: (typeof postTypes)[number] =
+      type ?? (imageIds.length > 1 ? "carousel" : "image");
 
     const post: Omit<Doc<"posts">, "_id" | "_creationTime"> = {
       accountId,
-      type: imageIds.length > 1 ? "feed" : "image",
+      type: resolvedType,
       imageIds,
       caption,
       platform: "instagram",
@@ -60,6 +134,14 @@ export const createPostInternal = internalMutation({
     if (originThreadId) post.originThreadId = originThreadId;
 
     if (caetanoThreadId) post.caetanoThreadId = caetanoThreadId;
+
+    if (format) post.format = format;
+
+    if (purpose) post.purpose = purpose;
+
+    if (secondaryPurpose) post.secondaryPurpose = secondaryPurpose;
+
+    if (trimmedRationale) post.rationale = trimmedRationale;
 
     return ctx.db.insert("posts", post);
   },
@@ -90,6 +172,13 @@ export const schedulePostInternal = internalMutation({
     const post = await ctx.db.get(postId);
 
     if (post === null || post.accountId !== accountId) throw new Error("post não encontrado");
+
+    if (post.type === "story") {
+      throw new Error(
+        "stories ainda não são publicados pelo Vanda — o rascunho fica no calendário para você publicar pelo Instagram",
+      );
+    }
+
     const at = scheduledFor ?? Date.now() + 5_000;
     const now = Date.now();
 

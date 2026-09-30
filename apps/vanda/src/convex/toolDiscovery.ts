@@ -6,12 +6,25 @@ type DiscoveryEntry = {
   effect: "read" | "write";
 };
 
+type DiscoverableSkill = {
+  name: string;
+  description: string;
+  location: string;
+};
+
 const searchResultSchema = z.object({
   tools: z.array(
     z.object({
       name: z.string(),
       description: z.string(),
       effect: z.enum(["read", "write"]),
+    }),
+  ),
+  skills: z.array(
+    z.object({
+      name: z.string(),
+      description: z.string(),
+      location: z.string(),
     }),
   ),
   message: z.string(),
@@ -30,23 +43,34 @@ const words = (text: string) =>
     .split(/[^a-z0-9]+/)
     .filter((word) => word.length > 1 && !stopWords.has(word));
 
-/** Discovery changes model exposure, never the tool's implementation or authorization. */
+/**
+ * Discovery changes model exposure, never the tool's implementation or authorization.
+ * Skills share the same index: a match returns its location to load with read.
+ */
 export function toolDiscovery<Tools extends ToolSet>(
   tools: Tools,
   deferred: Partial<Record<keyof Tools, DiscoveryEntry>>,
+  skills: readonly DiscoverableSkill[] = [],
 ) {
-  const catalog = Object.entries(tools).flatMap(([name, definition]) => {
+  const toolEntries = Object.entries(tools).flatMap(([name, definition]) => {
     const entry = deferred[name];
 
-    return entry ? [{ name, description: definition.description ?? name, ...entry }] : [];
+    return entry
+      ? [{ kind: "tool" as const, name, description: definition.description ?? name, ...entry }]
+      : [];
   });
 
-  const deferredNames = new Set(catalog.map((entry) => entry.name));
+  const catalog = [
+    ...toolEntries,
+    ...skills.map((skill) => ({ kind: "skill" as const, keywords: "", ...skill })),
+  ];
+
+  const deferredNames = new Set(toolEntries.map((entry) => entry.name));
   const core = ["tool_search", ...Object.keys(tools).filter((name) => !deferredNames.has(name))];
 
   const search = tool({
     description:
-      "Descobre ferramentas adicionais deste agente por tarefa, palavras-chave em português/inglês ou nome exato. Use '*' para listar todas. As ferramentas encontradas ficam disponíveis com seus parâmetros tipados a partir do próximo passo, até o fim deste turno. Buscar não executa a operação nem concede autorização. Se não encontrar, reformule ou consulte '*'; não invente capacidades.",
+      "Descobre ferramentas e habilidades adicionais deste agente por tarefa, palavras-chave em português/inglês ou nome exato. Use '*' para listar todas. As ferramentas encontradas ficam disponíveis com seus parâmetros tipados a partir do próximo passo, até o fim deste turno. Habilidades encontradas trazem location: leia o SKILL.md com read antes de agir. Buscar não executa a operação nem concede autorização. Se não encontrar, reformule ou consulte '*'; não invente capacidades.",
     inputSchema: z.object({
       query: z.string().trim().min(1).max(300),
     }),
@@ -66,17 +90,28 @@ export function toolDiscovery<Tools extends ToolSet>(
 
       ranked.sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name));
 
-      const matches = (query.trim() === "*" ? ranked : ranked.slice(0, 4)).map(({ entry }) => ({
-        name: entry.name,
-        description: entry.description,
-        effect: entry.effect,
-      }));
+      const matches = (query.trim() === "*" ? ranked : ranked.slice(0, 4)).map(
+        ({ entry }) => entry,
+      );
+
+      const found = {
+        tools: matches.flatMap((entry) =>
+          entry.kind === "tool"
+            ? [{ name: entry.name, description: entry.description, effect: entry.effect }]
+            : [],
+        ),
+        skills: matches.flatMap((entry) =>
+          entry.kind === "skill"
+            ? [{ name: entry.name, description: entry.description, location: entry.location }]
+            : [],
+        ),
+      };
 
       return {
-        tools: matches,
+        ...found,
         message: matches.length
-          ? "Ferramentas disponíveis no próximo passo. Use os parâmetros da definição da ferramenta. Alterações continuam exigindo a autorização apropriada; descoberta não confirma conexão nem permissões."
-          : "Nenhuma ferramenta adicional encontrada para esta busca. Tente outros termos ou '*' para consultar o catálogo deste agente. Isso não verifica conexões nem permissões.",
+          ? "Ferramentas disponíveis no próximo passo. Use os parâmetros da definição da ferramenta. Habilidades: leia o SKILL.md em location com read antes de agir e siga a descoberta progressiva indicada nele. Alterações continuam exigindo a autorização apropriada; descoberta não confirma conexão nem permissões."
+          : "Nenhuma ferramenta ou habilidade adicional encontrada para esta busca. Tente outros termos ou '*' para consultar o catálogo deste agente. Isso não verifica conexões nem permissões.",
       };
     },
   });

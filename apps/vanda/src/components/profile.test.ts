@@ -249,7 +249,7 @@ it("remembers each scope's destination instead of showing the wrong settings", a
   await click("Business A");
   expect(container.querySelector("aside")?.textContent).not.toContain("Templates");
   await click("Skills");
-  expect(container.textContent).toContain("creating-carousel-images");
+  expect(container.textContent).toContain("post-production");
   expect(container.textContent).not.toContain("post-instagram-template");
   expect(container.textContent).not.toContain("prompt-foto-fiel");
   await click("Test");

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { formatSkillsForSystemPrompt, installedSkills, installedSkillSummaries } from "./catalog";
+import {
+  discoverableSkills,
+  formatSkillsForSystemPrompt,
+  installedSkills,
+  installedSkillSummaries,
+} from "./catalog";
 import type { InstalledSkill } from "./types";
 
 const skill = (patch: Partial<InstalledSkill> = {}): InstalledSkill => ({
@@ -24,9 +29,9 @@ describe("skill catalog", () => {
           alwaysApply: false,
         }),
         expect.objectContaining({
-          name: "creating-carousel-images",
+          name: "post-production",
           alwaysApply: false,
-          location: "/skills/creating-carousel-images/SKILL.md",
+          location: "/skills/post-production/SKILL.md",
         }),
         expect.objectContaining({
           name: "unslop",
@@ -41,9 +46,12 @@ describe("skill catalog", () => {
     const skills = installedSkills();
     expect(skills.map((entry) => entry.name)).not.toContain("post-instagram-template");
     expect(skills.map((entry) => entry.name)).not.toContain("prompt-foto-fiel");
-    const carousel = skills.find((entry) => entry.name === "creating-carousel-images");
-    expect(carousel?.allowedTools).toBe("list read paint create_post present");
-    expect(Object.keys(carousel?.files ?? {})).toEqual(["SKILL.md"]);
+    expect(skills.map((entry) => entry.name)).not.toContain("creating-carousel-images");
+    expect(skills.map((entry) => entry.name)).not.toContain("post-purposes");
+    expect(skills.map((entry) => entry.name)).not.toContain("post-router");
+    const production = skills.find((entry) => entry.name === "post-production");
+    expect(production?.allowedTools).toBe("list read paint create_post present");
+    expect(Object.keys(production?.files ?? {})).toEqual(["SKILL.md"]);
 
     for (const entry of skills) {
       expect(entry.allowedTools ?? "").not.toContain("run_code");
@@ -51,17 +59,18 @@ describe("skill catalog", () => {
     }
   });
 
-  it("discloses every on-demand skill through metadata without loading its body", () => {
+  it("keeps on-demand skills out of the prompt; tool_search indexes them instead", () => {
     const prompt = formatSkillsForSystemPrompt();
+    expect(prompt).toContain("<active_skills>");
+    expect(prompt).not.toContain("<available_skills>");
 
-    const onDemand = installedSkills().filter(
-      (entry) => !entry.alwaysApply && !entry.disableModelInvocation,
+    const onDemand = discoverableSkills();
+    expect(onDemand.map((entry) => entry.name)).toEqual(
+      expect.arrayContaining(["instagram-market-research", "post-production", "post-type-story"]),
     );
 
     for (const entry of onDemand) {
-      expect(prompt).toContain(`<name>${entry.name}</name>`);
-      expect(prompt).toContain(`<description>${entry.description}</description>`);
-      expect(prompt).toContain(`<location>${entry.location}</location>`);
+      expect(entry.alwaysApply).toBe(false);
       expect(prompt).not.toContain(entry.body.slice(0, 100));
     }
   });
@@ -69,25 +78,17 @@ describe("skill catalog", () => {
   it("injects always-on instructions in full", () => {
     const prompt = formatSkillsForSystemPrompt([
       skill({ name: "always", body: "Apply this to every answer.", alwaysApply: true }),
+      skill({ name: "later", body: "SECRET BODY" }),
     ]);
 
     expect(prompt).toContain('<skill name="always"');
     expect(prompt).toContain("Apply this to every answer.");
-    expect(prompt).not.toContain("<available_skills>");
-  });
-
-  it("discloses on-demand skills without loading their body", () => {
-    const prompt = formatSkillsForSystemPrompt([
-      skill({ description: 'Use for <examples> & "tests".', body: "SECRET BODY" }),
-    ]);
-
-    expect(prompt).toContain("<available_skills>");
-    expect(prompt).toContain("Use for &lt;examples&gt; &amp; &quot;tests&quot;.");
-    expect(prompt).toContain("/skills/example/SKILL.md");
     expect(prompt).not.toContain("SECRET BODY");
+    expect(prompt).not.toContain("later");
   });
 
-  it("hides skills that forbid model invocation", () => {
-    expect(formatSkillsForSystemPrompt([skill({ disableModelInvocation: true })])).toBe("");
+  it("never makes skills that forbid model invocation discoverable", () => {
+    expect(discoverableSkills([skill({ disableModelInvocation: true })])).toEqual([]);
+    expect(formatSkillsForSystemPrompt([skill()])).toBe("");
   });
 });

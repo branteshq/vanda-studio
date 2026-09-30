@@ -28,6 +28,11 @@ const scheduledOf = (ctx: QueryCtx, postId: Id<"posts">) =>
 const statusOf = (post: Doc<"posts">, scheduled: Doc<"scheduledPosts"> | null): string =>
   scheduled === null ? post.status : scheduled.status;
 
+const purposeOf = (post: Doc<"posts">): string =>
+  post.purpose === undefined
+    ? "sem propósito"
+    : `${post.purpose}${post.secondaryPurpose ? ` (+${post.secondaryPurpose})` : ""}`;
+
 const captionHead = (caption: string): string => caption.replaceAll("\n", " ").slice(0, 40).trim();
 
 /** The post calendar: every post's lifecycle state, agent-readable. Posts are
@@ -52,6 +57,7 @@ export const postsMount: WorkspaceMount = {
           summary:
             `${status}` +
             `${scheduled ? ` · ${formatDate(scheduled.scheduledFor)}` : ""}` +
+            ` · ${post.type}${post.format ? ` · ${post.format}` : ""} · ${purposeOf(post)}` +
             ` · ${post.imageIds.length} imagem(ns)` +
             ` · ${captionHead(post.caption)}`,
         };
@@ -69,6 +75,11 @@ export const postsMount: WorkspaceMount = {
     return jsonFile({
       postId: post._id,
       status: statusOf(post, scheduled),
+      type: post.type,
+      format: post.format ?? null,
+      purpose: post.purpose ?? null,
+      secondaryPurpose: post.secondaryPurpose ?? null,
+      rationale: post.rationale ?? null,
       caption: post.caption,
       imageIds: post.imageIds,
       createdAt: formatDate(post.createdAt),

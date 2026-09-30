@@ -29,7 +29,11 @@ export const imagePurposes = ["reference", "post"] as const;
 
 export const imageOrigins = ["generated", "uploaded", "gallery"] as const;
 
-export const postTypes = ["feed", "reel", "story", "tweet", "image"] as const;
+// `feed` is legacy (it meant carousel); migrations:feedToCarousel rewrites it, then it goes.
+export const postTypes = ["image", "carousel", "story", "reel", "tweet", "feed"] as const;
+
+// Aspect ratio (width:height) shared by every image of a post; story is always 9:16.
+export const postFormats = ["1:1", "4:5", "3:4", "4:3", "16:9", "9:16"] as const;
 
 export const postStatuses = ["draft", "ready", "scheduled", "published"] as const;
 
