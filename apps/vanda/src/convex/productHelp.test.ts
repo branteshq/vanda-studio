@@ -28,7 +28,7 @@ describe("productHelp", () => {
 
     expect(exact).toHaveProperty("results.length", 1);
     expect(exact).toHaveProperty("results.0.id", "models.subscription-limits");
-    expect(browse).toHaveProperty("results.length", 6);
+    expect(browse).toHaveProperty("results.length", 7);
   });
 
   it("marca comportamento ausente como não documentado sem inventar interface", async () => {

@@ -10,7 +10,7 @@ const guideSchema = z.object({
 });
 
 const resultSchema = z.object({
-  results: z.array(guideSchema).max(6),
+  results: z.array(guideSchema).max(8),
   message: z.string(),
 });
 
@@ -32,6 +32,20 @@ const guides: readonly Guide[] = [
     ],
     keywords:
       "conexao conexoes conectar instagram publicador upload post openai chatgpt assinatura connection connect publisher subscription",
+  },
+  {
+    id: "connections.whatsapp",
+    title: "Caetano no WhatsApp",
+    guidance:
+      "O Caetano atende pelo WhatsApp. Em Perfil, no cartão Caetano no WhatsApp, gere o vínculo e envie a mensagem pronta pelo seu WhatsApp; o link expira em 10 minutos. Depois de conectado, o mesmo cartão abre a conversa e permite desconectar. Pelo WhatsApp dá para enviar texto, fotos e áudios; imagens e posts prontos chegam na própria conversa, assim como os avisos de publicação. Envie “parar” para interromper o pedido em andamento.",
+    route: "/perfil",
+    sourceFiles: [
+      "components/whatsapp-settings.tsx",
+      "convex/whatsapp.ts",
+      "convex/whatsappData.ts",
+    ],
+    keywords:
+      "whatsapp caetano conectar vinculo vincular desconectar audio foto mensagem parar aviso notificacao connect link",
   },
   {
     id: "models.subscription-limits",

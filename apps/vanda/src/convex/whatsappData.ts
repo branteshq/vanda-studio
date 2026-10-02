@@ -29,6 +29,12 @@ export const storeLink = internalMutation({
   },
 });
 
+const whatsappChatUrl = (): string | null => {
+  const number = process.env.KAPSO_WHATSAPP_NUMBER;
+
+  return number && /^\d{7,15}$/.test(number) ? `https://wa.me/${number}` : null;
+};
+
 export const state = query({
   args: {},
   handler: async (ctx) => {
@@ -57,6 +63,7 @@ export const state = query({
         process.env.KAPSO_WHATSAPP_NUMBER
       ),
       connected: !!connection,
+      chatUrl: whatsappChatUrl(),
       sender:
         connection?.phone ?? (connection?.recipientKind === "phone" ? connection.sender : null),
       deliveries: recent.map((row) => ({

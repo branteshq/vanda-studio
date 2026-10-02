@@ -19,7 +19,6 @@ import { Route as DashboardPerfilRouteImport } from './routes/_dashboard.perfil'
 import { Route as DashboardGaleriaRouteImport } from './routes/_dashboard.galeria'
 import { Route as DashboardConversaRouteImport } from './routes/_dashboard.conversa'
 import { Route as DashboardCalendarioRouteImport } from './routes/_dashboard.calendario'
-import { Route as DashboardCaetanoRouteImport } from './routes/_dashboard.caetano'
 
 const SsoCallbackRoute = SsoCallbackRouteImport.update({
   id: '/sso-callback',
@@ -70,18 +69,12 @@ const DashboardCalendarioRoute = DashboardCalendarioRouteImport.update({
   path: '/calendario',
   getParentRoute: () => DashboardRoute,
 } as any)
-const DashboardCaetanoRoute = DashboardCaetanoRouteImport.update({
-  id: '/caetano',
-  path: '/caetano',
-  getParentRoute: () => DashboardRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof DashboardIndexRoute
   '/error-preview': typeof ErrorPreviewRoute
   '/onboarding': typeof OnboardingRoute
   '/sso-callback': typeof SsoCallbackRoute
-  '/caetano': typeof DashboardCaetanoRoute
   '/calendario': typeof DashboardCalendarioRoute
   '/conversa': typeof DashboardConversaRoute
   '/galeria': typeof DashboardGaleriaRoute
@@ -92,7 +85,6 @@ export interface FileRoutesByTo {
   '/error-preview': typeof ErrorPreviewRoute
   '/onboarding': typeof OnboardingRoute
   '/sso-callback': typeof SsoCallbackRoute
-  '/caetano': typeof DashboardCaetanoRoute
   '/calendario': typeof DashboardCalendarioRoute
   '/conversa': typeof DashboardConversaRoute
   '/galeria': typeof DashboardGaleriaRoute
@@ -106,7 +98,6 @@ export interface FileRoutesById {
   '/error-preview': typeof ErrorPreviewRoute
   '/onboarding': typeof OnboardingRoute
   '/sso-callback': typeof SsoCallbackRoute
-  '/_dashboard/caetano': typeof DashboardCaetanoRoute
   '/_dashboard/calendario': typeof DashboardCalendarioRoute
   '/_dashboard/conversa': typeof DashboardConversaRoute
   '/_dashboard/galeria': typeof DashboardGaleriaRoute
@@ -121,7 +112,6 @@ export interface FileRouteTypes {
     | '/error-preview'
     | '/onboarding'
     | '/sso-callback'
-    | '/caetano'
     | '/calendario'
     | '/conversa'
     | '/galeria'
@@ -132,7 +122,6 @@ export interface FileRouteTypes {
     | '/error-preview'
     | '/onboarding'
     | '/sso-callback'
-    | '/caetano'
     | '/calendario'
     | '/conversa'
     | '/galeria'
@@ -145,7 +134,6 @@ export interface FileRouteTypes {
     | '/error-preview'
     | '/onboarding'
     | '/sso-callback'
-    | '/_dashboard/caetano'
     | '/_dashboard/calendario'
     | '/_dashboard/conversa'
     | '/_dashboard/galeria'
@@ -234,18 +222,10 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardCalendarioRouteImport
       parentRoute: typeof DashboardRoute
     }
-    '/_dashboard/caetano': {
-      id: '/_dashboard/caetano'
-      path: '/caetano'
-      fullPath: '/caetano'
-      preLoaderRoute: typeof DashboardCaetanoRouteImport
-      parentRoute: typeof DashboardRoute
-    }
   }
 }
 
 interface DashboardRouteChildren {
-  DashboardCaetanoRoute: typeof DashboardCaetanoRoute
   DashboardCalendarioRoute: typeof DashboardCalendarioRoute
   DashboardConversaRoute: typeof DashboardConversaRoute
   DashboardGaleriaRoute: typeof DashboardGaleriaRoute
@@ -254,7 +234,6 @@ interface DashboardRouteChildren {
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
-  DashboardCaetanoRoute: DashboardCaetanoRoute,
   DashboardCalendarioRoute: DashboardCalendarioRoute,
   DashboardConversaRoute: DashboardConversaRoute,
   DashboardGaleriaRoute: DashboardGaleriaRoute,

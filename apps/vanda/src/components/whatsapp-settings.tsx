@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
-import { Button } from "@vanda-studio/ui/components/button";
+import { Button, buttonVariants } from "@vanda-studio/ui/components/button";
 import { api } from "../convex/_generated/api";
 import { errorMessage } from "../errors";
 import { showErrorToast } from "./error-feedback";
@@ -41,14 +41,24 @@ export function WhatsAppSettings() {
     <section className="mt-6 rounded-xl border border-border bg-surface p-5">
       <h3 className="text-body font-semibold">Caetano no WhatsApp</h3>
       <p className="mt-1 text-body-sm text-text-3">
-        A mesma conversa do aplicativo, com acesso aos seus negócios. Esta conexão pertence a você,
-        não apenas ao negócio ativo.
+        O Caetano atende pelo WhatsApp, com acesso a todos os seus negócios. Esta conexão pertence a
+        você, não apenas ao negócio ativo.
       </p>
       {state === undefined ? (
         <p className="mt-3 text-body-sm">Carregando…</p>
       ) : state.connected ? (
         <>
           <p className="mt-3 text-body-sm">Conectado{state.sender ? `: +${state.sender}` : ""}</p>
+          {state.chatUrl ? (
+            <a
+              className={buttonVariants({ className: "mt-3 mr-2" })}
+              href={state.chatUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Abrir conversa no WhatsApp
+            </a>
+          ) : null}
           <Button
             className="mt-3"
             variant="outline"
@@ -138,8 +148,8 @@ export function WhatsAppSettings() {
         </div>
       ) : null}
       <p className="mt-3 text-xs text-text-4">
-        Envie “parar” para interromper. Respostas do WhatsApp aparecem também no aplicativo. Pedidos
-        feitos só no aplicativo não são enviados ao WhatsApp. Por enquanto, envie apenas texto.
+        Envie texto, fotos ou áudios. Imagens e posts prontos chegam pela própria conversa, assim
+        como os avisos de publicação. Envie “parar” para interromper.
       </p>
     </section>
   );
