@@ -91,7 +91,11 @@ describe("platform settings registry", () => {
     });
 
     const { setting } = await t.query(internal.settingsData.get, { userId, id: "models.image" });
-    expect(setting).toMatchObject({ access: "write", where: "Perfil › Modelos" });
+    expect(setting).toMatchObject({
+      access: "write",
+      where: "Perfil › Modelos",
+      docs: "/docs/modelos",
+    });
     expect(setting?.options?.length).toBeGreaterThan(1);
   });
 });

@@ -31,9 +31,22 @@ export interface SettingDefinition {
   readonly access: "write" | "read";
   readonly change?: string;
   readonly options?: (context: OptionContext) => readonly SettingOption[];
+  /** Slug of the hand-written docs page that explains it; that page must mention `where`. */
+  readonly doc: string;
   /** Public Convex functions the Perfil UI calls for this setting (drift guard). */
   readonly uiFunctions: readonly string[];
 }
+
+/**
+ * Public functions the Perfil UI calls that are not settings: browsing the
+ * account workspace. The drift test requires every other call to be claimed
+ * by a setting above.
+ */
+export const NON_SETTING_UI_FUNCTIONS = [
+  "workspacePublic.installedSkills",
+  "workspacePublic.file",
+  "workspacePublic.browse",
+] as const;
 
 const textModelOptions = ({ conectado }: OptionContext): readonly SettingOption[] =>
   ORCHESTRATOR_MODELS.filter((model) => isTextModelAvailable(model, conectado)).map((model) => ({
@@ -60,6 +73,7 @@ export const SETTINGS = [
     route: "/perfil",
     access: "write",
     options: textModelOptions,
+    doc: "modelos",
     uiFunctions: ["users.modelPreferences", "users.setAgentModel"],
   },
   {
@@ -72,6 +86,7 @@ export const SETTINGS = [
     route: "/perfil",
     access: "write",
     options: textModelOptions,
+    doc: "modelos",
     uiFunctions: ["users.setCaetanoModel"],
   },
   {
@@ -84,6 +99,7 @@ export const SETTINGS = [
     route: "/perfil",
     access: "write",
     options: imageModelOptions,
+    doc: "modelos",
     uiFunctions: ["users.setImageModel"],
   },
   {
@@ -97,6 +113,7 @@ export const SETTINGS = [
     access: "read",
     change:
       "Use select_account para trocar de negócio. Novos negócios são criados pelo dono em Barra lateral › Adicionar negócio.",
+    doc: "visao-geral",
     uiFunctions: [],
   },
   {
@@ -110,6 +127,7 @@ export const SETTINGS = [
     access: "read",
     change:
       "Só o dono muda de plano ou paga, em Perfil › Plano e uso. Envie esse caminho em vez de tentar mudar.",
+    doc: "planos-e-uso",
     uiFunctions: [
       "usage.summary",
       "billing.autumn.syncBilling",
@@ -130,6 +148,7 @@ export const SETTINGS = [
     access: "read",
     change:
       "O dono conecta ou reconecta em Perfil › negócio › Conexões; a conexão passa pelo login do Instagram.",
+    doc: "conexoes",
     uiFunctions: [
       "publisherConnect.connectionStatus",
       "publisherConnect.startConnect",
@@ -142,11 +161,12 @@ export const SETTINGS = [
     title: "Conta OpenAI (plano ChatGPT)",
     description:
       "Se a assinatura do ChatGPT do dono está conectada. No plano ChatGPT, conversas e imagens rodam por ela.",
-    where: "Perfil › Conexões › Conta OpenAI (plano ChatGPT)",
+    where: "Perfil › Conexões › Conta OpenAI",
     route: "/perfil",
     access: "read",
     change:
       "O dono assina o plano ChatGPT e conecta com o código exibido em Perfil › Conexões › Conta OpenAI.",
+    doc: "conexoes",
     uiFunctions: [
       "openaiSub.connectionStatus",
       "openaiSub.startDeviceAuth",
@@ -164,6 +184,7 @@ export const SETTINGS = [
     access: "read",
     change:
       "O dono gera o vínculo em Perfil › Conexões › Caetano no WhatsApp e envia a mensagem pronta pelo próprio WhatsApp.",
+    doc: "caetano-no-whatsapp",
     uiFunctions: [
       "whatsappData.state",
       "whatsapp.createLink",

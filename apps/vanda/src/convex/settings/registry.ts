@@ -184,6 +184,7 @@ export async function describeSetting(ctx: QueryCtx, user: Doc<"users">, id: str
     access: setting.access,
     value,
     label: labelOf(setting.id, value, conectado),
+    docs: `/docs/${setting.doc}`,
   };
 
   if (setting.change) detail.change = setting.change;
@@ -202,6 +203,7 @@ interface SettingDetail {
   access: "write" | "read";
   value: SettingValue;
   label: SettingValue;
+  docs: string;
   change?: string;
   options?: readonly SettingOption[];
 }

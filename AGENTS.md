@@ -13,6 +13,15 @@ Search here for real implementations when docs aren't enough.
 
 <!-- effect-solutions:end -->
 
+## Platform Settings and Product Docs
+
+Vanda and Caetano know and change the platform through one registry, and explain it from one set of docs. Keep both current in the same change as the feature:
+
+- **Settings.** Anything the owner can see or change in Perfil is declared once in `apps/vanda/src/convex/settings/catalog.ts`, with its read and write in `settings/registry.ts`. UI mutations call `writeSetting`; the agents use the generic `settings_get` / `settings_set`. Do not add per-setting agent tools.
+- **What agents may change.** Payments, plan changes and connections (Instagram, OpenAI, WhatsApp) stay `access: "read"` with a `change` explanation that points the owner to the UI.
+- **Docs.** Product docs are `apps/vanda/product-docs/*.md`, served at `/docs` in the app and read by the agents through `product_help` and `/docs` in the workspace. When user-visible behavior changes, update the relevant page and run `pnpm docs:build` in `apps/vanda`. The settings reference page is generated from the registry; do not write it by hand.
+- **Guard.** `src/convex/settings/drift.test.ts` fails when Perfil calls a backend function no setting claims, or when a setting's docs page does not mention where the UI shows it.
+
 ## Version Control (Jujutsu)
 
 All version-control operations in this repository must use Jujutsu (`jj`), not Git.
@@ -47,7 +56,6 @@ For read-only production diagnostics, run Convex commands with:
 ```
 
 Never deploy, mutate production state, or reveal secret values unless explicitly requested.
-
 
 ### Rules
 
