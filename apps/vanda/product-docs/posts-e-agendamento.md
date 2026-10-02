@@ -1,0 +1,26 @@
+---
+title: Posts, agendamento e publicação
+description: Rascunhos, agendar, reagendar, cancelar e publicar, e o que fica no Calendário.
+order: 30
+keywords: post posts rascunho criar agendar reagendar publicar publicacao cancelar apagar calendario draft schedule publish
+---
+
+# Posts, agendamento e publicação
+
+## Rascunho primeiro
+
+Pedir para criar um post produz um **rascunho**: não publica nem agenda. Uma data no pedido ("post para amanhã") ou a aprovação da arte não autorizam agendar.
+
+## Agendar e publicar
+
+- Agendar, reagendar ou publicar exige um pedido explícito ("agende para sexta às 18h", "publique agora").
+- O fuso é sempre o horário de Brasília.
+- Reagendar muda a data do mesmo post; não cria outro.
+- Cancelar um agendamento devolve o post a rascunho.
+- Rascunhos e agendados podem ser apagados. Posts publicados não podem ser apagados nem editados por aqui.
+
+## Acompanhar
+
+O **Calendário** mostra cada post como rascunho, agendado, publicado ou com falha. Quando um agendamento publica ou falha, a conversa em que o post foi criado recebe um aviso; com o WhatsApp vinculado, o Caetano avisa por lá também.
+
+Publicar exige o Instagram do negócio conectado. Veja [Conexões](/docs/conexoes).

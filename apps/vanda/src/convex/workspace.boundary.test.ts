@@ -88,6 +88,7 @@ describe("workspace navigation", () => {
         "memory",
         "notes",
         "skills",
+        "docs",
         "images",
         "instagram",
         "web",
@@ -96,6 +97,24 @@ describe("workspace navigation", () => {
         "runs",
       ]);
     }
+  });
+
+  it("lists the product docs and reads a page, including the generated settings page", async () => {
+    const { t, accountId } = await setup();
+    const listing = await t.query(internal.workspaceData.list, { accountId, path: "/docs" });
+
+    expect(listing.ok && listing.entries.map((entry) => entry.name)).toEqual(
+      expect.arrayContaining(["visao-geral.md", "caetano-no-whatsapp.md", "configuracoes.md"]),
+    );
+
+    const settings = await t.query(internal.workspaceData.read, {
+      accountId,
+      path: "/docs/configuracoes.md",
+    });
+
+    expect(settings.ok && settings.file.kind === "text" && settings.file.text).toContain(
+      "Modelo do Caetano",
+    );
   });
 
   it("lists installed skills and reads their standard SKILL.md package", async () => {

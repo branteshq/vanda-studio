@@ -145,7 +145,8 @@ export const SETTINGS = [
     where: "Perfil › Conexões › Conta OpenAI (plano ChatGPT)",
     route: "/perfil",
     access: "read",
-    change: "O dono assina o plano ChatGPT e conecta com o código exibido em Perfil › Conexões › Conta OpenAI.",
+    change:
+      "O dono assina o plano ChatGPT e conecta com o código exibido em Perfil › Conexões › Conta OpenAI.",
     uiFunctions: [
       "openaiSub.connectionStatus",
       "openaiSub.startDeviceAuth",
@@ -205,7 +206,7 @@ export function renderSettingsReference(): string {
   const lines = [
     "# Configurações da plataforma",
     "",
-    "Referência gerada a partir do registro de configurações. A Vanda e o Caetano leem estes valores com `settings_get` e mudam os que são alteráveis com `settings_set`, pelo mesmo caminho que o Perfil usa.",
+    "Todas as configurações da plataforma. A Vanda e o Caetano consultam estes valores quando você pergunta e mudam os alteráveis quando você pede, pelo mesmo caminho do Perfil.",
   ];
 
   for (const group of new Set(SETTINGS.map((setting) => setting.group))) {
