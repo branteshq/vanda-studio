@@ -1,10 +1,11 @@
 // @vitest-environment edge-runtime
+import { createThread } from "@convex-dev/agent";
 import agentComponent from "@convex-dev/agent/test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, internal } from "./_generated/api";
+import { api, components, internal } from "./_generated/api";
 import schema from "./schema";
-import { enqueueItems } from "./whatsappData";
+import { enqueueItems, notifyOwner } from "./whatsappData";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -536,6 +537,97 @@ describe("WhatsApp and canonical Caetano queue", () => {
       "Não consegui baixar uma das fotos. Pode enviar de novo?",
     ]);
     expect(await t.run((ctx) => ctx.db.query("caetanoInbox").collect())).toHaveLength(1);
+  });
+
+  it("sends an owner notification as text in the window and as the template outside it", async () => {
+    const { t, userId, connectionId } = await setup();
+    vi.stubEnv("KAPSO_API_KEY", "test-key");
+    vi.stubEnv("KAPSO_UPDATE_TEMPLATE", "caetano_atualizacao");
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ messages: [{ id: "wamid.out" }] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await t.run((ctx) => notifyOwner(ctx, userId, "Publicado no Instagram.\nhttps://ig/p/1"));
+    await t.action(internal.whatsapp.deliver, { connectionId });
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).toMatchObject({
+      type: "text",
+      text: { body: "Publicado no Instagram.\nhttps://ig/p/1" },
+    });
+
+    await t.run((ctx) => ctx.db.patch(connectionId, { lastInboundAt: Date.now() - 86400001 }));
+    await t.run((ctx) => notifyOwner(ctx, userId, "A publicação falhou:\ntoken expirado"));
+    await t.action(internal.whatsapp.deliver, { connectionId });
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toMatchObject({
+      type: "template",
+      template: {
+        name: "caetano_atualizacao",
+        language: { code: "pt_BR" },
+        components: [
+          {
+            type: "body",
+            parameters: [{ type: "text", text: "A publicação falhou: token expirado" }],
+          },
+        ],
+      },
+    });
+  });
+
+  it("holds an owner notification for the next message when no template is configured", async () => {
+    const { t, userId, connectionId } = await setup();
+    await t.run((ctx) => ctx.db.patch(connectionId, { lastInboundAt: Date.now() - 86400001 }));
+    await t.run((ctx) => notifyOwner(ctx, userId, "Publicado no Instagram."));
+    expect(await t.mutation(internal.whatsappData.claimDelivery, { connectionId })).toBeNull();
+    expect((await t.run((ctx) => ctx.db.query("whatsappOutbox").first()))?.status).toBe(
+      "awaiting_window",
+    );
+  });
+
+  it("reports a publication on WhatsApp and records it in Caetano's conversation", async () => {
+    const { t, userId } = await setup();
+    const now = Date.now();
+
+    const scheduledPostId = await t.run(async (ctx) => {
+      const caetanoThreadId = await createThread(ctx, components.agent, {
+        userId: `caetano:${userId}`,
+      });
+
+      await ctx.db.patch(userId, { caetanoThreadId });
+
+      const accountId = await ctx.db.insert("accounts", {
+        ownerUserId: userId,
+        handle: "cafelumiar",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const postId = await ctx.db.insert("posts", {
+        accountId,
+        type: "image",
+        imageIds: [],
+        caption: "Legenda",
+        platform: "instagram",
+        status: "published",
+        createdAt: now,
+      });
+
+      return ctx.db.insert("scheduledPosts", {
+        accountId,
+        postId,
+        scheduledFor: now,
+        status: "published",
+        permalink: "https://instagram.com/p/result",
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    await t.mutation(internal.threadResources.postPublicationFollowup, { scheduledPostId });
+
+    const outbox = await t.run((ctx) => ctx.db.query("whatsappOutbox").collect());
+    expect(outbox.map((row) => row.text)).toEqual([
+      "Publicado no Instagram (@cafelumiar).\nhttps://instagram.com/p/result",
+    ]);
+    const manifests = await t.run((ctx) => ctx.db.query("threadResourceManifests").collect());
+    expect(manifests).toHaveLength(1);
   });
 
   it("does not process messages from unlinked senders or wrong business numbers", async () => {

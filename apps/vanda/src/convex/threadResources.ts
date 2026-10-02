@@ -1,6 +1,7 @@
 import { getThreadMetadata, saveMessage } from "@convex-dev/agent";
 import { v } from "convex/values";
 import { components } from "./_generated/api";
+import type { Doc } from "./_generated/dataModel";
 import {
   internalMutation,
   internalQuery,
@@ -15,6 +16,7 @@ import {
   threadResourceValidator,
   type ThreadResource,
 } from "./resourceRefs";
+import { activeConnection, notifyOwner } from "./whatsappData";
 import { readPath } from "./workspace";
 
 export interface ThreadResourceManifest {
@@ -125,8 +127,12 @@ export const postPublicationFollowup = internalMutation({
       .get(post.accountId)
       .then((account) => (account?.ownerUserId ? ctx.db.get(account.ownerUserId) : null));
 
+    // A WhatsApp owner may reply to the notification, so Caetano needs the receipt too.
+    const whatsapp = owner ? await activeConnection(ctx, owner._id) : null;
+    const caetanoThreadId = post.caetanoThreadId ?? (whatsapp ? owner?.caetanoThreadId : undefined);
+
     const destinations = [
-      ...(post.originThreadId && post.originThreadId !== post.caetanoThreadId
+      ...(post.originThreadId && post.originThreadId !== caetanoThreadId
         ? [
             {
               threadId: post.originThreadId,
@@ -135,10 +141,10 @@ export const postPublicationFollowup = internalMutation({
             },
           ]
         : []),
-      ...(post.caetanoThreadId && owner
+      ...(caetanoThreadId && owner
         ? [
             {
-              threadId: post.caetanoThreadId,
+              threadId: caetanoThreadId,
               agentName: "caetano",
               expectedUserId: `caetano:${owner._id}`,
             },
@@ -174,8 +180,26 @@ export const postPublicationFollowup = internalMutation({
         presented: resources,
       });
     }
+
+    if (whatsapp && owner)
+      await notifyOwner(ctx, owner._id, await publicationNotice(ctx, post, scheduled));
   },
 });
+
+const publicationNotice = async (
+  ctx: QueryCtx,
+  post: Doc<"posts">,
+  scheduled: Doc<"scheduledPosts">,
+): Promise<string> => {
+  const account = await ctx.db.get(post.accountId);
+  const label = account?.name ?? (account?.handle ? `@${account.handle}` : null);
+  const where = label ? ` (${label})` : "";
+
+  if (scheduled.status === "published")
+    return `Publicado no Instagram${where}.${scheduled.permalink ? `\n${scheduled.permalink}` : ""}`;
+
+  return `A publicação${where} falhou${scheduled.lastError ? `: ${scheduled.lastError}` : "."} Me diga se quer tentar de novo.`;
+};
 
 export const listForVanda = query({
   args: { accountId: v.id("accounts"), threadId: v.string() },

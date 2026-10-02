@@ -1,9 +1,15 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import { requireUser } from "./authz";
-import { isStop, replyParts, serviceWindowOpen } from "./whatsapp/protocol";
+import { isStop, replyParts, serviceWindowOpen, templateParam } from "./whatsapp/protocol";
 
 export const storeLink = internalMutation({
   args: { tokenHash: v.string() },
@@ -83,8 +89,10 @@ export const disconnect = mutation({
   },
 });
 
+export type TemplateFallback = NonNullable<Doc<"whatsappOutbox">["template"]>;
+
 export type OutboundItem =
-  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "text"; readonly text: string; readonly template?: TemplateFallback }
   | { readonly kind: "image"; readonly imageId: Id<"images">; readonly caption?: string };
 
 /** Queue items in order; delivery sends one row at a time per connection. */
@@ -100,12 +108,19 @@ export async function enqueueItems(
 
   const rows: Omit<Doc<"whatsappOutbox">, "_id" | "_creationTime">[] = items.flatMap((item) =>
     item.kind === "text"
-      ? replyParts(item.text).map((part) => ({
-          connectionId,
-          text: part,
-          attempts: 0,
-          status: "pending" as const,
-        }))
+      ? replyParts(item.text).map((part, index) => {
+          const row: Omit<Doc<"whatsappOutbox">, "_id" | "_creationTime"> = {
+            connectionId,
+            text: part,
+            attempts: 0,
+            status: "pending",
+          };
+
+          // The template summarizes the whole item, so only its first part carries it.
+          if (item.template && index === 0) row.template = item.template;
+
+          return row;
+        })
       : [
           {
             connectionId,
@@ -137,6 +152,48 @@ const enqueue = (
   text: string,
   sourceMessageId?: string,
 ) => enqueueItems(ctx, connectionId, [{ kind: "text", text }], sourceMessageId);
+
+export const activeConnection = (ctx: QueryCtx, userId: Id<"users">) =>
+  ctx.db
+    .query("whatsappConnections")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .filter((q) => q.eq(q.field("active"), true))
+    .first();
+
+/** The configured update template, if one was approved in Kapso. */
+function updateTemplate(text: string): TemplateFallback | undefined {
+  const name = process.env.KAPSO_UPDATE_TEMPLATE;
+
+  if (!name) return undefined;
+
+  return {
+    name,
+    language: process.env.KAPSO_TEMPLATE_LANGUAGE || "pt_BR",
+    bodyParams: [templateParam(text)],
+  };
+}
+
+/**
+ * Message the owner's linked WhatsApp without a prompt. Inside the service window
+ * it goes as text; outside it, as the approved update template when configured,
+ * otherwise it waits for the owner's next message.
+ */
+export async function notifyOwner(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  text: string,
+): Promise<boolean> {
+  const connection = await activeConnection(ctx, userId);
+
+  if (!connection) return false;
+  const template = updateTemplate(text);
+
+  await enqueueItems(ctx, connection._id, [
+    template ? { kind: "text", text, template } : { kind: "text", text },
+  ]);
+
+  return true;
+}
 
 export const enqueueReply = internalMutation({
   args: {
@@ -532,7 +589,9 @@ export const claimDelivery = internalMutation({
       return null;
     }
 
-    if (!serviceWindowOpen(connection.lastInboundAt)) {
+    const windowOpen = serviceWindowOpen(connection.lastInboundAt);
+
+    if (!windowOpen && !row.template) {
       await ctx.db.patch(row._id, { status: "awaiting_window" });
       await ctx.scheduler.runAfter(0, internal.whatsapp.deliver, { connectionId });
 
@@ -556,6 +615,7 @@ export const claimDelivery = internalMutation({
 
     const claimed: Doc<"whatsappOutbox"> & {
       media?: OutboundMedia;
+      asTemplate?: TemplateFallback;
       sender: string;
       recipientKind: "phone" | "bsuid";
       phoneNumberId: string;
@@ -568,6 +628,8 @@ export const claimDelivery = internalMutation({
     };
 
     if (media) claimed.media = media;
+
+    if (!windowOpen && row.template) claimed.asTemplate = row.template;
 
     return claimed;
   },

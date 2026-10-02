@@ -78,6 +78,10 @@ export default defineSchema({
     kind: v.optional(v.union(v.literal("text"), v.literal("image"))),
     imageId: v.optional(v.id("images")),
     text: v.string(),
+    // Approved template sent instead when the 24-hour service window is closed.
+    template: v.optional(
+      v.object({ name: v.string(), language: v.string(), bodyParams: v.array(v.string()) }),
+    ),
     sourceMessageId: v.optional(v.string()),
     status: v.union(
       v.literal("pending"),

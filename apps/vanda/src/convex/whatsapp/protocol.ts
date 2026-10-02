@@ -210,5 +210,20 @@ export const isStop = (text: string): boolean =>
 export const linkToken = (text: string): string | null =>
   /^vanda conectar ([0-9a-f]{64})$/i.exec(text.trim())?.[1]?.toLowerCase() ?? null;
 
+/**
+ * Meta rejects template parameters with line breaks, tabs or more than four
+ * consecutive spaces; keep one short line.
+ */
+export function templateParam(text: string): string {
+  const line = text
+    .replace(/\s+/g, " ")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .trim();
+
+  const chars = Array.from(line);
+
+  return chars.length > 900 ? `${chars.slice(0, 899).join("")}…` : line;
+}
+
 export const serviceWindowOpen = (lastInboundAt: number, now = Date.now()): boolean =>
   now < lastInboundAt + 24 * 60 * 60_000;
