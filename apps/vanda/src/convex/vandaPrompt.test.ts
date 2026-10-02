@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { caetano } from "./caetanoAgent";
+import { caetano, WHATSAPP_CHANNEL_PROMPT } from "./caetanoAgent";
 import { systemPrompt, vanda } from "./vanda";
 
 describe("Vanda routing prompt", () => {
@@ -9,6 +9,13 @@ describe("Vanda routing prompt", () => {
     expect(prompt).toContain("produção visual é exclusivamente por paint");
     expect(prompt).toContain("Antes de agir, compare o pedido com todas as descrições.");
     expect(prompt).not.toMatch(/run_code|\/templates|post-instagram-template|prompt-foto-fiel/);
+  });
+
+  it("tells Caetano on WhatsApp that media works and keeps it to marketing", () => {
+    expect(WHATSAPP_CHANNEL_PROMPT).not.toMatch(/sandbox|somente texto|conversa web/);
+    expect(WHATSAPP_CHANNEL_PROMPT).toContain("[Áudio transcrito]");
+    expect(WHATSAPP_CHANNEL_PROMPT).toContain("são enviados aqui como fotos");
+    expect(WHATSAPP_CHANNEL_PROMPT).toContain("recuse com gentileza");
   });
 
   it("does not expose code execution in either agent's tool catalog", () => {

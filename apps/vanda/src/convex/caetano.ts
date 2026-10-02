@@ -25,7 +25,12 @@ import { resolveOrchestratorModel } from "./agentModels";
 import { isConnectedSubscriber } from "./openaiSub";
 import { codexChatModel } from "./pipeline/codex";
 import { requireOwnedAccount, requireUser } from "./authz";
-import { caetano, caetanoSystemPrompt, caetanoToolDiscovery } from "./caetanoAgent";
+import {
+  caetano,
+  caetanoSystemPrompt,
+  caetanoToolDiscovery,
+  WHATSAPP_CHANNEL_PROMPT,
+} from "./caetanoAgent";
 import { messageWithImages, resolveMessageImages } from "./messageImages";
 import { chatUsageHandler, failedModelAttempt, openrouterChatModel, turnClock } from "./chatModel";
 import { conversationContext } from "./conversationContext";
@@ -449,9 +454,7 @@ export const generateResponse = internalAction({
           prepareStep: caetanoToolDiscovery.prepareStep,
           system:
             `${caetanoSystemPrompt()}\n\n${brand}` +
-            (turn.channel === "whatsapp"
-              ? "\n\nEste turno veio do WhatsApp, que neste sandbox aceita somente texto. Não diga que imagens ou arquivos foram anexados aqui. Recursos apresentados ficam disponíveis na conversa web; links de acesso serão incluídos pelo sistema quando disponíveis. Responda de forma curta, sem tabelas Markdown."
-              : ""),
+            (turn.channel === "whatsapp" ? `\n\n${WHATSAPP_CHANNEL_PROMPT}` : ""),
           onError: ({ error }) => {
             streamError = error;
           },
