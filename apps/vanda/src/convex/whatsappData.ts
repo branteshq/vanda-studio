@@ -161,6 +161,10 @@ const deliveryStatus = (value: string | undefined): DeliveryEventStatus | null =
   }
 };
 
+/** A message that can join a buffered turn: content, and not a stop or link command. */
+const turnable = (event: { text: string; tokenHash?: string; media?: unknown }): boolean =>
+  !event.tokenHash && !isStop(event.text) && (!!event.text || !!event.media);
+
 const deliveryRank = (status: string): number => {
   switch (status) {
     case "sent":
@@ -174,6 +178,13 @@ const deliveryRank = (status: string): number => {
   }
 };
 
+const inboundMediaValidator = v.object({
+  kind: v.union(v.literal("image"), v.literal("audio")),
+  id: v.string(),
+  mimeType: v.optional(v.string()),
+  url: v.optional(v.string()),
+});
+
 const eventValidator = v.object({
   event: v.string(),
   phoneNumberId: v.string(),
@@ -185,6 +196,7 @@ const eventValidator = v.object({
   timestamp: v.number(),
   callbackId: v.optional(v.string()),
   tokenHash: v.optional(v.string()),
+  media: v.optional(inboundMediaValidator),
 });
 
 /** Persist a scheduled mutation before acknowledging, without doing agent work in HTTP. */
@@ -269,7 +281,9 @@ export const ingest = internalMutation({
 
       // Kapso's per-conversation buffer becomes one turn, while each external
       // message keeps its own dedupe receipt. Never merge across a stop/link.
-      if (event.text && !event.tokenHash && !isStop(event.text)) {
+      const media = event.media ? [event.media] : [];
+
+      if (turnable(event)) {
         while (index + 1 < events.length) {
           const next = events[index + 1]!;
 
@@ -277,16 +291,17 @@ export const ingest = internalMutation({
             next.event !== event.event ||
             next.phoneNumberId !== event.phoneNumberId ||
             next.sender !== event.sender ||
-            !next.text ||
-            next.tokenHash ||
-            isStop(next.text) ||
+            !turnable(next) ||
             event.text.length + next.text.length > 16000
           )
             break;
           index++;
 
           if (await seen(`${next.phoneNumberId}:${next.event}:${next.messageId}`)) continue;
-          event.text += `\n${next.text}`;
+
+          if (next.text) event.text = event.text ? `${event.text}\n${next.text}` : next.text;
+
+          if (next.media) media.push(next.media);
           event.timestamp = Math.max(event.timestamp, next.timestamp);
         }
       }
@@ -377,12 +392,23 @@ export const ingest = internalMutation({
           connection._id,
           "Interrompi a conversa e limpei os pedidos na fila. Ações já concluídas, como publicações, não são desfeitas.",
         );
-      } else if (!event.text) {
+      } else if (!event.text && media.length === 0) {
         await enqueue(
           ctx,
           connection._id,
-          "Por enquanto, envie seu pedido em texto. Para anexar imagens, abra a conversa no Vanda Studio.",
+          "Ainda não consigo abrir esse tipo de mensagem. Envie texto, foto ou áudio.",
         );
+      } else if (media.length > 0) {
+        // Downloads and transcription run in an action; it submits the turn when ready.
+        await ctx.scheduler.runAfter(0, internal.whatsappMedia.prepareTurn, {
+          connectionId: connection._id,
+          text: event.text,
+          media,
+          externalMessageId: event.messageId,
+        });
+        await ctx.scheduler.runAfter(0, internal.whatsapp.markRead, {
+          messageId: event.messageId,
+        });
       } else {
         try {
           await ctx.runMutation(internal.caetano.submitMessageForUser, {
@@ -402,6 +428,75 @@ export const ingest = internalMutation({
           );
         }
       }
+    }
+  },
+});
+
+/** Submit a turn whose media the action already downloaded (and transcribed). */
+export const submitMediaTurn = internalMutation({
+  args: {
+    connectionId: v.id("whatsappConnections"),
+    text: v.string(),
+    uploads: v.array(v.object({ storageId: v.id("_storage"), mimeType: v.string() })),
+    notes: v.array(v.string()),
+    externalMessageId: v.string(),
+  },
+  handler: async (ctx, { connectionId, text, uploads, notes, externalMessageId }) => {
+    const connection = await ctx.db.get(connectionId);
+    const user = connection?.active ? await ctx.db.get(connection.userId) : null;
+
+    const discard = () =>
+      Promise.all(uploads.map((upload) => ctx.storage.delete(upload.storageId)));
+
+    if (!connection || !user) {
+      await discard();
+
+      return;
+    }
+
+    const accountId = user.activeAccountId;
+    const replies = [...notes];
+
+    if (uploads.length > 0 && !accountId) {
+      await discard();
+      replies.push("Para eu usar suas fotos, conclua o cadastro do seu negócio no Vanda Studio.");
+    }
+
+    const imageIds: Id<"images">[] = [];
+
+    if (accountId) {
+      for (const upload of uploads) {
+        imageIds.push(
+          await ctx.db.insert("images", {
+            accountId,
+            origin: "uploaded",
+            purpose: "post",
+            storageId: upload.storageId,
+            mimeType: upload.mimeType,
+            createdAt: Date.now(),
+          }),
+        );
+      }
+    }
+
+    if (replies.length > 0) await enqueue(ctx, connectionId, replies.join("\n"));
+
+    if (!text.trim() && imageIds.length === 0) return;
+
+    try {
+      await ctx.runMutation(internal.caetano.submitMessageForUser, {
+        userId: user._id,
+        prompt: text,
+        imageIds,
+        connectionId,
+        externalMessageId,
+      });
+    } catch {
+      await enqueue(
+        ctx,
+        connectionId,
+        "Não consegui iniciar esse pedido. Confira o limite do plano e a fila de mensagens no Vanda Studio antes de tentar novamente.",
+      );
     }
   },
 });

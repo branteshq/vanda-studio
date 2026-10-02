@@ -435,6 +435,109 @@ describe("WhatsApp and canonical Caetano queue", () => {
     });
   });
 
+  it("hands a burst with photos to the media step instead of starting a text-only turn", async () => {
+    const { t, event } = await setup();
+    await t.mutation(internal.whatsappData.ingest, {
+      deliveryKey: "photos",
+      events: [
+        event("m1", "Usa essa foto"),
+        { ...event("m2", ""), media: { kind: "image" as const, id: "img1" } },
+      ],
+    });
+
+    expect(await t.run((ctx) => ctx.db.query("caetanoInbox").collect())).toHaveLength(0);
+    const scheduled = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+    const prepare = scheduled.find((job) => job.name.includes("prepareTurn"));
+    expect(prepare?.args[0]).toMatchObject({
+      text: "Usa essa foto",
+      media: [{ kind: "image", id: "img1" }],
+    });
+  });
+
+  it("downloads photos, transcribes a voice note and submits one turn with both", async () => {
+    const { t, userId, connectionId } = await setup();
+    vi.stubEnv("KAPSO_API_KEY", "test-key");
+    vi.stubEnv("OPENROUTER_API_KEY", "router-key");
+    const now = Date.now();
+    await t.run(async (ctx) => {
+      const accountId = await ctx.db.insert("accounts", {
+        ownerUserId: userId,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      await ctx.db.patch(userId, { activeAccountId: accountId });
+    });
+
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("https://api.kapso.ai/meta/whatsapp/v24.0/")) {
+        expect(init?.headers).toMatchObject({ "X-API-Key": "test-key" });
+
+        return Response.json({
+          download_url: `https://api.kapso.ai/dl/${url.includes("img") ? "img" : "aud"}`,
+        });
+      }
+
+      if (url === "https://api.kapso.ai/dl/img")
+        return new Response(new Blob(["jpg"], { type: "image/jpeg" }));
+
+      if (url === "https://api.kapso.ai/dl/aud")
+        return new Response(new Blob(["ogg"], { type: "audio/ogg" }));
+
+      if (url === "https://openrouter.ai/api/v1/chat/completions") {
+        const body = JSON.parse(String(init?.body));
+        expect(body.messages[0].content[1]).toMatchObject({
+          type: "input_audio",
+          input_audio: { format: "ogg" },
+        });
+
+        return Response.json({ choices: [{ message: { content: "faz um post com essa foto" } }] });
+      }
+
+      throw new Error(`unexpected fetch ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await t.action(internal.whatsappMedia.prepareTurn, {
+      connectionId,
+      text: "",
+      media: [
+        { kind: "image", id: "img1", mimeType: "image/jpeg" },
+        { kind: "audio", id: "aud1", mimeType: "audio/ogg" },
+      ],
+      externalMessageId: "m1",
+    });
+
+    const images = await t.run((ctx) => ctx.db.query("images").collect());
+    expect(images).toHaveLength(1);
+    expect(images[0]).toMatchObject({ origin: "uploaded", mimeType: "image/jpeg" });
+    expect(images[0]?.lastAttachedAt).toBeDefined();
+    const inbox = await t.run((ctx) => ctx.db.query("caetanoInbox").collect());
+    expect(inbox).toHaveLength(1);
+    expect(inbox[0]).toMatchObject({ channel: "whatsapp", connectionId, externalMessageId: "m1" });
+    expect(await t.run((ctx) => ctx.db.query("whatsappOutbox").collect())).toHaveLength(0);
+  });
+
+  it("tells the sender when a photo cannot be used and still keeps the text", async () => {
+    const { t, connectionId } = await setup();
+    vi.stubEnv("KAPSO_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("nope", { status: 404 })));
+
+    await t.action(internal.whatsappMedia.prepareTurn, {
+      connectionId,
+      text: "Faz um post",
+      media: [{ kind: "image", id: "img1" }],
+      externalMessageId: "m1",
+    });
+
+    const outbox = await t.run((ctx) => ctx.db.query("whatsappOutbox").collect());
+    expect(outbox.map((row) => row.text)).toEqual([
+      "Não consegui baixar uma das fotos. Pode enviar de novo?",
+    ]);
+    expect(await t.run((ctx) => ctx.db.query("caetanoInbox").collect())).toHaveLength(1);
+  });
+
   it("does not process messages from unlinked senders or wrong business numbers", async () => {
     const { t, event } = await setup();
     await t.mutation(internal.whatsappData.ingest, {

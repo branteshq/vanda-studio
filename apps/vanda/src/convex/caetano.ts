@@ -205,15 +205,25 @@ export const submitMessageForUser = internalMutation({
     userId: v.id("users"),
     threadId: v.optional(v.string()),
     prompt: v.string(),
+    imageIds: v.optional(v.array(v.id("images"))),
     connectionId: v.optional(v.id("whatsappConnections")),
     externalMessageId: v.optional(v.string()),
   },
-  handler: async (ctx, { userId, ...input }): Promise<{ threadId: string; messageId: string }> => {
+  handler: async (
+    ctx,
+    { userId, imageIds, ...input },
+  ): Promise<{ threadId: string; messageId: string }> => {
     const user = await ctx.db.get(userId);
 
     if (!user) throw new Error("user not found");
+    let images: Awaited<ReturnType<typeof resolveMessageImages>> = [];
 
-    return submitMessage(ctx, user, input);
+    if (imageIds?.length) {
+      if (!user.activeAccountId) throw new Error("nenhuma conta ativa");
+      images = await resolveMessageImages(ctx, user.activeAccountId, imageIds);
+    }
+
+    return submitMessage(ctx, user, { ...input, images });
   },
 });
 

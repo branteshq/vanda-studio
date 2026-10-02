@@ -21,6 +21,24 @@ const payload = {
   },
 };
 
+type MessagePatch = {
+  type: string;
+  image?: { id: string; caption?: string };
+  audio?: { id: string };
+  kapso: {
+    direction: string;
+    media_url?: string;
+    media_data?: { content_type: string };
+    transcript?: { text: string };
+  };
+};
+
+const kapsoMedia = (contentType: string) => ({
+  direction: "inbound",
+  media_url: "https://api.kapso.ai/media/1",
+  media_data: { content_type: contentType },
+});
+
 describe("Kapso protocol", () => {
   it("rejects malformed and oversized webhook bodies at the boundary", () => {
     expect(webhookSchema.safeParse({ message: { id: "missing-number" } }).success).toBe(false);
@@ -45,6 +63,48 @@ describe("Kapso protocol", () => {
     const event = parseWebhook(body, "whatsapp.message.received", "sandbox")[0];
     expect(event).not.toHaveProperty("phone");
     expect(event).not.toHaveProperty("callbackId");
+  });
+
+  it("extracts image captions, Kapso transcripts and media still to download", () => {
+    const received = (message: MessagePatch) =>
+      parseWebhook(
+        webhookSchema.parse({ ...payload, message: { ...payload.message, ...message } }),
+        "whatsapp.message.received",
+        "sandbox",
+      )[0];
+
+    expect(
+      received({
+        type: "image",
+        image: { id: "img1", caption: "Usa essa foto" },
+        kapso: kapsoMedia("image/jpeg"),
+      }),
+    ).toMatchObject({
+      text: "Usa essa foto",
+      media: {
+        kind: "image",
+        id: "img1",
+        mimeType: "image/jpeg",
+        url: "https://api.kapso.ai/media/1",
+      },
+    });
+
+    const transcribed = received({
+      type: "audio",
+      audio: { id: "aud1" },
+      kapso: { ...kapsoMedia("audio/ogg"), transcript: { text: "faz um post" } },
+    });
+
+    expect(transcribed?.text).toBe("[Áudio transcrito] faz um post");
+    expect(transcribed).not.toHaveProperty("media");
+
+    expect(
+      received({ type: "audio", audio: { id: "aud2" }, kapso: kapsoMedia("audio/ogg") }),
+    ).toMatchObject({ text: "", media: { kind: "audio", id: "aud2" } });
+
+    const video = received({ type: "video", kapso: { direction: "inbound" } });
+    expect(video?.text).toBe("");
+    expect(video).not.toHaveProperty("media");
   });
 
   it("normalizes single and buffered v2 events", () => {
