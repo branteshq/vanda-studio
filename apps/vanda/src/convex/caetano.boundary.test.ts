@@ -65,26 +65,29 @@ const setup = async () => {
 };
 
 describe("Caetano control plane", () => {
-  it.each([false, true])("persists GPT-6.1 Sol for both agents (connected: %s)", async (connected) => {
-    const { t, userId } = await setup();
-    const owner = t.withIdentity({ subject: "ana" });
+  it.each([false, true])(
+    "persists GPT-6.1 Sol for both agents (connected: %s)",
+    async (connected) => {
+      const { t, userId } = await setup();
+      const owner = t.withIdentity({ subject: "ana" });
 
-    if (connected) {
-      await t.run((ctx) =>
-        ctx.db.patch(userId, { planId: "conectado", openaiAccessCiphertext: "test-token" }),
-      );
-    }
+      if (connected) {
+        await t.run((ctx) =>
+          ctx.db.patch(userId, { planId: "conectado", openaiAccessCiphertext: "test-token" }),
+        );
+      }
 
-    for (const mutation of [api.users.setCaetanoModel, api.users.setAgentModel]) {
-      await owner.mutation(mutation, { modelId: "openai/gpt-6.1-sol" });
-    }
+      for (const mutation of [api.users.setCaetanoModel, api.users.setAgentModel]) {
+        await owner.mutation(mutation, { modelId: "openai/gpt-6.1-sol" });
+      }
 
-    expect(await owner.query(api.users.modelPreferences)).toMatchObject({
-      caetano: "openai/gpt-6.1-sol",
-      orchestrator: "openai/gpt-6.1-sol",
-      conectado: connected,
-    });
-  });
+      expect(await owner.query(api.users.modelPreferences)).toMatchObject({
+        caetano: "openai/gpt-6.1-sol",
+        orchestrator: "openai/gpt-6.1-sol",
+        conectado: connected,
+      });
+    },
+  );
 
   it("persists Muse for both agents on OpenRouter but not the ChatGPT transport", async () => {
     const { t, userId } = await setup();
@@ -138,12 +141,9 @@ describe("Caetano control plane", () => {
       ).rejects.toThrow("ChatGPT");
     }
 
-    for (const field of ["caetano", "orchestrator"] as const) {
+    for (const id of ["models.caetano", "models.vanda"]) {
       await expect(
-        t.mutation(internal.caetanoData.setModelPreferences, {
-          userId,
-          [field]: "anthropic/claude-opus-5",
-        }),
+        t.mutation(internal.settingsData.set, { userId, id, value: "anthropic/claude-opus-5" }),
       ).rejects.toThrow("ChatGPT");
     }
 
@@ -164,13 +164,14 @@ describe("Caetano control plane", () => {
     await expect(
       t.mutation(api.users.setCaetanoModel, { modelId: "openai/gpt-5.6-sol" }),
     ).rejects.toThrow();
-    await t.mutation(internal.caetanoData.setModelPreferences, {
+    await t.mutation(internal.settingsData.set, {
       userId,
-      caetano: "openai/gpt-5.6-sol",
+      id: "models.caetano",
+      value: "openai/gpt-5.6-sol",
     });
     expect((await owner.query(api.users.modelPreferences))?.caetano).toBe("openai/gpt-5.6-sol");
     await expect(
-      t.mutation(internal.caetanoData.setModelPreferences, { userId, caetano: "unknown" }),
+      t.mutation(internal.settingsData.set, { userId, id: "models.caetano", value: "unknown" }),
     ).rejects.toThrow("modelo desconhecido");
     await t.run((ctx) => ctx.db.patch(userId, { caetanoModel: "retired/model" }));
     expect((await owner.query(api.users.modelPreferences))?.caetano).toBe("openai/gpt-6-luna");
@@ -304,22 +305,20 @@ describe("Caetano control plane", () => {
     await t.action(async (ctx) => {
       const toolCtx = { ...ctx, accountId };
 
-      const preferences = Object.assign({}, vanda.options.tools!.model_preferences, {
-        ctx: toolCtx,
-      });
+      const settings = Object.assign({}, vanda.options.tools!.settings_get, { ctx: toolCtx });
 
       await expect(
-        preferences.execute({}, { toolCallId: "preferences", messages: [] }),
-      ).resolves.toHaveProperty("data.orchestrator");
+        settings.execute({}, { toolCallId: "settings", messages: [] }),
+      ).resolves.toHaveProperty("data.settings");
 
-      const update = Object.assign({}, vanda.options.tools!.set_model_preferences, {
-        ctx: toolCtx,
-      });
+      const update = Object.assign({}, vanda.options.tools!.settings_set, { ctx: toolCtx });
 
-      await update.execute(
-        { caetano: "openai/gpt-6-luna" },
-        { toolCallId: "update", messages: [] },
-      );
+      await expect(
+        update.execute(
+          { id: "models.caetano", value: "GPT-6.1 Sol" },
+          { toolCallId: "update", messages: [] },
+        ),
+      ).resolves.toHaveProperty("data.previous", "openai/gpt-6-luna");
 
       const select = Object.assign({}, vanda.options.tools!.select_account, { ctx: toolCtx });
       await expect(
@@ -327,7 +326,7 @@ describe("Caetano control plane", () => {
       ).rejects.toThrow("conversa");
     });
     expect((await t.run((ctx) => ctx.db.get(userId)))?.activeAccountId).toBe(accountId);
-    expect((await t.run((ctx) => ctx.db.get(userId)))?.caetanoModel).toBe("openai/gpt-6-luna");
+    expect((await t.run((ctx) => ctx.db.get(userId)))?.caetanoModel).toBe("openai/gpt-6.1-sol");
   });
 
   it("does not retarget an in-flight Caetano turn when another tab switches accounts", async () => {
