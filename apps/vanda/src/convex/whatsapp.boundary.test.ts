@@ -4,6 +4,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
+import { enqueueItems } from "./whatsappData";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -322,6 +323,116 @@ describe("WhatsApp and canonical Caetano queue", () => {
     ).toBe(200);
     expect(await t.run((ctx) => ctx.db.query("whatsappReceipts").collect())).toHaveLength(1);
     expect(await t.run((ctx) => ctx.db.query("caetanoInbox").collect())).toHaveLength(0);
+  });
+
+  it("delivers a turn's presented post and images after the text, in order", async () => {
+    const { t, event, userId } = await setup();
+    const now = Date.now();
+
+    const { accountId, png, webp, postId } = await t.run(async (ctx) => {
+      const accountId = await ctx.db.insert("accounts", {
+        ownerUserId: userId,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const image = async (type: string) =>
+        ctx.db.insert("images", {
+          accountId,
+          origin: "generated",
+          storageId: await ctx.storage.store(new Blob(["x"], { type })),
+          mimeType: type,
+          createdAt: now,
+        });
+
+      const slides = [await image("image/png"), await image("image/jpeg")];
+
+      const postId = await ctx.db.insert("posts", {
+        accountId,
+        type: "feed",
+        imageIds: slides,
+        caption: "Legenda do carrossel",
+        platform: "instagram",
+        status: "draft",
+        createdAt: now,
+      });
+
+      return { accountId, png: slides[0]!, webp: await image("image/webp"), postId };
+    });
+
+    await t.mutation(internal.whatsappData.ingest, { deliveryKey: "a", events: [event("m1")] });
+    await t.mutation(internal.caetano.startNext, { userId });
+    const activity = await t.run((ctx) => ctx.db.query("caetanoThreadActivity").first());
+    await t.mutation(internal.threadResources.record, {
+      threadId: activity!.threadId,
+      anchorMessageId: activity!.promptMessageId,
+      toolCallId: "tool1",
+      resources: [],
+      presented: [
+        { kind: "post", accountId, postId },
+        { kind: "image", accountId, imageId: png },
+        { kind: "image", accountId, imageId: webp },
+      ],
+    });
+    await t.mutation(internal.caetano.deliverTurn, { activityId: activity!._id, text: "Pronto!" });
+
+    const outbox = await t.run((ctx) => ctx.db.query("whatsappOutbox").collect());
+    expect(outbox.map((row) => [row.kind ?? "text", row.text])).toEqual([
+      ["text", "Pronto!"],
+      ["image", ""],
+      ["image", ""],
+      ["text", "Legenda:\nLegenda do carrossel"],
+      ["image", ""],
+    ]);
+    expect(outbox.at(-1)?.imageId).toBe(webp);
+    expect(outbox.some((row) => row.text.includes("/caetano"))).toBe(false);
+  });
+
+  it("sends JPEG/PNG as images and other formats as documents", async () => {
+    const { t, connectionId, userId } = await setup();
+    vi.stubEnv("KAPSO_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ messages: [{ id: "wamid.out" }] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const [png, webp] = await t.run(async (ctx) => {
+      const now = Date.now();
+
+      const accountId = await ctx.db.insert("accounts", {
+        ownerUserId: userId,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      return Promise.all(
+        ["image/png", "image/webp"].map(async (type) =>
+          ctx.db.insert("images", {
+            accountId,
+            origin: "generated",
+            name: "Capa/verão",
+            storageId: await ctx.storage.store(new Blob(["x"], { type })),
+            mimeType: type,
+            createdAt: now,
+          }),
+        ),
+      );
+    });
+
+    await t.run((ctx) =>
+      enqueueItems(ctx, connectionId, [
+        { kind: "image", imageId: png!, caption: "Capa" },
+        { kind: "image", imageId: webp! },
+      ]),
+    );
+    await t.action(internal.whatsapp.deliver, { connectionId });
+    await t.action(internal.whatsapp.deliver, { connectionId });
+
+    const bodies = fetchMock.mock.calls.map((call) => JSON.parse(call[1].body));
+    expect(bodies[0]).toMatchObject({ type: "image", image: { caption: "Capa" } });
+    expect(bodies[0].image.link).toMatch(/^https?:\/\//);
+    expect(bodies[1]).toMatchObject({
+      type: "document",
+      document: { filename: "Capa verão.webp" },
+    });
   });
 
   it("does not process messages from unlinked senders or wrong business numbers", async () => {

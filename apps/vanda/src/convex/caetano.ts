@@ -32,6 +32,8 @@ import { conversationContext } from "./conversationContext";
 import { budgetOf } from "./usage";
 import { errorMessage, publicError } from "../errors";
 import { errorCodeValidator, safeFailure } from "./publicErrors";
+import type { ThreadResource } from "./resourceRefs";
+import { enqueueItems, type OutboundItem } from "./whatsappData";
 
 const threadKey = (userId: Id<"users">): string => `caetano:${userId}`;
 
@@ -292,27 +294,79 @@ const deliverForActivity = async (
   const activity = await ctx.db.get(activityId);
   const inbox = activity?.inboxId ? await ctx.db.get(activity.inboxId) : null;
 
-  if (inbox?.connectionId && inbox.status === "running" && text.trim()) {
+  // Media still goes out when a turn ends with tool output and no closing text.
+  if (inbox?.connectionId && inbox.status === "running") {
     const manifest = await ctx.runQuery(internal.threadResources.forPrompt, {
       threadId: inbox.threadId,
       anchorMessageId: inbox.promptMessageId,
     });
 
-    // Explicit channel URL prevents a sandbox response linking to production data.
-    const baseUrl = (process.env.KAPSO_APP_URL ?? "").replace(/\/+$/, "");
-
-    const links = manifest.presented
-      .filter((resource) => resource.kind === "link" && /^https?:\/\//.test(resource.url))
-      .map((resource) => (resource.kind === "link" ? `${resource.title}: ${resource.url}` : ""));
-
-    if (manifest.presented.some((resource) => resource.kind !== "link") && baseUrl)
-      links.push(`Ver resultados no Vanda Studio: ${baseUrl}/caetano`);
-    await ctx.runMutation(internal.whatsappData.enqueueReply, {
-      connectionId: inbox.connectionId,
-      text: [text, ...links].join("\n\n"),
-      sourceMessageId: inbox.promptMessageId,
-    });
+    await enqueueItems(
+      ctx,
+      inbox.connectionId,
+      await whatsappReplyItems(ctx, text, manifest.presented),
+      inbox.promptMessageId,
+    );
   }
+};
+
+// One WhatsApp turn never floods the chat: a carousel is at most 10 images.
+const MAX_WHATSAPP_IMAGES_PER_TURN = 10;
+
+/** Text first, then each presented post (images + caption), then loose images. */
+const whatsappReplyItems = async (
+  ctx: MutationCtx,
+  text: string,
+  presented: readonly ThreadResource[],
+): Promise<OutboundItem[]> => {
+  const notes: string[] = [];
+  const media: OutboundItem[] = [];
+  const sent = new Set<Id<"images">>();
+  let skipped = 0;
+
+  const addImage = (imageId: Id<"images">) => {
+    if (sent.has(imageId)) return;
+    sent.add(imageId);
+
+    if (sent.size > MAX_WHATSAPP_IMAGES_PER_TURN) {
+      skipped++;
+
+      return;
+    }
+
+    media.push({ kind: "image", imageId });
+  };
+
+  for (const resource of presented) {
+    if (resource.kind === "link" && /^https?:\/\//.test(resource.url))
+      notes.push(`${resource.title}: ${resource.url}`);
+    else if (resource.kind === "document")
+      notes.push(`Documento: ${resource.title ?? resource.path}`);
+  }
+
+  for (const resource of presented) {
+    if (resource.kind !== "post") continue;
+    const post = await ctx.db.get(resource.postId);
+
+    if (!post || post.accountId !== resource.accountId) continue;
+
+    for (const imageId of post.imageIds) addImage(imageId);
+
+    if (post.caption.trim()) media.push({ kind: "text", text: `Legenda:\n${post.caption}` });
+  }
+
+  for (const resource of presented) if (resource.kind === "image") addImage(resource.imageId);
+
+  // Explicit channel URL prevents a sandbox response linking to production data.
+  const baseUrl = (process.env.KAPSO_APP_URL ?? "").replace(/\/+$/, "");
+
+  if (skipped > 0)
+    media.push({
+      kind: "text",
+      text: `Mais ${skipped} ${skipped === 1 ? "imagem" : "imagens"} na galeria${baseUrl ? `: ${baseUrl}/galeria` : "."}`,
+    });
+
+  return [{ kind: "text", text: [text, ...notes].join("\n\n") }, ...media];
 };
 
 export const deliverTurn = internalMutation({

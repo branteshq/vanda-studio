@@ -83,30 +83,60 @@ export const disconnect = mutation({
   },
 });
 
-async function enqueue(
+export type OutboundItem =
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "image"; readonly imageId: Id<"images">; readonly caption?: string };
+
+/** Queue items in order; delivery sends one row at a time per connection. */
+export async function enqueueItems(
   ctx: MutationCtx,
   connectionId: Id<"whatsappConnections">,
-  text: string,
+  items: readonly OutboundItem[],
   sourceMessageId?: string,
 ) {
   const connection = await ctx.db.get(connectionId);
 
   if (!connection?.active) return;
 
-  for (const part of replyParts(text)) {
-    const outbox: Omit<Doc<"whatsappOutbox">, "_id" | "_creationTime"> = {
-      connectionId,
-      text: part,
-      attempts: 0,
-      status: "pending",
-    };
+  const rows: Omit<Doc<"whatsappOutbox">, "_id" | "_creationTime">[] = items.flatMap((item) =>
+    item.kind === "text"
+      ? replyParts(item.text).map((part) => ({
+          connectionId,
+          text: part,
+          attempts: 0,
+          status: "pending" as const,
+        }))
+      : [
+          {
+            connectionId,
+            kind: "image" as const,
+            imageId: item.imageId,
+            // WhatsApp media captions are capped at 1,024 characters.
+            text: Array.from(item.caption ?? "")
+              .slice(0, 1024)
+              .join(""),
+            attempts: 0,
+            status: "pending" as const,
+          },
+        ],
+  );
 
-    if (sourceMessageId) outbox.sourceMessageId = sourceMessageId;
-    await ctx.db.insert("whatsappOutbox", outbox);
+  if (rows.length === 0) return;
+
+  for (const row of rows) {
+    if (sourceMessageId) row.sourceMessageId = sourceMessageId;
+    await ctx.db.insert("whatsappOutbox", row);
   }
 
   await ctx.scheduler.runAfter(0, internal.whatsapp.deliver, { connectionId });
 }
+
+const enqueue = (
+  ctx: MutationCtx,
+  connectionId: Id<"whatsappConnections">,
+  text: string,
+  sourceMessageId?: string,
+) => enqueueItems(ctx, connectionId, [{ kind: "text", text }], sourceMessageId);
 
 export const enqueueReply = internalMutation({
   args: {
@@ -414,21 +444,82 @@ export const claimDelivery = internalMutation({
       return null;
     }
 
+    const media = row.kind === "image" ? await outboundMedia(ctx, row.imageId) : null;
+
+    if (row.kind === "image" && !media) {
+      await ctx.db.patch(row._id, { status: "failed", error: "Imagem indisponível para envio." });
+      await ctx.scheduler.runAfter(0, internal.whatsapp.deliver, { connectionId });
+
+      return null;
+    }
+
     await ctx.db.patch(row._id, { status: "sending", attempts: row.attempts + 1 });
     await ctx.scheduler.runAfter(60_000, internal.whatsappData.deliveryTimeout, {
       id: row._id,
       attempts: row.attempts + 1,
     });
 
-    return {
+    const claimed: Doc<"whatsappOutbox"> & {
+      media?: OutboundMedia;
+      sender: string;
+      recipientKind: "phone" | "bsuid";
+      phoneNumberId: string;
+    } = {
       ...row,
       attempts: row.attempts + 1,
       sender: connection.phone ?? connection.sender,
-      recipientKind: connection.phone ? ("phone" as const) : connection.recipientKind,
+      recipientKind: connection.phone ? "phone" : connection.recipientKind,
       phoneNumberId: connection.phoneNumberId,
     };
+
+    if (media) claimed.media = media;
+
+    return claimed;
   },
 });
+
+// WhatsApp renders only JPEG/PNG up to 5 MB as images; anything else goes as a document.
+const WHATSAPP_IMAGE_TYPES = new Set(["image/jpeg", "image/png"]);
+
+const WHATSAPP_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+
+export type OutboundMedia = {
+  type: "image" | "document";
+  link: string;
+  filename?: string;
+};
+
+async function outboundMedia(
+  ctx: MutationCtx,
+  imageId: Id<"images"> | undefined,
+): Promise<OutboundMedia | null> {
+  const image = imageId ? await ctx.db.get(imageId) : null;
+
+  // "generating" placeholders and failed generations have nothing to send.
+  if (!image || image.status) return null;
+
+  const stored = image.storageId ? await ctx.db.system.get(image.storageId) : null;
+
+  const link =
+    (image.storageId ? await ctx.storage.getUrl(image.storageId) : null) ?? image.externalUrl;
+
+  if (!link) return null;
+
+  const mimeType = stored?.contentType ?? image.mimeType ?? "";
+
+  if (
+    WHATSAPP_IMAGE_TYPES.has(mimeType) &&
+    (stored?.size === undefined || stored.size <= WHATSAPP_IMAGE_MAX_BYTES)
+  ) {
+    return { type: "image", link };
+  }
+
+  const extension = mimeType.split("/")[1]?.replace(/[^a-z0-9]/gi, "") || "bin";
+
+  const base = (image.name ?? "imagem").replace(/[\\/:*?"<>|]+/g, " ").trim() || "imagem";
+
+  return { type: "document", link, filename: `${base}.${extension}` };
+}
 
 export const finishDelivery = internalMutation({
   args: {

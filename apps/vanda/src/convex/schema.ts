@@ -74,6 +74,9 @@ export default defineSchema({
   }).index("by_key", ["key"]),
   whatsappOutbox: defineTable({
     connectionId: v.id("whatsappConnections"),
+    // Absent = text. Image rows carry an optional caption in `text`.
+    kind: v.optional(v.union(v.literal("text"), v.literal("image"))),
+    imageId: v.optional(v.id("images")),
     text: v.string(),
     sourceMessageId: v.optional(v.string()),
     status: v.union(
