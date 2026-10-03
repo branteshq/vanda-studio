@@ -4,6 +4,7 @@ import agentComponent from "@convex-dev/agent/test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, components, internal } from "./_generated/api";
+import { caetano } from "./caetanoAgent";
 import schema from "./schema";
 import { enqueueItems, notifyOwner } from "./whatsappData";
 
@@ -628,6 +629,71 @@ describe("WhatsApp and canonical Caetano queue", () => {
     ]);
     const manifests = await t.run((ctx) => ctx.db.query("threadResourceManifests").collect());
     expect(manifests).toHaveLength(1);
+  });
+
+  it("folds a message sent mid-turn into that turn and sends one answer", async () => {
+    const { t, event, userId } = await setup();
+    await t.mutation(internal.whatsappData.ingest, {
+      deliveryKey: "first",
+      events: [event("m1", "que ferramentas você tem acesso?")],
+    });
+    await t.mutation(internal.caetano.startNext, { userId });
+    // Arrives after the buffer flushed, while the first turn is running.
+    await t.mutation(internal.whatsappData.ingest, {
+      deliveryKey: "second",
+      events: [event("m2", "me mostra as funções")],
+    });
+
+    const [running, queued] = await t.run((ctx) => ctx.db.query("caetanoInbox").collect());
+    const activity = await t.run((ctx) => ctx.db.query("caetanoThreadActivity").first());
+    const texts = ["rascunho que não sai", "Resposta única para as duas mensagens"];
+
+    // SAFETY: generateResponse reads only consumeStream and text from this stream-result test double.
+    const stream = vi.spyOn(caetano, "streamText").mockImplementation(async () =>
+      Object.assign(Object.create(null), {
+        consumeStream: async () => {},
+        text: Promise.resolve(texts.shift() ?? ""),
+      }),
+    );
+
+    try {
+      expect(
+        await t.action(internal.caetano.generateResponse, {
+          userId,
+          threadId: activity!.threadId,
+          promptMessageId: activity!.promptMessageId,
+          activityId: activity!._id,
+        }),
+      ).toBe("Resposta única para as duas mensagens");
+      expect(stream).toHaveBeenCalledTimes(2);
+      expect(stream.mock.calls[1]?.[2]).toMatchObject({
+        promptMessageId: queued!.promptMessageId,
+        system: expect.stringContaining("O dono mandou mais mensagens"),
+      });
+    } finally {
+      stream.mockRestore();
+    }
+
+    expect((await t.run((ctx) => ctx.db.get(queued!._id)))?.status).toBe("merged");
+    expect((await t.run((ctx) => ctx.db.get(running!._id)))?.status).toBe("done");
+    expect(
+      (await t.run((ctx) => ctx.db.query("whatsappOutbox").collect())).map((row) => row.text),
+    ).toEqual(["Resposta única para as duas mensagens"]);
+  });
+
+  it("marks the newest message of a burst as read", async () => {
+    const { t, event } = await setup();
+    await t.mutation(internal.whatsappData.ingest, {
+      deliveryKey: "burst",
+      events: [
+        event("m1", "que ferramentas você tem acesso?"),
+        event("m2", "me mostra as funções"),
+      ],
+    });
+
+    const scheduled = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+    const reads = scheduled.filter((job) => job.name.includes("markRead"));
+    expect(reads.map((job) => job.args[0])).toEqual([{ messageId: "m2" }]);
   });
 
   it("does not process messages from unlinked senders or wrong business numbers", async () => {

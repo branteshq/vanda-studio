@@ -16,7 +16,7 @@ if (url.protocol !== "https:" || url.pathname !== "/webhooks/kapso")
 
 if (!process.argv.includes("--apply")) {
   console.log(
-    "Dry run. This registers a number-scoped Kapso webhook with a 3-second inbound buffer.",
+    "Dry run. This registers a number-scoped Kapso webhook with a 5-second inbound buffer.",
   );
   console.log(
     "Verify KAPSO_PHONE_NUMBER_ID is your Sandbox WhatsApp configuration, then run with --apply.",
@@ -45,7 +45,7 @@ const response = await fetch(
           "whatsapp.message.failed",
         ],
         buffer_enabled: true,
-        buffer_window_seconds: 3,
+        buffer_window_seconds: 5,
         max_buffer_size: 20,
         buffer_events: ["whatsapp.message.received"],
       },

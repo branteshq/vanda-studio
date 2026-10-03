@@ -346,6 +346,8 @@ export const ingest = internalMutation({
       // Kapso's per-conversation buffer becomes one turn, while each external
       // message keeps its own dedupe receipt. Never merge across a stop/link.
       const media = event.media ? [event.media] : [];
+      // Reading the newest message of a burst marks every earlier one as read too.
+      let lastMessageId = event.messageId;
 
       if (turnable(event)) {
         while (index + 1 < events.length) {
@@ -367,6 +369,7 @@ export const ingest = internalMutation({
 
           if (next.media) media.push(next.media);
           event.timestamp = Math.max(event.timestamp, next.timestamp);
+          lastMessageId = next.messageId;
         }
       }
 
@@ -471,7 +474,7 @@ export const ingest = internalMutation({
           externalMessageId: event.messageId,
         });
         await ctx.scheduler.runAfter(0, internal.whatsapp.markRead, {
-          messageId: event.messageId,
+          messageId: lastMessageId,
         });
       } else {
         try {
@@ -482,7 +485,7 @@ export const ingest = internalMutation({
             externalMessageId: event.messageId,
           });
           await ctx.scheduler.runAfter(0, internal.whatsapp.markRead, {
-            messageId: event.messageId,
+            messageId: lastMessageId,
           });
         } catch {
           await enqueue(

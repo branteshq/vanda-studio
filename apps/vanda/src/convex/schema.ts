@@ -47,6 +47,8 @@ export default defineSchema({
       v.literal("running"),
       v.literal("done"),
       v.literal("stopped"),
+      // Arrived while a turn was running and was answered by that turn.
+      v.literal("merged"),
     ),
   }).index("by_user_status", ["userId", "status"]),
   whatsappLinks: defineTable({
@@ -238,6 +240,8 @@ export default defineSchema({
     promptMessageId: v.string(),
     // Legacy delegation field; retained until pre-shared-capability rows expire.
     activeVandaThreadId: v.optional(v.string()),
+    // Later messages folded into this turn, in arrival order.
+    followupMessageIds: v.optional(v.array(v.string())),
     startedAt: v.number(),
   }).index("by_user", ["userId"]),
 

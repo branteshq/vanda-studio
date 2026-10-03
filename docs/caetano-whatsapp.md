@@ -10,6 +10,7 @@ Implemented: text, photos and voice notes in; text, images and posts out; secure
 - **Outbound media.** After the reply text, each post the turn presented goes out as its images followed by `Legenda:` and the caption, then loose images, capped at 10 images per turn (the rest are pointed to the gallery). JPEG/PNG up to 5 MB go as WhatsApp images; other formats as documents.
 - **Publication notices.** When a scheduled post publishes or fails, the owner's linked WhatsApp gets a short notice with the permalink or error, and the receipt is saved in Caetano's thread so a reply has context. This covers posts created anywhere, not only through Caetano.
 - **Service window.** Replies outside the 24-hour window wait in the outbox until the owner writes again. Publication notices use the approved update template instead, when `KAPSO_UPDATE_TEMPLATE` is set; without it they wait like replies.
+- **Messages sent in pieces.** Messages that arrive within Kapso's buffer window become one turn. Messages that arrive while a turn is running are folded into it: after each generation pass, `claimFollowups` marks them `merged` and Caetano runs another pass that sees them, then delivers one answer covering everything (at most 3 extra passes). Only messages after the reply start a new turn. The read receipt targets the newest message of a burst.
 - **Scope.** WhatsApp turns carry `WHATSAPP_CHANNEL_PROMPT` (`caetanoAgent.ts`), which keeps Caetano to marketing for the owner's businesses and Vanda Studio help, and declines unrelated requests. This is the product's answer to clause 4.7 of Meta's WhatsApp Business terms (AI providers); confirm the classification with Kapso before a broad launch.
 
 Caetano's normal allowance applies to turns; linking, stopping, notices and delivery do not invoke a model. Fallback transcription is a small OpenRouter call that is not attributed to the user's allowance. No credentials or downloaded media are passed to Python.
@@ -30,7 +31,7 @@ Caetano's normal allowance applies to turns; linking, stopping, notices and deli
 
 6. Deploy development functions with `pnpm exec convex dev --once` from `apps/vanda`.
 7. Register a **number-scoped Kapso v2 webhook**, not a project webhook or raw Meta webhook. Destination: `https://<development-deployment>.convex.site/webhooks/kapso`. Use the `.site` URL, not `.cloud`.
-8. Subscribe to received, sent, delivered, read and failed message events. Enable received-message buffering with a 3-second window and maximum 20 messages. Disable any other agent/flow replying to this number.
+8. Subscribe to received, sent, delivered, read and failed message events. Enable received-message buffering with a 5-second window and maximum 20 messages. Disable any other agent/flow replying to this number.
 9. In the Kapso project settings, turn on automatic audio transcription. Without it, voice notes still work through the OpenRouter fallback, at a small extra cost and latency.
 
 Optional registration script, with the four secret/config variables exported locally:
@@ -67,7 +68,7 @@ Production was configured on September 14, 2026:
 - Backend: `accomplished-kookabura-20`.
 - Number-scoped webhook: `5dc360a1-f409-49b5-ba25-d79889e11c92`.
 - Endpoint: `https://accomplished-kookabura-20.convex.site/webhooks/kapso`.
-- Active v2 payloads, received/sent/delivered/read/failed events, 3-second inbound buffering.
+- Active v2 payloads, received/sent/delivered/read/failed events, inbound buffering (configured at 3 seconds; the recommended window is now 5).
 - Production has its own signing secret. The development sandbox webhook remains unchanged.
 
 Backend and frontend were deployed directly with owner authorization, without pushing upstream. The frontend was staged and returned HTTP 200 before promotion. Unsigned ingress returned 401 and a signed empty batch returned 200. A real production round trip followed: the owner's phone was linked through the production Perfil on September 14, and 7 text replies between September 15 and 24 all reached `read`.
