@@ -38,11 +38,16 @@ const TTL_MS: Record<InstagramOperation, number> = {
   insights: 45 * 60_000,
 };
 
+const jsonRecordSchema = z.record(z.string(), jsonInputSchema);
+
 const stable = (value: JsonInput): JsonInput => {
   if (Array.isArray(value)) return value.map(stable);
 
-  if (value !== null && value !== undefined && !Array.isArray(value)) {
-    const entries = Object.entries(value).filter(([, item]) => item !== undefined);
+  // Only records have keys to sort: Object.entries("a") is [["0", "a"]] and would recurse forever.
+  const record = jsonRecordSchema.safeParse(value);
+
+  if (record.success) {
+    const entries = Object.entries(record.data).filter(([, item]) => item !== undefined);
 
     const ordered = entries.reduce<Array<[string, JsonInput]>>((result, entry) => {
       const index = result.findIndex(([key]) => key.localeCompare(entry[0]) > 0);
