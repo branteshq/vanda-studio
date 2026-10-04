@@ -109,3 +109,52 @@ describe("OpenRouter prompt caching", () => {
     },
   );
 });
+
+describe("OpenRouter image URLs", () => {
+  it("passes Convex storage images by URL instead of downloading them into the action", async () => {
+    const storageUrl =
+      "https://small-ox-943.convex.cloud/api/storage/c3aa8a3e-c6e5-4fc0-989c-740a5a099f6a";
+
+    const fetched: string[] = [];
+    const bodies: string[] = [];
+
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      fetched.push(url);
+      bodies.push(String(init?.body ?? ""));
+
+      return Response.json({
+        id: "gen",
+        model: "openai/gpt-test",
+        choices: [
+          { index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" },
+        ],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      });
+    });
+
+    await generateText({
+      model: openrouterChatModel("openai/gpt-test"),
+      messages: [
+        {
+          role: "assistant",
+          content: [{ type: "tool-call", toolCallId: "t", toolName: "paint", input: {} }],
+        },
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool-result",
+              toolCallId: "t",
+              toolName: "paint",
+              output: { type: "content", value: [{ type: "image-url", url: storageUrl }] },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(fetched.some((url) => url === storageUrl)).toBe(false);
+    expect(bodies.some((body) => body.includes(storageUrl))).toBe(true);
+  });
+});
