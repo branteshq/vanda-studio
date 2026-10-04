@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { BrandContextSnapshot } from "./pipeline/brandContext";
 import { internalQuery } from "./_generated/server";
 import { readPath } from "./workspace";
+import { parseBrandKit, type BrandKit } from "./workspace/brandKit";
 import { MAX_MEMORY_CONTEXT_BYTES, memoryContextBytes, readDocument } from "./workspace/documents";
 
 /** Brand identity is turn context, not an optional tool lookup. Media stays discoverable. */
@@ -76,6 +77,19 @@ export const conversation = internalQuery({
         : []),
       JSON.stringify([...files, ...memory]),
     ].join("\n\n");
+  },
+});
+
+/** The visual kit for server-built image prompts; null while it has no color or font. */
+export const kit = internalQuery({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }): Promise<BrandKit | null> => {
+    const result = await readPath(ctx, accountId, "/brand/kit.json");
+
+    if (!result.ok || result.file.kind !== "text") return null;
+    const parsed = parseBrandKit(result.file.text);
+
+    return parsed && (parsed.colors.length > 0 || parsed.fonts.length > 0) ? parsed : null;
   },
 });
 

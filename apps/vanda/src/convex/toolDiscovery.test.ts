@@ -91,6 +91,7 @@ describe("role-specific discovery", () => {
   const deferred = [
     "cancel_schedule",
     "delete_post",
+    "extend_infinite_carousel",
     "list_accounts",
     "list_vanda_threads",
     "model_preferences",
@@ -109,6 +110,7 @@ describe("role-specific discovery", () => {
     "select_account",
     "set_model_preferences",
     "usage_status",
+    "weave_infinite_carousel",
     "web_search",
   ];
 
@@ -186,6 +188,10 @@ describe("role-specific discovery", () => {
     ["promoção com desconto no bolo", "post-purpose-promocional"],
     ["post tipo story", "post-type-story"],
     ["post tipo carrossel", "post-type-carousel"],
+    ["post tipo carrossel infinito", "post-type-infinite-carousel"],
+    ["carrossel contínuo panorâmico em loop", "post-type-infinite-carousel"],
+    ["carrossel com mais apelo visual", "post-type-infinite-carousel"],
+    ["carrossel para transmitir mais informação", "post-type-carousel"],
     ["criar arte de post", "post-production"],
     ["post-purpose-prova-social", "post-purpose-prova-social"],
   ])("finds the %s skill with its location", async (query, name) => {
@@ -198,6 +204,22 @@ describe("role-specific discovery", () => {
       "skills.0",
       expect.objectContaining({ name, location: `/skills/${name}/SKILL.md` }),
     );
+  });
+
+  it("finds the infinite carousel skill together with its seam tool", async () => {
+    const result = await vandaToolDiscovery.search.execute!(
+      { query: "carrossel infinito" },
+      { toolCallId: "search", messages: [] },
+    );
+
+    expect(result).toMatchObject({
+      skills: expect.arrayContaining([
+        expect.objectContaining({ name: "post-type-infinite-carousel" }),
+      ]),
+      tools: expect.arrayContaining([
+        expect.objectContaining({ name: "extend_infinite_carousel" }),
+      ]),
+    });
   });
 
   it("indexes on-demand skills but never always-on ones, and skills never unlock tools", async () => {

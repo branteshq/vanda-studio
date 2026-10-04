@@ -132,6 +132,8 @@ export const paint = internalAction({
     aspectRatio: aspectRatioValidator,
     referenceImageIds: v.optional(v.array(v.id("images"))),
     editOfImageId: v.optional(v.id("images")),
+    // Server-built working image (e.g. a carousel seam patch) to edit without a gallery row.
+    editOfStorageId: v.optional(v.id("_storage")),
     model: v.optional(v.string()),
     name: v.optional(v.string()),
     promptAuthor: v.optional(v.union(v.literal("vanda"), v.literal("user"))),
@@ -179,6 +181,7 @@ async function paintImage(
     aspectRatio,
     referenceImageIds,
     editOfImageId,
+    editOfStorageId,
     model,
     name,
     promptAuthor,
@@ -192,6 +195,7 @@ async function paintImage(
     aspectRatio: AspectRatio;
     referenceImageIds?: Id<"images">[] | undefined;
     editOfImageId?: Id<"images"> | undefined;
+    editOfStorageId?: Id<"_storage"> | undefined;
     model?: string | undefined;
     name?: string | undefined;
     promptAuthor?: "vanda" | "user" | undefined;
@@ -236,7 +240,9 @@ async function paintImage(
 
     const editUrl = resolved.editSource
       ? await resolveSourceUrl(ctx, resolved.editSource)
-      : undefined;
+      : editOfStorageId
+        ? await resolveSourceUrl(ctx, { externalUrl: null, storageId: editOfStorageId })
+        : undefined;
 
     const inputReferences = [
       ...new Set([editUrl, ...referenceUrls].filter((url): url is string => url !== undefined)),

@@ -2,7 +2,13 @@ import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
 import { isConnectedImageModel, isKnownImageModel } from "./imageModels";
 import { isConnectedSubscriber } from "./openaiSub";
@@ -152,6 +158,31 @@ async function deleteImage(
 
   await ctx.db.delete(imageId);
 }
+
+/** Drop server-side working images (e.g. repainted carousel seams) once merged. */
+export const discardWorking = internalMutation({
+  args: { accountId: v.id("accounts"), imageIds: v.array(v.id("images")) },
+  handler: async (ctx, { accountId, imageIds }): Promise<void> => {
+    for (const imageId of imageIds) await deleteImage(ctx, accountId, imageId);
+  },
+});
+
+/** Drop superseded infinite-carousel slides, but only ones the chain itself saved. */
+export const discardChainSlides = internalMutation({
+  args: {
+    accountId: v.id("accounts"),
+    imageIds: v.array(v.id("images")),
+    promptPrefix: v.string(),
+  },
+  handler: async (ctx, { accountId, imageIds, promptPrefix }): Promise<void> => {
+    for (const imageId of imageIds) {
+      const image = await ctx.db.get(imageId);
+
+      if (image?.accountId === accountId && image.prompt?.startsWith(promptPrefix))
+        await deleteImage(ctx, accountId, imageId);
+    }
+  },
+});
 
 /** Remove a gallery item, freeing its stored bytes when nothing else links them. */
 export const remove = mutation({

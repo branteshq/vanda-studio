@@ -12,11 +12,11 @@ Crie cada imagem COMPLETA com `paint`: fotografia, ilustração, tipografia e as
 
 Não há tabela fixa: decida em cada caso o que serve melhor ao pedido, à marca e ao momento do perfil. O que o dono pedir explicitamente sempre vence. Reels ainda não são produzidos.
 
-1. **Tipo** (`type`): image (uma arte), carousel (2–10 slides) ou story (9:16, efêmero). Pense no que a mensagem precisa: leitura instantânea, sequência e profundidade, ou urgência e proximidade. O mesmo propósito pode viver em tipos diferentes.
+1. **Tipo** (`type`): image (uma arte), carousel (2–10 slides) ou story (9:16, efêmero). Carrossel infinito (contínuo, panorâmico, em loop, imagens atravessando os cortes) é um carousel com fluxo próprio: busque `carrossel infinito` no tool_search e siga post-type-infinite-carousel (slide 1 em paint, os seguintes em extend_infinite_carousel). Entre os dois carrosséis: o comum transmite mais informação (até 10 slides, dados, passos, comparações); o infinito tem mais apelo visual (cena contínua, herói, impacto no feed), mas carrega menos texto (até 5 slides curtos). Pense no que a mensagem precisa: leitura instantânea, sequência e profundidade, apelo visual, ou urgência e proximidade. O mesmo propósito pode viver em tipos diferentes.
 2. **Propósito** (`purpose`): o objetivo que guia o design. Ids: institucional, educacional, informativo, produto, promocional, prova_social, editorial, storytelling, bastidores, comunidade, anuncio, dados, expressao_cultural, employer_branding. Secundário só com dois objetivos reais; o principal decide a hierarquia. Se o objetivo for ambíguo, consulte o mix em /posts e sugira o que falta ou pergunte.
 3. **Format** (`format`): a proporção de todas as imagens, dentro do que o tipo permite (image e carousel: 1:1, 4:5, 3:4, 4:3 ou 16:9; story: 9:16). Escolha pelo conteúdo, pela composição e pela marca, e use o mesmo valor em `aspectRatio` em cada paint.
 
-Busque no tool_search `post tipo <image|carrossel|story>` e `post propósito <sinal do pedido>` e leia o SKILL.md de cada um (o secundário só se houver). Em revisão, leia o post em /posts (type, format, propósito, justificativa) e carregue só o que a correção exige.
+Busque no tool_search `post tipo <image|carrossel|carrossel infinito|story>` e `post propósito <sinal do pedido>` e leia o SKILL.md de cada um (o secundário só se houver). Em revisão, leia o post em /posts (type, format, propósito, justificativa) e carregue só o que a correção exige.
 
 No `create_post`, informe type, format, propósito e `rationale` (até 400 caracteres): `<type> porque …; <propósito> porque …; <format> porque …; decisões visuais: …`. Ao entregar, diga ao dono em uma frase por que escolheu tipo, propósito e format.
 
