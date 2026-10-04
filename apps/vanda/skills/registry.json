@@ -59,5 +59,8 @@
   },
   "post-purpose-storytelling": {
     "alwaysApply": false
+  },
+  "post-type-infinite-carousel": {
+    "alwaysApply": false
   }
 }
