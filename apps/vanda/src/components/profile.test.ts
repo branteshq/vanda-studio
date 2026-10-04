@@ -275,3 +275,38 @@ it("does not claim zero usage or a trial plan while the summary is loading", asy
   expect(container.querySelector('[role="progressbar"]')).toBeNull();
   expect(container.textContent).not.toContain("Teste grátis");
 });
+
+const renderConectado = async (connected: boolean) => {
+  mocks.query.mockImplementation((ref) => {
+    const name = getFunctionName(ref);
+
+    if (name === "usage:summary") return { plan: "conectado", usedPct: 100, limited: true };
+
+    if (name === "openaiSub:connectionStatus") return { connected, connectedAt: null };
+
+    if (name === "whatsappData:state")
+      return { connected: false, configured: true, deliveries: [] };
+
+    return undefined;
+  });
+  await act(async () => root.render(createElement(ProfilePage, { runtime })));
+};
+
+it("only claims ChatGPT usage while the OpenAI account is actually connected", async () => {
+  await renderConectado(true);
+  expect(container.textContent).toContain("Uso pela sua assinatura do ChatGPT");
+  expect(container.querySelector('[role="alert"]')).toBeNull();
+});
+
+it("warns and routes to connections when the Conectado plan lost its OpenAI login", async () => {
+  await renderConectado(false);
+  expect(container.textContent).not.toContain("Uso pela sua assinatura do ChatGPT");
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+    "Conta OpenAI desconectada",
+  );
+  // The balance bar is real again: usage falls back to the plan's balance.
+  expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
+
+  await click("Conectar OpenAI");
+  expect(container.querySelector("h1")?.textContent).toBe("Conexões");
+});

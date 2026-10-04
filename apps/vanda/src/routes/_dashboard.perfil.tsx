@@ -421,6 +421,7 @@ function ProfilePageContent() {
                     Gerenciar plano
                   </Button>
                 }
+                onConnectOpenAi={() => setPersonalTab("conexoes")}
               />
             </div>
           ) : (
@@ -433,7 +434,7 @@ function ProfilePageContent() {
           )}
           {tab === "plano" ? (
             <div className="space-y-8">
-              <UsageCard />
+              <UsageCard onConnectOpenAi={() => setPersonalTab("conexoes")} />
               <AccountTab />
             </div>
           ) : null}
@@ -488,9 +489,22 @@ function ProfilePageContent() {
  * The shared usage summary: the plan name and the bar —
  * the owner only ever sees a percentage, never the underlying money.
  */
-function UsageCard({ action }: { action?: ReactNode }) {
-  const summary = useContext(ProfileRuntimeContext).useUsageSummary();
+function UsageCard({
+  action,
+  onConnectOpenAi,
+}: {
+  action?: ReactNode;
+  onConnectOpenAi?: () => void;
+}) {
+  const runtime = useContext(ProfileRuntimeContext);
+  const summary = runtime.useUsageSummary();
+  const openAi = runtime.useOpenAiConnection().status;
   const pct = summary?.usedPct ?? 0;
+  const conectado = summary?.plan ? tierOfPlan(summary.plan) === "conectado" : false;
+  // The plan only routes through ChatGPT while the OpenAI login exists; without
+  // it, usage silently falls back to the plan's balance.
+  const viaChatGpt = conectado && openAi?.connected === true;
+  const disconnected = conectado && openAi !== undefined && !openAi?.connected;
 
   return (
     <section
@@ -509,14 +523,14 @@ function UsageCard({ action }: { action?: ReactNode }) {
         {action}
       </div>
       <div className="p-5 sm:p-6">
-        {summary === undefined ? (
+        {summary === undefined || (conectado && openAi === undefined) ? (
           <div className="space-y-4" role="status" aria-label="Carregando uso do plano">
             <Skeleton className="h-10 w-24" />
             <Skeleton className="h-2 w-full rounded-full" />
             <Skeleton className="h-4 w-48" />
           </div>
-        ) : summary?.plan && tierOfPlan(summary.plan) === "conectado" ? (
-          // Conectado: inference rides the owner's ChatGPT — no bar to show.
+        ) : viaChatGpt ? (
+          // Conectado and logged in: inference rides the owner's ChatGPT — no bar to show.
           <>
             <p className="text-body font-medium">Uso pela sua assinatura do ChatGPT</p>
             <p className="mt-2 text-body-sm text-text-3">
@@ -525,6 +539,25 @@ function UsageCard({ action }: { action?: ReactNode }) {
           </>
         ) : (
           <>
+            {disconnected ? (
+              <div
+                role="alert"
+                className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-body font-medium">Conta OpenAI desconectada</p>
+                  <p className="mt-1 text-body-sm text-text-3">
+                    Sem a conexão, conversas e imagens usam o saldo do plano e param quando ele
+                    acaba. Conecte para usar sua assinatura do ChatGPT.
+                  </p>
+                </div>
+                {onConnectOpenAi ? (
+                  <Button size="sm" onClick={onConnectOpenAi}>
+                    Conectar OpenAI
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
             <div className="flex items-baseline gap-2">
               <span className="text-4xl font-medium tracking-tight tabular-nums">{pct}%</span>
               <span className="text-body-sm text-text-3">utilizado</span>
@@ -552,7 +585,9 @@ function UsageCard({ action }: { action?: ReactNode }) {
               {summary?.limited
                 ? summary.chatLimited
                   ? "Limite atingido. Mude de plano ou aguarde a renovação."
-                  : "Limite dos serviços pagos pela Vanda atingido. Conversa e imagens pela sua assinatura do ChatGPT continuam disponíveis."
+                  : disconnected
+                    ? "Limite atingido. Conecte sua conta OpenAI para continuar pela sua assinatura do ChatGPT."
+                    : "Limite dos serviços pagos pela Vanda atingido. Conversa e imagens pela sua assinatura do ChatGPT continuam disponíveis."
                 : summary?.renewsAt
                   ? `Renova em ${new Date(summary.renewsAt).toLocaleDateString("pt-BR")}`
                   : "Crédito de teste — assine para renovar todo mês."}
