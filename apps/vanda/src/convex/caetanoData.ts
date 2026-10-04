@@ -7,15 +7,7 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
-import { requireTextModel, resolveCaetanoModel, resolveOrchestratorModel } from "./agentModels";
-import {
-  DEFAULT_IMAGE_MODEL,
-  isKnownImageModel,
-  isConnectedImageModel,
-  resolveConnectedImageModel,
-} from "./imageModels";
-import { isConnectedSubscriber } from "./openaiSub";
-import { budgetOf } from "./usage";
+import { modelPreferencesOf } from "./settings/registry";
 
 const accountThreadKey = (accountId: Id<"accounts">): string => String(accountId);
 
@@ -105,93 +97,15 @@ export const selectAccount = internalMutation({
   },
 });
 
-export const usageStatus = internalQuery({
-  args: { userId: v.id("users") },
-  handler: async (ctx, { userId }) => {
-    const user = await ctx.db.get(userId);
-
-    if (!user) throw new Error("user not found");
-    const state = await budgetOf(ctx, user);
-
-    const usedPct =
-      state.allowanceMicroUsd > 0
-        ? Math.min(100, Math.round((state.spentMicroUsd / state.allowanceMicroUsd) * 100))
-        : 100;
-
-    return {
-      plan: user.planId ?? "trial",
-      usedPct,
-      limited: !state.ok,
-      renewsAt: user.billingPeriodEnd ?? null,
-    };
-  },
-});
-
+/** Resolved model ids for an agent turn; the same reader as settings_get. */
 export const modelPreferences = internalQuery({
   args: { userId: v.id("users") },
   handler: async (ctx, { userId }) => {
     const user = await ctx.db.get(userId);
 
     if (!user) throw new Error("user not found");
-    const conectado = isConnectedSubscriber(user);
 
-    return {
-      orchestrator: resolveOrchestratorModel(user.orchestratorModel, { conectado }),
-      caetano: resolveCaetanoModel(user.caetanoModel, { conectado }),
-      image: conectado
-        ? resolveConnectedImageModel(user.imageModel)
-        : user.imageModel && isKnownImageModel(user.imageModel)
-          ? user.imageModel
-          : DEFAULT_IMAGE_MODEL,
-      conectado,
-    };
-  },
-});
-
-interface ModelPreferencesPatch {
-  orchestratorModel?: string;
-  caetanoModel?: string;
-  imageModel?: string;
-  updatedAt: number;
-}
-
-export const setModelPreferences = internalMutation({
-  args: {
-    userId: v.id("users"),
-    orchestrator: v.optional(v.string()),
-    caetano: v.optional(v.string()),
-    image: v.optional(v.string()),
-  },
-  handler: async (ctx, { userId, orchestrator, caetano, image }): Promise<void> => {
-    const user = await ctx.db.get(userId);
-
-    if (!user) throw new Error("user not found");
-    const conectado = isConnectedSubscriber(user);
-
-    const patch: ModelPreferencesPatch = {
-      updatedAt: Date.now(),
-    };
-
-    if (orchestrator !== undefined) {
-      const selected = requireTextModel(orchestrator, conectado);
-
-      patch.orchestratorModel = selected.id;
-    }
-
-    if (caetano !== undefined) {
-      const selected = requireTextModel(caetano, conectado);
-      patch.caetanoModel = selected.id;
-    }
-
-    if (image !== undefined) {
-      if (!isKnownImageModel(image)) throw new Error("modelo de imagem desconhecido");
-
-      if (conectado && !isConnectedImageModel(image))
-        throw new Error("modelo indisponível pela assinatura do ChatGPT");
-      patch.imageModel = image;
-    }
-
-    await ctx.db.patch(userId, patch);
+    return modelPreferencesOf(user);
   },
 });
 

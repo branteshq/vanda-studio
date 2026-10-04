@@ -1,16 +1,10 @@
 import { v } from "convex/values";
 import { z } from "zod";
-import { requireTextModel, resolveCaetanoModel, resolveOrchestratorModel } from "./agentModels";
-import {
-  DEFAULT_IMAGE_MODEL,
-  isKnownImageModel,
-  isConnectedImageModel,
-  resolveConnectedImageModel,
-} from "./imageModels";
+import { DEFAULT_IMAGE_MODEL, isKnownImageModel } from "./imageModels";
 import type { Id } from "./_generated/dataModel";
 import { internalQuery, mutation, query } from "./_generated/server";
 import { requireUser } from "./authz";
-import { isConnectedSubscriber } from "./openaiSub";
+import { modelPreferencesOf, writeSetting } from "./settings/registry";
 
 const identityProfileSchema = z.object({
   name: z.string().optional(),
@@ -126,29 +120,18 @@ export const modelPreferences = query({
       .unique();
 
     if (!user) return null;
-    const conectado = isConnectedSubscriber(user);
 
-    return {
-      orchestrator: resolveOrchestratorModel(user.orchestratorModel, { conectado }),
-      caetano: resolveCaetanoModel(user.caetanoModel, { conectado }),
-      image: conectado
-        ? resolveConnectedImageModel(user.imageModel)
-        : user.imageModel && isKnownImageModel(user.imageModel)
-          ? user.imageModel
-          : DEFAULT_IMAGE_MODEL,
-      conectado,
-    };
+    return modelPreferencesOf(user);
   },
 });
 
-/** Choose the model Vanda thinks with. Only catalog ids are accepted. */
+// The pickers write through the settings registry, the same path the agents use.
+
+/** Choose the model Vanda thinks with. Only catalog models are accepted. */
 export const setAgentModel = mutation({
   args: { modelId: v.string() },
   handler: async (ctx, { modelId }): Promise<void> => {
-    const user = await requireUser(ctx);
-    const model = requireTextModel(modelId, isConnectedSubscriber(user));
-
-    await ctx.db.patch(user._id, { orchestratorModel: model.id, updatedAt: Date.now() });
+    await writeSetting(ctx, await requireUser(ctx), "models.vanda", modelId);
   },
 });
 
@@ -156,27 +139,15 @@ export const setAgentModel = mutation({
 export const setCaetanoModel = mutation({
   args: { modelId: v.string() },
   handler: async (ctx, { modelId }): Promise<void> => {
-    const user = await requireUser(ctx);
-    const model = requireTextModel(modelId, isConnectedSubscriber(user));
-    await ctx.db.patch(user._id, { caetanoModel: model.id, updatedAt: Date.now() });
+    await writeSetting(ctx, await requireUser(ctx), "models.caetano", modelId);
   },
 });
 
-/**
- * Choose the default painter, validating the subscription transport when active.
- */
+/** Choose the default painter, validating the subscription transport when active. */
 export const setImageModel = mutation({
   args: { modelId: v.string() },
   handler: async (ctx, { modelId }): Promise<void> => {
-    const user = await requireUser(ctx);
-
-    if (!isKnownImageModel(modelId)) throw new Error("modelo de imagem desconhecido");
-
-    if (isConnectedSubscriber(user) && !isConnectedImageModel(modelId)) {
-      throw new Error("modelo indisponível pela assinatura do ChatGPT");
-    }
-
-    await ctx.db.patch(user._id, { imageModel: modelId, updatedAt: Date.now() });
+    await writeSetting(ctx, await requireUser(ctx), "models.image", modelId);
   },
 });
 

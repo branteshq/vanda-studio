@@ -1,5 +1,13 @@
 import { z } from "zod";
 
+const mediaSchema = z
+  .object({
+    id: z.string().optional(),
+    mime_type: z.string().optional(),
+    caption: z.string().optional(),
+  })
+  .passthrough();
+
 const messageSchema = z.object({
   phone_number_id: z.string(),
   message: z
@@ -10,11 +18,16 @@ const messageSchema = z.object({
       from: z.string().optional(),
       from_user_id: z.string().optional(),
       text: z.object({ body: z.string() }).optional(),
+      image: mediaSchema.optional(),
+      audio: mediaSchema.optional(),
       biz_opaque_callback_data: z.string().optional(),
       kapso: z
         .object({
           direction: z.string().optional(),
           origin: z.string().optional(),
+          media_url: z.string().optional(),
+          media_data: z.object({ content_type: z.string().optional() }).passthrough().optional(),
+          transcript: z.object({ text: z.string().optional() }).passthrough().optional(),
           statuses: z
             .array(z.object({ biz_opaque_callback_data: z.string().optional() }).passthrough())
             .optional(),
@@ -46,7 +59,60 @@ export type WhatsAppEvent = {
   text: string;
   timestamp: number;
   callbackId?: string;
+  /** Inbound media still to download: images, or a voice note Kapso did not transcribe. */
+  media?: InboundMedia;
 };
+
+export type InboundMedia = {
+  kind: "image" | "audio";
+  id: string;
+  mimeType?: string;
+  url?: string;
+};
+
+const MAX_TEXT = 16000;
+
+/** Text the agent sees for an inbound message; media is attached separately. */
+function inboundContent(
+  message: z.infer<typeof messageSchema>["message"],
+): Pick<WhatsAppEvent, "text" | "media"> {
+  const kapso = message.kapso;
+  const mimeType = kapso?.media_data?.content_type;
+
+  const media = (kind: InboundMedia["kind"], source?: z.infer<typeof mediaSchema>) => {
+    if (!source?.id) return undefined;
+    const value: InboundMedia = { kind, id: source.id };
+    const type = mimeType ?? source.mime_type;
+
+    if (type) value.mimeType = type;
+
+    if (kapso?.media_url) value.url = kapso.media_url;
+
+    return value;
+  };
+
+  const content: Pick<WhatsAppEvent, "text" | "media"> = { text: "" };
+
+  if (message.type === "text") content.text = (message.text?.body ?? "").slice(0, MAX_TEXT);
+
+  if (message.type === "image") {
+    content.text = (message.image?.caption ?? "").slice(0, MAX_TEXT);
+    const image = media("image", message.image);
+
+    if (image) content.media = image;
+  }
+
+  if (message.type === "audio") {
+    const transcript = kapso?.transcript?.text?.trim();
+    const audio = transcript ? undefined : media("audio", message.audio);
+
+    if (transcript) content.text = `[Áudio transcrito] ${transcript}`.slice(0, MAX_TEXT);
+
+    if (audio) content.media = audio;
+  }
+
+  return content;
+}
 
 export function parseWebhook(
   body: WebhookPayload,
@@ -82,9 +148,11 @@ export function parseWebhook(
       messageId: message.id,
       sender,
       recipientKind: bsuid ? "bsuid" : "phone",
-      text: message.type === "text" ? (message.text?.body ?? "").slice(0, 16000) : "",
+      text: "",
       timestamp: Number.isFinite(timestamp) ? timestamp : 0,
     };
+
+    if (event === "whatsapp.message.received") Object.assign(result, inboundContent(message));
 
     if (phone && /^\+?\d{7,15}$/.test(phone)) result.phone = phone.replace(/^\+/, "");
 
@@ -141,6 +209,21 @@ export const isStop = (text: string): boolean =>
 
 export const linkToken = (text: string): string | null =>
   /^vanda conectar ([0-9a-f]{64})$/i.exec(text.trim())?.[1]?.toLowerCase() ?? null;
+
+/**
+ * Meta rejects template parameters with line breaks, tabs or more than four
+ * consecutive spaces; keep one short line.
+ */
+export function templateParam(text: string): string {
+  const line = text
+    .replace(/\s+/g, " ")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .trim();
+
+  const chars = Array.from(line);
+
+  return chars.length > 900 ? `${chars.slice(0, 899).join("")}…` : line;
+}
 
 export const serviceWindowOpen = (lastInboundAt: number, now = Date.now()): boolean =>
   now < lastInboundAt + 24 * 60 * 60_000;

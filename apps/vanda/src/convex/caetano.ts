@@ -25,15 +25,28 @@ import { resolveOrchestratorModel } from "./agentModels";
 import { isConnectedSubscriber } from "./openaiSub";
 import { codexChatModel } from "./pipeline/codex";
 import { requireOwnedAccount, requireUser } from "./authz";
-import { caetano, caetanoSystemPrompt, caetanoToolDiscovery } from "./caetanoAgent";
+import {
+  caetano,
+  caetanoSystemPrompt,
+  caetanoToolDiscovery,
+  WHATSAPP_CHANNEL_PROMPT,
+} from "./caetanoAgent";
 import { messageWithImages, resolveMessageImages } from "./messageImages";
 import { chatUsageHandler, failedModelAttempt, openrouterChatModel, turnClock } from "./chatModel";
 import { conversationContext } from "./conversationContext";
 import { budgetOf } from "./usage";
 import { errorMessage, publicError } from "../errors";
 import { errorCodeValidator, safeFailure } from "./publicErrors";
+import { dedupeResources, type ThreadResource } from "./resourceRefs";
+import { enqueueItems, type OutboundItem } from "./whatsappData";
 
 const threadKey = (userId: Id<"users">): string => `caetano:${userId}`;
+
+// Bounds a turn when the owner keeps typing; later messages then queue as a new turn.
+const MAX_FOLLOWUP_PASSES = 3;
+
+const FOLLOWUP_PROMPT =
+  "O dono mandou mais mensagens enquanto você trabalhava, e sua resposta anterior ainda não foi enviada a ele. Trate as mensagens como um pedido só: responda numa única mensagem que cubra tudo, aproveitando o que da resposta anterior continuar valendo. Não refaça ações já concluídas.";
 
 const requireCaetanoThread = async (
   ctx: QueryCtx | MutationCtx,
@@ -203,15 +216,25 @@ export const submitMessageForUser = internalMutation({
     userId: v.id("users"),
     threadId: v.optional(v.string()),
     prompt: v.string(),
+    imageIds: v.optional(v.array(v.id("images"))),
     connectionId: v.optional(v.id("whatsappConnections")),
     externalMessageId: v.optional(v.string()),
   },
-  handler: async (ctx, { userId, ...input }): Promise<{ threadId: string; messageId: string }> => {
+  handler: async (
+    ctx,
+    { userId, imageIds, ...input },
+  ): Promise<{ threadId: string; messageId: string }> => {
     const user = await ctx.db.get(userId);
 
     if (!user) throw new Error("user not found");
+    let images: Awaited<ReturnType<typeof resolveMessageImages>> = [];
 
-    return submitMessage(ctx, user, input);
+    if (imageIds?.length) {
+      if (!user.activeAccountId) throw new Error("nenhuma conta ativa");
+      images = await resolveMessageImages(ctx, user.activeAccountId, imageIds);
+    }
+
+    return submitMessage(ctx, user, { ...input, images });
   },
 });
 
@@ -284,6 +307,37 @@ export const turnIsActive = internalQuery({
   },
 });
 
+/**
+ * Messages the owner sent while this turn was running join it instead of
+ * becoming separate turns: people often type one request across several messages.
+ */
+export const claimFollowups = internalMutation({
+  args: { activityId: v.id("caetanoThreadActivity") },
+  handler: async (ctx, { activityId }): Promise<string[]> => {
+    const activity = await ctx.db.get(activityId);
+
+    if (!activity) return [];
+
+    const queued = await ctx.db
+      .query("caetanoInbox")
+      .withIndex("by_user_status", (q) => q.eq("userId", activity.userId).eq("status", "queued"))
+      .collect();
+
+    const followups = queued.filter((row) => row.threadId === activity.threadId);
+
+    if (followups.length === 0) return [];
+
+    for (const row of followups) await ctx.db.patch(row._id, { status: "merged" });
+
+    const ids = followups.map((row) => row.promptMessageId);
+    await ctx.db.patch(activityId, {
+      followupMessageIds: [...(activity.followupMessageIds ?? []), ...ids],
+    });
+
+    return ids;
+  },
+});
+
 const deliverForActivity = async (
   ctx: MutationCtx,
   activityId: Id<"caetanoThreadActivity">,
@@ -292,27 +346,89 @@ const deliverForActivity = async (
   const activity = await ctx.db.get(activityId);
   const inbox = activity?.inboxId ? await ctx.db.get(activity.inboxId) : null;
 
-  if (inbox?.connectionId && inbox.status === "running" && text.trim()) {
-    const manifest = await ctx.runQuery(internal.threadResources.forPrompt, {
-      threadId: inbox.threadId,
-      anchorMessageId: inbox.promptMessageId,
-    });
+  // Media still goes out when a turn ends with tool output and no closing text.
+  if (inbox?.connectionId && inbox.status === "running") {
+    // A folded turn presents resources under each message it answered.
+    const presented: ThreadResource[] = [];
 
-    // Explicit channel URL prevents a sandbox response linking to production data.
-    const baseUrl = (process.env.KAPSO_APP_URL ?? "").replace(/\/+$/, "");
+    for (const anchorMessageId of [
+      inbox.promptMessageId,
+      ...(activity?.followupMessageIds ?? []),
+    ]) {
+      const manifest = await ctx.runQuery(internal.threadResources.forPrompt, {
+        threadId: inbox.threadId,
+        anchorMessageId,
+      });
 
-    const links = manifest.presented
-      .filter((resource) => resource.kind === "link" && /^https?:\/\//.test(resource.url))
-      .map((resource) => (resource.kind === "link" ? `${resource.title}: ${resource.url}` : ""));
+      presented.push(...manifest.presented);
+    }
 
-    if (manifest.presented.some((resource) => resource.kind !== "link") && baseUrl)
-      links.push(`Ver resultados no Vanda Studio: ${baseUrl}/caetano`);
-    await ctx.runMutation(internal.whatsappData.enqueueReply, {
-      connectionId: inbox.connectionId,
-      text: [text, ...links].join("\n\n"),
-      sourceMessageId: inbox.promptMessageId,
-    });
+    await enqueueItems(
+      ctx,
+      inbox.connectionId,
+      await whatsappReplyItems(ctx, text, dedupeResources(presented)),
+      inbox.promptMessageId,
+    );
   }
+};
+
+// One WhatsApp turn never floods the chat: a carousel is at most 10 images.
+const MAX_WHATSAPP_IMAGES_PER_TURN = 10;
+
+/** Text first, then each presented post (images + caption), then loose images. */
+const whatsappReplyItems = async (
+  ctx: MutationCtx,
+  text: string,
+  presented: readonly ThreadResource[],
+): Promise<OutboundItem[]> => {
+  const notes: string[] = [];
+  const media: OutboundItem[] = [];
+  const sent = new Set<Id<"images">>();
+  let skipped = 0;
+
+  const addImage = (imageId: Id<"images">) => {
+    if (sent.has(imageId)) return;
+    sent.add(imageId);
+
+    if (sent.size > MAX_WHATSAPP_IMAGES_PER_TURN) {
+      skipped++;
+
+      return;
+    }
+
+    media.push({ kind: "image", imageId });
+  };
+
+  for (const resource of presented) {
+    if (resource.kind === "link" && /^https?:\/\//.test(resource.url))
+      notes.push(`${resource.title}: ${resource.url}`);
+    else if (resource.kind === "document")
+      notes.push(`Documento: ${resource.title ?? resource.path}`);
+  }
+
+  for (const resource of presented) {
+    if (resource.kind !== "post") continue;
+    const post = await ctx.db.get(resource.postId);
+
+    if (!post || post.accountId !== resource.accountId) continue;
+
+    for (const imageId of post.imageIds) addImage(imageId);
+
+    if (post.caption.trim()) media.push({ kind: "text", text: `Legenda:\n${post.caption}` });
+  }
+
+  for (const resource of presented) if (resource.kind === "image") addImage(resource.imageId);
+
+  // Explicit channel URL prevents a sandbox response linking to production data.
+  const baseUrl = (process.env.KAPSO_APP_URL ?? "").replace(/\/+$/, "");
+
+  if (skipped > 0)
+    media.push({
+      kind: "text",
+      text: `Mais ${skipped} ${skipped === 1 ? "imagem" : "imagens"} na galeria${baseUrl ? `: ${baseUrl}/galeria` : "."}`,
+    });
+
+  return [{ kind: "text", text: [text, ...notes].join("\n\n") }, ...media];
 };
 
 export const deliverTurn = internalMutation({
@@ -368,59 +484,75 @@ export const generateResponse = internalAction({
           })
         : "Nenhum negócio ativo. Não invente uma identidade de marca.";
 
-      const result = await caetano.streamText(
-        {
-          ...ctx,
-          ownerUserId: userId,
-          accountScope,
-          activityId,
-          caetanoThreadId: threadId,
-        },
-        { threadId },
-        {
-          promptMessageId,
-          model,
-          maxOutputTokens: 8192,
-          providerOptions: { openrouter: { session_id: threadId } },
-          prepareStep: caetanoToolDiscovery.prepareStep,
-          system:
-            `${caetanoSystemPrompt()}\n\n${brand}` +
-            (turn.channel === "whatsapp"
-              ? "\n\nEste turno veio do WhatsApp, que neste sandbox aceita somente texto. Não diga que imagens ou arquivos foram anexados aqui. Recursos apresentados ficam disponíveis na conversa web; links de acesso serão incluídos pelo sistema quando disponíveis. Responda de forma curta, sem tabelas Markdown."
-              : ""),
-          onError: ({ error }) => {
-            streamError = error;
+      const system =
+        `${caetanoSystemPrompt()}\n\n${brand}` +
+        (turn.channel === "whatsapp" ? `\n\n${WHATSAPP_CHANNEL_PROMPT}` : "");
+
+      // One pass answers through `prompt`. Messages that arrive meanwhile are folded
+      // in by another pass, and only the final answer is delivered.
+      const run = async (prompt: string, followup: boolean): Promise<string> => {
+        const result = await caetano.streamText(
+          {
+            ...ctx,
+            ownerUserId: userId,
+            accountScope,
+            activityId,
+            caetanoThreadId: threadId,
           },
-        },
-        {
-          saveStreamDeltas: true,
-          usageHandler: chatUsageHandler("caetano_chat", promptMessageId),
-          contextOptions: { recentMessages: 0 },
-          contextHandler: conversationContext(turnClock(), {
-            threadId,
-            promptMessageId,
-            ownerKey: threadKey(userId),
-            userId,
-            subscription: sub.active,
-            summaryModel: sub.active
-              ? model
-              : openrouterChatModel("openai/gpt-5.6-luna", () =>
-                  failedModelAttempt(ctx, {
-                    userId,
-                    threadId,
-                    requestId: promptMessageId,
-                    model: "openai/gpt-5.6-luna",
-                    kind: "context_summary",
-                  }),
-                ),
-          }),
-        },
-      );
+          { threadId },
+          {
+            promptMessageId: prompt,
+            model,
+            maxOutputTokens: 8192,
+            providerOptions: { openrouter: { session_id: threadId } },
+            prepareStep: caetanoToolDiscovery.prepareStep,
+            system: followup ? `${system}\n\n${FOLLOWUP_PROMPT}` : system,
+            onError: ({ error }) => {
+              streamError = error;
+            },
+          },
+          {
+            saveStreamDeltas: true,
+            usageHandler: chatUsageHandler("caetano_chat", prompt),
+            contextOptions: { recentMessages: 0 },
+            contextHandler: conversationContext(turnClock(), {
+              threadId,
+              promptMessageId: prompt,
+              ownerKey: threadKey(userId),
+              userId,
+              subscription: sub.active,
+              summaryModel: sub.active
+                ? model
+                : openrouterChatModel("openai/gpt-5.6-luna", () =>
+                    failedModelAttempt(ctx, {
+                      userId,
+                      threadId,
+                      requestId: prompt,
+                      model: "openai/gpt-5.6-luna",
+                      kind: "context_summary",
+                    }),
+                  ),
+            }),
+          },
+        );
 
-      await result.consumeStream();
+        await result.consumeStream();
 
-      if (streamError !== undefined) throw streamError;
-      const text = await result.text;
+        if (streamError !== undefined) throw streamError;
+
+        return result.text;
+      };
+
+      let text = await run(promptMessageId, false);
+
+      for (let pass = 0; pass < MAX_FOLLOWUP_PASSES; pass++) {
+        const followups = await ctx.runMutation(internal.caetano.claimFollowups, { activityId });
+        const latest = followups.at(-1);
+
+        if (!latest) break;
+        text = await run(latest, true);
+      }
+
       await ctx.runMutation(internal.caetano.deliverTurn, { activityId, text });
 
       return text;

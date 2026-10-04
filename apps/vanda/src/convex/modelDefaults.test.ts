@@ -18,8 +18,8 @@ import {
 } from "./imageModels";
 
 describe("model defaults", () => {
-  it("offers GPT-6 Luna and Sol on both transports and Opus 5.5 only on OpenRouter", () => {
-    for (const id of ["openai/gpt-6-luna", "openai/gpt-6-sol"]) {
+  it("offers GPT-6 Luna and GPT-6.1 Sol on both transports and Opus 5.5 only on OpenRouter", () => {
+    for (const id of ["openai/gpt-6-luna", "openai/gpt-6.1-sol"]) {
       for (const conectado of [true, false]) {
         expect(requireTextModel(id, conectado).maker).toBe("OpenAI");
         expect(resolveOrchestratorModel(id, { conectado })).toBe(id);
@@ -33,6 +33,17 @@ describe("model defaults", () => {
     expect(resolveOrchestratorModel(opus, { conectado: true })).toBe(
       DEFAULT_CODEX_ORCHESTRATOR_MODEL,
     );
+  });
+
+  it("replaces GPT-6 Sol with GPT-6.1 Sol", () => {
+    for (const conectado of [false, true]) {
+      expect(requireTextModel("openai/gpt-6.1-sol", conectado).label).toBe("GPT-6.1 Sol");
+      expect(resolveCaetanoModel("openai/gpt-6.1-sol", { conectado })).toBe("openai/gpt-6.1-sol");
+      expect(() => requireTextModel("openai/gpt-6-sol", conectado)).toThrow("modelo desconhecido");
+      expect(resolveOrchestratorModel("openai/gpt-6-sol", { conectado })).toBe(
+        DEFAULT_ORCHESTRATOR_MODEL,
+      );
+    }
   });
 
   it("offers Astra on both text transports and all subscription image options", () => {

@@ -601,24 +601,24 @@ export function CollapsedSidebarControls() {
   );
 }
 
+/** Caetano lives on WhatsApp: open the chat when linked, otherwise the Perfil card to link it. */
 function CaetanoNav() {
   const navigate = useNavigate();
   const { setOpenMobile } = useSidebar();
-
-  const active = useRouterState({
-    select: (state) => state.location.pathname.startsWith("/caetano"),
-  });
+  const whatsapp = useQuery(api.whatsappData.state, {});
+  const chatUrl = whatsapp?.connected ? whatsapp.chatUrl : null;
 
   return (
     <SidebarMenu className="px-1 pt-1 pb-2">
       <SidebarMenuItem>
         <SidebarMenuButton
           size="navigation"
-          isActive={active}
-          tooltip="Caetano"
+          tooltip={chatUrl ? "Caetano no WhatsApp" : "Conectar o Caetano no WhatsApp"}
           onClick={() => {
             setOpenMobile(false);
-            void navigate({ to: "/caetano" });
+
+            if (chatUrl) window.open(chatUrl, "_blank", "noopener,noreferrer");
+            else void navigate({ to: "/perfil" });
           }}
           className="h-10"
         >

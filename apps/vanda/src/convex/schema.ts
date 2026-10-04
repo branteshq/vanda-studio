@@ -49,6 +49,8 @@ export default defineSchema({
       v.literal("running"),
       v.literal("done"),
       v.literal("stopped"),
+      // Arrived while a turn was running and was answered by that turn.
+      v.literal("merged"),
     ),
   }).index("by_user_status", ["userId", "status"]),
   whatsappLinks: defineTable({
@@ -76,7 +78,14 @@ export default defineSchema({
   }).index("by_key", ["key"]),
   whatsappOutbox: defineTable({
     connectionId: v.id("whatsappConnections"),
+    // Absent = text. Image rows carry an optional caption in `text`.
+    kind: v.optional(v.union(v.literal("text"), v.literal("image"))),
+    imageId: v.optional(v.id("images")),
     text: v.string(),
+    // Approved template sent instead when the 24-hour service window is closed.
+    template: v.optional(
+      v.object({ name: v.string(), language: v.string(), bodyParams: v.array(v.string()) }),
+    ),
     sourceMessageId: v.optional(v.string()),
     status: v.union(
       v.literal("pending"),
@@ -233,6 +242,8 @@ export default defineSchema({
     promptMessageId: v.string(),
     // Legacy delegation field; retained until pre-shared-capability rows expire.
     activeVandaThreadId: v.optional(v.string()),
+    // Later messages folded into this turn, in arrival order.
+    followupMessageIds: v.optional(v.array(v.string())),
     startedAt: v.number(),
   }).index("by_user", ["userId"]),
 

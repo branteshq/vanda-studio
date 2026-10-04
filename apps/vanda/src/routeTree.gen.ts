@@ -12,14 +12,16 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as ErrorPreviewRouteImport } from './routes/error-preview'
+import { Route as DocsRouteImport } from './routes/docs'
 import { Route as DashboardRouteImport } from './routes/_dashboard'
+import { Route as DocsIndexRouteImport } from './routes/docs.index'
 import { Route as DashboardIndexRouteImport } from './routes/_dashboard.index'
 import { Route as LoginSplatRouteImport } from './routes/login.$'
+import { Route as DocsSlugRouteImport } from './routes/docs.$slug'
 import { Route as DashboardPerfilRouteImport } from './routes/_dashboard.perfil'
 import { Route as DashboardGaleriaRouteImport } from './routes/_dashboard.galeria'
 import { Route as DashboardConversaRouteImport } from './routes/_dashboard.conversa'
 import { Route as DashboardCalendarioRouteImport } from './routes/_dashboard.calendario'
-import { Route as DashboardCaetanoRouteImport } from './routes/_dashboard.caetano'
 
 const SsoCallbackRoute = SsoCallbackRouteImport.update({
   id: '/sso-callback',
@@ -36,9 +38,19 @@ const ErrorPreviewRoute = ErrorPreviewRouteImport.update({
   path: '/error-preview',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DocsRoute = DocsRouteImport.update({
+  id: '/docs',
+  path: '/docs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/_dashboard',
   getParentRoute: () => rootRouteImport,
+} as any)
+const DocsIndexRoute = DocsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DocsRoute,
 } as any)
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
@@ -49,6 +61,11 @@ const LoginSplatRoute = LoginSplatRouteImport.update({
   id: '/login/$',
   path: '/login/$',
   getParentRoute: () => rootRouteImport,
+} as any)
+const DocsSlugRoute = DocsSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => DocsRoute,
 } as any)
 const DashboardPerfilRoute = DashboardPerfilRouteImport.update({
   id: '/perfil',
@@ -70,92 +87,98 @@ const DashboardCalendarioRoute = DashboardCalendarioRouteImport.update({
   path: '/calendario',
   getParentRoute: () => DashboardRoute,
 } as any)
-const DashboardCaetanoRoute = DashboardCaetanoRouteImport.update({
-  id: '/caetano',
-  path: '/caetano',
-  getParentRoute: () => DashboardRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof DashboardIndexRoute
+  '/docs': typeof DocsRouteWithChildren
   '/error-preview': typeof ErrorPreviewRoute
   '/onboarding': typeof OnboardingRoute
   '/sso-callback': typeof SsoCallbackRoute
-  '/caetano': typeof DashboardCaetanoRoute
   '/calendario': typeof DashboardCalendarioRoute
   '/conversa': typeof DashboardConversaRoute
   '/galeria': typeof DashboardGaleriaRoute
   '/perfil': typeof DashboardPerfilRoute
+  '/docs/$slug': typeof DocsSlugRoute
   '/login/$': typeof LoginSplatRoute
+  '/docs/': typeof DocsIndexRoute
 }
 export interface FileRoutesByTo {
   '/error-preview': typeof ErrorPreviewRoute
   '/onboarding': typeof OnboardingRoute
   '/sso-callback': typeof SsoCallbackRoute
-  '/caetano': typeof DashboardCaetanoRoute
   '/calendario': typeof DashboardCalendarioRoute
   '/conversa': typeof DashboardConversaRoute
   '/galeria': typeof DashboardGaleriaRoute
   '/perfil': typeof DashboardPerfilRoute
+  '/docs/$slug': typeof DocsSlugRoute
   '/login/$': typeof LoginSplatRoute
   '/': typeof DashboardIndexRoute
+  '/docs': typeof DocsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_dashboard': typeof DashboardRouteWithChildren
+  '/docs': typeof DocsRouteWithChildren
   '/error-preview': typeof ErrorPreviewRoute
   '/onboarding': typeof OnboardingRoute
   '/sso-callback': typeof SsoCallbackRoute
-  '/_dashboard/caetano': typeof DashboardCaetanoRoute
   '/_dashboard/calendario': typeof DashboardCalendarioRoute
   '/_dashboard/conversa': typeof DashboardConversaRoute
   '/_dashboard/galeria': typeof DashboardGaleriaRoute
   '/_dashboard/perfil': typeof DashboardPerfilRoute
+  '/docs/$slug': typeof DocsSlugRoute
   '/login/$': typeof LoginSplatRoute
   '/_dashboard/': typeof DashboardIndexRoute
+  '/docs/': typeof DocsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/docs'
     | '/error-preview'
     | '/onboarding'
     | '/sso-callback'
-    | '/caetano'
     | '/calendario'
     | '/conversa'
     | '/galeria'
     | '/perfil'
+    | '/docs/$slug'
     | '/login/$'
+    | '/docs/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/error-preview'
     | '/onboarding'
     | '/sso-callback'
-    | '/caetano'
     | '/calendario'
     | '/conversa'
     | '/galeria'
     | '/perfil'
+    | '/docs/$slug'
     | '/login/$'
     | '/'
+    | '/docs'
   id:
     | '__root__'
     | '/_dashboard'
+    | '/docs'
     | '/error-preview'
     | '/onboarding'
     | '/sso-callback'
-    | '/_dashboard/caetano'
     | '/_dashboard/calendario'
     | '/_dashboard/conversa'
     | '/_dashboard/galeria'
     | '/_dashboard/perfil'
+    | '/docs/$slug'
     | '/login/$'
     | '/_dashboard/'
+    | '/docs/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRouteWithChildren
+  DocsRoute: typeof DocsRouteWithChildren
   ErrorPreviewRoute: typeof ErrorPreviewRoute
   OnboardingRoute: typeof OnboardingRoute
   SsoCallbackRoute: typeof SsoCallbackRoute
@@ -185,12 +208,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ErrorPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/docs': {
+      id: '/docs'
+      path: '/docs'
+      fullPath: '/docs'
+      preLoaderRoute: typeof DocsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_dashboard': {
       id: '/_dashboard'
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/docs/': {
+      id: '/docs/'
+      path: '/'
+      fullPath: '/docs/'
+      preLoaderRoute: typeof DocsIndexRouteImport
+      parentRoute: typeof DocsRoute
     }
     '/_dashboard/': {
       id: '/_dashboard/'
@@ -205,6 +242,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/login/$'
       preLoaderRoute: typeof LoginSplatRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/docs/$slug': {
+      id: '/docs/$slug'
+      path: '/$slug'
+      fullPath: '/docs/$slug'
+      preLoaderRoute: typeof DocsSlugRouteImport
+      parentRoute: typeof DocsRoute
     }
     '/_dashboard/perfil': {
       id: '/_dashboard/perfil'
@@ -234,18 +278,10 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardCalendarioRouteImport
       parentRoute: typeof DashboardRoute
     }
-    '/_dashboard/caetano': {
-      id: '/_dashboard/caetano'
-      path: '/caetano'
-      fullPath: '/caetano'
-      preLoaderRoute: typeof DashboardCaetanoRouteImport
-      parentRoute: typeof DashboardRoute
-    }
   }
 }
 
 interface DashboardRouteChildren {
-  DashboardCaetanoRoute: typeof DashboardCaetanoRoute
   DashboardCalendarioRoute: typeof DashboardCalendarioRoute
   DashboardConversaRoute: typeof DashboardConversaRoute
   DashboardGaleriaRoute: typeof DashboardGaleriaRoute
@@ -254,7 +290,6 @@ interface DashboardRouteChildren {
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
-  DashboardCaetanoRoute: DashboardCaetanoRoute,
   DashboardCalendarioRoute: DashboardCalendarioRoute,
   DashboardConversaRoute: DashboardConversaRoute,
   DashboardGaleriaRoute: DashboardGaleriaRoute,
@@ -266,8 +301,21 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
   DashboardRouteChildren,
 )
 
+interface DocsRouteChildren {
+  DocsSlugRoute: typeof DocsSlugRoute
+  DocsIndexRoute: typeof DocsIndexRoute
+}
+
+const DocsRouteChildren: DocsRouteChildren = {
+  DocsSlugRoute: DocsSlugRoute,
+  DocsIndexRoute: DocsIndexRoute,
+}
+
+const DocsRouteWithChildren = DocsRoute._addFileChildren(DocsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRouteWithChildren,
+  DocsRoute: DocsRouteWithChildren,
   ErrorPreviewRoute: ErrorPreviewRoute,
   OnboardingRoute: OnboardingRoute,
   SsoCallbackRoute: SsoCallbackRoute,

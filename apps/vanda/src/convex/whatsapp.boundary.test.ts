@@ -1,9 +1,12 @@
 // @vitest-environment edge-runtime
+import { createThread } from "@convex-dev/agent";
 import agentComponent from "@convex-dev/agent/test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, internal } from "./_generated/api";
+import { api, components, internal } from "./_generated/api";
+import { caetano } from "./caetanoAgent";
 import schema from "./schema";
+import { enqueueItems, notifyOwner } from "./whatsappData";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -322,6 +325,375 @@ describe("WhatsApp and canonical Caetano queue", () => {
     ).toBe(200);
     expect(await t.run((ctx) => ctx.db.query("whatsappReceipts").collect())).toHaveLength(1);
     expect(await t.run((ctx) => ctx.db.query("caetanoInbox").collect())).toHaveLength(0);
+  });
+
+  it("delivers a turn's presented post and images after the text, in order", async () => {
+    const { t, event, userId } = await setup();
+    const now = Date.now();
+
+    const { accountId, png, webp, postId } = await t.run(async (ctx) => {
+      const accountId = await ctx.db.insert("accounts", {
+        ownerUserId: userId,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const image = async (type: string) =>
+        ctx.db.insert("images", {
+          accountId,
+          origin: "generated",
+          storageId: await ctx.storage.store(new Blob(["x"], { type })),
+          mimeType: type,
+          createdAt: now,
+        });
+
+      const slides = [await image("image/png"), await image("image/jpeg")];
+
+      const postId = await ctx.db.insert("posts", {
+        accountId,
+        type: "feed",
+        imageIds: slides,
+        caption: "Legenda do carrossel",
+        platform: "instagram",
+        status: "draft",
+        createdAt: now,
+      });
+
+      return { accountId, png: slides[0]!, webp: await image("image/webp"), postId };
+    });
+
+    await t.mutation(internal.whatsappData.ingest, { deliveryKey: "a", events: [event("m1")] });
+    await t.mutation(internal.caetano.startNext, { userId });
+    const activity = await t.run((ctx) => ctx.db.query("caetanoThreadActivity").first());
+    await t.mutation(internal.threadResources.record, {
+      threadId: activity!.threadId,
+      anchorMessageId: activity!.promptMessageId,
+      toolCallId: "tool1",
+      resources: [],
+      presented: [
+        { kind: "post", accountId, postId },
+        { kind: "image", accountId, imageId: png },
+        { kind: "image", accountId, imageId: webp },
+      ],
+    });
+    await t.mutation(internal.caetano.deliverTurn, { activityId: activity!._id, text: "Pronto!" });
+
+    const outbox = await t.run((ctx) => ctx.db.query("whatsappOutbox").collect());
+    expect(outbox.map((row) => [row.kind ?? "text", row.text])).toEqual([
+      ["text", "Pronto!"],
+      ["image", ""],
+      ["image", ""],
+      ["text", "Legenda:\nLegenda do carrossel"],
+      ["image", ""],
+    ]);
+    expect(outbox.at(-1)?.imageId).toBe(webp);
+    expect(outbox.some((row) => row.text.includes("/caetano"))).toBe(false);
+  });
+
+  it("sends JPEG/PNG as images and other formats as documents", async () => {
+    const { t, connectionId, userId } = await setup();
+    vi.stubEnv("KAPSO_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ messages: [{ id: "wamid.out" }] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const [png, webp] = await t.run(async (ctx) => {
+      const now = Date.now();
+
+      const accountId = await ctx.db.insert("accounts", {
+        ownerUserId: userId,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      return Promise.all(
+        ["image/png", "image/webp"].map(async (type) =>
+          ctx.db.insert("images", {
+            accountId,
+            origin: "generated",
+            name: "Capa/verão",
+            storageId: await ctx.storage.store(new Blob(["x"], { type })),
+            mimeType: type,
+            createdAt: now,
+          }),
+        ),
+      );
+    });
+
+    await t.run((ctx) =>
+      enqueueItems(ctx, connectionId, [
+        { kind: "image", imageId: png!, caption: "Capa" },
+        { kind: "image", imageId: webp! },
+      ]),
+    );
+    await t.action(internal.whatsapp.deliver, { connectionId });
+    await t.action(internal.whatsapp.deliver, { connectionId });
+
+    const bodies = fetchMock.mock.calls.map((call) => JSON.parse(call[1].body));
+    expect(bodies[0]).toMatchObject({ type: "image", image: { caption: "Capa" } });
+    expect(bodies[0].image.link).toMatch(/^https?:\/\//);
+    expect(bodies[1]).toMatchObject({
+      type: "document",
+      document: { filename: "Capa verão.webp" },
+    });
+  });
+
+  it("hands a burst with photos to the media step instead of starting a text-only turn", async () => {
+    const { t, event } = await setup();
+    await t.mutation(internal.whatsappData.ingest, {
+      deliveryKey: "photos",
+      events: [
+        event("m1", "Usa essa foto"),
+        { ...event("m2", ""), media: { kind: "image" as const, id: "img1" } },
+      ],
+    });
+
+    expect(await t.run((ctx) => ctx.db.query("caetanoInbox").collect())).toHaveLength(0);
+    const scheduled = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+    const prepare = scheduled.find((job) => job.name.includes("prepareTurn"));
+    expect(prepare?.args[0]).toMatchObject({
+      text: "Usa essa foto",
+      media: [{ kind: "image", id: "img1" }],
+    });
+  });
+
+  it("downloads photos, transcribes a voice note and submits one turn with both", async () => {
+    const { t, userId, connectionId } = await setup();
+    vi.stubEnv("KAPSO_API_KEY", "test-key");
+    vi.stubEnv("OPENROUTER_API_KEY", "router-key");
+    const now = Date.now();
+    await t.run(async (ctx) => {
+      const accountId = await ctx.db.insert("accounts", {
+        ownerUserId: userId,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      await ctx.db.patch(userId, { activeAccountId: accountId });
+    });
+
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("https://api.kapso.ai/meta/whatsapp/v24.0/")) {
+        expect(init?.headers).toMatchObject({ "X-API-Key": "test-key" });
+
+        return Response.json({
+          download_url: `https://api.kapso.ai/dl/${url.includes("img") ? "img" : "aud"}`,
+        });
+      }
+
+      if (url === "https://api.kapso.ai/dl/img")
+        return new Response(new Blob(["jpg"], { type: "image/jpeg" }));
+
+      if (url === "https://api.kapso.ai/dl/aud")
+        return new Response(new Blob(["ogg"], { type: "audio/ogg" }));
+
+      if (url === "https://openrouter.ai/api/v1/chat/completions") {
+        const body = JSON.parse(String(init?.body));
+        expect(body.messages[0].content[1]).toMatchObject({
+          type: "input_audio",
+          input_audio: { format: "ogg" },
+        });
+
+        return Response.json({ choices: [{ message: { content: "faz um post com essa foto" } }] });
+      }
+
+      throw new Error(`unexpected fetch ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await t.action(internal.whatsappMedia.prepareTurn, {
+      connectionId,
+      text: "",
+      media: [
+        { kind: "image", id: "img1", mimeType: "image/jpeg" },
+        { kind: "audio", id: "aud1", mimeType: "audio/ogg" },
+      ],
+      externalMessageId: "m1",
+    });
+
+    const images = await t.run((ctx) => ctx.db.query("images").collect());
+    expect(images).toHaveLength(1);
+    expect(images[0]).toMatchObject({ origin: "uploaded", mimeType: "image/jpeg" });
+    expect(images[0]?.lastAttachedAt).toBeDefined();
+    const inbox = await t.run((ctx) => ctx.db.query("caetanoInbox").collect());
+    expect(inbox).toHaveLength(1);
+    expect(inbox[0]).toMatchObject({ channel: "whatsapp", connectionId, externalMessageId: "m1" });
+    expect(await t.run((ctx) => ctx.db.query("whatsappOutbox").collect())).toHaveLength(0);
+  });
+
+  it("tells the sender when a photo cannot be used and still keeps the text", async () => {
+    const { t, connectionId } = await setup();
+    vi.stubEnv("KAPSO_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("nope", { status: 404 })));
+
+    await t.action(internal.whatsappMedia.prepareTurn, {
+      connectionId,
+      text: "Faz um post",
+      media: [{ kind: "image", id: "img1" }],
+      externalMessageId: "m1",
+    });
+
+    const outbox = await t.run((ctx) => ctx.db.query("whatsappOutbox").collect());
+    expect(outbox.map((row) => row.text)).toEqual([
+      "Não consegui baixar uma das fotos. Pode enviar de novo?",
+    ]);
+    expect(await t.run((ctx) => ctx.db.query("caetanoInbox").collect())).toHaveLength(1);
+  });
+
+  it("sends an owner notification as text in the window and as the template outside it", async () => {
+    const { t, userId, connectionId } = await setup();
+    vi.stubEnv("KAPSO_API_KEY", "test-key");
+    vi.stubEnv("KAPSO_UPDATE_TEMPLATE", "caetano_atualizacao");
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ messages: [{ id: "wamid.out" }] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await t.run((ctx) => notifyOwner(ctx, userId, "Publicado no Instagram.\nhttps://ig/p/1"));
+    await t.action(internal.whatsapp.deliver, { connectionId });
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).toMatchObject({
+      type: "text",
+      text: { body: "Publicado no Instagram.\nhttps://ig/p/1" },
+    });
+
+    await t.run((ctx) => ctx.db.patch(connectionId, { lastInboundAt: Date.now() - 86400001 }));
+    await t.run((ctx) => notifyOwner(ctx, userId, "A publicação falhou:\ntoken expirado"));
+    await t.action(internal.whatsapp.deliver, { connectionId });
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toMatchObject({
+      type: "template",
+      template: {
+        name: "caetano_atualizacao",
+        language: { code: "pt_BR" },
+        components: [
+          {
+            type: "body",
+            parameters: [{ type: "text", text: "A publicação falhou: token expirado" }],
+          },
+        ],
+      },
+    });
+  });
+
+  it("holds an owner notification for the next message when no template is configured", async () => {
+    const { t, userId, connectionId } = await setup();
+    await t.run((ctx) => ctx.db.patch(connectionId, { lastInboundAt: Date.now() - 86400001 }));
+    await t.run((ctx) => notifyOwner(ctx, userId, "Publicado no Instagram."));
+    expect(await t.mutation(internal.whatsappData.claimDelivery, { connectionId })).toBeNull();
+    expect((await t.run((ctx) => ctx.db.query("whatsappOutbox").first()))?.status).toBe(
+      "awaiting_window",
+    );
+  });
+
+  it("reports a publication on WhatsApp and records it in Caetano's conversation", async () => {
+    const { t, userId } = await setup();
+    const now = Date.now();
+
+    const scheduledPostId = await t.run(async (ctx) => {
+      const caetanoThreadId = await createThread(ctx, components.agent, {
+        userId: `caetano:${userId}`,
+      });
+
+      await ctx.db.patch(userId, { caetanoThreadId });
+
+      const accountId = await ctx.db.insert("accounts", {
+        ownerUserId: userId,
+        handle: "cafelumiar",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const postId = await ctx.db.insert("posts", {
+        accountId,
+        type: "image",
+        imageIds: [],
+        caption: "Legenda",
+        platform: "instagram",
+        status: "published",
+        createdAt: now,
+      });
+
+      return ctx.db.insert("scheduledPosts", {
+        accountId,
+        postId,
+        scheduledFor: now,
+        status: "published",
+        permalink: "https://instagram.com/p/result",
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    await t.mutation(internal.threadResources.postPublicationFollowup, { scheduledPostId });
+
+    const outbox = await t.run((ctx) => ctx.db.query("whatsappOutbox").collect());
+    expect(outbox.map((row) => row.text)).toEqual([
+      "Publicado no Instagram (@cafelumiar).\nhttps://instagram.com/p/result",
+    ]);
+    const manifests = await t.run((ctx) => ctx.db.query("threadResourceManifests").collect());
+    expect(manifests).toHaveLength(1);
+  });
+
+  it("folds a message sent mid-turn into that turn and sends one answer", async () => {
+    const { t, event, userId } = await setup();
+    await t.mutation(internal.whatsappData.ingest, {
+      deliveryKey: "first",
+      events: [event("m1", "que ferramentas você tem acesso?")],
+    });
+    await t.mutation(internal.caetano.startNext, { userId });
+    // Arrives after the buffer flushed, while the first turn is running.
+    await t.mutation(internal.whatsappData.ingest, {
+      deliveryKey: "second",
+      events: [event("m2", "me mostra as funções")],
+    });
+
+    const [running, queued] = await t.run((ctx) => ctx.db.query("caetanoInbox").collect());
+    const activity = await t.run((ctx) => ctx.db.query("caetanoThreadActivity").first());
+    const texts = ["rascunho que não sai", "Resposta única para as duas mensagens"];
+
+    // SAFETY: generateResponse reads only consumeStream and text from this stream-result test double.
+    const stream = vi.spyOn(caetano, "streamText").mockImplementation(async () =>
+      Object.assign(Object.create(null), {
+        consumeStream: async () => {},
+        text: Promise.resolve(texts.shift() ?? ""),
+      }),
+    );
+
+    try {
+      expect(
+        await t.action(internal.caetano.generateResponse, {
+          userId,
+          threadId: activity!.threadId,
+          promptMessageId: activity!.promptMessageId,
+          activityId: activity!._id,
+        }),
+      ).toBe("Resposta única para as duas mensagens");
+      expect(stream).toHaveBeenCalledTimes(2);
+      expect(stream.mock.calls[1]?.[2]).toMatchObject({
+        promptMessageId: queued!.promptMessageId,
+        system: expect.stringContaining("O dono mandou mais mensagens"),
+      });
+    } finally {
+      stream.mockRestore();
+    }
+
+    expect((await t.run((ctx) => ctx.db.get(queued!._id)))?.status).toBe("merged");
+    expect((await t.run((ctx) => ctx.db.get(running!._id)))?.status).toBe("done");
+    expect(
+      (await t.run((ctx) => ctx.db.query("whatsappOutbox").collect())).map((row) => row.text),
+    ).toEqual(["Resposta única para as duas mensagens"]);
+  });
+
+  it("marks the newest message of a burst as read", async () => {
+    const { t, event } = await setup();
+    await t.mutation(internal.whatsappData.ingest, {
+      deliveryKey: "burst",
+      events: [
+        event("m1", "que ferramentas você tem acesso?"),
+        event("m2", "me mostra as funções"),
+      ],
+    });
+
+    const scheduled = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+    const reads = scheduled.filter((job) => job.name.includes("markRead"));
+    expect(reads.map((job) => job.args[0])).toEqual([{ messageId: "m2" }]);
   });
 
   it("does not process messages from unlinked senders or wrong business numbers", async () => {

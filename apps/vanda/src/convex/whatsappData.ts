@@ -1,9 +1,15 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import { requireUser } from "./authz";
-import { isStop, replyParts, serviceWindowOpen } from "./whatsapp/protocol";
+import { isStop, replyParts, serviceWindowOpen, templateParam } from "./whatsapp/protocol";
 
 export const storeLink = internalMutation({
   args: { tokenHash: v.string() },
@@ -22,6 +28,12 @@ export const storeLink = internalMutation({
     return expiresAt;
   },
 });
+
+const whatsappChatUrl = (): string | null => {
+  const number = process.env.KAPSO_WHATSAPP_NUMBER;
+
+  return number && /^\d{7,15}$/.test(number) ? `https://wa.me/${number}` : null;
+};
 
 export const state = query({
   args: {},
@@ -51,6 +63,7 @@ export const state = query({
         process.env.KAPSO_WHATSAPP_NUMBER
       ),
       connected: !!connection,
+      chatUrl: whatsappChatUrl(),
       sender:
         connection?.phone ?? (connection?.recipientKind === "phone" ? connection.sender : null),
       deliveries: recent.map((row) => ({
@@ -83,29 +96,110 @@ export const disconnect = mutation({
   },
 });
 
-async function enqueue(
+export type TemplateFallback = NonNullable<Doc<"whatsappOutbox">["template"]>;
+
+export type OutboundItem =
+  | { readonly kind: "text"; readonly text: string; readonly template?: TemplateFallback }
+  | { readonly kind: "image"; readonly imageId: Id<"images">; readonly caption?: string };
+
+/** Queue items in order; delivery sends one row at a time per connection. */
+export async function enqueueItems(
   ctx: MutationCtx,
   connectionId: Id<"whatsappConnections">,
-  text: string,
+  items: readonly OutboundItem[],
   sourceMessageId?: string,
 ) {
   const connection = await ctx.db.get(connectionId);
 
   if (!connection?.active) return;
 
-  for (const part of replyParts(text)) {
-    const outbox: Omit<Doc<"whatsappOutbox">, "_id" | "_creationTime"> = {
-      connectionId,
-      text: part,
-      attempts: 0,
-      status: "pending",
-    };
+  const rows: Omit<Doc<"whatsappOutbox">, "_id" | "_creationTime">[] = items.flatMap((item) =>
+    item.kind === "text"
+      ? replyParts(item.text).map((part, index) => {
+          const row: Omit<Doc<"whatsappOutbox">, "_id" | "_creationTime"> = {
+            connectionId,
+            text: part,
+            attempts: 0,
+            status: "pending",
+          };
 
-    if (sourceMessageId) outbox.sourceMessageId = sourceMessageId;
-    await ctx.db.insert("whatsappOutbox", outbox);
+          // The template summarizes the whole item, so only its first part carries it.
+          if (item.template && index === 0) row.template = item.template;
+
+          return row;
+        })
+      : [
+          {
+            connectionId,
+            kind: "image" as const,
+            imageId: item.imageId,
+            // WhatsApp media captions are capped at 1,024 characters.
+            text: Array.from(item.caption ?? "")
+              .slice(0, 1024)
+              .join(""),
+            attempts: 0,
+            status: "pending" as const,
+          },
+        ],
+  );
+
+  if (rows.length === 0) return;
+
+  for (const row of rows) {
+    if (sourceMessageId) row.sourceMessageId = sourceMessageId;
+    await ctx.db.insert("whatsappOutbox", row);
   }
 
   await ctx.scheduler.runAfter(0, internal.whatsapp.deliver, { connectionId });
+}
+
+const enqueue = (
+  ctx: MutationCtx,
+  connectionId: Id<"whatsappConnections">,
+  text: string,
+  sourceMessageId?: string,
+) => enqueueItems(ctx, connectionId, [{ kind: "text", text }], sourceMessageId);
+
+export const activeConnection = (ctx: QueryCtx, userId: Id<"users">) =>
+  ctx.db
+    .query("whatsappConnections")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .filter((q) => q.eq(q.field("active"), true))
+    .first();
+
+/** The configured update template, if one was approved in Kapso. */
+function updateTemplate(text: string): TemplateFallback | undefined {
+  const name = process.env.KAPSO_UPDATE_TEMPLATE;
+
+  if (!name) return undefined;
+
+  return {
+    name,
+    language: process.env.KAPSO_TEMPLATE_LANGUAGE || "pt_BR",
+    bodyParams: [templateParam(text)],
+  };
+}
+
+/**
+ * Message the owner's linked WhatsApp without a prompt. Inside the service window
+ * it goes as text; outside it, as the approved update template when configured,
+ * otherwise it waits for the owner's next message.
+ */
+export async function notifyOwner(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  text: string,
+): Promise<boolean> {
+  const connection = await activeConnection(ctx, userId);
+
+  if (!connection) return false;
+  const template = updateTemplate(text);
+
+  await enqueueItems(ctx, connection._id, [
+    template ? { kind: "text", text, template } : { kind: "text", text },
+  ]);
+
+  return true;
 }
 
 export const enqueueReply = internalMutation({
@@ -131,6 +225,10 @@ const deliveryStatus = (value: string | undefined): DeliveryEventStatus | null =
   }
 };
 
+/** A message that can join a buffered turn: content, and not a stop or link command. */
+const turnable = (event: { text: string; tokenHash?: string; media?: unknown }): boolean =>
+  !event.tokenHash && !isStop(event.text) && (!!event.text || !!event.media);
+
 const deliveryRank = (status: string): number => {
   switch (status) {
     case "sent":
@@ -144,6 +242,13 @@ const deliveryRank = (status: string): number => {
   }
 };
 
+const inboundMediaValidator = v.object({
+  kind: v.union(v.literal("image"), v.literal("audio")),
+  id: v.string(),
+  mimeType: v.optional(v.string()),
+  url: v.optional(v.string()),
+});
+
 const eventValidator = v.object({
   event: v.string(),
   phoneNumberId: v.string(),
@@ -155,6 +260,7 @@ const eventValidator = v.object({
   timestamp: v.number(),
   callbackId: v.optional(v.string()),
   tokenHash: v.optional(v.string()),
+  media: v.optional(inboundMediaValidator),
 });
 
 /** Persist a scheduled mutation before acknowledging, without doing agent work in HTTP. */
@@ -239,7 +345,11 @@ export const ingest = internalMutation({
 
       // Kapso's per-conversation buffer becomes one turn, while each external
       // message keeps its own dedupe receipt. Never merge across a stop/link.
-      if (event.text && !event.tokenHash && !isStop(event.text)) {
+      const media = event.media ? [event.media] : [];
+      // Reading the newest message of a burst marks every earlier one as read too.
+      let lastMessageId = event.messageId;
+
+      if (turnable(event)) {
         while (index + 1 < events.length) {
           const next = events[index + 1]!;
 
@@ -247,17 +357,19 @@ export const ingest = internalMutation({
             next.event !== event.event ||
             next.phoneNumberId !== event.phoneNumberId ||
             next.sender !== event.sender ||
-            !next.text ||
-            next.tokenHash ||
-            isStop(next.text) ||
+            !turnable(next) ||
             event.text.length + next.text.length > 16000
           )
             break;
           index++;
 
           if (await seen(`${next.phoneNumberId}:${next.event}:${next.messageId}`)) continue;
-          event.text += `\n${next.text}`;
+
+          if (next.text) event.text = event.text ? `${event.text}\n${next.text}` : next.text;
+
+          if (next.media) media.push(next.media);
           event.timestamp = Math.max(event.timestamp, next.timestamp);
+          lastMessageId = next.messageId;
         }
       }
 
@@ -347,12 +459,23 @@ export const ingest = internalMutation({
           connection._id,
           "Interrompi a conversa e limpei os pedidos na fila. Ações já concluídas, como publicações, não são desfeitas.",
         );
-      } else if (!event.text) {
+      } else if (!event.text && media.length === 0) {
         await enqueue(
           ctx,
           connection._id,
-          "Por enquanto, envie seu pedido em texto. Para anexar imagens, abra a conversa no Vanda Studio.",
+          "Ainda não consigo abrir esse tipo de mensagem. Envie texto, foto ou áudio.",
         );
+      } else if (media.length > 0) {
+        // Downloads and transcription run in an action; it submits the turn when ready.
+        await ctx.scheduler.runAfter(0, internal.whatsappMedia.prepareTurn, {
+          connectionId: connection._id,
+          text: event.text,
+          media,
+          externalMessageId: event.messageId,
+        });
+        await ctx.scheduler.runAfter(0, internal.whatsapp.markRead, {
+          messageId: lastMessageId,
+        });
       } else {
         try {
           await ctx.runMutation(internal.caetano.submitMessageForUser, {
@@ -362,7 +485,7 @@ export const ingest = internalMutation({
             externalMessageId: event.messageId,
           });
           await ctx.scheduler.runAfter(0, internal.whatsapp.markRead, {
-            messageId: event.messageId,
+            messageId: lastMessageId,
           });
         } catch {
           await enqueue(
@@ -372,6 +495,75 @@ export const ingest = internalMutation({
           );
         }
       }
+    }
+  },
+});
+
+/** Submit a turn whose media the action already downloaded (and transcribed). */
+export const submitMediaTurn = internalMutation({
+  args: {
+    connectionId: v.id("whatsappConnections"),
+    text: v.string(),
+    uploads: v.array(v.object({ storageId: v.id("_storage"), mimeType: v.string() })),
+    notes: v.array(v.string()),
+    externalMessageId: v.string(),
+  },
+  handler: async (ctx, { connectionId, text, uploads, notes, externalMessageId }) => {
+    const connection = await ctx.db.get(connectionId);
+    const user = connection?.active ? await ctx.db.get(connection.userId) : null;
+
+    const discard = () =>
+      Promise.all(uploads.map((upload) => ctx.storage.delete(upload.storageId)));
+
+    if (!connection || !user) {
+      await discard();
+
+      return;
+    }
+
+    const accountId = user.activeAccountId;
+    const replies = [...notes];
+
+    if (uploads.length > 0 && !accountId) {
+      await discard();
+      replies.push("Para eu usar suas fotos, conclua o cadastro do seu negócio no Vanda Studio.");
+    }
+
+    const imageIds: Id<"images">[] = [];
+
+    if (accountId) {
+      for (const upload of uploads) {
+        imageIds.push(
+          await ctx.db.insert("images", {
+            accountId,
+            origin: "uploaded",
+            purpose: "post",
+            storageId: upload.storageId,
+            mimeType: upload.mimeType,
+            createdAt: Date.now(),
+          }),
+        );
+      }
+    }
+
+    if (replies.length > 0) await enqueue(ctx, connectionId, replies.join("\n"));
+
+    if (!text.trim() && imageIds.length === 0) return;
+
+    try {
+      await ctx.runMutation(internal.caetano.submitMessageForUser, {
+        userId: user._id,
+        prompt: text,
+        imageIds,
+        connectionId,
+        externalMessageId,
+      });
+    } catch {
+      await enqueue(
+        ctx,
+        connectionId,
+        "Não consegui iniciar esse pedido. Confira o limite do plano e a fila de mensagens no Vanda Studio antes de tentar novamente.",
+      );
     }
   },
 });
@@ -407,8 +599,19 @@ export const claimDelivery = internalMutation({
       return null;
     }
 
-    if (!serviceWindowOpen(connection.lastInboundAt)) {
+    const windowOpen = serviceWindowOpen(connection.lastInboundAt);
+
+    if (!windowOpen && !row.template) {
       await ctx.db.patch(row._id, { status: "awaiting_window" });
+      await ctx.scheduler.runAfter(0, internal.whatsapp.deliver, { connectionId });
+
+      return null;
+    }
+
+    const media = row.kind === "image" ? await outboundMedia(ctx, row.imageId) : null;
+
+    if (row.kind === "image" && !media) {
+      await ctx.db.patch(row._id, { status: "failed", error: "Imagem indisponível para envio." });
       await ctx.scheduler.runAfter(0, internal.whatsapp.deliver, { connectionId });
 
       return null;
@@ -420,15 +623,70 @@ export const claimDelivery = internalMutation({
       attempts: row.attempts + 1,
     });
 
-    return {
+    const claimed: Doc<"whatsappOutbox"> & {
+      media?: OutboundMedia;
+      asTemplate?: TemplateFallback;
+      sender: string;
+      recipientKind: "phone" | "bsuid";
+      phoneNumberId: string;
+    } = {
       ...row,
       attempts: row.attempts + 1,
       sender: connection.phone ?? connection.sender,
-      recipientKind: connection.phone ? ("phone" as const) : connection.recipientKind,
+      recipientKind: connection.phone ? "phone" : connection.recipientKind,
       phoneNumberId: connection.phoneNumberId,
     };
+
+    if (media) claimed.media = media;
+
+    if (!windowOpen && row.template) claimed.asTemplate = row.template;
+
+    return claimed;
   },
 });
+
+// WhatsApp renders only JPEG/PNG up to 5 MB as images; anything else goes as a document.
+const WHATSAPP_IMAGE_TYPES = new Set(["image/jpeg", "image/png"]);
+
+const WHATSAPP_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+
+export type OutboundMedia = {
+  type: "image" | "document";
+  link: string;
+  filename?: string;
+};
+
+async function outboundMedia(
+  ctx: MutationCtx,
+  imageId: Id<"images"> | undefined,
+): Promise<OutboundMedia | null> {
+  const image = imageId ? await ctx.db.get(imageId) : null;
+
+  // "generating" placeholders and failed generations have nothing to send.
+  if (!image || image.status) return null;
+
+  const stored = image.storageId ? await ctx.db.system.get(image.storageId) : null;
+
+  const link =
+    (image.storageId ? await ctx.storage.getUrl(image.storageId) : null) ?? image.externalUrl;
+
+  if (!link) return null;
+
+  const mimeType = stored?.contentType ?? image.mimeType ?? "";
+
+  if (
+    WHATSAPP_IMAGE_TYPES.has(mimeType) &&
+    (stored?.size === undefined || stored.size <= WHATSAPP_IMAGE_MAX_BYTES)
+  ) {
+    return { type: "image", link };
+  }
+
+  const extension = mimeType.split("/")[1]?.replace(/[^a-z0-9]/gi, "") || "bin";
+
+  const base = (image.name ?? "imagem").replace(/[\\/:*?"<>|]+/g, " ").trim() || "imagem";
+
+  return { type: "document", link, filename: `${base}.${extension}` };
+}
 
 export const finishDelivery = internalMutation({
   args: {

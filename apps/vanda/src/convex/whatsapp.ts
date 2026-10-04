@@ -3,6 +3,7 @@ import { z } from "zod";
 import { internal } from "./_generated/api";
 import { action, internalAction } from "./_generated/server";
 import { sha256 } from "./whatsapp/protocol";
+import type { OutboundMedia, TemplateFallback } from "./whatsappData";
 
 export const createLink = action({
   args: {},
@@ -35,13 +36,69 @@ export const createLink = action({
   },
 });
 
+type Recipient = { recipient: string; recipient_type: "individual" } | { to: string };
+
+type ImagePayload = { link: string; caption?: string };
+
+type DocumentPayload = { link: string; filename?: string; caption?: string };
+
+type TemplatePayload = {
+  name: string;
+  language: { code: string };
+  components: [{ type: "body"; parameters: { type: "text"; text: string }[] }];
+};
+
+type MessageBody =
+  | { type: "text"; text: { body: string; preview_url: false } }
+  | { type: "template"; template: TemplatePayload }
+  | { type: "image"; image: ImagePayload }
+  | { type: "document"; document: DocumentPayload };
+
 type WhatsAppRequest =
   | { status: "read"; message_id: string; typing_indicator: { type: "text" } }
-  | ({
-      type: "text";
-      text: { body: string; preview_url: false };
-      biz_opaque_callback_data: string;
-    } & ({ recipient: string; recipient_type: "individual" } | { to: string }));
+  | (MessageBody & { biz_opaque_callback_data: string } & Recipient);
+
+const messageBody = (row: {
+  text: string;
+  media?: OutboundMedia;
+  asTemplate?: TemplateFallback;
+}): MessageBody => {
+  if (row.asTemplate) {
+    return {
+      type: "template",
+      template: {
+        name: row.asTemplate.name,
+        language: { code: row.asTemplate.language },
+        components: [
+          {
+            type: "body",
+            parameters: row.asTemplate.bodyParams.map((text) => ({ type: "text", text })),
+          },
+        ],
+      },
+    };
+  }
+
+  if (!row.media) return { type: "text", text: { body: row.text, preview_url: false } };
+
+  if (row.media.type === "image") {
+    const image: ImagePayload = { link: row.media.link };
+
+    if (row.text) image.caption = row.text;
+
+    return { type: "image", image };
+  }
+
+  const document: DocumentPayload = {
+    link: row.media.link,
+  };
+
+  if (row.media.filename) document.filename = row.media.filename;
+
+  if (row.text) document.caption = row.text;
+
+  return { type: "document", document };
+};
 
 const deliveryResponseSchema = z.object({
   messages: z.array(z.object({ id: z.string().optional() })).optional(),
@@ -94,8 +151,7 @@ export const deliver = internalAction({
         ...(row.recipientKind === "bsuid"
           ? { recipient: row.sender, recipient_type: "individual" }
           : { to: row.sender }),
-        type: "text",
-        text: { body: row.text, preview_url: false },
+        ...messageBody(row),
         biz_opaque_callback_data: String(row._id),
       });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { caetano } from "./caetanoAgent";
+import { caetano, WHATSAPP_CHANNEL_PROMPT } from "./caetanoAgent";
 import { systemPrompt, vanda } from "./vanda";
 
 describe("Vanda routing prompt", () => {
@@ -43,6 +43,13 @@ describe("Vanda routing prompt", () => {
     expect(schema.safeParse({ ...valid, format: "2:3" }).success).toBe(false);
     expect(schema.safeParse({ ...valid, purpose: "vendas" }).success).toBe(false);
     expect(schema.safeParse({ ...valid, rationale: "porque sim" }).success).toBe(false);
+  });
+
+  it("tells Caetano on WhatsApp that media works and keeps it to marketing", () => {
+    expect(WHATSAPP_CHANNEL_PROMPT).not.toMatch(/sandbox|somente texto|conversa web/);
+    expect(WHATSAPP_CHANNEL_PROMPT).toContain("[Áudio transcrito]");
+    expect(WHATSAPP_CHANNEL_PROMPT).toContain("são enviados aqui como fotos");
+    expect(WHATSAPP_CHANNEL_PROMPT).toContain("recuse com gentileza");
   });
 
   it("does not expose code execution in either agent's tool catalog", () => {

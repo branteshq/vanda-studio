@@ -33,8 +33,8 @@ export const ORCHESTRATOR_MODELS: readonly OrchestratorModel[] = [
     codexCapable: true,
   },
   {
-    id: "openai/gpt-6-sol",
-    label: "GPT-6 Sol",
+    id: "openai/gpt-6.1-sol",
+    label: "GPT-6.1 Sol",
     maker: "OpenAI",
     tagline: "Modelo OpenAI pela assinatura conectada ou via OpenRouter.",
     codexCapable: true,
@@ -75,8 +75,8 @@ export const ORCHESTRATOR_MODELS: readonly OrchestratorModel[] = [
     codexCapable: false,
   },
   {
-    id: "anthropic/claude-sonnet-5",
-    label: "Claude Sonnet 5",
+    id: "anthropic/claude-sonnet-5.5",
+    label: "Claude Sonnet 5.5",
     maker: "Anthropic",
     tagline: "Escrita afiada com custo moderado.",
     codexCapable: false,

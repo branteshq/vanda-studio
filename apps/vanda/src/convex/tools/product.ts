@@ -5,17 +5,13 @@ import type { Id } from "../_generated/dataModel";
 import { agentIdentity, agentOwner, type AgentCtx } from "../agentContext";
 import { recordCapabilityResult } from "../capabilityTools";
 import { capabilityResult, capabilityResultSchema, type ThreadResource } from "../resourceRefs";
+import { findSetting } from "../settings/catalog";
 
 type ProductCtx = ToolCtx & AgentCtx;
 
 type CapabilityOutput = z.infer<typeof capabilityResultSchema>;
 
-type ModelPreferenceArgs = {
-  userId: Id<"users">;
-  orchestrator?: string;
-  caetano?: string;
-  image?: string;
-};
+type SettingsGetArgs = { userId: Id<"users">; id?: string };
 
 const accountInput = z.object({ accountId: z.string().optional() });
 
@@ -98,66 +94,43 @@ export const productTools = {
       return capabilityResult({ ...status, brandContext });
     },
   }),
-  usage_status: createTool({
-    description: "Consulta o plano, percentual de uso e eventual bloqueio do dono.",
-    inputSchema: z.object({}),
-    outputSchema: capabilityResultSchema,
-    execute: async (ctx: ProductCtx): Promise<CapabilityOutput> =>
-      capabilityResult(
-        await ctx.runQuery(internal.caetanoData.usageStatus, { userId: await agentOwner(ctx) }),
-      ),
-  }),
-  model_preferences: createTool({
-    description: "Consulta os modelos atuais da Vanda, do Caetano e de imagem do dono.",
-    inputSchema: z.object({}),
-    outputSchema: capabilityResultSchema,
-    execute: async (ctx: ProductCtx): Promise<CapabilityOutput> =>
-      capabilityResult(
-        await ctx.runQuery(internal.caetanoData.modelPreferences, {
-          userId: await agentOwner(ctx),
-        }),
-      ),
-  }),
-  set_model_preferences: createTool({
+  settings_get: createTool({
     description:
-      "Altera modelos do dono: orchestrator para Vanda, caetano para Caetano (web e WhatsApp), image para imagens. Use ids do catálogo compatíveis com a conexão. Alterações valem no próximo turno.",
-    inputSchema: z
-      .object({
-        orchestrator: z.string().optional(),
-        caetano: z.string().optional(),
-        image: z.string().optional(),
-      })
-      .refine((value) => Object.values(value).some((model) => model !== undefined), {
-        message: "informe ao menos um modelo",
-      }),
+      "Lê as configurações da plataforma do dono: plano e uso, modelos da Vanda, do Caetano e de imagem, negócio ativo e negócios, e conexões (Instagram, OpenAI, WhatsApp). Sem id ou com '*', devolve todos os valores atuais de uma vez. Com um id, devolve descrição, onde fica no app, opções válidas e como mudar.",
+    inputSchema: z.object({ id: z.string().optional() }),
     outputSchema: capabilityResultSchema,
-    execute: async (ctx: ProductCtx, input, options): Promise<CapabilityOutput> => {
-      const args: ModelPreferenceArgs = { userId: await agentOwner(ctx) };
+    execute: async (ctx: ProductCtx, { id }): Promise<CapabilityOutput> => {
+      const args: SettingsGetArgs = { userId: await agentOwner(ctx) };
 
-      if (input.orchestrator !== undefined) args.orchestrator = input.orchestrator;
+      if (id) args.id = id;
 
-      if (input.caetano !== undefined) args.caetano = input.caetano;
-
-      if (input.image !== undefined) args.image = input.image;
-      await ctx.runMutation(internal.caetanoData.setModelPreferences, args);
+      return capabilityResult(await ctx.runQuery(internal.settingsData.get, args));
+    },
+  }),
+  settings_set: createTool({
+    description:
+      "Altera uma configuração alterável quando o dono pedir, pelo mesmo caminho do Perfil. value aceita o id ou o nome da opção (por exemplo 'GPT-6.1 Sol'). Devolve o valor anterior, para desfazer se o dono pedir. Plano, pagamento e conexões não são alteráveis por aqui: o resultado explica onde o dono muda.",
+    inputSchema: z.object({ id: z.string(), value: z.string() }),
+    outputSchema: capabilityResultSchema,
+    execute: async (ctx: ProductCtx, { id, value }, options): Promise<CapabilityOutput> => {
+      const result = await ctx.runMutation(internal.settingsData.set, {
+        userId: await agentOwner(ctx),
+        id,
+        value,
+      });
 
       const operation: ThreadResource = {
         kind: "operation",
-        operation: "models.update",
+        operation: "settings.update",
+        operationId: result.id,
         status: "succeeded",
-        label: "Modelos atualizados",
+        label: `${findSetting(result.id)?.title ?? result.id}: ${String(result.label)}`,
       };
 
       return recordCapabilityResult(
         ctx,
         options,
-        capabilityResult(
-          { ok: true, ...input },
-          {
-            resources: [operation],
-            presented: [operation],
-          },
-        ),
+        capabilityResult(result, { resources: [operation], presented: [operation] }),
       );
     },
   }),
