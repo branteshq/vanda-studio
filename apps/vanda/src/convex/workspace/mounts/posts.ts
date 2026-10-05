@@ -13,12 +13,15 @@ import {
 
 const LISTING_CAP = 60;
 
+// Autopilot posts live in /autopilot, apart from the owner's own calendar.
 const loadPosts = async (ctx: QueryCtx, accountId: Id<"accounts">) =>
-  ctx.db
-    .query("posts")
-    .withIndex("by_account", (q) => q.eq("accountId", accountId))
-    .order("desc")
-    .take(LISTING_CAP);
+  (
+    await ctx.db
+      .query("posts")
+      .withIndex("by_account", (q) => q.eq("accountId", accountId))
+      .order("desc")
+      .take(LISTING_CAP)
+  ).filter((post) => post.origin !== "autopilot");
 
 const scheduledOf = (ctx: QueryCtx, postId: Id<"posts">) =>
   ctx.db

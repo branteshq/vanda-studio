@@ -1,6 +1,7 @@
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { documentMount, listDocuments, readDocument } from "./documents";
+import { autopilotMount } from "./mounts/autopilot";
 import { brandMount } from "./mounts/brand";
 import { docsMount } from "./mounts/docs";
 import { imagesMount } from "./mounts/images";
@@ -37,6 +38,7 @@ const MOUNTS: readonly WorkspaceMount[] = [
         : Promise.resolve(null),
   },
   postsMount,
+  autopilotMount,
   marketMount,
   runsMount,
   legacyMount,

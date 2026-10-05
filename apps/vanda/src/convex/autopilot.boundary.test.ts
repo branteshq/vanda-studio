@@ -359,6 +359,54 @@ describe("autopilot production and veto", () => {
   });
 });
 
+describe("autopilot segregation", () => {
+  it("keeps autopilot posts out of the rail, the calendar and /posts but shows them in /autopilot", async () => {
+    const { t, accountId, imageIds, plan, slots, produce } = await setup();
+
+    await plan(NEXT_WEEK);
+    const tuesday = (await slots()).toSorted((a, b) => a.scheduledFor - b.scheduledFor)[0]!;
+
+    vi.setSystemTime(tuesday.scheduledFor - 20 * 3_600_000);
+    await produce(tuesday._id);
+
+    const manualId = await t.mutation(internal.posts.createPostInternal, {
+      accountId,
+      imageIds: [imageIds[0]!],
+      caption: "post manual",
+    });
+
+    await t.mutation(internal.posts.schedulePostInternal, {
+      accountId,
+      postId: manualId,
+      scheduledFor: tuesday.scheduledFor + 3_600_000,
+    });
+
+    const owner = t.withIdentity({ subject: "me" });
+    const rail = await owner.query(api.posts.listForRail, { accountId });
+
+    expect(rail.map((post) => post.postId)).toEqual([manualId]);
+
+    const calendar = await owner.query(api.calendar.range, {
+      accountId,
+      start: NEXT_WEEK,
+      end: NEXT_WEEK + 7 * 86_400_000,
+    });
+
+    expect(calendar.map((item) => item.caption)).toEqual(["post manual"]);
+
+    const listing = await t.query(internal.workspaceData.list, { accountId, path: "/posts" });
+
+    const planFile = await t.query(internal.workspaceData.read, {
+      accountId,
+      path: "/autopilot/plan.md",
+    });
+
+    expect(JSON.stringify(listing)).not.toContain("fermentação");
+    expect(JSON.stringify(planFile)).toContain("gancho 0");
+    expect(JSON.stringify(planFile)).toContain(tuesday._id);
+  });
+});
+
 describe("autopilot access", () => {
   it("shows the overview to the owner only", async () => {
     const { t, accountId, plan } = await setup();
