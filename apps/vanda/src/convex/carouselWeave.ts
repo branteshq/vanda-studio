@@ -26,7 +26,11 @@ const MAX_SLIDES = 5;
 
 // Parallel repaints per weave; each is a full image-model call. convex-test
 // can't interleave writes inside one action, so tests and evals run serially.
-const concurrency = () => Number(process.env.VANDA_WEAVE_CONCURRENCY ?? 3) || 1;
+const concurrency = () => {
+  const limit = Math.floor(Number(process.env.VANDA_WEAVE_CONCURRENCY ?? 3));
+
+  return Number.isFinite(limit) && limit >= 1 ? limit : 1;
+};
 
 // Preview strip height; the loop shows as slide 1 repeated after the last.
 const STRIP_HEIGHT = 360;
@@ -218,7 +222,11 @@ const resize = async (bitmap: Bitmap, width: number, height: number): Promise<Bi
   return { width, height, data: new Uint8Array(image.bitmap.data) };
 };
 
-/** Run `task` over `items` with at most `limit` in flight, preserving order. */
+/**
+ * Run `task` over `items` with at most `limit` in flight, preserving order.
+ * After the first failure no new task starts, and the in-flight ones settle
+ * before it is rethrown, so the caller's cleanup sees every working file.
+ */
 const mapLimited = async <Item, Result>(
   items: readonly Item[],
   limit: number,
@@ -226,17 +234,43 @@ const mapLimited = async <Item, Result>(
 ): Promise<Result[]> => {
   const results: Result[] = new Array(items.length);
   let next = 0;
+  let failure: { error: unknown } | undefined;
 
   const worker = async () => {
-    while (next < items.length) {
+    while (!failure && next < items.length) {
       const index = next++;
-      results[index] = await task(items[index]!);
+
+      try {
+        results[index] = await task(items[index]!);
+      } catch (error) {
+        failure ??= { error };
+      }
     }
   };
 
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 
+  if (failure) throw failure.error;
+
   return results;
+};
+
+/** Discard working repaints without masking the call's own result or error. */
+const discardWorking = async (
+  ctx: ActionCtx,
+  run: Run,
+  imageIds: Id<"images">[],
+): Promise<void> => {
+  if (!imageIds.length) return;
+
+  try {
+    await ctx.runMutation(internal.gallery.discardWorking, {
+      accountId: run.accountId,
+      imageIds,
+    });
+  } catch (error) {
+    console.error("carousel working images were not discarded", error);
+  }
 };
 
 /** Slides side by side plus slide 1 again, so the loop seam is visible too. */
@@ -576,12 +610,7 @@ export const weave = internalAction({
         })),
       };
     } finally {
-      if (workingImageIds.length) {
-        await ctx.runMutation(internal.gallery.discardWorking, {
-          accountId: args.accountId,
-          imageIds: workingImageIds,
-        });
-      }
+      await discardWorking(ctx, run, workingImageIds);
     }
   },
 });
@@ -745,12 +774,7 @@ export const extend = internalAction({
 
       return { slides: saved, strip: await saveStrip(ctx, run, slides), seams };
     } finally {
-      if (workingImageIds.length) {
-        await ctx.runMutation(internal.gallery.discardWorking, {
-          accountId: args.accountId,
-          imageIds: workingImageIds,
-        });
-      }
+      await discardWorking(ctx, run, workingImageIds);
     }
   },
 });

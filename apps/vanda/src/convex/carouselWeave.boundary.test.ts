@@ -173,6 +173,71 @@ describe("carouselWeave.weave", () => {
   });
 });
 
+describe("carouselWeave cleanup", () => {
+  it("stops starting seams after a failed repaint and leaves no working rows", async () => {
+    const { t, accountId, imageIds } = await setup();
+    const repaint = (await png(0x808080ff)).toString("base64");
+    let calls = 0;
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        calls += 1;
+
+        return calls === 2
+          ? new Response("upstream down", { status: 500 })
+          : Response.json({ data: [{ b64_json: repaint, media_type: "image/png" }] });
+      }),
+    );
+
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expect(
+      t.action(internal.carouselWeave.weave, {
+        accountId,
+        imageIds,
+        format: "4:5",
+        bridges: ["a fita", "o balão", "a onda"],
+      }),
+    ).rejects.toThrow();
+
+    // Seam 3 never started; seam 1's billed repaint was discarded.
+    expect(calls).toBe(2);
+    expect(await t.run((ctx) => ctx.db.query("images").collect())).toHaveLength(3);
+  });
+
+  it("tolerates working rows the owner already deleted", async () => {
+    const { t, accountId, imageIds } = await setup();
+    await t.run((ctx) => ctx.db.delete(imageIds[2]!));
+
+    await t.mutation(internal.gallery.discardWorking, { accountId, imageIds });
+
+    expect(await t.run((ctx) => ctx.db.query("images").collect())).toHaveLength(0);
+  });
+
+  it("falls back to one worker for a nonsense concurrency", async () => {
+    const { t, accountId, imageIds } = await setup();
+    vi.stubEnv("VANDA_WEAVE_CONCURRENCY", "-1");
+    const repaint = (await png(0x808080ff)).toString("base64");
+
+    const request = vi.fn(async () =>
+      Response.json({ data: [{ b64_json: repaint, media_type: "image/png" }] }),
+    );
+
+    vi.stubGlobal("fetch", request);
+
+    const result = await t.action(internal.carouselWeave.weave, {
+      accountId,
+      imageIds,
+      format: "4:5",
+      bridges: ["a fita", "o balão", "a onda"],
+    });
+
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(result.slides.every((slide) => slide.imageId)).toBe(true);
+  });
+});
+
 describe("seamPrompt", () => {
   it("sizes the hero bigger than a satellite and never asks for text", () => {
     const hero = seamPrompt("astronauta de corpo inteiro", "espaço escuro", "hero");

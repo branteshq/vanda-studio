@@ -163,7 +163,12 @@ async function deleteImage(
 export const discardWorking = internalMutation({
   args: { accountId: v.id("accounts"), imageIds: v.array(v.id("images")) },
   handler: async (ctx, { accountId, imageIds }): Promise<void> => {
-    for (const imageId of imageIds) await deleteImage(ctx, accountId, imageId);
+    for (const imageId of imageIds) {
+      // Working rows show in the gallery, so the owner may have deleted one already.
+      const image = await ctx.db.get(imageId);
+
+      if (image?.accountId === accountId) await deleteImage(ctx, accountId, imageId);
+    }
   },
 });
 
