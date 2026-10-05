@@ -3,6 +3,19 @@
 Working notes from the September 18, 2026 discussion with Davi. This is a living
 document for continued investigation and implementation, not a finished design.
 
+## Brand file and skill coverage — October 5, 2026
+
+Live runs on the owner's ChatGPT subscription (GPT-6 Luna, GPT Image 2.5 Sunburst), after the brand file replaced /memory.
+
+**Brand memory** (`brandMemory.live.test.ts`, Café Caju, 11 turns across Vanda and Caetano sessions, 4 runs): 43 of 44 steps correct. Reads, owner preferences, corrections, cross-agent recall, removal on request, one-off requests without writes, settings and docs all held. The miss: once, Caetano tried to verify an owner-reported result on Instagram and recorded nothing. Owner reports should count as evidence.
+
+**Skills** (`agentQuality.live.test.ts` with `VANDA_EVAL_SKILLS=1`, 17 cases covering all 4 post types and all 14 purposes, 25 runs with repeats): 21 passed.
+
+- Single images, stories and regular carousels: consistently high quality across repeats, exact facts, legible type, no invented faces.
+- Infinite carousels: strong, repeatable art direction, but 3 of 7 finished runs showed visible defects (a headline clipped near a cut, text colliding with an object, a bridge object floating in the sky).
+- Product without a photo: for the same prompt Vanda sometimes asked for a product photo (3 runs) and sometimes invented the product's look (1 run). Needs a product decision, then a prompt rule.
+- One infinite carousel skipped reading `post-production` after finding it through `tool_search`.
+
 ## Post flow: type → purpose → format, through tool_search — September 30, 2026
 
 Skills and tools share one index: `tool_search` returns matching skills with their

@@ -7,6 +7,8 @@ import agentComponent from "@convex-dev/agent/test";
 import { convexTest } from "convex-test";
 import { expect, it, vi } from "vitest";
 import { z } from "zod";
+import { brandFileFor } from "../../evals/brandFile";
+import { expandedSkillCases, skillCaseFor } from "../../evals/skillBenchmark";
 import { brands, cases } from "../../evals/fixtures";
 import { benchmarkMethods, imageBenchmarkCases } from "../../evals/imageBenchmark";
 import { professionalBrands, professionalCases } from "../../evals/professionalBenchmark";
@@ -52,7 +54,10 @@ const benchmarkCases = professionals ? professionalCases : imageBenchmarkCases;
 if (professionals && (method !== "raw" || referenceFiles.length !== 2))
   throw new Error("Professional benchmark requires raw method and two local reference files");
 
-const suite = (method ? benchmarkCases : cases).filter((entry) =>
+// VANDA_EVAL_SKILLS=1 runs the skill coverage suite (every post type and purpose).
+const skills = process.env.VANDA_EVAL_SKILLS === "1";
+
+const suite = (skills ? expandedSkillCases() : method ? benchmarkCases : cases).filter((entry) =>
   selected.size ? selected.has(entry.id) : !entry.holdout,
 );
 
@@ -351,14 +356,17 @@ it.skipIf(!enabled).each(suite)(
 
       for (const [path, content] of [
         ["/brand/kit.json", JSON.stringify(brand.kit)],
-        ["/brand/notes.md", brand.notes],
-        ["/memory/preferences.md", brand.preferences],
-      ])
-        await t.mutation(internal.workspaceData.write, {
+        ["/brand/marca.md", brandFileFor(brand)],
+      ] as const) {
+        const written = await t.mutation(internal.workspaceData.write, {
           accountId: ids.accountId,
-          path: path!,
-          content: content!,
+          path,
+          content,
         });
+
+        // A silent refusal would run the case without the brand's notes and preferences.
+        expect(written.ok, path).toBe(true);
+      }
 
       const attachments: { imageId: Id<"images">; url: string; mimeType: string }[] = [];
 
@@ -660,7 +668,34 @@ it.skipIf(!enabled).each(suite)(
       if (entry.agent === "caetano")
         expect(trace.some((step) => step.agent === "vanda")).toBe(false);
 
-      if (entry.id === "inf-carrossel-6x1") {
+      const skillCase = skills ? skillCaseFor(entry.id) : undefined;
+
+      if (skillCase) {
+        const readSkills = trace.flatMap((step) =>
+          (step.calls ?? []).flatMap((call) =>
+            call.toolName === "read" ? [JSON.stringify(call.input)] : [],
+          ),
+        );
+
+        const purposeSkill = `post-purpose-${skillCase.purpose.replaceAll("_", "-")}`;
+
+        for (const skill of ["post-production", skillCase.typeSkill, purposeSkill])
+          expect(
+            readSkills.some((input) => input.includes(skill)),
+            `loaded ${skill}`,
+          ).toBe(true);
+
+        const post = state.posts[0]!;
+        expect(post.type).toBe(skillCase.type);
+        expect([post.purpose, post.secondaryPurpose]).toContain(skillCase.purpose);
+
+        if (skillCase.type === "story") expect(post.format).toBe("9:16");
+      }
+
+      if (
+        entry.id === "inf-carrossel-6x1" ||
+        skillCase?.typeSkill === "post-type-infinite-carousel"
+      ) {
         const calls = trace.flatMap((step) => step.calls ?? []);
 
         expect(
