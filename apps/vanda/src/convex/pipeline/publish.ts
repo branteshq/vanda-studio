@@ -2,6 +2,7 @@ import type * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
+import * as Predicate from "effect/Predicate";
 import { postTypes } from "./constants";
 import { InvalidPost, Publisher, type PublishReceipt, UnsupportedFormat } from "./publisher";
 
@@ -90,6 +91,7 @@ const failureReason = (error: {
  */
 export const publishDue = Effect.fn("pipeline.publishDue")(function* (scheduledPostId: string) {
   const store = yield* PublishStore;
+
   // A post whose images are gone can't load: record why, or the row stays "scheduled" forever.
   const job = yield* store
     .loadJob(scheduledPostId)
@@ -97,7 +99,7 @@ export const publishDue = Effect.fn("pipeline.publishDue")(function* (scheduledP
       Effect.tapError((error) =>
         store.markFailed(
           scheduledPostId,
-          error._tag === "PublishJobNotFound"
+          Predicate.isTagged(error, "PublishJobNotFound")
             ? "PublishJobNotFound: o post ou uma das imagens dele não existe mais"
             : failureReason(error),
         ),

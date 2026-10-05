@@ -7,6 +7,7 @@ import type { Id } from "./_generated/dataModel";
 import { internalAction, type ActionCtx } from "./_generated/server";
 import { agentActivityIdValidator, type AgentActivityId } from "./agentActivity";
 import { chainSlidePrompt } from "./gallery";
+import { MAX_DECODE_PIXELS, sniffImage } from "./pipeline/imageBytes";
 import type { BrandKit } from "./workspace/brandKit";
 import {
   blendBand,
@@ -273,14 +274,18 @@ const discardWorking = async (
   }
 };
 
+/** A slide already in memory, or one decoded only when the strip reaches it. */
+type SlideSource = () => Promise<Bitmap>;
+
 /** Slides side by side plus slide 1 again, so the loop seam is visible too. */
-const stripPreview = async (slides: readonly Bitmap[]): Promise<Blob> => {
-  const { width, height } = slides[0]!;
-  const tileWidth = Math.round((width * STRIP_HEIGHT) / height);
+const stripPreview = async (size: Size, slides: readonly SlideSource[]): Promise<Blob> => {
+  const tileWidth = Math.round((size.width * STRIP_HEIGHT) / size.height);
   const tiles = [...slides, slides[0]!];
   const strip = new Jimp({ width: tileWidth * tiles.length, height: STRIP_HEIGHT });
 
-  for (const [index, slide] of tiles.entries()) {
+  // One full-size slide in memory at a time.
+  for (const [index, load] of tiles.entries()) {
+    const slide = await load();
     const tile = Jimp.fromBitmap({ ...slide, data: bufferOf(slide.data) });
     tile.resize({ w: tileWidth, h: STRIP_HEIGHT });
     strip.composite(tile, index * tileWidth, 0);
@@ -296,7 +301,14 @@ type Run = {
   format: WeaveFormat;
   threadId?: string | undefined;
   activityId?: AgentActivityId | undefined;
+  // Repaints come back at the slides' own tier, never upscaled from 1K.
+  resolution?: "2K" | undefined;
 };
+
+type Size = { width: number; height: number };
+
+// Long side above this is a 2K slide (1K tiers top out near 1.4K).
+const TWO_K_LONG_SIDE = 1600;
 
 type SeamPaintArgs = {
   accountId: Id<"accounts">;
@@ -308,6 +320,7 @@ type SeamPaintArgs = {
   threadId?: string;
   activityId?: AgentActivityId;
   referenceImageIds?: Id<"images">[];
+  resolution?: "2K";
 };
 
 type SaveImageArgs = {
@@ -330,36 +343,59 @@ type WeaveResult = {
   seams: { seam: string; bridge: string; score: number; woven: boolean }[];
 };
 
-/** Decode owned slides (the ownership wall paint uses) and check they share one size and format. */
-const loadSlides = async (
+/**
+ * Fetch owned slides (the ownership wall paint uses) and check, from their
+ * headers, that they share one size and format small enough to decode: a 4K
+ * bitmap and its canvases would blow the action's memory cap.
+ */
+const loadSources = async (
   ctx: ActionCtx,
   run: Run,
   imageIds: Id<"images">[],
-): Promise<Bitmap[]> => {
+): Promise<{ bytes: ArrayBuffer[]; size: Size; run: Run }> => {
   const resolved = await ctx.runQuery(internal.imagesData.resolvePaintInput, {
     accountId: run.accountId,
     referenceImageIds: imageIds,
   });
 
-  const slides = await Promise.all(
-    resolved.references.map(async (source) => decode(await fetchBytes(ctx, source))),
+  const bytes = await Promise.all(resolved.references.map((source) => fetchBytes(ctx, source)));
+
+  const sizes = await Promise.all(
+    bytes.map(async (slide): Promise<Size> => {
+      const sniffed = sniffImage(new Uint8Array(slide));
+
+      if (sniffed) return sniffed;
+      const { width, height } = await decode(slide);
+
+      return { width, height };
+    }),
   );
 
-  const { width, height } = slides[0]!;
+  const { width, height } = sizes[0]!;
 
-  for (const [index, slide] of slides.entries()) {
-    if (slide.width !== width || slide.height !== height) {
+  for (const [index, size] of sizes.entries()) {
+    if (size.width !== width || size.height !== height) {
       throw new Error(
-        `slide ${index + 1} é ${slide.width}×${slide.height}; todos precisam de ${width}×${height}`,
+        `slide ${index + 1} é ${size.width}×${size.height}; todos precisam de ${width}×${height}`,
       );
     }
+  }
+
+  if (width * height > MAX_DECODE_PIXELS) {
+    throw new Error(
+      `os slides são ${width}×${height}, grandes demais para o carrossel infinito; pinte o slide 1 em 1K ou 2K`,
+    );
   }
 
   if (Math.abs(width / height / RATIOS[run.format] - 1) > 0.03) {
     throw new Error(`os slides são ${width}×${height}, não ${run.format}`);
   }
 
-  return slides;
+  return {
+    bytes,
+    size: { width, height },
+    run: Math.max(width, height) > TWO_K_LONG_SIDE ? { ...run, resolution: "2K" } : run,
+  };
 };
 
 /**
@@ -392,6 +428,8 @@ const repaintPatch = async (
   if (run.activityId) paintArgs.activityId = run.activityId;
 
   if (referenceImageIds?.length) paintArgs.referenceImageIds = referenceImageIds;
+
+  if (run.resolution) paintArgs.resolution = run.resolution;
 
   try {
     const painted = await ctx.runAction(internal.images.paint, paintArgs);
@@ -441,10 +479,11 @@ const saveSlide = async (
 const saveStrip = async (
   ctx: ActionCtx,
   run: Run,
-  slides: readonly Bitmap[],
+  size: Size,
+  slides: readonly SlideSource[],
 ): Promise<{ imageId: Id<"images">; url: string }> => {
-  const { width, height } = slides[0]!;
-  const storageId = await ctx.storage.store(await stripPreview(slides));
+  const { width, height } = size;
+  const storageId = await ctx.storage.store(await stripPreview(size, slides));
 
   const stripArgs: SaveImageArgs = {
     accountId: run.accountId,
@@ -526,8 +565,9 @@ export const weave = internalAction({
       }
     }
 
-    const run: Run = args;
-    const slides = await loadSlides(ctx, run, args.imageIds);
+    const sources = await loadSources(ctx, args, args.imageIds);
+    const { run, size } = sources;
+    const slides = await Promise.all(sources.bytes.map(decode));
 
     const brand = brandDirection(
       await ctx.runQuery(internal.brandContext.kit, { accountId: args.accountId }),
@@ -594,13 +634,18 @@ export const weave = internalAction({
       await discardSuperseded(
         ctx,
         run,
-        [...changed].sort((a, b) => a - b).map((index) => args.imageIds[index]!),
+        [...changed].toSorted((a, b) => a - b).map((index) => args.imageIds[index]!),
         saved,
       );
 
       return {
         slides: saved,
-        strip: await saveStrip(ctx, run, slides),
+        strip: await saveStrip(
+          ctx,
+          run,
+          size,
+          slides.map((slide) => async () => slide),
+        ),
         seams: pairs.map(([left, right], seam) => ({
           seam:
             seam === count - 1 ? `${left + 1}→${right + 1} (volta)` : `${left + 1}→${right + 1}`,
@@ -656,16 +701,17 @@ export const extend = internalAction({
       throw new Error(`a volta só fecha com pelo menos ${MIN_SLIDES} slides`);
     }
 
-    const run: Run = args;
-    const chain = await loadSlides(ctx, run, args.imageIds);
+    const sources = await loadSources(ctx, args, args.imageIds);
+    const { run, size } = sources;
 
     const brand = brandDirection(
       await ctx.runQuery(internal.brandContext.kit, { accountId: args.accountId }),
     );
 
-    const { width } = chain[0]!;
+    const { width } = size;
     const index = count - 1;
-    const previous = chain[index - 1]!;
+    // Only the slides this call changes are decoded; the rest stay bytes.
+    const previous = await decode(sources.bytes[index - 1]!);
     const hero = index - 1 === HERO_SEAM;
     const geometry = weaveGeometry(width, hero);
     const keep = Math.round(width * KEEP[hero ? "hero" : "satellite"]);
@@ -712,11 +758,16 @@ export const extend = internalAction({
       );
 
       const slide = restoreLeft(completed, canvasB, geometry.band, geometry.feather);
-      const slides = [...chain, slide];
-      const changed = new Set([index - 1, index]);
+
+      const changed = new Map<number, Bitmap>([
+        [index - 1, previous],
+        [index, slide],
+      ]);
+
+      let first: Bitmap | undefined;
 
       if (args.loopBridge !== undefined) {
-        const first = slides[0]!;
+        first = await decode(sources.bytes[0]!);
         const patch = buildPatch(slide, first);
 
         const repaint = matchColors(
@@ -733,24 +784,26 @@ export const extend = internalAction({
         );
 
         blendBand(slide, first, repaint, weaveGeometry(width));
-        changed.add(0);
+        changed.set(0, first);
       }
 
       // Unchanged slides keep their ids; changed ones become new gallery images.
       const saved: WeaveResult["slides"] = [];
 
-      for (const [position, bitmap] of slides.entries()) {
+      for (let position = 0; position < count; position += 1) {
+        const bitmap = changed.get(position);
+
         saved.push({
-          imageId: changed.has(position)
+          imageId: bitmap
             ? await saveSlide(ctx, run, bitmap, `${position + 1}`, args.imageIds[position])
             : args.imageIds[position]!,
         });
       }
 
       // Earlier chain versions of the changed slides are superseded.
-      const superseded = [...changed].flatMap((position) =>
-        position < args.imageIds.length ? [args.imageIds[position]!] : [],
-      );
+      const superseded = [...changed.keys()]
+        .toSorted((a, b) => a - b)
+        .flatMap((position) => (position < args.imageIds.length ? [args.imageIds[position]!] : []));
 
       await discardSuperseded(ctx, run, superseded, saved);
 
@@ -763,16 +816,22 @@ export const extend = internalAction({
         },
       ];
 
-      if (args.loopBridge === undefined) return { slides: saved, seams };
+      if (args.loopBridge === undefined || !first) return { slides: saved, seams };
 
       seams.push({
         seam: `${count}→1 (volta)`,
         bridge: args.loopBridge,
-        score: score(slide, slides[0]!),
+        score: score(slide, first),
         woven: true,
       });
 
-      return { slides: saved, strip: await saveStrip(ctx, run, slides), seams };
+      const tiles = Array.from({ length: count }, (_, position): SlideSource => {
+        const bitmap = changed.get(position);
+
+        return bitmap ? async () => bitmap : () => decode(sources.bytes[position]!);
+      });
+
+      return { slides: saved, strip: await saveStrip(ctx, run, size, tiles), seams };
     } finally {
       await discardWorking(ctx, run, workingImageIds);
     }

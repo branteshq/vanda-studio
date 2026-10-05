@@ -215,6 +215,91 @@ describe("carouselWeave cleanup", () => {
     expect(await t.run((ctx) => ctx.db.query("images").collect())).toHaveLength(0);
   });
 
+  it("refuses slides too big to decode before fetching a repaint", async () => {
+    const { t, accountId } = await setup();
+    const request = vi.fn();
+    vi.stubGlobal("fetch", request);
+
+    // A 4K 4:5 PNG, header only: the size is read without decoding.
+    const header = new Uint8Array(33);
+    header.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    new DataView(header.buffer).setUint32(16, 3712);
+    new DataView(header.buffer).setUint32(20, 4640);
+
+    const huge = await t.run(async (ctx) =>
+      ctx.db.insert("images", {
+        accountId,
+        origin: "generated",
+        purpose: "post",
+        storageId: await ctx.storage.store(new Blob([header], { type: "image/png" })),
+        createdAt: 1,
+      }),
+    );
+
+    await expect(
+      t.action(internal.carouselWeave.extend, {
+        accountId,
+        imageIds: [huge],
+        format: "4:5",
+        bridge: "herói",
+        content: "passo 1",
+      }),
+    ).rejects.toThrow("pinte o slide 1 em 1K ou 2K");
+
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it("repaints 2K slides at 2K", async () => {
+    const { t, accountId } = await setup();
+    const bodies: { resolution?: string }[] = [];
+
+    const big = await new Jimp({ width: 1664, height: 2080, color: 0x335577ff }).getBuffer(
+      "image/png",
+    );
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)));
+
+        return Response.json({
+          data: [{ b64_json: Buffer.from(big).toString("base64"), media_type: "image/png" }],
+        });
+      }),
+    );
+
+    const slide = await t.run(async (ctx) => {
+      const ownerUserId = await ctx.db.insert("users", {
+        name: "Dona",
+        email: "dona@example.com",
+        clerkId: "clerk_dona",
+        imageModel: "google/gemini-3.1-flash-image",
+      });
+
+      await ctx.db.patch(accountId, { ownerUserId });
+
+      return ctx.db.insert("images", {
+        accountId,
+        origin: "generated",
+        purpose: "post",
+        storageId: await ctx.storage.store(new Blob([new Uint8Array(big)], { type: "image/png" })),
+        width: 1664,
+        height: 2080,
+        createdAt: 1,
+      });
+    });
+
+    await t.action(internal.carouselWeave.extend, {
+      accountId,
+      imageIds: [slide],
+      format: "4:5",
+      bridge: "herói",
+      content: "passo 1",
+    });
+
+    expect(bodies.map((body) => body.resolution)).toEqual(["2K", "2K"]);
+  });
+
   it("falls back to one worker for a nonsense concurrency", async () => {
     const { t, accountId, imageIds } = await setup();
     vi.stubEnv("VANDA_WEAVE_CONCURRENCY", "-1");
@@ -364,7 +449,8 @@ describe("carouselWeave.extend", () => {
 
     expect(ids.has(imageIds[0]!)).toBe(true);
 
-    for (const slide of [...second.slides, ...third.slides]) expect(ids.has(slide.imageId)).toBe(true);
+    for (const slide of [...second.slides, ...third.slides])
+      expect(ids.has(slide.imageId)).toBe(true);
 
     // A superseded id the returned chain repeats at another position stays too.
     const repeated = third.slides[1]!.imageId;
