@@ -454,8 +454,9 @@ const score = (left: Bitmap, right: Bitmap) => Math.round(seamScore(left, right)
 /**
  * Weave an infinite carousel: for every chosen seam (the loop seam N→1
  * included) repaint the patch spanning the cut with a bridge element, then
- * blend its central band back into both slides. Slides are saved as new
- * gallery images; the repaints are working files and are discarded.
+ * blend its central band back into both slides. Changed slides are saved as
+ * new gallery images and the versions they replace are discarded; the repaints
+ * are working files and are discarded too.
  */
 export const weave = internalAction({
   args: {
@@ -541,12 +542,26 @@ export const weave = internalAction({
           );
       }
 
+      // Only slides on either side of a repainted seam changed; the rest keep their ids.
+      const changed = new Set(
+        pairs.flatMap(([left, right], seam) => (repaints[seam] ? [left, right] : [])),
+      );
+
       const saved = await mapLimited(
         [...slides.entries()],
         concurrency(),
         async ([index, slide]) => ({
-          imageId: await saveSlide(ctx, run, slide, `${index + 1}/${count}`, args.imageIds[index]!),
+          imageId: changed.has(index)
+            ? await saveSlide(ctx, run, slide, `${index + 1}/${count}`, args.imageIds[index]!)
+            : args.imageIds[index]!,
         }),
+      );
+
+      await discardSuperseded(
+        ctx,
+        run,
+        [...changed].sort((a, b) => a - b).map((index) => args.imageIds[index]!),
+        saved,
       );
 
       return {

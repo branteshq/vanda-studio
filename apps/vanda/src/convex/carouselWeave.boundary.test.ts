@@ -160,6 +160,14 @@ describe("carouselWeave.weave", () => {
 
     expect(request).toHaveBeenCalledOnce();
     expect(result.seams.map((seam) => seam.woven)).toEqual([false, false, true]);
+    // Seam 3→1 touches slides 3 and 1; slide 2 keeps its id.
+    expect(result.slides[1]!.imageId).toBe(imageIds[1]);
+    expect(result.slides[0]!.imageId).not.toBe(imageIds[0]);
+    expect(result.slides[2]!.imageId).not.toBe(imageIds[2]);
+    // 3 sources + 2 changed slides + 1 strip, and the replaced versions are queued for discard.
+    expect(await t.run((ctx) => ctx.db.query("images").collect())).toHaveLength(6);
+    const [discard] = await runDiscards(t);
+    expect(discard!.args[0].imageIds).toEqual([imageIds[0], imageIds[2]]);
     expect(result.seams[0]!.score).toBeGreaterThan(50);
     expect(result.seams[2]!.score).toBe(0);
   });
