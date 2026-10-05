@@ -498,13 +498,12 @@ function UsageCard({
 }) {
   const runtime = useContext(ProfileRuntimeContext);
   const summary = runtime.useUsageSummary();
-  const openAi = runtime.useOpenAiConnection().status;
   const pct = summary?.usedPct ?? 0;
   const conectado = summary?.plan ? tierOfPlan(summary.plan) === "conectado" : false;
-  // The plan only routes through ChatGPT while the OpenAI login exists; without
-  // it, usage silently falls back to the plan's balance.
-  const viaChatGpt = conectado && openAi?.connected === true;
-  const disconnected = conectado && openAi !== undefined && !openAi?.connected;
+  // The backend's own routing decision: a lingering OpenAI login without a plan
+  // still rides ChatGPT, and Conectado without the login falls back to the balance.
+  const viaChatGpt = summary?.viaChatGpt === true;
+  const disconnected = conectado && !viaChatGpt;
 
   return (
     <section
@@ -523,7 +522,7 @@ function UsageCard({
         {action}
       </div>
       <div className="p-5 sm:p-6">
-        {summary === undefined || (conectado && openAi === undefined) ? (
+        {summary === undefined ? (
           <div className="space-y-4" role="status" aria-label="Carregando uso do plano">
             <Skeleton className="h-10 w-24" />
             <Skeleton className="h-2 w-full rounded-full" />
@@ -583,10 +582,10 @@ function UsageCard({
             </div>
             <p className="mt-3 text-body-sm leading-relaxed text-text-3">
               {summary?.limited
-                ? summary.chatLimited
-                  ? "Limite atingido. Mude de plano ou aguarde a renovação."
-                  : disconnected
-                    ? "Limite atingido. Conecte sua conta OpenAI para continuar pela sua assinatura do ChatGPT."
+                ? disconnected
+                  ? "Limite atingido. Conecte sua conta OpenAI para continuar pela sua assinatura do ChatGPT."
+                  : summary.chatLimited
+                    ? "Limite atingido. Mude de plano ou aguarde a renovação."
                     : "Limite dos serviços pagos pela Vanda atingido. Conversa e imagens pela sua assinatura do ChatGPT continuam disponíveis."
                 : summary?.renewsAt
                   ? `Renova em ${new Date(summary.renewsAt).toLocaleDateString("pt-BR")}`

@@ -280,7 +280,15 @@ const renderConectado = async (connected: boolean) => {
   mocks.query.mockImplementation((ref) => {
     const name = getFunctionName(ref);
 
-    if (name === "usage:summary") return { plan: "conectado", usedPct: 100, limited: true };
+    // Mirrors usage.summary: chat is limited only off ChatGPT.
+    if (name === "usage:summary")
+      return {
+        plan: "conectado",
+        usedPct: 100,
+        limited: true,
+        chatLimited: !connected,
+        viaChatGpt: connected,
+      };
 
     if (name === "openaiSub:connectionStatus") return { connected, connectedAt: null };
 
@@ -298,6 +306,25 @@ it("only claims ChatGPT usage while the OpenAI account is actually connected", a
   expect(container.querySelector('[role="alert"]')).toBeNull();
 });
 
+it("follows the backend's routing for a lingering OpenAI login without a plan", async () => {
+  mocks.query.mockImplementation((ref) => {
+    const name = getFunctionName(ref);
+
+    if (name === "usage:summary")
+      return { plan: null, usedPct: 0, limited: false, chatLimited: false, viaChatGpt: true };
+
+    if (name === "openaiSub:connectionStatus") return { connected: true, connectedAt: null };
+
+    if (name === "whatsappData:state")
+      return { connected: false, configured: true, deliveries: [] };
+
+    return undefined;
+  });
+  await act(async () => root.render(createElement(ProfilePage, { runtime })));
+  expect(container.textContent).toContain("Uso pela sua assinatura do ChatGPT");
+  expect(container.textContent).not.toContain("Crédito de teste");
+});
+
 it("warns and routes to connections when the Conectado plan lost its OpenAI login", async () => {
   await renderConectado(false);
   expect(container.textContent).not.toContain("Uso pela sua assinatura do ChatGPT");
@@ -306,6 +333,8 @@ it("warns and routes to connections when the Conectado plan lost its OpenAI logi
   );
   // The balance bar is real again: usage falls back to the plan's balance.
   expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
+  expect(container.textContent).toContain("Limite atingido. Conecte sua conta OpenAI");
+  expect(container.textContent).not.toContain("Mude de plano");
 
   await click("Conectar OpenAI");
   expect(container.querySelector("h1")?.textContent).toBe("Conexões");
