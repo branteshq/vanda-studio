@@ -12,6 +12,9 @@ describe("Vanda routing prompt", () => {
     expect(prompt).not.toMatch(
       /run_code|\/templates|post-instagram-template|prompt-foto-fiel|creating-carousel-images|post-purposes|post-router/,
     );
+    // Slide consistency holds even in a revision turn that loads no type skill.
+    expect(prompt).toContain("mantenha linguagem visual consistente");
+    expect(prompt).toContain("inclusive ao refazer um único slide");
     // Format and purpose guidance lives in the discovered skills, not every turn.
     expect(prompt).not.toContain("Propósitos de post");
   });
