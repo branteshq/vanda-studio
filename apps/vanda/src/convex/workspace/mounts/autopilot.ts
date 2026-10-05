@@ -20,7 +20,7 @@ export const autopilotMount: WorkspaceMount = {
   root: "autopilot",
   summary: "piloto automático de posts de feed: programação semanal e diagnóstico da conta",
   writeHint:
-    "somente leitura; altere com autopilot_update_slot, autopilot_update_cadence e autopilot_skip_slot quando o dono pedir",
+    "somente leitura; quando o dono pedir, mude posts com autopilot_update_slot / autopilot_skip_slot e a cadência com settings_set (autopilot.cadence)",
   list: (_ctx, _accountId, segments) =>
     Promise.resolve(
       segments.length === 0

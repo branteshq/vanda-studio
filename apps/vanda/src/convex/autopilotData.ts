@@ -575,11 +575,6 @@ export const setEnabledInternal = internalMutation({
   handler: (ctx, { accountId, enabled }) => applyEnabled(ctx, accountId, enabled),
 });
 
-export const updateCadenceInternal = internalMutation({
-  args: { accountId: v.id("accounts"), cadence: v.array(cadenceEntryValidator) },
-  handler: (ctx, { accountId, cadence }) => applyCadence(ctx, accountId, cadence),
-});
-
 export const updateSlotInternal = internalMutation({
   args: {
     accountId: v.id("accounts"),

@@ -1,7 +1,7 @@
 ---
 name: instagram-weekly-plan
 description: Planeja a semana de posts de feed (imagem e carrossel) — quantos, em que dias e horários, quantos slides, propósito, tema, ângulo e gancho de cada um. Use para "planeje minha semana", "o que postar", "cronograma", "programação" ou piloto automático.
-allowed-tools: list read write read_instagram_metrics autopilot_read autopilot_update_cadence autopilot_update_slot
+allowed-tools: list read write read_instagram_metrics autopilot_read autopilot_update_slot settings_set
 ---
 
 # Plano semanal de feed
@@ -64,4 +64,4 @@ QUI 18h  IMAGEM 1     PROVA SOCIAL "120 entregas em agosto" — print do cliente
 SÁB 12h  CARROSSEL 3  BASTIDORES   "Como sai uma encomenda" — da massa à entrega
 ```
 
-Explique em uma frase por que essa cadência e essa mistura. Na conversa, mostre o plano com `autopilot_read` e altere só quando o dono pedir.
+Explique em uma frase por que essa cadência e essa mistura. Na conversa, mostre o plano com `autopilot_read` e altere só quando o dono pedir: a cadência com `settings_set` (`autopilot.cadence`), um post com `autopilot_update_slot`.

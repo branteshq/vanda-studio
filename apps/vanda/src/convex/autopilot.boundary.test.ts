@@ -407,6 +407,49 @@ describe("autopilot segregation", () => {
   });
 });
 
+describe("autopilot settings", () => {
+  it("lets the agents turn it off and rewrite the cadence through settings_set", async () => {
+    const { t, accountId } = await setup();
+
+    const userId = await t.run(async (ctx) => {
+      const account = await ctx.db.get(accountId);
+
+      await ctx.db.patch(account!.ownerUserId!, { activeAccountId: accountId });
+
+      return account!.ownerUserId!;
+    });
+
+    await t.mutation(internal.settingsData.set, {
+      userId,
+      id: "autopilot.cadence",
+      value: "seg 9h imagem; qua 19h30 carrossel 4",
+    });
+
+    const config = await t.run((ctx) =>
+      ctx.db
+        .query("autopilotConfigs")
+        .withIndex("by_account", (q) => q.eq("accountId", accountId))
+        .unique(),
+    );
+
+    expect(config?.cadenceSource).toBe("owner");
+    expect(config?.cadence).toEqual([
+      { weekday: 1, time: "09:00", type: "image", slideCount: 1 },
+      { weekday: 3, time: "19:30", type: "carousel", slideCount: 4 },
+    ]);
+
+    await t.mutation(internal.settingsData.set, {
+      userId,
+      id: "autopilot.enabled",
+      value: "desligado",
+    });
+
+    const settings = await t.query(internal.settingsData.get, { userId, id: "autopilot.enabled" });
+
+    expect(JSON.stringify(settings)).toContain('"enabled":false');
+  });
+});
+
 describe("autopilot access", () => {
   it("shows the overview to the owner only", async () => {
     const { t, accountId, plan } = await setup();

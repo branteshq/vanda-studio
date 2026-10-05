@@ -11,9 +11,10 @@ import { postPurposes } from "../postPurposes";
 import { capabilityResult, capabilityResultSchema, type ThreadResource } from "../resourceRefs";
 
 /**
- * Vanda and Caetano's hands on the autopilot. Reads are free; every write runs
- * the same mutation as the Piloto automático view and only on the owner's
- * explicit request. Turning it on or off is the `autopilot.enabled` setting.
+ * Vanda and Caetano's hands on the autopilot's posts. Reads are free; every
+ * write runs the same mutation as the Piloto automático view and only on the
+ * owner's explicit request. On/off and the cadence are settings
+ * (autopilot.enabled, autopilot.cadence) changed with settings_set.
  */
 
 type AutopilotCtx = ToolCtx & AgentCtx;
@@ -87,7 +88,7 @@ const report = async (
 export const autopilotTools = {
   autopilot_read: createTool({
     description:
-      "Mostra o piloto automático de posts de feed: se está ligado, a cadência da semana, a programação desta semana e da próxima (cada post com slotId, dia, horário, formato, slides, propósito, gancho e estado) e, com includeAudit, o diagnóstico da conta. Na conversa, a programação aparece como cartão com os dias da semana; no WhatsApp, responda com o texto de `whatsapp`.",
+      "Mostra o piloto automático de posts de feed: se está ligado, a cadência da semana (ligado e cadência são as configurações autopilot.enabled e autopilot.cadence, de settings_set), a programação desta semana e da próxima (cada post com slotId, dia, horário, formato, slides, propósito, gancho e estado) e, com includeAudit, o diagnóstico da conta. Na conversa, a programação aparece como cartão com os dias da semana; no WhatsApp, responda com o texto de `whatsapp`.",
     inputSchema: z.object({ includeAudit: z.boolean().optional() }),
     outputSchema: capabilityResultSchema,
     execute: async (ctx: AutopilotCtx, { includeAudit }, options): Promise<CapabilityOutput> => {
@@ -101,30 +102,6 @@ export const autopilotTools = {
       });
 
       return report(ctx, options, accountId, { audit: renderAuditMarkdown(overview) });
-    },
-  }),
-  autopilot_update_cadence: createTool({
-    description: `Troca a cadência semanal do piloto automático (dias, horários, imagem ou carrossel e slides). A cadência passa a ser do dono e os posts ainda não gerados são replanejados. ${OWNER_ONLY}`,
-    inputSchema: z.object({
-      cadence: z
-        .array(
-          z.object({
-            weekday,
-            time,
-            type: z.enum(autopilotPostTypes),
-            slideCount: z.number().int().min(1).max(10).describe("imagem = 1; carrossel 2 a 10"),
-          }),
-        )
-        .min(1)
-        .max(7),
-    }),
-    outputSchema: capabilityResultSchema,
-    execute: async (ctx: AutopilotCtx, { cadence }, options): Promise<CapabilityOutput> => {
-      const accountId = await agentAccount(ctx);
-
-      await ctx.runMutation(internal.autopilotData.updateCadenceInternal, { accountId, cadence });
-
-      return report(ctx, options, accountId, { updated: "cadence" });
     },
   }),
   autopilot_update_slot: createTool({
@@ -211,11 +188,6 @@ export const autopilotDiscovery = {
     keywords:
       "piloto automático automatico autopilot programação programacao cronograma semanal semana automáticos cadência cadencia diagnóstico diagnostico análise nota perfil weekly plan audit",
     effect: "read",
-  },
-  autopilot_update_cadence: {
-    keywords:
-      "piloto automático cadência cadencia mudar trocar dias horários frequência posts por semana autopilot cadence change days times",
-    effect: "write",
   },
   autopilot_update_slot: {
     keywords:

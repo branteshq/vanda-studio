@@ -23,7 +23,7 @@ Todos os horários são no horário de Brasília.
 
 ## Ligar e desligar
 
-Use o botão no topo da página **Piloto automático**. Ao ligar, a Vanda faz o diagnóstico e planeja o resto desta semana e a próxima. Ao desligar, as publicações pendentes são canceladas; o que já foi publicado continua no histórico. Você também pode pedir à Vanda ou ao Caetano para ligar ou desligar.
+O estado (ligado ou desligado) aparece no topo da página **Piloto automático**. Para ligar, use o botão da página enquanto ele estiver desligado, ou peça à Vanda ou ao Caetano; para desligar, peça a um deles. Ao ligar, a Vanda faz o diagnóstico e planeja o resto desta semana e a próxima. Ao desligar, as publicações pendentes são canceladas; o que já foi publicado continua no histórico. Você também pode pedir à Vanda ou ao Caetano para ligar ou desligar.
 
 O piloto precisa do Instagram conectado. Veja [Conexões](/docs/conexoes).
 
@@ -41,7 +41,7 @@ Em **Piloto automático › Cadência**, use **Editar cadência** para escolher 
 
 ## Pela conversa e pelo WhatsApp
 
-A Vanda e o Caetano leem e mudam o piloto quando você pede: "mostra a programação da semana", "muda a quinta para 19h", "pula o post de sábado", "troca a cadência para segunda, quarta e sexta". Na conversa, a programação aparece como um cartão com os dias da semana e o botão **Ver programação**; no WhatsApp, como texto.
+Tudo o que aparece nesta página também é mudado pela Vanda e pelo Caetano quando você pede: "liga o piloto automático", "mostra a programação da semana", "muda a quinta para 19h", "pula o post de sábado", "troca a cadência para segunda, quarta e sexta às 18h". Ligar, desligar e a cadência são configurações da plataforma; os posts da semana, eles mudam um a um. Na conversa, a programação aparece como um cartão com os dias da semana e o botão **Ver programação**; no WhatsApp, como texto.
 
 ## Custos
 

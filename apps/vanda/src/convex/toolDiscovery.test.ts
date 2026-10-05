@@ -93,7 +93,6 @@ describe("role-specific discovery", () => {
     "autopilot_reanalyze",
     "autopilot_regenerate_slot",
     "autopilot_skip_slot",
-    "autopilot_update_cadence",
     "autopilot_update_slot",
     "cancel_schedule",
     "delete_post",
@@ -165,7 +164,7 @@ describe("role-specific discovery", () => {
     ["vanda", "web_search", "web_search", "read"],
     ["vanda", "programação do piloto automático", "autopilot_read", "read"],
     ["caetano", "pular o post do piloto automático", "autopilot_skip_slot", "write"],
-    ["caetano", "mudar a cadência do piloto", "autopilot_update_cadence", "write"],
+    ["caetano", "mudar a cadência do piloto automático", "settings_set", "write"],
     ["caetano", "read_web_page", "read_web_page", "read"],
   ] as const)("finds %s / %s", async (role, query, name, effect) => {
     const discovery = role === "vanda" ? vandaToolDiscovery : caetanoToolDiscovery;

@@ -8,7 +8,6 @@ import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { Spinner } from "@vanda-studio/ui/components/spinner";
 import { StatusPill } from "@vanda-studio/ui/components/status-pill";
 import { Tag } from "@vanda-studio/ui/components/tag";
-import { Toggle } from "@vanda-studio/ui/components/toggle";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { useActiveAccount } from "../components/active-account";
 import { CadenceEditor } from "../components/autopilot/cadence-editor";
@@ -46,19 +45,15 @@ function PilotoPage() {
   );
 
   const setEnabled = useMutation(api.autopilot.setEnabled);
-  const [toggling, setToggling] = useState(false);
 
   if (!activeAccount) return null;
 
-  const toggle = async (enabled: boolean) => {
-    setToggling(true);
-
+  // On/off is the autopilot.enabled setting: Vanda and Caetano change it with settings_set.
+  const enable = async () => {
     try {
-      await setEnabled({ enabled });
+      await setEnabled({ enabled: true });
     } catch (error) {
       showErrorToast(error);
-    } finally {
-      setToggling(false);
     }
   };
 
@@ -68,15 +63,9 @@ function PilotoPage() {
         <CalendarClock className="size-4 text-text-4" aria-hidden="true" />
         <h1 className="mr-auto text-sm font-semibold text-text">Piloto automático</h1>
         {overview ? (
-          <label className="flex items-center gap-2 text-body text-text-3">
+          <StatusPill tone={overview.enabled ? "live" : "neutral"}>
             {overview.enabled ? "Ligado" : "Desligado"}
-            <Toggle
-              checked={overview.enabled}
-              disabled={toggling}
-              onCheckedChange={(checked) => void toggle(checked)}
-              aria-label="Ligar ou desligar o piloto automático"
-            />
-          </label>
+          </StatusPill>
         ) : null}
       </header>
 
@@ -88,7 +77,7 @@ function PilotoPage() {
               <Skeleton className="h-56" />
             </>
           ) : (
-            <PilotoContent overview={overview} onEnable={() => void toggle(true)} />
+            <PilotoContent overview={overview} onEnable={() => void enable()} />
           )}
         </div>
       </main>
@@ -202,7 +191,8 @@ function Intro({ onEnable, connected }: { onEnable: () => void; connected: boole
         <li>4. Você vê tudo aqui e pode editar, pular ou gerar de novo até o horário.</li>
       </ol>
       <p className="text-note text-text-4">
-        Fica separado dos posts que você cria na conversa. Por enquanto, só posts de feed.
+        Fica separado dos posts que você cria na conversa. Por enquanto, só posts de feed. A Vanda e
+        o Caetano também ligam, desligam e mudam a cadência quando você pedir.
       </p>
       <Button className="justify-self-start" onClick={onEnable} disabled={!connected}>
         Ligar piloto automático

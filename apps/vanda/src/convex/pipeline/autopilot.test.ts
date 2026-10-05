@@ -8,6 +8,7 @@ import {
   formatScheduleText,
   localSlot,
   normalizeCadence,
+  parseCadenceText,
   slotTimestamp,
   weekStartOf,
 } from "./autopilot";
@@ -59,6 +60,24 @@ describe("normalizeCadence", () => {
     ]);
 
     expect(sorted.map((entry) => entry.weekday)).toEqual([1, 0]);
+  });
+});
+
+describe("parseCadenceText", () => {
+  it("reads the agency's own way of writing a cadence", () => {
+    expect(
+      normalizeCadence(
+        parseCadenceText("Terça 18h carrossel 2; quinta 18h imagem\nsábado 12h carrossel 3 slides"),
+      ),
+    ).toEqual(DEFAULT_CADENCE);
+    expect(parseCadenceText("seg 9h30 imagem")).toEqual([
+      { weekday: 1, time: "09:30", type: "image", slideCount: 1 },
+    ]);
+  });
+
+  it("accepts the JSON the Piloto automático view sends and rejects what it can't read", () => {
+    expect(parseCadenceText(JSON.stringify(DEFAULT_CADENCE))).toEqual(DEFAULT_CADENCE);
+    expect(() => parseCadenceText("toda hora")).toThrow(/não entendi/);
   });
 });
 

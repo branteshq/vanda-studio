@@ -1,10 +1,10 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { mutation, query, type MutationCtx } from "./_generated/server";
+import { publicError } from "../errors";
 import { requireOwnedAccount, requireUser } from "./authz";
 import {
-  applyCadence,
   applyRegenerate,
-  applyResetCadence,
   applyRestore,
   applySkip,
   applySlotChange,
@@ -23,6 +23,14 @@ import { writeSetting } from "./settings/registry";
  * same helpers as Vanda and Caetano's tools (autopilotData.ts). Turning the
  * autopilot on or off is a platform setting: settingsData.writeSetting.
  */
+
+/** Settings act on the active business; the page always shows that one. */
+const requireActiveAccount = async (ctx: MutationCtx, accountId: Id<"accounts">) => {
+  await requireOwnedAccount(ctx, accountId);
+  const user = await requireUser(ctx);
+
+  if (user.activeAccountId !== accountId) throw publicError("INVALID_INPUT");
+};
 
 export const overview = query({
   args: { accountId: v.id("accounts"), now: v.optional(v.number()) },
@@ -55,20 +63,20 @@ export const history = query({
   },
 });
 
+/** The cadence is the autopilot.cadence setting, the same write settings_set makes. */
 export const updateCadence = mutation({
   args: { accountId: v.id("accounts"), cadence: v.array(cadenceEntryValidator) },
-  handler: async (ctx, { accountId, cadence }) => {
-    await requireOwnedAccount(ctx, accountId);
-
-    return applyCadence(ctx, accountId, cadence);
+  handler: async (ctx, { accountId, cadence }): Promise<void> => {
+    await requireActiveAccount(ctx, accountId);
+    await writeSetting(ctx, await requireUser(ctx), "autopilot.cadence", JSON.stringify(cadence));
   },
 });
 
 export const resetCadence = mutation({
   args: { accountId: v.id("accounts") },
-  handler: async (ctx, { accountId }) => {
-    await requireOwnedAccount(ctx, accountId);
-    await applyResetCadence(ctx, accountId);
+  handler: async (ctx, { accountId }): Promise<void> => {
+    await requireActiveAccount(ctx, accountId);
+    await writeSetting(ctx, await requireUser(ctx), "autopilot.cadence", "vanda");
   },
 });
 

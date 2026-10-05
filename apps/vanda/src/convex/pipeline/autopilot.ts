@@ -9,6 +9,7 @@ import {
   type AutopilotSlotStatus,
   type CadenceEntry,
 } from "../autopilotModel";
+import { z } from "zod";
 import type { PostPurpose } from "../postPurposes";
 import type { InstagramPost } from "../instagram/types";
 
@@ -113,6 +114,69 @@ export const DEFAULT_CADENCE: readonly CadenceEntry[] = [
   { weekday: 4, time: "18:00", type: "image", slideCount: 1 },
   { weekday: 6, time: "12:00", type: "carousel", slideCount: 3 },
 ];
+
+// ------------------------------------------------------------ cadence input
+
+const WEEKDAY_WORDS = new Map([
+  ["dom", 0],
+  ["seg", 1],
+  ["ter", 2],
+  ["qua", 3],
+  ["qui", 4],
+  ["sex", 5],
+  ["sab", 6],
+]);
+
+const CadenceJson = z.array(
+  z.object({
+    weekday: z.number(),
+    time: z.string(),
+    type: z.enum(autopilotPostTypes),
+    slideCount: z.number(),
+  }),
+);
+
+const fold = (text: string): string => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+
+const ENTRY_PATTERN =
+  /\b(dom(?:ingo)?|seg(?:unda)?|ter(?:ca)?|qua(?:rta)?|qui(?:nta)?|sex(?:ta)?|sab(?:ado)?)\w*\b[^\d]*?(\d{1,2})(?:\s*(?:h|:)\s*(\d{2})?)?/;
+
+/**
+ * Reads a cadence the way an owner or an agent writes it: "ter 18h carrossel 2;
+ * qui 18h imagem; sab 12h carrossel 3" (one post per `;`, `,` or line), or the
+ * JSON array of entries. Unknown pieces are rejected, never guessed.
+ */
+export const parseCadenceText = (value: string): CadenceEntry[] => {
+  const trimmed = value.trim();
+
+  if (trimmed.startsWith("[")) return CadenceJson.parse(JSON.parse(trimmed));
+
+  return trimmed
+    .split(/[;,\n]+/)
+    .map((piece) => piece.trim())
+    .filter(Boolean)
+    .map((piece) => {
+      const text = fold(piece);
+      const match = ENTRY_PATTERN.exec(text);
+
+      if (!match) throw new Error(`não entendi "${piece}"; use por exemplo "ter 18h carrossel 2"`);
+
+      const weekday = WEEKDAY_WORDS.get(match[1]!.slice(0, 3)) ?? Number.NaN;
+      const time = `${match[2]!.padStart(2, "0")}:${match[3] ?? "00"}`;
+      const carousel = /carross|carousel/.test(text);
+
+      const slides =
+        /(\d+)\s*(?:slides?|imagens|fotos)/.exec(text) ??
+        /(?:carrossel|carousel)\D*(\d+)/.exec(text);
+
+      return {
+        weekday,
+        time,
+        type: carousel ? ("carousel" as const) : ("image" as const),
+        slideCount: carousel ? Number(slides?.[1] ?? 2) : 1,
+      };
+    });
+};
 
 // ---------------------------------------------------------------- PT-BR text
 

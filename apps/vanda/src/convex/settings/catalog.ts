@@ -236,12 +236,10 @@ export const SETTINGS = [
     group: "Piloto automático",
     title: "Cadência do piloto automático",
     description:
-      "Dias, horários, tipo (imagem ou carrossel) e número de slides dos posts automáticos da semana, e se foi sugerida pela Vanda ou definida pelo dono.",
+      'Dias, horários (Brasília), formato e slides dos posts automáticos da semana. Para mudar, escreva um post por item separado por ";": "ter 18h carrossel 2; qui 18h imagem; sab 12h carrossel 3". O valor "vanda" devolve a cadência à sugestão do diagnóstico. Os posts ainda não gerados são replanejados.',
     where: "Piloto automático › Cadência",
     route: "/piloto",
-    access: "read",
-    change:
-      "O dono edita em Piloto automático › Cadência. Quando o dono pedir na conversa, use autopilot_update_cadence (ou autopilot_update_slot para um post só).",
+    access: "write",
     doc: "piloto-automatico",
     uiFunctions: ["autopilot.overview", "autopilot.updateCadence", "autopilot.resetCadence"],
   },
