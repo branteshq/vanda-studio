@@ -27,13 +27,19 @@ export function assertImagesWereInspected(
         if (image.success) inspected.add(image.data.data.imageId);
       }
 
-      // The weave returns every woven slide's pixels to the model in one result.
+      // A weave, or the extend that closes the loop, shows every slide to the model
+      // in one strip; an intermediate extend has no strip and shows nothing.
       if (
         result.toolName === "weave_infinite_carousel" ||
         result.toolName === "extend_infinite_carousel"
       ) {
         const woven = z
-          .object({ data: z.object({ slides: z.array(z.object({ imageId: z.string() })) }) })
+          .object({
+            data: z.object({
+              slides: z.array(z.object({ imageId: z.string() })),
+              strip: z.object({ imageId: z.string(), url: z.string() }),
+            }),
+          })
           .safeParse(result.output);
 
         if (woven.success) for (const slide of woven.data.data.slides) inspected.add(slide.imageId);

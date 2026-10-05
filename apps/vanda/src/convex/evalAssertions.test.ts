@@ -8,7 +8,34 @@ import {
 } from "../../evals/assertions";
 import { referenceImage } from "../../evals/references";
 
+/** An extend result; the strip comes only with the call that closes the loop. */
+const chain = (slides: string[], strip?: string) => {
+  const chainSlides = slides.map((imageId) => ({ imageId }));
+
+  return {
+    toolName: "extend_infinite_carousel",
+    output: {
+      data: strip
+        ? {
+            slides: chainSlides,
+            seams: [],
+            strip: { imageId: strip, url: "https://example.com/strip.jpg" },
+          }
+        : { slides: chainSlides, seams: [] },
+    },
+  };
+};
+
 describe("evaluation guards", () => {
+  it("counts an infinite carousel as inspected only once its strip came back", () => {
+    // An unclosed chain the model never saw.
+    const trace: EvalTraceStep[] = [{ results: [chain(["a1", "a2"]), chain(["a1", "b2", "b3"])] }];
+    expect(() => assertImagesWereInspected(trace, ["a1", "b2", "b3"])).toThrow("pixel result");
+
+    trace.push({ results: [chain(["c1", "b2", "c3"], "strip")] });
+    expect(() => assertImagesWereInspected(trace, ["c1", "b2", "c3"])).not.toThrow();
+  });
+
   it("requires pixels for every final image, not presentation metadata or failed reads", () => {
     const trace: EvalTraceStep[] = [
       {
