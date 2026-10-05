@@ -3,26 +3,12 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import { Button, buttonVariants } from "@vanda-studio/ui/components/button";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
-import { errorMessage } from "../errors";
 import { showErrorToast } from "./error-feedback";
-
-const statuses = {
-  pending: "Na fila",
-  sending: "Enviando",
-  sent: "Enviada",
-  delivered: "Entregue",
-  read: "Lida",
-  failed: "Falhou",
-  unknown: "Entrega não confirmada",
-  awaiting_window: "Aguardando uma mensagem sua no WhatsApp",
-  cancelled: "Cancelada",
-} satisfies Record<string, string>;
 
 export function WhatsAppSettings() {
   const state = useQuery(api.whatsappData.state);
   const createLink = useAction(api.whatsapp.createLink);
   const disconnect = useMutation(api.whatsappData.disconnect);
-  const retry = useMutation(api.whatsappData.retryDelivery);
   const [link, setLink] = useState<{ url: string; expiresAt: number } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -55,8 +41,8 @@ export function WhatsAppSettings() {
               {state === undefined
                 ? "Carregando…"
                 : state.connected
-                  ? `Conectado${state.sender ? `: +${state.sender}` : ""}. O Caetano atende todos os seus negócios.`
-                  : "O Caetano atende pelo WhatsApp, com acesso a todos os seus negócios."}
+                  ? `Conectado${state.sender ? `: +${state.sender}` : ""}`
+                  : "Converse com o Caetano pelo WhatsApp."}
             </p>
           </div>
         </div>
@@ -114,53 +100,6 @@ export function WhatsAppSettings() {
           <span className="ml-2 text-text-3">
             Válido até {new Date(link.expiresAt).toLocaleTimeString("pt-BR")}. Não compartilhe.
           </span>
-        </p>
-      ) : null}
-      {state?.deliveries.length ? (
-        <details className="mt-2">
-          <summary className="cursor-pointer text-xs text-text-3 hover:text-text">
-            Entregas recentes
-          </summary>
-          <ul className="mt-2 space-y-2">
-            {state.deliveries.map((delivery) => (
-              <li
-                key={delivery.id}
-                className="flex flex-wrap items-center justify-between gap-2 text-body-sm"
-              >
-                <span>
-                  {statuses[delivery.status] ?? delivery.status}
-                  {delivery.error ? (
-                    <span className="block text-xs text-text-3">
-                      {errorMessage(delivery.error)}
-                    </span>
-                  ) : null}
-                </span>
-                {["failed", "unknown"].includes(delivery.status) ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          "Confira o WhatsApp antes de reenviar. Se a mensagem já chegou, esta ação enviará uma cópia. O Caetano não executará o pedido novamente.",
-                        )
-                      )
-                        void run(() => retry({ id: delivery.id }));
-                    }}
-                  >
-                    Reenviar resposta
-                  </Button>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
-      {state?.connected ? (
-        <p className="mt-2 text-xs text-text-4">
-          Envie texto, fotos ou áudios. Imagens e posts prontos chegam pela própria conversa, assim
-          como os avisos de publicação. Envie “parar” para interromper.
         </p>
       ) : null}
     </div>

@@ -23,10 +23,9 @@ O Caetano é o assistente do Vanda Studio no WhatsApp. Ele trabalha em todos os 
 
 O Caetano cuida do marketing dos seus negócios e de dúvidas sobre o Vanda Studio. Pedidos fora disso ele recusa com educação.
 
-## Parar e reenviar
+## Parar
 
 - Envie "parar" para interromper o pedido em andamento e limpar a fila. Ações já concluídas, como publicações, não são desfeitas.
-- O cartão no Perfil mostra o estado das últimas entregas. Antes de reenviar uma resposta, confira se ela já não chegou.
 
 ## Janela de 24 horas
 

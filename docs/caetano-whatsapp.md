@@ -94,7 +94,7 @@ The application stores only a SHA-256 token hash, valid for 10 minutes and consu
 - Replay the same webhook and an individual message from a batch. Confirm no extra turn.
 - Reject a missing/incorrect signature and a foreign `phone_number_id`.
 - Disconnect. Confirm subsequent messages cannot access the user.
-- Check delivery states under Perfil. For unknown delivery, inspect WhatsApp before explicitly resending.
+- Check delivery states in the `whatsappOutbox` table (Convex dashboard). The Perfil page no longer lists deliveries; `whatsappData.retryDelivery` remains for a manual resend.
 
 Never use publish/schedule operations as a sandbox smoke test unless the owner explicitly requests them: Vanda's account tools still act on real connected accounts.
 

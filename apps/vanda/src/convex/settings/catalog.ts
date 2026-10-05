@@ -187,12 +187,7 @@ export const SETTINGS = [
     change:
       "O dono gera o vínculo em Perfil › Conexões › Caetano no WhatsApp e envia a mensagem pronta pelo próprio WhatsApp.",
     doc: "caetano-no-whatsapp",
-    uiFunctions: [
-      "whatsappData.state",
-      "whatsapp.createLink",
-      "whatsappData.disconnect",
-      "whatsappData.retryDelivery",
-    ],
+    uiFunctions: ["whatsappData.state", "whatsapp.createLink", "whatsappData.disconnect"],
   },
 ] as const satisfies readonly SettingDefinition[];
 
