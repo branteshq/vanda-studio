@@ -49,7 +49,9 @@ export const auditConfidences = ["baixa", "media", "alta"] as const;
 export const postOrigins = ["manual", "autopilot"] as const;
 
 export const MIN_WEEKLY_POSTS = 1;
+
 export const MAX_WEEKLY_POSTS = 7;
+
 export const MAX_AUTOPILOT_SLIDES = 10;
 
 /** Slots are produced this long before they publish (just-in-time). */
