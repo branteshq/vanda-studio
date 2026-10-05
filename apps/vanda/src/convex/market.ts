@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
+import { brandFileContent, brandFileFacts, brandFileKinds } from "./brandFile";
 import { marketRunKinds, marketRunStatuses, opportunityStatuses } from "./pipeline/constants";
 import {
   BREAKOUT_DETECTOR_VERSION,
@@ -36,23 +37,13 @@ export const loadBrandContext = internalQuery({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
     const account = await ctx.db.get(accountId);
-
-    const canon = await ctx.db
-      .query("brandCanon")
-      .withIndex("by_account", (q) => q.eq("accountId", accountId))
-      .collect();
-
-    const confirmed = canon.filter((item) => item.confirmedByOwner);
-
-    const readiness = assessBrandReadiness({
-      confirmedKinds: confirmed.map((item) => item.kind),
-    });
+    const brandFile = await brandFileContent(ctx, accountId);
+    const facts = brandFileFacts(brandFile);
 
     return {
       ownHandle: account?.handle,
-      context: confirmed.map((item) => `${item.kind}: ${item.text}`).join("\n"),
-      canonIds: confirmed.map((item) => item._id),
-      readiness,
+      context: facts.map((fact) => `${fact.kind}: ${fact.text}`).join("\n"),
+      readiness: assessBrandReadiness({ confirmedKinds: brandFileKinds(brandFile) }),
     };
   },
 });
@@ -60,14 +51,9 @@ export const loadBrandContext = internalQuery({
 export const ensureBrandSnapshot = internalMutation({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
-    const canon = (
-      await ctx.db
-        .query("brandCanon")
-        .withIndex("by_account", (q) => q.eq("accountId", accountId))
-        .collect()
-    ).filter((item) => item.confirmedByOwner);
-
-    const contextLines = canon.map((item) => `${item.kind}: ${item.text}`);
+    const brandFile = await brandFileContent(ctx, accountId);
+    // The snapshot keeps the file's text, so its facts (and their ids) never move.
+    const contextLines = brandFile.split("\n");
     const hash = brandSnapshotHash(contextLines);
 
     const existing = await ctx.db
@@ -77,14 +63,11 @@ export const ensureBrandSnapshot = internalMutation({
 
     if (existing) return existing;
 
-    const readiness = assessBrandReadiness({
-      confirmedKinds: canon.map((item) => item.kind),
-    });
+    const readiness = assessBrandReadiness({ confirmedKinds: brandFileKinds(brandFile) });
 
     const snapshotId = await ctx.db.insert("brandSnapshots", {
       accountId,
-      context: contextLines.join("\n"),
-      canonIds: canon.map((item) => item._id),
+      context: brandFile,
       hash,
       readinessScore: readiness.score,
       missingRequired: [...readiness.missingRequired],
@@ -834,14 +817,7 @@ export const loadCreativeDirectorInput = internalQuery({
       : null;
 
     if (!dossier || !brandSnapshot) return null;
-    const facts = [];
-
-    for (const canonId of brandSnapshot.canonIds) {
-      const fact = await ctx.db.get(canonId);
-
-      if (fact?.confirmedByOwner)
-        facts.push({ id: String(fact._id), kind: fact.kind, text: fact.text });
-    }
+    const facts = brandFileFacts(brandSnapshot.context);
 
     const referenceAssets = (
       await ctx.db

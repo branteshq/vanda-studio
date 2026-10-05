@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { components } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
+import { brandFileContent, brandFileFacts } from "./brandFile";
 import {
   internalMutation,
   internalQuery,
@@ -61,10 +62,7 @@ export const accountStatus = internalQuery({
     if (!user) throw new Error("user not found");
     const account = await ownedAccount(ctx, user, accountId);
 
-    const facts = await ctx.db
-      .query("brandCanon")
-      .withIndex("by_account", (q) => q.eq("accountId", account._id))
-      .collect();
+    const facts = brandFileFacts(await brandFileContent(ctx, account._id));
 
     return {
       accountId: account._id,

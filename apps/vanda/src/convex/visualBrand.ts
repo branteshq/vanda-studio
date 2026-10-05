@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
+import { brandFileContent, brandFileFacts } from "./brandFile";
 
 const inspectionArg = {
   description: v.string(),
@@ -72,12 +73,7 @@ export const loadInput = internalQuery({
 
     if (!account) return null;
 
-    const facts = (
-      await ctx.db
-        .query("brandCanon")
-        .withIndex("by_account", (q) => q.eq("accountId", accountId))
-        .collect()
-    ).filter((fact) => fact.confirmedByOwner);
+    const facts = brandFileFacts(await brandFileContent(ctx, accountId));
 
     const references = (
       await ctx.db
@@ -88,7 +84,7 @@ export const loadInput = internalQuery({
 
     return {
       account,
-      facts: facts.map((fact) => ({ id: String(fact._id), kind: fact.kind, text: fact.text })),
+      facts,
       references: await Promise.all(
         references.map(async (image) => ({
           image,

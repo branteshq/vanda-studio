@@ -3,13 +3,13 @@ import type { Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
 import type { brandCanonKinds } from "./pipeline/constants";
-import { MAX_MEMORY_CONTEXT_BYTES, saveDocument, type DocumentAuthor } from "./workspace/documents";
+import { saveDocument, type DocumentAuthor } from "./workspace/documents";
 import type { WorkspaceWriteResult } from "./workspace/types";
 
 /**
  * The brand file: one Markdown document per business that both agents read at
- * every turn and the owner reads and edits in Perfil. It replaces the old split
- * between confirmed facts, Vanda's notes and /memory. Every item ends with its
+ * every turn and the owner reads and edits in Perfil: the only brand memory. The
+ * radar, the visual brand and readiness read it too. Every item ends with its
  * origin, which decides who may change it: (dono) only on the owner's word,
  * (observado: …) when new evidence arrives, (Vanda) whenever the owner prefers
  * something else.
@@ -17,13 +17,16 @@ import type { WorkspaceWriteResult } from "./workspace/types";
 
 export const BRAND_FILE_PATH = "/brand/marca.md";
 
-/** Always in context, so it shares the old always-on memory budget. */
-export const MAX_BRAND_FILE_BYTES = MAX_MEMORY_CONTEXT_BYTES;
+/** Always in context, so it stays small enough to ride along on every turn. */
+export const MAX_BRAND_FILE_BYTES = 24_000;
 
 export const brandFileBytes = (content: string): number =>
   new TextEncoder().encode(content).byteLength;
 
-type CanonKind = (typeof brandCanonKinds)[number];
+/** The kinds of fact onboarding extracts; each lands in one section. */
+export type BrandFactKind = (typeof brandCanonKinds)[number];
+
+type CanonKind = BrandFactKind;
 
 const SECTIONS: ReadonlyArray<{ title: string; kinds: readonly CanonKind[] }> = [
   {
@@ -128,6 +131,41 @@ export function composeBrandFile(sources: BrandFileSources): string {
   return `${lines.join("\n")}\n`;
 }
 
+export interface BrandFileFact {
+  /** Position in this exact text: stable for an immutable snapshot of it. */
+  readonly id: string;
+  /** The section title the item sits under. */
+  readonly kind: string;
+  readonly text: string;
+}
+
+/** Every item ("- …") of the brand file under its section, the legend excluded. */
+export function brandFileFacts(content: string): BrandFileFact[] {
+  const facts: BrandFileFact[] = [];
+  let section: string | null = null;
+
+  for (const line of content.split("\n")) {
+    const heading = /^##\s+(.+?)\s*$/.exec(line);
+
+    if (heading) section = heading[1]!;
+    else if (section && /^\s*[-*]\s+\S/.test(line))
+      facts.push({
+        id: `marca-${facts.length + 1}`,
+        kind: section,
+        text: line.replace(/^\s*[-*]\s+/, "").trim(),
+      });
+  }
+
+  return facts;
+}
+
+/** The onboarding kinds the file covers: a section with at least one item covers its kinds. */
+export function brandFileKinds(content: string): BrandFactKind[] {
+  const filled = new Set(brandFileFacts(content).map((fact) => fact.kind));
+
+  return SECTIONS.flatMap((section) => (filled.has(section.title) ? section.kinds : []));
+}
+
 const getStored = (ctx: QueryCtx, accountId: Id<"accounts">) =>
   ctx.db
     .query("workspaceFiles")
@@ -150,15 +188,23 @@ export const legacyDocuments = async (ctx: QueryCtx, accountId: Id<"accounts">) 
   return [...(notes ? [notes] : []), ...memory].map(({ path, content }) => ({ path, content }));
 };
 
-const composeFor = async (ctx: QueryCtx, accountId: Id<"accounts">): Promise<string> => {
+// Accounts from before the brand file still have their confirmed facts in brandCanon,
+// read only here to seed their file once; nothing writes that table anymore.
+const composeFor = async (
+  ctx: QueryCtx,
+  accountId: Id<"accounts">,
+  onboarding?: ReadonlyArray<{ readonly kind: CanonKind; readonly text: string }>,
+): Promise<string> => {
   const account = await ctx.db.get(accountId);
 
-  const facts = (
-    await ctx.db
-      .query("brandCanon")
-      .withIndex("by_account", (q) => q.eq("accountId", accountId))
-      .collect()
-  ).filter((fact) => fact.confirmedByOwner);
+  const facts =
+    onboarding ??
+    (
+      await ctx.db
+        .query("brandCanon")
+        .withIndex("by_account", (q) => q.eq("accountId", accountId))
+        .collect()
+    ).filter((fact) => fact.confirmedByOwner);
 
   return composeBrandFile({
     name: account?.name ?? account?.handle ?? "Novo negócio",
@@ -230,6 +276,20 @@ export async function ensureBrandFile(
   await saveDocument(ctx, accountId, BRAND_FILE_PATH, await composeFor(ctx, accountId));
 
   return true;
+}
+
+/** Onboarding's approved analysis opens the brand file (replacing a retry's earlier one). */
+export async function writeOnboardingBrandFile(
+  ctx: MutationCtx,
+  accountId: Id<"accounts">,
+  facts: ReadonlyArray<{ readonly kind: BrandFactKind; readonly text: string }>,
+): Promise<void> {
+  await saveDocument(ctx, accountId, BRAND_FILE_PATH, await composeFor(ctx, accountId, facts));
+}
+
+/** The brand file's text as the agents see it, composed if it was never saved. */
+export async function brandFileContent(ctx: QueryCtx, accountId: Id<"accounts">): Promise<string> {
+  return (await loadBrandFile(ctx, accountId)).content;
 }
 
 /** The owner's view of a business's brand file. */

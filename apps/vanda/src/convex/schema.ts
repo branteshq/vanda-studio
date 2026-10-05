@@ -192,7 +192,7 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_user_created", ["userId", "createdAt"]),
 
-  // `accounts` is created by publisherConnect.startConnect; brandCanon by
+  // `accounts` is created by publisherConnect.startConnect; its brand file by
   // onboarding's approve. Instagram is reached through the publisher port
   // (Upload-Post) — the customer's tokens never touch our database.
 
@@ -263,9 +263,9 @@ export default defineSchema({
     .index("by_thread_created", ["threadId", "createdAt"])
     .index("by_thread_tool", ["threadId", "toolCallId"]),
 
-  // Brand canon (output of onboarding's approve): the owner-confirmed stable
-  // identity — one editable row per fact. This is the durable brand memory the
-  // agent's context is assembled from; the "what Vanda knows" panel reads it too.
+  // Brand canon: the confirmed facts of accounts onboarded before the brand file.
+  // Nothing writes it anymore; brandFile reads it once to seed those accounts'
+  // /brand/marca.md, which is now the only brand memory.
   brandCanon: defineTable(brandCanonColumns).index("by_account", ["accountId"]),
 
   modelRuns: defineTable({
@@ -392,7 +392,8 @@ export default defineSchema({
   brandSnapshots: defineTable({
     accountId: v.id("accounts"),
     context: v.string(),
-    canonIds: v.array(v.id("brandCanon")),
+    // Snapshots from before the brand file listed the brandCanon rows they quoted.
+    canonIds: v.optional(v.array(v.id("brandCanon"))),
     hash: v.string(),
     readinessScore: v.number(),
     missingRequired: v.array(v.string()),

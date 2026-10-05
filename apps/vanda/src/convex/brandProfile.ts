@@ -5,11 +5,9 @@ import type { Doc } from "./_generated/dataModel";
 import { internalQuery, mutation, query } from "./_generated/server";
 import * as Schema from "effect/Schema";
 import { requireOwnedAccount } from "./authz";
-import { ensureBrandFile } from "./brandFile";
+import { ensureBrandFile, writeOnboardingBrandFile } from "./brandFile";
 import { BrandAnalysis, type BrandCanonKind } from "./pipeline/brand";
 import { brandAnalysisArgs } from "./pipeline/storage";
-import { brandCanonKinds } from "./pipeline/constants";
-import { assessBrandReadiness } from "./pipeline/inputQuality";
 
 /**
  * Resolve the connected Instagram handle for an account the caller owns.
@@ -36,7 +34,7 @@ export const resolveOwnedHandle = internalQuery({
   },
 });
 
-/** Shapes of the analysis cards `approveBrandProfile` flattens into canon rows. */
+/** Shapes of the analysis cards `approveBrandProfile` flattens into brand file items. */
 type CanonCard = { readonly text: string; readonly evidence: string; readonly confidence: number };
 
 type CanonGroup = {
@@ -63,10 +61,10 @@ const canonFromGroup = (kind: BrandCanonKind, group: CanonGroup) =>
 /**
  * Confirm the brand profile — the end of onboarding. Validates the owner-approved
  * analysis against the domain contract (rejecting out-of-range confidence), then
- * writes it as canon (`identity`/`summary` single rows; `voice`/`character`/
- * `restriction` one row per chip), then stamps `onboardedAt`.
- * Single-use: re-confirming after onboarding is rejected — later memory edits get
- * their own mutation. Canon is fully replaced so a retry before completion stays
+ * writes it into the brand file (`identity`/`summary` one item each; `voice`/
+ * `character`/`restriction` one item per chip), then stamps `onboardedAt`.
+ * Single-use: re-confirming after onboarding is rejected; later edits go through
+ * the brand file. The file is fully replaced so a retry before completion stays
  * idempotent.
  */
 export const approveBrandProfile = mutation({
@@ -92,30 +90,13 @@ export const approveBrandProfile = mutation({
       ...canonFromGroup("restriction", analysis.restrictions),
     ];
 
-    // Clean replace: drop any prior canon for this account, then insert confirmed rows.
-    const existingCanon = await ctx.db
-      .query("brandCanon")
-      .withIndex("by_account", (q) => q.eq("accountId", accountId))
-      .collect();
-
-    for (const row of existingCanon) await ctx.db.delete(row._id);
-
-    for (const item of canon) {
-      await ctx.db.insert("brandCanon", {
-        accountId,
-        ...item,
-        confirmedByOwner: true,
-        createdAt: now,
-      });
-    }
-
     await ctx.db.patch(accountId, {
       kind: analysis.kind.value,
       onboardedAt: now,
       updatedAt: now,
     });
     // The confirmed facts open the brand file; from here on it is the memory both agents use.
-    await ensureBrandFile(ctx, accountId);
+    await writeOnboardingBrandFile(ctx, accountId, canon);
 
     if (account.ownerUserId !== undefined) {
       await ctx.db.patch(account.ownerUserId, { activeAccountId: accountId, updatedAt: now });
@@ -196,89 +177,6 @@ export const completeWithoutAnalysis = mutation({
         },
       });
     }
-  },
-});
-
-/** The "what Vanda knows about your brand" panel: confirmed canon for an owned account. */
-export const getBrandCanon = query({
-  args: { accountId: v.id("accounts") },
-  handler: async (ctx, { accountId }) => {
-    await requireOwnedAccount(ctx, accountId);
-
-    return ctx.db
-      .query("brandCanon")
-      .withIndex("by_account", (q) => q.eq("accountId", accountId))
-      .collect();
-  },
-});
-
-export const getBrandReadiness = query({
-  args: { accountId: v.id("accounts") },
-  handler: async (ctx, { accountId }) => {
-    await requireOwnedAccount(ctx, accountId);
-
-    const canon = await ctx.db
-      .query("brandCanon")
-      .withIndex("by_account", (q) => q.eq("accountId", accountId))
-      .collect();
-
-    return assessBrandReadiness({
-      confirmedKinds: canon.filter((item) => item.confirmedByOwner).map((item) => item.kind),
-    });
-  },
-});
-
-/** Owner-authored corrections and missing creative facts become confirmed canon immediately. */
-export const saveBrandFact = mutation({
-  args: {
-    accountId: v.id("accounts"),
-    factId: v.optional(v.id("brandCanon")),
-    kind: v.union(...brandCanonKinds.map((kind) => v.literal(kind))),
-    text: v.string(),
-  },
-  handler: async (ctx, { accountId, factId, kind, text }) => {
-    await requireOwnedAccount(ctx, accountId);
-    const normalized = text.trim();
-
-    if (!normalized) throw new Error("brand fact cannot be empty");
-    const now = Date.now();
-    let id = factId;
-
-    if (factId) {
-      const existing = await ctx.db.get(factId);
-
-      if (!existing || existing.accountId !== accountId) throw new Error("brand fact not found");
-      await ctx.db.patch(factId, {
-        kind,
-        text: normalized,
-        evidence: "Corrigido pelo proprietário.",
-        confidence: 1,
-        confirmedByOwner: true,
-      });
-    } else {
-      id = await ctx.db.insert("brandCanon", {
-        accountId,
-        kind,
-        text: normalized,
-        evidence: "Adicionado pelo proprietário.",
-        confidence: 1,
-        confirmedByOwner: true,
-        createdAt: now,
-      });
-    }
-
-    return id!;
-  },
-});
-
-export const removeBrandFact = mutation({
-  args: { factId: v.id("brandCanon") },
-  handler: async (ctx, { factId }) => {
-    const fact = await ctx.db.get(factId);
-
-    if (!fact) throw new Error("brand fact not found");
-    await requireOwnedAccount(ctx, fact.accountId);
-    await ctx.db.delete(factId);
   },
 });
 

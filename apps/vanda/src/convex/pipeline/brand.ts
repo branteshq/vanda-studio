@@ -9,7 +9,7 @@ export const UnitInterval = Schema.Finite.check(Schema.isBetween({ minimum: 0, m
  * proposes what she understood." `proposeBrandProfile` (pipeline/brandProfile.ts)
  * turns a corpus (profile + captions + comments) into a `BrandAnalysis` via one
  * structured LLM pass; the owner edits it on the Confirmar screen and approves it
- * into `brandCanon`. Nothing here is persisted as a draft — the analysis flows
+ * into the brand file (/brand/marca.md). Nothing here is persisted as a draft — the analysis flows
  * action -> client -> `approveBrandProfile`.
  */
 
@@ -64,7 +64,7 @@ export type BrandKindCard = typeof BrandKindCard.Type;
 /**
  * Vanda's structured read of a brand — the `generateObject` schema and the shape
  * the owner approves. `identity`/`voice`/`character`/`restriction`/`summary` persist
- * as `brandCanon`; `kind` sets the account's brand type; `themes` seed the `themes`
+ * as brand file items; `kind` sets the account's brand type; `themes` seed the `themes`
  * table; `opportunities` are previews the planner later earns, so neither is canon.
  */
 export const BrandAnalysis = Schema.Struct({

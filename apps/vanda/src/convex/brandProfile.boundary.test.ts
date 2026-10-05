@@ -3,6 +3,7 @@ import agentTest from "@convex-dev/agent/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "./_generated/api";
+import { brandFileFacts } from "./brandFile";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -65,24 +66,11 @@ const setup = async (clerkId = "c1") => {
 };
 
 describe("approveBrandProfile", () => {
-  it("writes canon, sets kind, and stamps onboardedAt", async () => {
+  it("writes the brand file, sets kind, and stamps onboardedAt", async () => {
     const { t, accountId } = await setup();
     await t
       .withIdentity({ subject: "c1" })
       .mutation(api.brandProfile.approveBrandProfile, { accountId, ...analysis });
-
-    const canon = await t.run((ctx) => ctx.db.query("brandCanon").collect());
-    const ofKind = (kind: string) => canon.filter((c) => c.kind === kind);
-    expect(canon).toHaveLength(11); // 1 identity + 1 summary + 4 voice + 3 character + 2 restriction
-    expect(ofKind("identity")).toHaveLength(1);
-    expect(ofKind("summary")).toHaveLength(1);
-    expect(ofKind("voice")).toHaveLength(4);
-    expect(ofKind("character")).toHaveLength(3);
-    expect(ofKind("restriction")).toHaveLength(2);
-    expect(canon.every((c) => c.confirmedByOwner)).toBe(true);
-    // themes/opportunities are NOT canon — they are onboarding previews only.
-    expect(ofKind("theme")).toHaveLength(0);
-    expect(ofKind("opportunity")).toHaveLength(0);
 
     const account = await t.run((ctx) => ctx.db.get(accountId));
     expect(account?.onboardedAt).toBeTypeOf("number");
@@ -94,7 +82,19 @@ describe("approveBrandProfile", () => {
       .query(api.brandFile.get, { accountId });
 
     expect(brandFile.persisted).toBe(true);
-    expect(brandFile.content).toContain(`${ofKind("identity")[0]?.text} (dono)`);
+    expect(brandFile.content).toContain(`${analysis.identity.text} (dono)`);
+
+    const facts = brandFileFacts(brandFile.content);
+    const inSection = (title: string) => facts.filter((fact) => fact.kind === title);
+    // 1 identity + 1 summary, 4 voice + 3 character, 2 restriction; themes are only previews.
+    expect(facts).toHaveLength(11);
+    expect(inSection("O negócio")).toHaveLength(2);
+    expect(inSection("Tom e voz")).toHaveLength(7);
+    expect(inSection("Nunca fazer")).toHaveLength(2);
+    expect(facts.every((fact) => fact.text.endsWith("(dono)"))).toBe(true);
+
+    // The brand file is the only record; the old facts table stays empty.
+    expect(await t.run((ctx) => ctx.db.query("brandCanon").collect())).toHaveLength(0);
   });
 
   it("rejects approval from a non-owner", async () => {
@@ -125,17 +125,6 @@ describe("approveBrandProfile", () => {
     ).rejects.toThrow();
   });
 
-  it("getBrandCanon returns the owner's confirmed canon", async () => {
-    const { t, accountId } = await setup();
-    const owner = t.withIdentity({ subject: "c1" });
-    await owner.mutation(api.brandProfile.approveBrandProfile, {
-      accountId,
-      ...analysis,
-    });
-    const canon = await owner.query(api.brandProfile.getBrandCanon, { accountId });
-    expect(canon).toHaveLength(11);
-  });
-
   it("rejects an out-of-range confidence", async () => {
     const { t, accountId } = await setup();
     const bad = { ...analysis, voice: { ...analysis.voice, confidence: 1.5 } };
@@ -149,7 +138,7 @@ describe("approveBrandProfile", () => {
 });
 
 describe("completeWithoutAnalysis", () => {
-  it("onboards with empty canon and opens the welcome thread", async () => {
+  it("onboards with an empty brand file and opens the welcome thread", async () => {
     const { t, accountId } = await setup();
     await t
       .withIdentity({ subject: "c1" })
@@ -157,14 +146,12 @@ describe("completeWithoutAnalysis", () => {
     const account = await t.run((ctx) => ctx.db.get(accountId));
     expect(account?.onboardedAt).toBeTypeOf("number");
 
-    const canon = await t
+    const brandFile = await t
       .withIdentity({ subject: "c1" })
-      .query(api.brandProfile.getBrandCanon, { accountId });
+      .query(api.brandFile.get, { accountId });
 
-    expect(canon).toHaveLength(0);
-    expect(
-      (await t.withIdentity({ subject: "c1" }).query(api.brandFile.get, { accountId })).persisted,
-    ).toBe(true);
+    expect(brandFile.persisted).toBe(true);
+    expect(brandFileFacts(brandFile.content)).toHaveLength(0);
   });
 
   it("rejects non-owners and already-onboarded accounts", async () => {
