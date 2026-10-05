@@ -9,8 +9,8 @@ import {
 } from "./types";
 
 /**
- * Document store backing the writable files of the workspace (/memory,
- * /notes, /brand/notes.md). Unlike the projected views, these files ARE
+ * Document store backing the writable files of the workspace (/brand/marca.md,
+ * /brand/kit.json, /notes, and legacy /memory and /brand/notes.md). Unlike the projected views, these files ARE
  * the data: workspaceFiles holds the head of each file, workspaceFileRevisions
  * an append-only history of every write (audit trail and undo safety).
  */
@@ -70,12 +70,16 @@ export const readDocument = async (
   return document ? { kind: "text", text: document.content } : null;
 };
 
+/** Who wrote a document revision: the agents, or the owner from the app. */
+export type DocumentAuthor = "vanda" | "owner";
+
 /** Upsert the head and append a revision. Content must be pre-validated. */
 export const saveDocument = async (
   ctx: MutationCtx,
   accountId: Id<"accounts">,
   path: string,
   content: string,
+  author: DocumentAuthor = "vanda",
 ): Promise<WorkspaceWriteResult> => {
   if (content.length > MAX_DOCUMENT_CHARS) {
     return {
@@ -116,14 +120,14 @@ export const saveDocument = async (
   }
 
   if (existing) {
-    await ctx.db.patch(existing._id, { content, updatedAt: now, updatedBy: "vanda" });
+    await ctx.db.patch(existing._id, { content, updatedAt: now, updatedBy: author });
   } else {
     await ctx.db.insert("workspaceFiles", {
       accountId,
       path,
       content,
       updatedAt: now,
-      updatedBy: "vanda",
+      updatedBy: author,
     });
   }
 
@@ -132,7 +136,7 @@ export const saveDocument = async (
     path,
     content,
     savedAt: now,
-    savedBy: "vanda",
+    savedBy: author,
   });
 
   return {

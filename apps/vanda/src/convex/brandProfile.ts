@@ -5,6 +5,7 @@ import type { Doc } from "./_generated/dataModel";
 import { internalQuery, mutation, query } from "./_generated/server";
 import * as Schema from "effect/Schema";
 import { requireOwnedAccount } from "./authz";
+import { ensureBrandFile } from "./brandFile";
 import { BrandAnalysis, type BrandCanonKind } from "./pipeline/brand";
 import { brandAnalysisArgs } from "./pipeline/storage";
 import { brandCanonKinds } from "./pipeline/constants";
@@ -113,6 +114,8 @@ export const approveBrandProfile = mutation({
       onboardedAt: now,
       updatedAt: now,
     });
+    // The confirmed facts open the brand file; from here on it is the memory both agents use.
+    await ensureBrandFile(ctx, accountId);
 
     if (account.ownerUserId !== undefined) {
       await ctx.db.patch(account.ownerUserId, { activeAccountId: accountId, updatedAt: now });
@@ -143,7 +146,7 @@ export const approveBrandProfile = mutation({
           content:
             `Prontinho — sua marca agora faz parte da minha memória. Entendi que ${analysis.identity.text} ` +
             `A voz da marca é ${voice || "a que você confirmou"}, e os temas que mais aparecem no seu conteúdo são: ${themes || "os que confirmamos juntos"}.\n\n` +
-            `Você pode corrigir qualquer um desses fatos no Perfil quando quiser — eu só trabalho com o que você confirmou.\n\n` +
+            `Está tudo no arquivo da sua marca, em Perfil › Negócios: dá para corrigir ou acrescentar o que quiser, ali ou aqui na conversa.\n\n` +
             `Quer que eu já procure uma oportunidade no seu mercado? Eu observo criadores parecidos com você, encontro conteúdos com desempenho fora da curva e trago no máximo uma ideia forte. Tudo o que eu criar ou agendar fica visível no painel de posts — e dá para mudar ou desfazer quando quiser.`,
         },
       });
@@ -165,6 +168,7 @@ export const completeWithoutAnalysis = mutation({
     if (account.onboardedAt !== undefined) throw new Error("account already onboarded");
     const now = Date.now();
     await ctx.db.patch(accountId, { onboardedAt: now, updatedAt: now });
+    await ensureBrandFile(ctx, accountId);
 
     if (account.ownerUserId !== undefined) {
       await ctx.db.patch(account.ownerUserId, { activeAccountId: accountId, updatedAt: now });
@@ -188,7 +192,7 @@ export const completeWithoutAnalysis = mutation({
           role: "assistant",
           content:
             `Não consegui ler sua conta do Instagram agora, então vamos começar do jeito direto: me conta sobre o seu negócio — o que você vende, para quem, e o tom que você gosta de usar nas redes.\n\n` +
-            `Vou anotando o que você me contar na memória da marca, e você revisa tudo no Perfil quando quiser. Fotos do seu produto ou do seu espaço também ajudam muito — pode mandar aqui na conversa.`,
+            `Vou anotando o que você me contar no arquivo da sua marca, e você revisa tudo em Perfil › Negócios quando quiser. Fotos do seu produto ou do seu espaço também ajudam muito — pode mandar aqui na conversa.`,
         },
       });
     }

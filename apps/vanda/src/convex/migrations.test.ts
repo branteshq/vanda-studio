@@ -54,7 +54,8 @@ describe("migrations.runAll", () => {
       }));
 
     expect(await t.action(internal.migrations.runAll, {})).toEqual({
-      ran: { feedToCarousel: 2 },
+      // The one account also gets its brand file.
+      ran: { feedToCarousel: 2, brandFiles: 1 },
       skipped: [],
     });
     expect(await types()).toEqual({ single: "image", multi: "carousel", story: "story" });
@@ -62,7 +63,7 @@ describe("migrations.runAll", () => {
     // Every later deploy finds it done and skips it.
     expect(await t.action(internal.migrations.runAll, {})).toEqual({
       ran: {},
-      skipped: ["feedToCarousel"],
+      skipped: ["feedToCarousel", "brandFiles"],
     });
 
     // A page re-run (a crash mid-migration) changes nothing.

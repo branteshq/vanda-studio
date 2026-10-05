@@ -350,7 +350,7 @@ describe("Caetano control plane", () => {
       });
 
       await write.execute(
-        { path: "/memory/pinned.md", content: "Somente Café da Ana" },
+        { path: "/notes/pinned.md", content: "Somente Café da Ana" },
         {
           toolCallId: "write",
           messages: [],
@@ -366,12 +366,12 @@ describe("Caetano control plane", () => {
       ).resolves.toHaveProperty("data.accountId", accountId);
     });
     expect(
-      await t.query(internal.workspaceData.read, { accountId, path: "/memory/pinned.md" }),
+      await t.query(internal.workspaceData.read, { accountId, path: "/notes/pinned.md" }),
     ).toMatchObject({ ok: true, file: { text: "Somente Café da Ana" } });
     expect(
       await t.query(internal.workspaceData.read, {
         accountId: otherAccountId,
-        path: "/memory/pinned.md",
+        path: "/notes/pinned.md",
       }),
     ).toHaveProperty("ok", false);
   });
@@ -650,11 +650,16 @@ describe("Caetano control plane", () => {
         createdAt: 1,
       });
     });
-    await t.mutation(internal.workspaceData.write, {
-      accountId,
-      path: "/brand/notes.md",
-      content: "Somente café de origem local",
-    });
+    // Legacy notes from before the brand file still reach the context through it.
+    await t.run((ctx) =>
+      ctx.db.insert("workspaceFiles", {
+        accountId,
+        path: "/brand/notes.md",
+        content: "Somente café de origem local",
+        updatedAt: 1,
+        updatedBy: "vanda",
+      }),
+    );
     await t.mutation(internal.workspaceData.write, {
       accountId,
       path: "/brand/kit.json",
@@ -664,15 +669,21 @@ describe("Caetano control plane", () => {
         tagline: "Café com calma",
       }),
     });
-    await t.mutation(internal.workspaceData.write, {
-      accountId,
-      path: "/memory/preferencias.md",
-      content: "Nunca prometa entrega grátis",
-    });
-    await t.mutation(internal.workspaceData.write, {
-      accountId: foreignAccountId,
-      path: "/memory/segredo.md",
-      content: "informação exclusiva da Bia",
+    await t.run(async (ctx) => {
+      await ctx.db.insert("workspaceFiles", {
+        accountId,
+        path: "/memory/preferencias.md",
+        content: "Nunca prometa entrega grátis",
+        updatedAt: 1,
+        updatedBy: "vanda",
+      });
+      await ctx.db.insert("workspaceFiles", {
+        accountId: foreignAccountId,
+        path: "/memory/segredo.md",
+        content: "informação exclusiva da Bia",
+        updatedAt: 1,
+        updatedBy: "vanda",
+      });
     });
     await t.run((ctx) =>
       ctx.db.insert("images", {
@@ -701,10 +712,11 @@ describe("Caetano control plane", () => {
     await expect(
       t.query(internal.brandContext.conversation, { userId, accountId: foreignAccountId }),
     ).rejects.toThrow("conta não encontrada");
+    // Once the brand file is written, it alone is the memory: legacy notes stop loading.
     await t.mutation(internal.workspaceData.write, {
       accountId,
-      path: "/brand/notes.md",
-      content: "Agora servimos chá também",
+      path: "/brand/marca.md",
+      content: "# Marca · Café da Ana\n\n## O negócio\n\n- Agora servimos chá também (dono)\n",
     });
     const refreshed = await t.query(internal.brandContext.conversation, { userId });
     expect(refreshed).toContain("Agora servimos chá também");
@@ -830,7 +842,7 @@ describe("Caetano control plane", () => {
       const calls = [
         { name: "tool_search", input: { query: "select_account" } },
         { name: "select_account", input: { accountId: target } },
-        { name: "write", input: { path: "/memory/switch.md", content: "conta selecionada" } },
+        { name: "write", input: { path: "/notes/switch.md", content: "conta selecionada" } },
       ];
 
       let step = 0;
@@ -906,7 +918,7 @@ describe("Caetano control plane", () => {
         expect(
           await t.query(internal.workspaceData.read, {
             accountId,
-            path: "/memory/switch.md",
+            path: "/notes/switch.md",
           }),
         ).toMatchObject({ ok: false });
       } else {
@@ -933,7 +945,7 @@ describe("Caetano control plane", () => {
         expect(
           await t.query(internal.workspaceData.read, {
             accountId: secondAccountId,
-            path: "/memory/switch.md",
+            path: "/notes/switch.md",
           }),
         ).toMatchObject({ ok: true, file: { kind: "text", text: "conta selecionada" } });
       }

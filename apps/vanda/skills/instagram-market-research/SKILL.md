@@ -10,7 +10,7 @@ Investigue com ferramentas primitivas. Não acione uma varredura opaca e não pr
 
 ## Procedimento
 
-1. Leia `/brand/memory.md` e notas relevantes para entender categoria, público, localização e oferta.
+1. Use o arquivo da marca (`/brand/marca.md`, já no contexto) e notas relevantes em `/notes` para entender categoria, público, localização e oferta.
 2. Se o pedido envolver o desempenho do dono, leia o perfil conectado, posts e métricas privadas antes de buscar referências externas.
 3. Faça até 3 buscas específicas com `search_instagram_profiles`. Prefira categoria + localidade ou especialidade; não busque usernames inventados.
 4. Leia os perfis dos candidatos e descarte contas privadas, agregadores, mercados errados e perfis sem atividade recente.

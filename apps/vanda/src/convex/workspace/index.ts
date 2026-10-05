@@ -4,9 +4,9 @@ import { documentMount, listDocuments, readDocument } from "./documents";
 import { brandMount } from "./mounts/brand";
 import { docsMount } from "./mounts/docs";
 import { imagesMount } from "./mounts/images";
+import { legacyMount } from "./mounts/legacy";
 import { instagramMount } from "./mounts/instagram";
 import { marketMount } from "./mounts/market";
-import { memoryMount } from "./mounts/memory";
 import { postsMount } from "./mounts/posts";
 import { runsMount } from "./mounts/runs";
 import { skillsMount } from "./mounts/skills";
@@ -14,7 +14,6 @@ import type { WorkspaceEntry, WorkspaceFile, WorkspaceMount, WorkspaceWriteResul
 
 const MOUNTS: readonly WorkspaceMount[] = [
   brandMount,
-  memoryMount,
   documentMount({
     root: "notes",
     summary:
@@ -40,6 +39,7 @@ const MOUNTS: readonly WorkspaceMount[] = [
   postsMount,
   marketMount,
   runsMount,
+  legacyMount,
 ];
 
 const rootListing = (): WorkspaceEntry[] =>
@@ -131,7 +131,7 @@ export const readPath = async (
 export type WriteResult = WorkspaceWriteResult;
 
 const WRITABLE_HELP =
-  "graváveis: /memory/<nome>.md, /notes/<nome>.md, /brand/notes.md e /brand/kit.json";
+  "graváveis: /brand/marca.md (arquivo da marca), /brand/kit.json e /notes/<nome>.md";
 
 /**
  * One write surface, per-mount handlers underneath (the VFS shape — like

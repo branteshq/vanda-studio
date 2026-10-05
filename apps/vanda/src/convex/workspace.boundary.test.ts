@@ -85,7 +85,6 @@ describe("workspace navigation", () => {
     if (result.ok) {
       expect(result.entries.map((entry) => entry.name)).toEqual([
         "brand",
-        "memory",
         "notes",
         "skills",
         "docs",
@@ -95,6 +94,7 @@ describe("workspace navigation", () => {
         "posts",
         "market",
         "runs",
+        "legado",
       ]);
     }
   });
@@ -229,7 +229,7 @@ describe("workspace navigation", () => {
     expect(result.ok).toBe(false);
 
     if (!result.ok) {
-      expect(result.entries.map((entry) => entry.name)).toContain("memory.md");
+      expect(result.entries.map((entry) => entry.name)).toContain("marca.md");
     }
   });
 });
@@ -356,19 +356,19 @@ describe("workspace renders", () => {
     ).toMatchObject({ ok: false });
   });
 
-  it("renders brand memory with confirmed facts", async () => {
+  it("renders the brand file with confirmed facts under their section and origin", async () => {
     const { t, accountId } = await setup();
 
     const result = await t.query(internal.workspaceData.read, {
       accountId,
-      path: "/brand/memory.md",
+      path: "/brand/marca.md",
     });
 
     expect(result.ok).toBe(true);
 
     if (result.ok && result.file.kind === "text") {
       expect(result.file.text).toContain("Café da Ana");
-      expect(result.file.text).toContain("**voice**: tom caloroso e direto");
+      expect(result.file.text).toContain("## Tom e voz\n\n- tom caloroso e direto (dono)");
     }
   });
 
@@ -407,7 +407,7 @@ describe("workspace renders", () => {
 
     const result = await t.query(internal.workspaceData.read, {
       accountId,
-      path: "/brand/memory.md",
+      path: "/brand/marca.md",
       offset: 1,
       limit: 1,
     });
@@ -415,7 +415,7 @@ describe("workspace renders", () => {
     expect(result.ok).toBe(true);
 
     if (result.ok && result.file.kind === "text") {
-      expect(result.file.text).toContain("# Memória de marca");
+      expect(result.file.text).toContain("# Marca · Café da Ana");
       expect(result.file.text).toContain("[linhas 1–1 de");
     }
   });

@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { FunctionReference } from "convex/server";
 import { internal } from "./_generated/api";
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
+import { ensureBrandFile } from "./brandFile";
 import { currentPostType } from "./pipeline/constants";
 
 /**
@@ -17,6 +18,9 @@ import { currentPostType } from "./pipeline/constants";
 
 const BATCH = 100;
 
+// Composing reads each account's facts and notes, so fewer per page.
+const BRAND_FILE_BATCH = 25;
+
 type MigrationPage = FunctionReference<
   "mutation",
   "internal",
@@ -26,6 +30,7 @@ type MigrationPage = FunctionReference<
 
 const MIGRATIONS: ReadonlyArray<{ name: string; page: MigrationPage }> = [
   { name: "feedToCarousel", page: internal.migrations.feedToCarousel },
+  { name: "brandFiles", page: internal.migrations.brandFiles },
 ];
 
 /** Legacy `feed` meant carousel: rewrite it to `carousel` (2+ images) or `image` (1 image). */
@@ -40,6 +45,23 @@ export const feedToCarousel = internalMutation({
       await ctx.db.patch(post._id, { type: currentPostType(post.type, post.imageIds.length) });
       migrated++;
     }
+
+    return { migrated, cursor: page.isDone ? null : page.continueCursor };
+  },
+});
+
+/**
+ * Store a brand file for every account that has none, built from its confirmed
+ * facts and legacy notes. Reads already compose it on the fly; this makes it a
+ * document the owner and the agents edit.
+ */
+export const brandFiles = internalMutation({
+  args: { cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, { cursor }): Promise<{ migrated: number; cursor: string | null }> => {
+    const page = await ctx.db.query("accounts").paginate({ cursor, numItems: BRAND_FILE_BATCH });
+    let migrated = 0;
+
+    for (const account of page.page) if (await ensureBrandFile(ctx, account._id)) migrated++;
 
     return { migrated, cursor: page.isDone ? null : page.continueCursor };
   },

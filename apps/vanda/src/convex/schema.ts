@@ -816,7 +816,7 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_account_created", ["accountId", "createdAt"]),
 
-  // Writable workspace documents (/memory, /notes, /brand/notes.md). Unlike
+  // Writable workspace documents (/brand/marca.md, /brand/kit.json, /notes; legacy /memory and /brand/notes.md). Unlike
   // the projected views, these files ARE the data: this table holds the head of
   // each file; every write also appends to workspaceFileRevisions.
   workspaceFiles: defineTable({

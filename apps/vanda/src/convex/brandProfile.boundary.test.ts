@@ -87,6 +87,14 @@ describe("approveBrandProfile", () => {
     const account = await t.run((ctx) => ctx.db.get(accountId));
     expect(account?.onboardedAt).toBeTypeOf("number");
     expect(account?.kind).toBe("negocio"); // brand type carried from the analysis
+
+    // The confirmed facts open the brand file both agents read from now on.
+    const brandFile = await t
+      .withIdentity({ subject: "c1" })
+      .query(api.brandFile.get, { accountId });
+
+    expect(brandFile.persisted).toBe(true);
+    expect(brandFile.content).toContain(`${ofKind("identity")[0]?.text} (dono)`);
   });
 
   it("rejects approval from a non-owner", async () => {
@@ -154,6 +162,9 @@ describe("completeWithoutAnalysis", () => {
       .query(api.brandProfile.getBrandCanon, { accountId });
 
     expect(canon).toHaveLength(0);
+    expect(
+      (await t.withIdentity({ subject: "c1" }).query(api.brandFile.get, { accountId })).persisted,
+    ).toBe(true);
   });
 
   it("rejects non-owners and already-onboarded accounts", async () => {

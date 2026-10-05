@@ -1,6 +1,6 @@
 import type { Id } from "../../_generated/dataModel";
 import type { QueryCtx } from "../../_generated/server";
-import { assessBrandReadiness } from "../../pipeline/inputQuality";
+import { loadBrandFile, saveBrandFile } from "../../brandFile";
 import { validateBrandKit } from "../brandKit";
 import { readDocument, saveDocument } from "../documents";
 import {
@@ -13,21 +13,6 @@ import {
   type WorkspaceFile,
   type WorkspaceMount,
 } from "../types";
-
-const loadBrand = async (ctx: QueryCtx, accountId: Id<"accounts">) => {
-  const account = await ctx.db.get(accountId);
-
-  const canon = (
-    await ctx.db
-      .query("brandCanon")
-      .withIndex("by_account", (q) => q.eq("accountId", accountId))
-      .collect()
-  ).filter((item) => item.confirmedByOwner);
-
-  const readiness = assessBrandReadiness({ confirmedKinds: canon.map((item) => item.kind) });
-
-  return { account, handle: account?.handle ?? null, canon, readiness };
-};
 
 const loadReferences = async (ctx: QueryCtx, accountId: Id<"accounts">) => {
   const images = await ctx.db
@@ -53,32 +38,6 @@ const referenceLabel = (image: { referenceKind?: string | undefined }): string =
   }
 };
 
-const memoryMarkdown = (brand: Awaited<ReturnType<typeof loadBrand>>): string => {
-  const lines = [
-    "# Memória de marca",
-    "",
-    `Conta: ${brand.account?.name ?? "—"}${brand.handle ? ` (@${brand.handle})` : ""}`,
-    `Prontidão do perfil: ${Math.round(brand.readiness.score * 100)}%` +
-      (brand.readiness.missingRequired.length > 0
-        ? ` — faltam: ${brand.readiness.missingRequired.join(", ")}`
-        : ""),
-    "",
-    "## Fatos confirmados pelo dono",
-    "",
-  ];
-
-  if (brand.canon.length === 0) {
-    lines.push("(nenhum fato confirmado ainda — peça ao dono para completar o perfil)");
-  }
-
-  for (const item of brand.canon) lines.push(`- **${item.kind}**: ${item.text}`);
-
-  return lines.join("\n");
-};
-
-/** The writable files in /brand. */
-const NOTES_PATH = "/brand/notes.md";
-
 const KIT_PATH = "/brand/kit.json";
 
 /** Read fallback that teaches the kit's schema in-band. */
@@ -90,18 +49,17 @@ const EMPTY_KIT = {
 
 export const brandMount: WorkspaceMount = {
   root: "brand",
-  summary: "memória de marca confirmada e fotos de referência autorizadas",
+  summary: "arquivo da marca (memória do negócio), identidade visual e fotos de referência",
   writeHint:
-    "memory.md e profile.json são projeções dos fatos confirmados pelo dono — eles mudam pelo fluxo de perfil. Graváveis aqui: /brand/notes.md (anotações) e /brand/kit.json (identidade visual); notas de trabalho vão em /memory/.",
+    "graváveis aqui: /brand/marca.md (arquivo da marca, com a origem de cada item) e /brand/kit.json (identidade visual); detalhes longos vão em /notes/",
   list: async (ctx, accountId, segments): Promise<WorkspaceEntry[] | null> => {
     if (segments.length === 0) {
       return [
-        { name: "memory.md", kind: "file", summary: "fatos de marca confirmados pelo dono" },
-        { name: "profile.json", kind: "file", summary: "handle e prontidão do perfil" },
         {
-          name: "notes.md",
+          name: "marca.md",
           kind: "file",
-          summary: "anotações livres de marca (gravável)",
+          summary:
+            "arquivo da marca: fatos, tom, preferências e aprendizados, com origem (gravável)",
         },
         {
           name: "kit.json",
@@ -127,32 +85,12 @@ export const brandMount: WorkspaceMount = {
     return null;
   },
   read: async (ctx, accountId, segments): Promise<WorkspaceFile | null> => {
-    if (segments.length === 1 && segments[0] === "memory.md") {
-      return { kind: "text", text: memoryMarkdown(await loadBrand(ctx, accountId)) };
-    }
-
-    if (segments.length === 1 && segments[0] === "notes.md") {
-      return (
-        (await readDocument(ctx, accountId, NOTES_PATH)) ?? {
-          kind: "text",
-          text: "(sem anotações ainda — grave em /brand/notes.md para criar)",
-        }
-      );
+    if (segments.length === 1 && segments[0] === "marca.md") {
+      return { kind: "text", text: (await loadBrandFile(ctx, accountId)).content };
     }
 
     if (segments.length === 1 && segments[0] === "kit.json") {
       return (await readDocument(ctx, accountId, KIT_PATH)) ?? jsonFile(EMPTY_KIT);
-    }
-
-    if (segments.length === 1 && segments[0] === "profile.json") {
-      const brand = await loadBrand(ctx, accountId);
-
-      return jsonFile({
-        name: brand.account?.name ?? null,
-        handle: brand.handle,
-        kind: brand.account?.kind ?? null,
-        readiness: brand.readiness,
-      });
     }
 
     if (segments.length === 2 && segments[0] === "references") {
@@ -184,8 +122,8 @@ export const brandMount: WorkspaceMount = {
     return null;
   },
   write: async (ctx, accountId, segments, content) => {
-    if (segments.length === 1 && segments[0] === "notes.md") {
-      return saveDocument(ctx, accountId, NOTES_PATH, content);
+    if (segments.length === 1 && segments[0] === "marca.md") {
+      return saveBrandFile(ctx, accountId, content, "vanda");
     }
 
     if (segments.length === 1 && segments[0] === "kit.json") {
