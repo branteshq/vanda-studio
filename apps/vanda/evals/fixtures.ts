@@ -249,6 +249,19 @@ export const cases: EvalCase[] = [
     kind: "help",
   },
   {
+    id: "inf-carrossel-6x1",
+    brandId: "prumo-reparos",
+    prompt:
+      "Preciso que gere um carrossel infinito sobre o impacto da escala 6x1 nos pequenos negócios de serviço, com tom favorável à mudança.",
+    expectations: [
+      "Encontra e segue a habilidade post-type-infinite-carousel.",
+      "Tem um herói grande no corte 1→2 e um objeto atravessando cada outro corte, inclusive a volta do último para o primeiro.",
+      "O texto fica longe dos cortes e o rascunho usa os slides costurados.",
+    ],
+    kind: "creative",
+    holdout: true,
+  },
+  {
     id: "prumo-service-draft",
     brandId: "prumo-reparos",
     prompt:

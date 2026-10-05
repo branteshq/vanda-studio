@@ -20,7 +20,7 @@ describe("runScheduledPost credential phase", () => {
 
       const postId = await ctx.db.insert("posts", {
         accountId,
-        type: "feed",
+        type: "carousel",
         imageIds: [],
         caption: "x",
         platform: "instagram",
@@ -62,7 +62,7 @@ describe("getPublishProfile", () => {
 
       const postId = await ctx.db.insert("posts", {
         accountId,
-        type: "feed",
+        type: "carousel",
         imageIds: [],
         caption: "x",
         platform: "instagram",
@@ -103,7 +103,7 @@ describe("getPublishProfile", () => {
 
       const postId = await ctx.db.insert("posts", {
         accountId,
-        type: "feed",
+        type: "carousel",
         imageIds: [],
         caption: "x",
         platform: "instagram",

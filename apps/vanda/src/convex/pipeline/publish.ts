@@ -2,6 +2,7 @@ import type * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
+import * as Predicate from "effect/Predicate";
 import { postTypes } from "./constants";
 import { InvalidPost, Publisher, type PublishReceipt, UnsupportedFormat } from "./publisher";
 
@@ -17,12 +18,13 @@ export interface PublishJob {
 }
 
 /**
- * Publish a feed post (single image or 2–10 image carousel) to Instagram:
+ * Publish a single image or 2–10 image carousel to Instagram:
  * validate the shape, then hand it to the publisher port in one call.
  * Deterministic given the Publisher's responses — no LLM, no hidden state.
  */
 export const publishPost = Effect.fn("pipeline.publishPost")(function* (job: PublishJob) {
-  if (job.type !== "feed" && job.type !== "image") {
+  // `feed` is the legacy carousel value until migrations:feedToCarousel runs everywhere.
+  if (job.type !== "image" && job.type !== "carousel" && job.type !== "feed") {
     return yield* new UnsupportedFormat({ type: job.type });
   }
 
@@ -30,7 +32,7 @@ export const publishPost = Effect.fn("pipeline.publishPost")(function* (job: Pub
 
   if (count < 1 || count > MAX_CAROUSEL_ITEMS) {
     return yield* new InvalidPost({
-      reason: `a feed post needs 1-${MAX_CAROUSEL_ITEMS} images, got ${count}`,
+      reason: `a post needs 1-${MAX_CAROUSEL_ITEMS} images, got ${count}`,
     });
   }
 
@@ -76,7 +78,8 @@ const failureReason = (error: {
   readonly reason?: string;
   readonly type?: string;
 }): string => {
-  const detail = error.message ?? error.reason ?? error.type;
+  // Tagged errors carry an empty message by default.
+  const detail = error.message || error.reason || error.type;
 
   return detail !== undefined ? `${error._tag}: ${detail}`.slice(0, 300) : error._tag;
 };
@@ -88,7 +91,21 @@ const failureReason = (error: {
  */
 export const publishDue = Effect.fn("pipeline.publishDue")(function* (scheduledPostId: string) {
   const store = yield* PublishStore;
-  const job = yield* store.loadJob(scheduledPostId);
+
+  // A post whose images are gone can't load: record why, or the row stays "scheduled" forever.
+  const job = yield* store
+    .loadJob(scheduledPostId)
+    .pipe(
+      Effect.tapError((error) =>
+        store.markFailed(
+          scheduledPostId,
+          Predicate.isTagged(error, "PublishJobNotFound")
+            ? "PublishJobNotFound: o post ou uma das imagens dele não existe mais"
+            : failureReason(error),
+        ),
+      ),
+    );
+
   yield* store.markPublishing(scheduledPostId);
 
   const receipt = yield* publishPost(job).pipe(

@@ -91,6 +91,7 @@ describe("role-specific discovery", () => {
   const deferred = [
     "cancel_schedule",
     "delete_post",
+    "extend_infinite_carousel",
     "list_accounts",
     "list_vanda_threads",
     "product_help",
@@ -108,6 +109,7 @@ describe("role-specific discovery", () => {
     "select_account",
     "settings_get",
     "settings_set",
+    "weave_infinite_carousel",
     "web_search",
   ];
 
@@ -169,6 +171,23 @@ describe("role-specific discovery", () => {
     if (query === name) expect(result).toHaveProperty("tools.length", 1);
   });
 
+  it.each([
+    ["agendar post no instagram", "schedule_post"],
+    ["publicar post no instagram", "schedule_post"],
+    ["publish post to instagram", "schedule_post"],
+    ["foto do produto", "search_media"],
+  ])("never lets a skill push %s out of the tool cut", async (query, name) => {
+    const result = await vandaToolDiscovery.search.execute!(
+      { query },
+      { toolCallId: "search", messages: [] },
+    );
+
+    expect(result).toHaveProperty(
+      "tools",
+      expect.arrayContaining([expect.objectContaining({ name })]),
+    );
+  });
+
   it.each([vandaToolDiscovery, caetanoToolDiscovery])(
     "reports no match without inventing tools",
     async (discovery) => {
@@ -180,6 +199,83 @@ describe("role-specific discovery", () => {
       expect(result).toMatchObject({ tools: [], message: expect.stringContaining("'*'") });
     },
   );
+
+  it.each([
+    ["promoção com desconto no bolo", "post-purpose-promocional"],
+    ["post tipo story", "post-type-story"],
+    ["post tipo carrossel", "post-type-carousel"],
+    ["post tipo carrossel infinito", "post-type-infinite-carousel"],
+    ["carrossel contínuo panorâmico em loop", "post-type-infinite-carousel"],
+    ["carrossel com mais apelo visual", "post-type-infinite-carousel"],
+    ["carrossel para transmitir mais informação", "post-type-carousel"],
+    ["criar arte de post", "post-production"],
+    ["post-purpose-prova-social", "post-purpose-prova-social"],
+  ])("finds the %s skill with its location", async (query, name) => {
+    const result = await vandaToolDiscovery.search.execute!(
+      { query },
+      { toolCallId: "search", messages: [] },
+    );
+
+    expect(result).toHaveProperty(
+      "skills.0",
+      expect.objectContaining({ name, location: `/skills/${name}/SKILL.md` }),
+    );
+  });
+
+  it("finds the infinite carousel skill together with its seam tool", async () => {
+    const result = await vandaToolDiscovery.search.execute!(
+      { query: "carrossel infinito" },
+      { toolCallId: "search", messages: [] },
+    );
+
+    expect(result).toMatchObject({
+      skills: expect.arrayContaining([
+        expect.objectContaining({ name: "post-type-infinite-carousel" }),
+      ]),
+      tools: expect.arrayContaining([
+        expect.objectContaining({ name: "extend_infinite_carousel" }),
+      ]),
+    });
+  });
+
+  it("indexes on-demand skills but never always-on ones, and skills never unlock tools", async () => {
+    const all = await vandaToolDiscovery.search.execute!(
+      { query: "*" },
+      { toolCallId: "search", messages: [] },
+    );
+
+    const names = "skills" in all ? all.skills.map((skill) => skill.name) : [];
+    expect(names).toContain("instagram-market-research");
+    expect(names).not.toContain("unslop");
+
+    const step = vandaToolDiscovery.prepareStep({
+      steps: [
+        {
+          toolResults: [
+            {
+              type: "tool-result",
+              toolCallId: "search",
+              toolName: "tool_search",
+              input: { query: "post tipo story" },
+              output: {
+                tools: [],
+                skills: [
+                  {
+                    name: "post-type-story",
+                    description: "story",
+                    location: "/skills/post-type-story/SKILL.md",
+                  },
+                ],
+                message: "",
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(step.activeTools.toSorted()).toEqual(core);
+  });
 });
 
 describe("discovery execution", () => {

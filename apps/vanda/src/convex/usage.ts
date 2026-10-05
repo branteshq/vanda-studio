@@ -271,6 +271,8 @@ export const summary = query({
     usedPct: number;
     limited: boolean;
     chatLimited: boolean;
+    // Chat and images ride the owner's ChatGPT: the same routing the backend uses.
+    viaChatGpt: boolean;
     renewsAt: number | null;
   } | null> => {
     const identity = await ctx.auth.getUserIdentity();
@@ -296,6 +298,7 @@ export const summary = query({
       usedPct,
       limited: !state.ok,
       chatLimited: !state.ok && !isConnectedSubscriber(user),
+      viaChatGpt: isConnectedSubscriber(user),
       renewsAt: user.planId ? (user.billingPeriodEnd ?? null) : null,
     };
   },

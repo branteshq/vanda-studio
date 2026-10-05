@@ -10,7 +10,7 @@ describe("publishPost", () => {
       const fake = makeFakePublisher();
 
       const receipt = yield* publishPost({
-        type: "feed",
+        type: "image",
         caption: "hi",
         imageUrls: ["https://img/1.jpg"],
       }).pipe(Effect.provide(fake.layer));
@@ -28,7 +28,7 @@ describe("publishPost", () => {
     Effect.gen(function* () {
       const fake = makeFakePublisher();
       yield* publishPost({
-        type: "feed",
+        type: "carousel",
         caption: "cap",
         imageUrls: ["a", "b", "c"],
       }).pipe(Effect.provide(fake.layer));
@@ -41,7 +41,7 @@ describe("publishPost", () => {
     Effect.gen(function* () {
       const fake = makeFakePublisher();
 
-      const error = yield* publishPost({ type: "feed", caption: "x", imageUrls: [] }).pipe(
+      const error = yield* publishPost({ type: "carousel", caption: "x", imageUrls: [] }).pipe(
         Effect.provide(fake.layer),
         Effect.flip,
       );
@@ -56,12 +56,36 @@ describe("publishPost", () => {
       const fake = makeFakePublisher();
 
       const error = yield* publishPost({
-        type: "feed",
+        type: "carousel",
         caption: "x",
         imageUrls: Array.from({ length: 11 }, (_, i) => `u${i}`),
       }).pipe(Effect.provide(fake.layer), Effect.flip);
 
       expect(error._tag).toBe("InvalidPost");
+    }),
+  );
+
+  it.effect("still publishes legacy feed rows until the migration runs", () =>
+    Effect.gen(function* () {
+      const fake = makeFakePublisher();
+      yield* publishPost({ type: "feed", caption: "old", imageUrls: ["a", "b"] }).pipe(
+        Effect.provide(fake.layer),
+      );
+      expect(fake.published).toHaveLength(1);
+    }),
+  );
+
+  it.effect("rejects stories without calling the publisher", () =>
+    Effect.gen(function* () {
+      const fake = makeFakePublisher();
+
+      const error = yield* publishPost({ type: "story", caption: "x", imageUrls: ["u"] }).pipe(
+        Effect.provide(fake.layer),
+        Effect.flip,
+      );
+
+      expect(error._tag).toBe("UnsupportedFormat");
+      expect(fake.published).toHaveLength(0);
     }),
   );
 
@@ -80,7 +104,7 @@ describe("publishPost", () => {
 });
 
 describe("publishDue", () => {
-  const job = { type: "feed", caption: "hi", imageUrls: ["u"] } as const;
+  const job = { type: "carousel", caption: "hi", imageUrls: ["u"] } as const;
 
   it.effect("records the external id and marks the row published on success", () =>
     Effect.gen(function* () {
@@ -128,6 +152,11 @@ describe("publishDue", () => {
       );
 
       expect(error._tag).toBe("PublishJobNotFound");
+      // The calendar row records the failure instead of staying "scheduled".
+      expect(store.state.get("missing")).toMatchObject({
+        status: "failed",
+        lastError: expect.stringContaining("não existe mais"),
+      });
     }),
   );
 });

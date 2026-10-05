@@ -25,7 +25,7 @@ describe("schedulePost + calendar", () => {
 
       const post = await ctx.db.insert("posts", {
         accountId: account,
-        type: "feed",
+        type: "carousel",
         imageIds: [],
         caption: "hello",
         platform: "instagram",
@@ -92,7 +92,7 @@ describe("publishDue through the ctx-backed store + fake publisher", () => {
 
       const postId = await ctx.db.insert("posts", {
         accountId,
-        type: "feed",
+        type: "carousel",
         imageIds,
         caption: "winter combo",
         platform: "instagram",

@@ -23,62 +23,38 @@ const escapeXml = (value: string): string =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;");
 
+/** Skills a model may discover through tool_search; always-on ones are already in the prompt. */
+export const discoverableSkills = (
+  skills: readonly InstalledSkill[] = INSTALLED_SKILLS,
+): InstalledSkill[] =>
+  skills.filter((skill) => !skill.alwaysApply && !skill.disableModelInvocation);
+
 /**
  * Skills use Agent Skills progressive disclosure. Always-on skills are placed
- * in the system prompt; all others disclose only their metadata and load via
- * the workspace read tool when Vanda decides they match the task.
+ * in the system prompt; all others are indexed by tool_search and load via the
+ * workspace read tool when Vanda decides they match the task.
  */
 export const formatSkillsForSystemPrompt = (
   skills: readonly InstalledSkill[] = INSTALLED_SKILLS,
 ): string => {
   const alwaysOn = skills.filter((skill) => skill.alwaysApply);
-  const available = skills.filter((skill) => !skill.alwaysApply && !skill.disableModelInvocation);
 
-  if (alwaysOn.length === 0 && available.length === 0) return "";
+  if (alwaysOn.length === 0) return "";
 
-  const sections: string[] = [];
+  const lines = [
+    "As habilidades abaixo estão sempre ativas. Siga as instruções delas em toda resposta.",
+    "Referências relativas partem do diretório informado em location.",
+    "",
+    "<active_skills>",
+  ];
 
-  if (alwaysOn.length > 0) {
-    const lines = [
-      "As habilidades abaixo estão sempre ativas. Siga as instruções delas em toda resposta.",
-      "Referências relativas partem do diretório informado em location.",
-      "",
-      "<active_skills>",
-    ];
-
-    for (const skill of alwaysOn) {
-      lines.push(
-        `  <skill name="${escapeXml(skill.name)}" location="${escapeXml(skill.location)}">`,
-      );
-      lines.push(skill.body);
-      lines.push("  </skill>");
-    }
-
-    lines.push("</active_skills>");
-    sections.push(lines.join("\n"));
+  for (const skill of alwaysOn) {
+    lines.push(`  <skill name="${escapeXml(skill.name)}" location="${escapeXml(skill.location)}">`);
+    lines.push(skill.body);
+    lines.push("  </skill>");
   }
 
-  if (available.length > 0) {
-    const lines = [
-      "As descrições abaixo são um índice leve das habilidades disponíveis; os corpos e recursos não estão no contexto.",
-      "Antes de agir, compare o pedido com todas as descrições. Quando houver correspondência plausível, use read para carregar somente o SKILL.md correspondente e siga a descoberta progressiva indicada nele.",
-      "Não liste /skills nem carregue habilidades ou recursos sem relação com o pedido.",
-      "Resolva referências relativas a partir do diretório pai do SKILL.md.",
-      "",
-      "<available_skills>",
-    ];
+  lines.push("</active_skills>");
 
-    for (const skill of available) {
-      lines.push("  <skill>");
-      lines.push(`    <name>${escapeXml(skill.name)}</name>`);
-      lines.push(`    <description>${escapeXml(skill.description)}</description>`);
-      lines.push(`    <location>${escapeXml(skill.location)}</location>`);
-      lines.push("  </skill>");
-    }
-
-    lines.push("</available_skills>");
-    sections.push(lines.join("\n"));
-  }
-
-  return sections.join("\n\n");
+  return lines.join("\n");
 };

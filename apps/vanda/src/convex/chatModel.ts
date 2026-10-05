@@ -58,11 +58,21 @@ export const turnClock = () =>
 
 const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY ?? "" });
 
+// Convex storage URLs carry no file extension, so the provider's own patterns
+// miss them and the SDK would download every image into the 64 MB chat action
+// on every step. OpenRouter fetches the URL itself.
+export const CONVEX_STORAGE_URL = /^https:\/\/[^/]+\/api\/storage\/[0-9a-f-]+$/i;
+
 export const openrouterChatModel = (modelId: string, onFailedAttempt?: () => Promise<void>) =>
   wrapLanguageModel({
     model: openrouter.chat(modelId, { usage: { include: true } }),
     middleware: {
       specificationVersion: "v3",
+      overrideSupportedUrls: ({ model }) =>
+        Promise.resolve(model.supportedUrls).then((supported) => ({
+          ...supported,
+          "image/*": [...(supported["image/*"] ?? []), CONVEX_STORAGE_URL],
+        })),
       wrapGenerate: async ({ doGenerate }) => {
         try {
           return await doGenerate();

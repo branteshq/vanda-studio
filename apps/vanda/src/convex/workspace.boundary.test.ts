@@ -131,7 +131,8 @@ describe("workspace navigation", () => {
       expect(listing.entries).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ name: "instagram-market-research", kind: "dir" }),
-          expect.objectContaining({ name: "creating-carousel-images", kind: "dir" }),
+          expect.objectContaining({ name: "post-production", kind: "dir" }),
+          expect.objectContaining({ name: "post-type-carousel", kind: "dir" }),
           expect.objectContaining({ name: "unslop", kind: "dir" }),
         ]),
       );
@@ -160,16 +161,18 @@ describe("workspace navigation", () => {
       expect(license.file.text).toContain("MIT License");
     }
 
-    const carousel = await t.query(internal.workspaceData.read, {
+    // Hidden sub-skills stay readable on demand for the router.
+    const production = await t.query(internal.workspaceData.read, {
       accountId,
-      path: "/skills/creating-carousel-images/SKILL.md",
+      path: "/skills/post-production/SKILL.md",
     });
 
-    expect(carousel.ok).toBe(true);
+    expect(production.ok).toBe(true);
 
-    if (carousel.ok && carousel.file.kind === "text") {
-      expect(carousel.file.text).toContain("# Carrosséis profissionais");
-      expect(carousel.file.text).toContain("editOfImageId");
+    if (production.ok && production.file.kind === "text") {
+      expect(production.file.text).not.toContain("disable-model-invocation");
+      expect(production.file.text).toContain("## 0. Tipo → propósito → format");
+      expect(production.file.text).toContain("editOfImageId");
     }
   });
 
@@ -250,6 +253,75 @@ describe("installed skills public query", () => {
 });
 
 describe("workspace renders", () => {
+  it("shows each post's purpose in the calendar listing and file", async () => {
+    const { t, accountId, galleryImageId } = await setup();
+
+    const postId = await t.mutation(internal.posts.createPostInternal, {
+      accountId,
+      imageIds: [galleryImageId],
+      caption: "Bolo de cenoura chegou",
+      type: "image",
+      format: "4:5",
+      purpose: "anuncio",
+      secondaryPurpose: "promocional",
+      rationale: "image porque é uma novidade curta; anuncio porque há data, não promocional.",
+    });
+
+    await t.mutation(internal.posts.createPostInternal, {
+      accountId,
+      imageIds: [galleryImageId],
+      caption: "Post antigo",
+    });
+
+    // A legacy `feed` row reads as what it meant, migrated or not.
+    await t.run((ctx) =>
+      ctx.db.insert("posts", {
+        accountId,
+        type: "feed",
+        imageIds: [galleryImageId, galleryImageId],
+        caption: "Carrossel legado",
+        platform: "instagram",
+        status: "draft",
+        createdAt: 1,
+      }),
+    );
+
+    const listing = await t.query(internal.workspaceData.list, { accountId, path: "/posts" });
+
+    expect(listing.ok).toBe(true);
+
+    const summaries = listing.ok ? (listing.entries ?? []).map((entry) => entry.summary) : [];
+    expect(summaries).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("image · 4:5 · anuncio (+promocional)"),
+        expect.stringContaining("sem propósito"),
+        expect.stringContaining("carousel · sem propósito · 2 imagem(ns) · Carrossel legado"),
+      ]),
+    );
+    expect(summaries.some((summary) => summary?.includes("feed"))).toBe(false);
+
+    const entry = listing.ok
+      ? listing.entries?.find((item) => item.summary?.includes("anuncio"))
+      : undefined;
+
+    const file = await t.query(internal.workspaceData.read, {
+      accountId,
+      path: `/posts/${entry?.name ?? ""}`,
+    });
+
+    expect(file).toMatchObject({ ok: true, file: { kind: "text" } });
+
+    if (file.ok && file.file.kind === "text") {
+      expect(JSON.parse(file.file.text)).toMatchObject({
+        postId,
+        type: "image",
+        purpose: "anuncio",
+        secondaryPurpose: "promocional",
+        rationale: expect.stringContaining("não promocional"),
+      });
+    }
+  });
+
   it("keeps legacy execution artifacts readable only by their account", async () => {
     const { t, accountId, foreignAccountId } = await setup();
 

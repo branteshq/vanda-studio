@@ -106,6 +106,8 @@ it.skipIf(!enabled).each(suite)(
     const schedules: { postId: string; scheduledFor?: string | undefined }[] = [];
     const realFetch = globalThis.fetch;
     vi.stubEnv("OPENAI_TOKEN_ENCRYPTION_KEY", randomBytes(32).toString("hex"));
+    // convex-test cannot interleave writes inside one action; weave seams serially.
+    vi.stubEnv("VANDA_WEAVE_CONCURRENCY", "1");
 
     // Fail closed for external services unrelated to this evaluation. Never send publisher calls.
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -658,6 +660,36 @@ it.skipIf(!enabled).each(suite)(
       if (entry.agent === "caetano")
         expect(trace.some((step) => step.agent === "vanda")).toBe(false);
 
+      if (entry.id === "inf-carrossel-6x1") {
+        const calls = trace.flatMap((step) => step.calls ?? []);
+
+        expect(
+          calls.some(
+            (call) =>
+              call.toolName === "read" &&
+              JSON.stringify(call.input).includes("post-type-infinite-carousel"),
+          ),
+        ).toBe(true);
+
+        const woven = trace
+          .flatMap((step) => step.results ?? [])
+          .filter(
+            (result) =>
+              result.toolName === "weave_infinite_carousel" ||
+              result.toolName === "extend_infinite_carousel",
+          )
+          .flatMap((result) => {
+            const parsed = z
+              .object({ data: z.object({ slides: z.array(z.object({ imageId: z.string() })) }) })
+              .safeParse(result.output);
+
+            return parsed.success ? [parsed.data.data.slides.map((slide) => slide.imageId)] : [];
+          });
+
+        expect(woven.length).toBeGreaterThan(0);
+        expect(woven.at(-1)).toEqual(state.posts[0]?.imageIds);
+      }
+
       if (entry.id === "pimba-past-preference") expect(response).toContain("Bora rabiscar?");
 
       if (entry.id === "prumo-history-recall")
@@ -703,5 +735,6 @@ it.skipIf(!enabled).each(suite)(
       vi.unstubAllEnvs();
     }
   },
-  600_000,
+  // Infinite carousels chain two repaints per slide, serially.
+  1_800_000,
 );

@@ -3,6 +3,29 @@
 Working notes from the September 18, 2026 discussion with Davi. This is a living
 document for continued investigation and implementation, not a finished design.
 
+## Post flow: type → purpose → format, through tool_search — September 30, 2026
+
+Skills and tools share one index: `tool_search` returns matching skills with their
+`location`, and the model loads them with `read`. The prompt lists only always-on
+skills; there is no separate skill router.
+
+A post is decided as type → purpose → format, with no fixed mapping between them:
+the agent weighs the request, the brand and the `/posts` mix, and the owner's
+explicit request wins. `post-production` §0 frames the choice; `post-type-*`
+(`image`, `carousel`, `story`) and `post-purpose-*` (14 purposes) describe
+strengths and limits, not when to use them.
+
+- **type** is the post's shape and placement: `image`, `carousel` (2–10), `story`.
+  The legacy `feed` value meant carousel; `migrations:feedToCarousel` rewrites it
+  (run in dev on September 30), after which `feed` is removed from `postTypes`
+  and `publish.ts`.
+- **format** is the aspect ratio shared by every image (`1:1`, `4:5`, `3:4`, `4:3`,
+  `16:9`; story is always `9:16`). It is stored on the post and checked against
+  known image dimensions (3% tolerance). `paint` cannot produce `4:3`; it exists
+  for ready gallery photos.
+- `create_post` requires `type`, `format`, `purpose` and a `rationale` explaining
+  each choice. Stories stay drafts; scheduling them is refused.
+
 ## Portrait transport correction — September 25, 2026
 
 OpenRouter's Sunburst and Flare endpoint metadata excludes `aspect_ratio: "4:5"`,

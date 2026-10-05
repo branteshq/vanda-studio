@@ -469,6 +469,11 @@ describe("Caetano control plane", () => {
                     input: JSON.stringify({
                       imageIds: [imageId],
                       caption: "Café feito com calma.",
+                      type: "image",
+                      format: "4:3",
+                      purpose: "institucional",
+                      rationale:
+                        "image porque é uma mensagem única; institucional porque reforça quem somos, não editorial.",
                     }),
                   },
                 ]

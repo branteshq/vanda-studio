@@ -2,7 +2,13 @@ import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
 import { isConnectedImageModel, isKnownImageModel } from "./imageModels";
 import { isConnectedSubscriber } from "./openaiSub";
@@ -152,6 +158,56 @@ async function deleteImage(
 
   await ctx.db.delete(imageId);
 }
+
+/** Drop server-side working images (e.g. repainted carousel seams) once merged. */
+export const discardWorking = internalMutation({
+  args: { accountId: v.id("accounts"), imageIds: v.array(v.id("images")) },
+  handler: async (ctx, { accountId, imageIds }): Promise<void> => {
+    for (const imageId of imageIds) {
+      // Working rows show in the gallery, so the owner may have deleted one already.
+      const image = await ctx.db.get(imageId);
+
+      if (image?.accountId === accountId) await deleteImage(ctx, accountId, imageId);
+    }
+  },
+});
+
+/** The exact prompt the infinite carousel saves its slides with ("… slide 2" or "… slide 2/4"). */
+export const chainSlidePrompt = (label: string) => `Carrossel infinito, slide ${label}`;
+
+const CHAIN_SLIDE_PROMPT = /^Carrossel infinito, slide \d+(\/\d+)?$/;
+
+/**
+ * Drop superseded infinite-carousel slides. Only rows the chain itself saved
+ * (never an agent paint whose prompt happens to start the same way), never an
+ * id the chain still uses, and never an image any post points to.
+ */
+export const discardChainSlides = internalMutation({
+  args: {
+    accountId: v.id("accounts"),
+    imageIds: v.array(v.id("images")),
+    // The chain the call returned: a superseded id can still sit at another position.
+    keep: v.array(v.id("images")),
+  },
+  handler: async (ctx, { accountId, imageIds, keep }): Promise<void> => {
+    const kept = new Set<Id<"images">>(keep);
+
+    const posts = await ctx.db
+      .query("posts")
+      .withIndex("by_account", (q) => q.eq("accountId", accountId))
+      .collect();
+
+    for (const post of posts) for (const imageId of post.imageIds) kept.add(imageId);
+
+    for (const imageId of imageIds) {
+      if (kept.has(imageId)) continue;
+      const image = await ctx.db.get(imageId);
+
+      if (image?.accountId === accountId && CHAIN_SLIDE_PROMPT.test(image.prompt ?? ""))
+        await deleteImage(ctx, accountId, imageId);
+    }
+  },
+});
 
 /** Remove a gallery item, freeing its stored bytes when nothing else links them. */
 export const remove = mutation({

@@ -27,6 +27,24 @@ export function assertImagesWereInspected(
         if (image.success) inspected.add(image.data.data.imageId);
       }
 
+      // A weave, or the extend that closes the loop, shows every slide to the model
+      // in one strip; an intermediate extend has no strip and shows nothing.
+      if (
+        result.toolName === "weave_infinite_carousel" ||
+        result.toolName === "extend_infinite_carousel"
+      ) {
+        const woven = z
+          .object({
+            data: z.object({
+              slides: z.array(z.object({ imageId: z.string() })),
+              strip: z.object({ imageId: z.string(), url: z.string() }),
+            }),
+          })
+          .safeParse(result.output);
+
+        if (woven.success) for (const slide of woven.data.data.slides) inspected.add(slide.imageId);
+      }
+
       if (result.toolName === "read") {
         const image = z
           .object({
@@ -43,7 +61,7 @@ export function assertImagesWereInspected(
   }
 
   if (imageIds.length === 0 || imageIds.some((id) => !inspected.has(id)))
-    throw new Error("each final image must have a successful paint or read pixel result");
+    throw new Error("each final image must have a successful paint, weave or read pixel result");
 }
 
 /** Checks execution plus a conservative disclosure signal, not semantic truthfulness. */
