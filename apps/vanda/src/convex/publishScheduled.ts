@@ -81,6 +81,12 @@ export const setScheduledStatus = internalMutation({
 
     if (status === "published") await ctx.db.patch(post._id, { status: "published" });
 
+    const slot = post.autopilotSlotId ? await ctx.db.get(post.autopilotSlotId) : null;
+
+    if (slot && (status === "published" || status === "failed")) {
+      await ctx.db.patch(slot._id, { status, lastError, updatedAt: now });
+    }
+
     // The follow-up also notifies a linked WhatsApp, even for posts created outside chat.
     if (scheduled.status !== status && (status === "published" || status === "failed")) {
       await ctx.scheduler.runAfter(0, internal.threadResources.postPublicationFollowup, {

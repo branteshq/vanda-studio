@@ -464,3 +464,133 @@ export const renderAuditSummary = (audit: {
   ]
     .filter(Boolean)
     .join("\n");
+
+// ------------------------------------------------------------------- compose
+
+export const ComposeOutput = Schema.Struct({
+  caption: Schema.String,
+  slides: Schema.Array(Schema.Struct({ role: Schema.String, prompt: Schema.String })),
+  rationale: Schema.String,
+});
+
+export type ComposeOutput = typeof ComposeOutput.Type;
+
+export const CaptionRepair = Schema.Struct({ caption: Schema.String });
+
+export interface ComposeInput {
+  readonly brand: string;
+  readonly brandKit: string | null;
+  readonly type: "image" | "carousel";
+  readonly slideCount: number;
+  readonly format: string;
+  readonly brief: PlannedSlotBrief;
+  readonly references: readonly { readonly id: string; readonly role: string }[];
+  readonly whenLabel: string;
+}
+
+const purposeSkillName = (purpose: PostPurpose): string =>
+  `post-purpose-${purpose.replaceAll("_", "-")}`;
+
+const buildComposePrompt = (input: ComposeInput): string =>
+  [
+    "Você é a Vanda produzindo um post de feed do piloto automático, sem conversa com o dono.",
+    "Decida a copy de cada slide, escreva o briefing visual de cada `paint` e a legenda, seguindo as",
+    "habilidades abaixo. Não há como perguntar nada: use só fatos da marca e do briefing. Nunca invente",
+    "números, depoimentos, preços ou promessas; se faltar um dado, reformule sem ele.",
+    "",
+    "<habilidade>",
+    skillText("post-production"),
+    "</habilidade>",
+    "<habilidade>",
+    skillText(input.type === "carousel" ? "post-type-carousel" : "post-type-image"),
+    "</habilidade>",
+    "<habilidade>",
+    skillText(purposeSkillName(input.brief.purpose)),
+    "</habilidade>",
+    "<habilidade>",
+    skillText("instagram-caption"),
+    "</habilidade>",
+    "",
+    "Regras da saída:",
+    `- slides: exatamente ${input.slideCount}, na ordem. role = função do slide; prompt = briefing visual`,
+    `  completo para UMA chamada de paint em ${input.format}, com o texto EXATO entre aspas.`,
+    "  Do slide 2 em diante, o slide 1 vai como referência de estilo: diga para manter paleta, tipografia",
+    "  e acabamento, não a composição. Diga no prompt o papel de cada referência da marca usada.",
+    "- caption: a legenda final, pronta para publicar (até 2.200 caracteres, primeira linha com gancho,",
+    "  um pedido, até 5 hashtags específicas no fim ou nenhuma, sem links).",
+    "- rationale: até 400 caracteres, `<type> porque …; <propósito> porque …; decisões visuais: …`.",
+    "",
+    `=== POST: ${input.whenLabel} · ${input.type} · ${slidesLabel(input.slideCount)} · ${input.format} ===`,
+    `Propósito: ${input.brief.purpose} (${purposeLabels[input.brief.purpose]})`,
+    `Tema: ${input.brief.theme}`,
+    `Ângulo: ${input.brief.angle}`,
+    `Gancho da capa: ${input.brief.hook}`,
+    "Roteiro:",
+    input.brief.slideOutline.map((line, index) => `${index + 1}. ${line}`).join("\n"),
+    `Legenda: ${input.brief.captionBrief}`,
+    "",
+    "=== MARCA ===",
+    input.brand || "(sem memória de marca confirmada)",
+    "",
+    "=== KIT DE MARCA (/brand/kit.json) ===",
+    input.brandKit ?? "(sem kit: escolha uma paleta sóbria coerente com a marca)",
+    "",
+    "=== REFERÊNCIAS DA MARCA (vão em todos os paints) ===",
+    input.references.map((reference) => `- ${reference.id}: ${reference.role}`).join("\n") ||
+      "(nenhuma)",
+  ].join("\n");
+
+const fitSlides = (
+  slides: ComposeOutput["slides"],
+  slideCount: number,
+): ComposeOutput["slides"] => {
+  const fitted = slides.slice(0, slideCount);
+  const last = fitted.at(-1);
+
+  if (!last) return fitted;
+
+  while (fitted.length < slideCount) fitted.push(last);
+
+  return fitted;
+};
+
+/** Copy, visual briefs and caption for one slot, in one structured pass. */
+export const composeSlot = Effect.fn("autopilot.composeSlot")(function* (input: ComposeInput) {
+  const response = yield* LanguageModel.generateObject({
+    prompt: buildComposePrompt(input),
+    schema: ComposeOutput,
+  });
+
+  const slides = fitSlides(response.value.slides, input.slideCount);
+
+  if (slides.length !== input.slideCount)
+    return yield* Effect.fail(new Error("a composição não trouxe nenhum slide"));
+
+  return { ...response.value, slides, rationale: response.value.rationale.slice(0, 400) };
+});
+
+/** One rewrite of a caption that failed the lint, keeping its content. */
+export const repairCaption = Effect.fn("autopilot.repairCaption")(function* (
+  caption: string,
+  problems: string,
+) {
+  const response = yield* LanguageModel.generateObject({
+    prompt: [
+      "Reescreva a legenda de Instagram abaixo corrigindo os problemas apontados. Mantenha fatos,",
+      "tom e o pedido principal. Siga a habilidade.",
+      "",
+      "<habilidade>",
+      skillText("instagram-caption"),
+      "</habilidade>",
+      "",
+      "=== PROBLEMAS ===",
+      problems,
+      "",
+      "=== LEGENDA ===",
+      caption,
+    ].join("\n"),
+    schema: CaptionRepair,
+  });
+
+  return response.value.caption;
+});

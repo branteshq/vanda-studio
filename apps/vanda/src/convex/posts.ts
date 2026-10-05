@@ -41,6 +41,8 @@ export const createPostInternal = internalMutation({
     purpose: v.optional(postPurposeValidator),
     secondaryPurpose: v.optional(postPurposeValidator),
     rationale: v.optional(v.string()),
+    // Set only by the autopilot producer; chat posts stay manual.
+    autopilotSlotId: v.optional(v.id("autopilotSlots")),
   },
   handler: async (
     ctx,
@@ -55,6 +57,7 @@ export const createPostInternal = internalMutation({
       purpose,
       secondaryPurpose,
       rationale,
+      autopilotSlotId,
     },
   ): Promise<Id<"posts">> => {
     if (imageIds.length < 1 || imageIds.length > MAX_POST_IMAGES) {
@@ -167,6 +170,11 @@ export const createPostInternal = internalMutation({
 
     if (trimmedRationale) post.rationale = trimmedRationale;
 
+    if (autopilotSlotId) {
+      post.origin = "autopilot";
+      post.autopilotSlotId = autopilotSlotId;
+    }
+
     return ctx.db.insert("posts", post);
   },
 });
@@ -175,8 +183,100 @@ export const createPostInternal = internalMutation({
  * Approved commit: pin the post to a datetime and arm the publisher. A post
  * that is already scheduled (and hasn't started publishing) is RE-AIMED —
  * the old scheduler job is disarmed and the new time armed — so "muda para
- * amanhã às 8h" is one approved call, never a duplicate.
+ * amanhã às 8h" is one approved call, never a duplicate. Shared with the
+ * autopilot, which schedules inside its own slot transaction.
  */
+export const schedulePostIn = async (
+  ctx: MutationCtx,
+  {
+    accountId,
+    postId,
+    scheduledFor,
+    originThreadId,
+    caetanoThreadId,
+  }: {
+    accountId: Id<"accounts">;
+    postId: Id<"posts">;
+    scheduledFor?: number | undefined;
+    originThreadId?: string | undefined;
+    caetanoThreadId?: string | undefined;
+  },
+): Promise<{
+  scheduledPostId: Id<"scheduledPosts">;
+  scheduledFor: number;
+  rescheduled: boolean;
+}> => {
+  const post = await ctx.db.get(postId);
+
+  if (post === null || post.accountId !== accountId) throw new Error("post não encontrado");
+
+  if (post.type === "story") {
+    throw new Error(
+      "stories ainda não são publicados pelo Vanda — o rascunho fica no calendário para você publicar pelo Instagram",
+    );
+  }
+
+  const at = scheduledFor ?? Date.now() + 5_000;
+  const now = Date.now();
+
+  if (originThreadId || caetanoThreadId) {
+    const patch: Pick<Partial<Doc<"posts">>, "originThreadId" | "caetanoThreadId"> = {};
+
+    if (originThreadId) patch.originThreadId = originThreadId;
+
+    if (caetanoThreadId) patch.caetanoThreadId = caetanoThreadId;
+    await ctx.db.patch(postId, patch);
+  }
+
+  const existing = await ctx.db
+    .query("scheduledPosts")
+    .withIndex("by_post", (q) => q.eq("postId", postId))
+    .first();
+
+  if (existing !== null) {
+    if (existing.status !== "scheduled") {
+      throw new Error(`post já está ${existing.status} — não dá mais para reagendar`);
+    }
+
+    if (existing.scheduledJobId !== undefined) await ctx.scheduler.cancel(existing.scheduledJobId);
+
+    const scheduledJobId = await ctx.scheduler.runAt(
+      at,
+      internal.publishScheduledNode.runScheduledPost,
+      { scheduledPostId: existing._id },
+    );
+
+    await ctx.db.patch(existing._id, { scheduledFor: at, scheduledJobId, updatedAt: now });
+
+    return { scheduledPostId: existing._id, scheduledFor: at, rescheduled: true };
+  }
+
+  if (post.status !== "draft" && post.status !== "ready") {
+    throw new Error(`post já está ${post.status}`);
+  }
+
+  const scheduledPostId = await ctx.db.insert("scheduledPosts", {
+    accountId,
+    postId,
+    scheduledFor: at,
+    status: "scheduled",
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  await ctx.db.patch(postId, { status: "scheduled" });
+
+  const scheduledJobId = await ctx.scheduler.runAt(
+    at,
+    internal.publishScheduledNode.runScheduledPost,
+    { scheduledPostId },
+  );
+
+  await ctx.db.patch(scheduledPostId, { scheduledJobId });
+
+  return { scheduledPostId, scheduledFor: at, rescheduled: false };
+};
+
 export const schedulePostInternal = internalMutation({
   args: {
     accountId: v.id("accounts"),
@@ -185,111 +285,37 @@ export const schedulePostInternal = internalMutation({
     originThreadId: v.optional(v.string()),
     caetanoThreadId: v.optional(v.string()),
   },
-  handler: async (
-    ctx,
-    { accountId, postId, scheduledFor, originThreadId, caetanoThreadId },
-  ): Promise<{
-    scheduledPostId: Id<"scheduledPosts">;
-    scheduledFor: number;
-    rescheduled: boolean;
-  }> => {
-    const post = await ctx.db.get(postId);
-
-    if (post === null || post.accountId !== accountId) throw new Error("post não encontrado");
-
-    if (post.type === "story") {
-      throw new Error(
-        "stories ainda não são publicados pelo Vanda — o rascunho fica no calendário para você publicar pelo Instagram",
-      );
-    }
-
-    const at = scheduledFor ?? Date.now() + 5_000;
-    const now = Date.now();
-
-    if (originThreadId || caetanoThreadId) {
-      const patch: Pick<Partial<Doc<"posts">>, "originThreadId" | "caetanoThreadId"> = {};
-
-      if (originThreadId) patch.originThreadId = originThreadId;
-
-      if (caetanoThreadId) patch.caetanoThreadId = caetanoThreadId;
-      await ctx.db.patch(postId, patch);
-    }
-
-    const existing = await ctx.db
-      .query("scheduledPosts")
-      .withIndex("by_post", (q) => q.eq("postId", postId))
-      .first();
-
-    if (existing !== null) {
-      if (existing.status !== "scheduled") {
-        throw new Error(`post já está ${existing.status} — não dá mais para reagendar`);
-      }
-
-      if (existing.scheduledJobId !== undefined)
-        await ctx.scheduler.cancel(existing.scheduledJobId);
-
-      const scheduledJobId = await ctx.scheduler.runAt(
-        at,
-        internal.publishScheduledNode.runScheduledPost,
-        { scheduledPostId: existing._id },
-      );
-
-      await ctx.db.patch(existing._id, { scheduledFor: at, scheduledJobId, updatedAt: now });
-
-      return { scheduledPostId: existing._id, scheduledFor: at, rescheduled: true };
-    }
-
-    if (post.status !== "draft" && post.status !== "ready") {
-      throw new Error(`post já está ${post.status}`);
-    }
-
-    const scheduledPostId = await ctx.db.insert("scheduledPosts", {
-      accountId,
-      postId,
-      scheduledFor: at,
-      status: "scheduled",
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    await ctx.db.patch(postId, { status: "scheduled" });
-
-    const scheduledJobId = await ctx.scheduler.runAt(
-      at,
-      internal.publishScheduledNode.runScheduledPost,
-      { scheduledPostId },
-    );
-
-    await ctx.db.patch(scheduledPostId, { scheduledJobId });
-
-    return { scheduledPostId, scheduledFor: at, rescheduled: false };
-  },
+  handler: (ctx, args) => schedulePostIn(ctx, args),
 });
 
 /** Disarm a pending schedule — the safe direction, back to draft. */
+export const cancelScheduleIn = async (
+  ctx: MutationCtx,
+  { accountId, postId }: { accountId: Id<"accounts">; postId: Id<"posts"> },
+): Promise<void> => {
+  const post = await ctx.db.get(postId);
+
+  if (post === null || post.accountId !== accountId) throw new Error("post não encontrado");
+
+  const scheduled = await ctx.db
+    .query("scheduledPosts")
+    .withIndex("by_post", (q) => q.eq("postId", postId))
+    .first();
+
+  if (scheduled === null) throw new Error("post não tem agendamento");
+
+  if (scheduled.status !== "scheduled") {
+    throw new Error(`agendamento já está ${scheduled.status} — não dá para cancelar`);
+  }
+
+  if (scheduled.scheduledJobId !== undefined) await ctx.scheduler.cancel(scheduled.scheduledJobId);
+  await ctx.db.delete(scheduled._id);
+  await ctx.db.patch(postId, { status: "draft" });
+};
+
 export const cancelScheduleInternal = internalMutation({
   args: { accountId: v.id("accounts"), postId: v.id("posts") },
-  handler: async (ctx, { accountId, postId }): Promise<void> => {
-    const post = await ctx.db.get(postId);
-
-    if (post === null || post.accountId !== accountId) throw new Error("post não encontrado");
-
-    const scheduled = await ctx.db
-      .query("scheduledPosts")
-      .withIndex("by_post", (q) => q.eq("postId", postId))
-      .first();
-
-    if (scheduled === null) throw new Error("post não tem agendamento");
-
-    if (scheduled.status !== "scheduled") {
-      throw new Error(`agendamento já está ${scheduled.status} — não dá para cancelar`);
-    }
-
-    if (scheduled.scheduledJobId !== undefined)
-      await ctx.scheduler.cancel(scheduled.scheduledJobId);
-    await ctx.db.delete(scheduled._id);
-    await ctx.db.patch(postId, { status: "draft" });
-  },
+  handler: (ctx, args) => cancelScheduleIn(ctx, args),
 });
 
 /** Shared delete: drafts directly, scheduled ones by disarming first. */
