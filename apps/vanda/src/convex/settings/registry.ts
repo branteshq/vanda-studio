@@ -1,7 +1,13 @@
 import type { Doc } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { requireTextModel, resolveCaetanoModel, resolveOrchestratorModel } from "../agentModels";
-import { applyCadence, applyEnabled, applyResetCadence, getConfig } from "../autopilotData";
+import {
+  applyApprovalMode,
+  applyCadence,
+  applyEnabled,
+  applyResetCadence,
+  getConfig,
+} from "../autopilotData";
 import { DEFAULT_CADENCE, cadenceSummary, parseCadenceText } from "../pipeline/autopilot";
 import { planLabel } from "../billing/plans";
 import {
@@ -131,6 +137,12 @@ const readers = {
       enabled: (await getConfig(ctx, account._id))?.enabled ?? false,
     };
   },
+  "autopilot.approval": async (ctx, user) => {
+    const account = await ownedActiveAccount(ctx, user);
+    const config = account ? await getConfig(ctx, account._id) : null;
+
+    return config?.approval === "auto" ? "publicar sem aceite" : "pedir aceite";
+  },
   "autopilot.cadence": async (ctx, user) => {
     const account = await ownedActiveAccount(ctx, user);
     const config = account ? await getConfig(ctx, account._id) : null;
@@ -175,6 +187,19 @@ const writers: Partial<Record<SettingId, Writer>> = {
     if (!account) throw new Error("nenhum negócio ativo");
 
     await applyEnabled(ctx, account._id, ON_VALUES.has(normalized));
+  },
+  "autopilot.approval": async (ctx, user, value) => {
+    const normalized = value.trim().toLowerCase();
+    const auto = normalized === "publicar sem aceite" || normalized === "auto";
+
+    if (!auto && normalized !== "pedir aceite" && normalized !== "required")
+      throw new Error('use "pedir aceite" ou "publicar sem aceite"');
+
+    const account = await ownedActiveAccount(ctx, user);
+
+    if (!account) throw new Error("nenhum negócio ativo");
+
+    await applyApprovalMode(ctx, account._id, auto ? "auto" : "required");
   },
   "autopilot.cadence": async (ctx, user, value) => {
     const account = await ownedActiveAccount(ctx, user);

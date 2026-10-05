@@ -32,6 +32,8 @@ export const cadenceSources = ["agent", "owner"] as const;
 export const autopilotSlotStatuses = [
   "planned",
   "generating",
+  // Produced; the owner approves (→ scheduled) or rejects with a reason (→ planned again).
+  "awaiting_approval",
   "scheduled",
   "published",
   "skipped",
@@ -47,6 +49,18 @@ export const auditStatuses = ["running", "ready", "failed"] as const;
 export const auditConfidences = ["baixa", "media", "alta"] as const;
 
 export const postOrigins = ["manual", "autopilot"] as const;
+
+/** "required": nothing publishes without the owner's approval. "auto": publishes unless vetoed. */
+export const approvalModes = ["required", "auto"] as const;
+
+export type ApprovalMode = (typeof approvalModes)[number];
+
+export const feedbackDecisions = ["approved", "rejected"] as const;
+
+/** Where a rejection reason applies: every future post ("geral") or only that post. */
+export const feedbackScopes = ["pending", "geral", "post"] as const;
+
+export const MIN_REJECTION_REASON = 8;
 
 export const MIN_WEEKLY_POSTS = 1;
 

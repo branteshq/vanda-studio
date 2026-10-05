@@ -339,7 +339,18 @@ export interface PlanInput {
   readonly fixed: ReadonlyMap<number, PlannedSlotBrief>;
   readonly recentThemes: readonly string[];
   readonly weekLabel: string;
+  /** Rules the owner taught by rejecting posts; they outrank the skills. */
+  readonly rules: readonly string[];
 }
+
+const rulesBlock = (rules: readonly string[]): string[] =>
+  rules.length > 0
+    ? [
+        "=== REGRAS DO DONO (aprendidas com recusas; valem mais que as habilidades) ===",
+        ...rules.map((rule) => `- ${rule}`),
+        "",
+      ]
+    : [];
 
 const cadenceLine = (entry: CadenceEntry, index: number, fixed?: PlannedSlotBrief): string => {
   const base = `${index}. dia ${entry.weekday} ${formatHour(entry.time)} · ${entry.type} · ${slidesLabel(entry.slideCount)}`;
@@ -378,6 +389,7 @@ const buildPlanPrompt = (input: PlanInput): string =>
       .map((entry, index) => cadenceLine(entry, index, input.fixed.get(index)))
       .join("\n"),
     "",
+    ...rulesBlock(input.rules),
     "=== MARCA ===",
     input.brand || "(sem memória de marca confirmada)",
     "",
@@ -486,6 +498,9 @@ export interface ComposeInput {
   readonly brief: PlannedSlotBrief;
   readonly references: readonly { readonly id: string; readonly role: string }[];
   readonly whenLabel: string;
+  readonly rules: readonly string[];
+  /** Why the owner refused the previous version of this post. */
+  readonly revisionNote?: string | undefined;
 }
 
 const purposeSkillName = (purpose: PostPurpose): string =>
@@ -529,6 +544,15 @@ const buildComposePrompt = (input: ComposeInput): string =>
     input.brief.slideOutline.map((line, index) => `${index + 1}. ${line}`).join("\n"),
     `Legenda: ${input.brief.captionBrief}`,
     "",
+    ...(input.revisionNote
+      ? [
+          "=== O DONO RECUSOU A VERSÃO ANTERIOR DESTE POST ===",
+          `Motivo: ${input.revisionNote}`,
+          "Resolva exatamente isso nesta versão.",
+          "",
+        ]
+      : []),
+    ...rulesBlock(input.rules),
     "=== MARCA ===",
     input.brand || "(sem memória de marca confirmada)",
     "",
@@ -593,4 +617,59 @@ export const repairCaption = Effect.fn("autopilot.repairCaption")(function* (
   });
 
   return response.value.caption;
+});
+
+// ------------------------------------------------------------------ feedback
+
+export const FeedbackScope = Schema.Struct({
+  scope: Schema.Literals(["geral", "post"]),
+  rule: Schema.String,
+  why: Schema.String,
+});
+
+export type FeedbackScope = typeof FeedbackScope.Type;
+
+/**
+ * Reads an owner's rejection and decides whether it is a general preference
+ * (a rule for every future post) or about this post only. General reasons
+ * become one short imperative rule, merged with the rules already learned.
+ */
+export const classifyRejection = Effect.fn("autopilot.classifyRejection")(function* (input: {
+  readonly reason: string;
+  readonly slot: {
+    readonly type: string;
+    readonly slideCount: number;
+    readonly purpose: PostPurpose;
+    readonly theme: string;
+    readonly angle: string;
+    readonly hook: string;
+  };
+  readonly caption: string | null;
+  readonly rules: readonly string[];
+}) {
+  const response = yield* LanguageModel.generateObject({
+    prompt: [
+      "O dono recusou um post do piloto automático e explicou o motivo. Decida o alcance do motivo:",
+      '- "geral": vale para os próximos posts (tom, temas proibidos, estilo visual, formato, tipo de',
+      "  afirmação, frequência de algum propósito, palavras a evitar…). Escreva em `rule` UMA regra",
+      '  imperativa, curta e verificável, em português (ex.: "Não usar emojis nas legendas").',
+      '- "post": é sobre este post (um erro de fato, um dado errado, uma imagem específica, um tema',
+      "  que não cabe nesta semana). Deixe `rule` vazio.",
+      "Na dúvida, prefira \"post\": uma regra geral errada piora todos os posts seguintes.",
+      "Se o motivo repete uma regra já aprendida, responda \"geral\" com a regra existente.",
+      "`why`: uma frase explicando a decisão.",
+      "",
+      `MOTIVO: ${input.reason}`,
+      "",
+      `POST: ${input.slot.type} · ${slidesLabel(input.slot.slideCount)} · ${purposeLabels[input.slot.purpose]}`,
+      `Tema: ${input.slot.theme} · Ângulo: ${input.slot.angle} · Gancho: ${input.slot.hook}`,
+      input.caption ? `Legenda:\n${input.caption}` : "(sem legenda)",
+      "",
+      "REGRAS JÁ APRENDIDAS:",
+      input.rules.map((rule) => `- ${rule}`).join("\n") || "(nenhuma)",
+    ].join("\n"),
+    schema: FeedbackScope,
+  });
+
+  return response.value;
 });

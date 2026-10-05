@@ -20,13 +20,17 @@ import { activeConnection, notifyOwner } from "./whatsappData";
 const accountLabel = (account: { name?: string; handle?: string } | null): string =>
   account?.name ?? (account?.handle ? `@${account.handle}` : "seu negócio");
 
-/** Caetano: WhatsApp message plus the same text in his thread, when the owner is linked. */
+/**
+ * Caetano: WhatsApp message plus the same text in his thread, when the owner is
+ * linked. `context` is appended only in the thread (ids the tools need).
+ */
 const tellCaetano = async (
   ctx: MutationCtx,
   accountId: Id<"accounts">,
   key: string,
   text: string,
   resources: ThreadResource[],
+  context = "",
 ): Promise<void> => {
   const account = await ctx.db.get(accountId);
   const owner = account?.ownerUserId ? await ctx.db.get(account.ownerUserId) : null;
@@ -43,7 +47,7 @@ const tellCaetano = async (
     const { messageId } = await saveMessage(ctx, components.agent, {
       threadId,
       agentName: "caetano",
-      message: { role: "assistant", content: text },
+      message: { role: "assistant", content: context ? `${text}\n\n${context}` : text },
     });
 
     await upsertManifest(ctx, {
@@ -58,6 +62,39 @@ const tellCaetano = async (
   await notifyOwner(ctx, owner._id, text);
 };
 
+/** The account's most recent Vanda conversation, where in-app notices land. */
+const tellVanda = async (
+  ctx: MutationCtx,
+  accountId: Id<"accounts">,
+  key: string,
+  text: string,
+  resources: ThreadResource[],
+): Promise<void> => {
+  const threads = await ctx.runQuery(components.agent.threads.listThreadsByUserId, {
+    userId: String(accountId),
+    order: "desc",
+    paginationOpts: { cursor: null, numItems: 5 },
+  });
+
+  const thread = threads.page.find((item) => item.status === "active");
+
+  if (!thread) return;
+
+  const { messageId } = await saveMessage(ctx, components.agent, {
+    threadId: thread._id,
+    agentName: "vanda",
+    message: { role: "assistant", content: text },
+  });
+
+  await upsertManifest(ctx, {
+    threadId: thread._id,
+    anchorMessageId: messageId,
+    toolCallId: key,
+    resources,
+    presented: resources,
+  });
+};
+
 /** A new week is planned: the card in the latest conversation, the text on WhatsApp. */
 export const announcePlan = internalMutation({
   args: { accountId: v.id("accounts"), weekStart: v.number() },
@@ -70,32 +107,15 @@ export const announcePlan = internalMutation({
     const resource: ThreadResource = { kind: "autopilotWeek", accountId, weekStart };
     const intro = `Planejei a semana de ${week.label} no piloto automático: ${overview.cadenceSummary}.`;
 
-    const threads = await ctx.runQuery(components.agent.threads.listThreadsByUserId, {
-      userId: String(accountId),
-      order: "desc",
-      paginationOpts: { cursor: null, numItems: 5 },
-    });
+    const approval = overview.approval === "required";
 
-    const thread = threads.page.find((item) => item.status === "active");
-
-    if (thread) {
-      const { messageId } = await saveMessage(ctx, components.agent, {
-        threadId: thread._id,
-        agentName: "vanda",
-        message: {
-          role: "assistant",
-          content: `${intro} Cada post é gerado cerca de 24 horas antes e publica sozinho; você pode editar ou pular até lá.`,
-        },
-      });
-
-      await upsertManifest(ctx, {
-        threadId: thread._id,
-        anchorMessageId: messageId,
-        toolCallId: `autopilot:${accountId}:${weekStart}`,
-        resources: [resource],
-        presented: [resource],
-      });
-    }
+    await tellVanda(
+      ctx,
+      accountId,
+      `autopilot:${accountId}:${weekStart}`,
+      `${intro} Cada post é gerado cerca de 24 horas antes${approval ? " e espera o seu aceite para publicar" : " e publica sozinho; você pode editar ou pular até lá"}.`,
+      [resource],
+    );
 
     const account = await ctx.db.get(accountId);
 
@@ -117,23 +137,31 @@ const slotLine = (
   return `${weekdayNames[weekday]} ${formatHour(time)} · ${slot.type === "carousel" ? "carrossel" : "imagem"} · ${slidesLabel(slot.slideCount)} · ${purposeLabels[slot.purpose]} — "${slot.hook}"`;
 };
 
-/** A post is produced and armed: the owner's veto window starts now. */
+/**
+ * A post is produced. With approval required it waits for "aprovar" or a
+ * rejection with its reason; otherwise it is armed and the veto window starts.
+ */
 export const notifyProduced = internalMutation({
   args: { slotId: v.id("autopilotSlots") },
   handler: async (ctx, { slotId }): Promise<void> => {
     const slot = await ctx.db.get(slotId);
 
-    if (!slot || slot.status !== "scheduled" || !slot.postId) return;
+    if (!slot || !slot.postId) return;
+
+    if (slot.status !== "scheduled" && slot.status !== "awaiting_approval") return;
 
     const account = await ctx.db.get(slot.accountId);
+    const waiting = slot.status === "awaiting_approval";
+    const post: ThreadResource = { kind: "post", accountId: slot.accountId, postId: slot.postId };
 
-    await tellCaetano(
-      ctx,
-      slot.accountId,
-      `autopilot:produced:${slotId}`,
-      `Post do piloto automático pronto (${accountLabel(account)}): ${slotLine(slot)}.\nPublica sozinho no horário. Se quiser mudar, refazer ou pular, me diga.`,
-      [{ kind: "post", accountId: slot.accountId, postId: slot.postId }],
-    );
+    const text = waiting
+      ? `Post do piloto automático pronto para o seu aceite (${accountLabel(account)}): ${slotLine(slot)}.\nResponda "aprovo" para publicar no horário, ou diga o que não gostou: o motivo é obrigatório e me ensina para os próximos posts. Sem aceite até o horário, ele não é publicado.`
+      : `Post do piloto automático pronto (${accountLabel(account)}): ${slotLine(slot)}.\nPublica sozinho no horário. Se quiser mudar, refazer ou pular, me diga.`;
+
+    const context = `Piloto automático — slotId: ${slotId}. Aceite: autopilot_approve_slot. Recusa: autopilot_reject_slot com o motivo do dono (pergunte o motivo se ele não disser).`;
+
+    await tellVanda(ctx, slot.accountId, `autopilot:produced:${slotId}`, text, [post]);
+    await tellCaetano(ctx, slot.accountId, `autopilot:produced:${slotId}`, text, [post], context);
   },
 });
 

@@ -43,6 +43,10 @@ export const renderPlanMarkdown = (overview: AutopilotOverview): string =>
       )
       .join("\n"),
     overview.cadenceRationale ? `Por quê: ${overview.cadenceRationale}` : "",
+    `Aceite: ${overview.approval === "required" ? "cada post espera o aceite do dono (sem aceite até o horário, não publica)" : "publica sem aceite, podendo ser vetado"}`,
+    overview.rules.length > 0
+      ? `Regras aprendidas com recusas do dono:\n${overview.rules.map((rule) => `- ${rule.rule} (ruleId: ${rule.feedbackId})`).join("\n")}`
+      : "",
     "",
     ...overview.weeks.map(renderWeekMarkdown),
   ]

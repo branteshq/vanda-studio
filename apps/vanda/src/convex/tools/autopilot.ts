@@ -51,6 +51,9 @@ interface ReportExtra {
   readonly restored?: string;
   readonly regenerating?: string;
   readonly reanalyzing?: boolean;
+  readonly approved?: string;
+  readonly rejected?: string;
+  readonly forgotten?: string;
 }
 
 /** The state after any call: text for the model/WhatsApp, the week card for the chat. */
@@ -76,6 +79,12 @@ const report = async (
         enabled: overview.enabled,
         connected: overview.connected,
         cadence: overview.cadenceSummary,
+        approval: overview.approval === "required" ? "pedir aceite" : "publicar sem aceite",
+        awaitingApproval: overview.weeks
+          .flatMap((week) => week.slots)
+          .filter((slot) => slot.status === "awaiting_approval")
+          .map((slot) => ({ slotId: slot.slotId, hook: slot.hook, scheduledFor: slot.scheduledFor })),
+        learnedRules: overview.rules.map((rule) => ({ ruleId: rule.feedbackId, rule: rule.rule })),
         whatsapp: renderScheduleText(overview),
         plan: renderPlanMarkdown(overview),
         page: "/piloto",
@@ -153,6 +162,58 @@ export const autopilotTools = {
       return report(ctx, options, accountId, restore ? { restored: slotId } : { skipped: slotId });
     },
   }),
+  autopilot_approve_slot: createTool({
+    description: `Aprova um post do piloto automático que está aguardando aceite: ele é agendado para o horário dele. ${OWNER_ONLY}`,
+    inputSchema: z.object({ slotId: slotIdInput }),
+    outputSchema: capabilityResultSchema,
+    execute: async (ctx: AutopilotCtx, { slotId }, options): Promise<CapabilityOutput> => {
+      const accountId = await agentAccount(ctx);
+
+      await ctx.runMutation(internal.autopilotData.approveSlotInternal, {
+        accountId,
+        // SAFETY: approveSlotInternal checks the slot belongs to this account.
+        slotId: slotId as Id<"autopilotSlots">,
+      });
+
+      return report(ctx, options, accountId, { approved: slotId });
+    },
+  }),
+  autopilot_reject_slot: createTool({
+    description: `Recusa um post do piloto automático já gerado (aguardando aceite ou agendado). O motivo do dono é OBRIGATÓRIO e literal: se ele recusar sem dizer por quê, pergunte o motivo antes de chamar. O motivo é analisado para virar regra geral dos próximos posts ou valer só para este, e o post é refeito com ele. ${OWNER_ONLY}`,
+    inputSchema: z.object({
+      slotId: slotIdInput,
+      reason: z.string().min(8).describe("o motivo da recusa, nas palavras do dono"),
+    }),
+    outputSchema: capabilityResultSchema,
+    execute: async (ctx: AutopilotCtx, { slotId, reason }, options): Promise<CapabilityOutput> => {
+      const accountId = await agentAccount(ctx);
+
+      const status = await ctx.runMutation(internal.autopilotData.rejectSlotInternal, {
+        accountId,
+        // SAFETY: rejectSlotInternal checks the slot belongs to this account.
+        slotId: slotId as Id<"autopilotSlots">,
+        reason,
+      });
+
+      return report(ctx, options, accountId, { rejected: slotId, status });
+    },
+  }),
+  autopilot_forget_rule: createTool({
+    description: `Desativa uma regra que o piloto automático aprendeu com uma recusa (veja as regras em autopilot_read). ${OWNER_ONLY}`,
+    inputSchema: z.object({ ruleId: z.string().describe("id da regra (feedbackId) em autopilot_read") }),
+    outputSchema: capabilityResultSchema,
+    execute: async (ctx: AutopilotCtx, { ruleId }, options): Promise<CapabilityOutput> => {
+      const accountId = await agentAccount(ctx);
+
+      await ctx.runMutation(internal.autopilotData.forgetRuleInternal, {
+        accountId,
+        // SAFETY: forgetRuleInternal checks the rule belongs to this account.
+        feedbackId: ruleId as Id<"autopilotFeedback">,
+      });
+
+      return report(ctx, options, accountId, { forgotten: ruleId });
+    },
+  }),
   autopilot_regenerate_slot: createTool({
     description: `Gera de novo, agora, um post do piloto automático com o briefing atual. ${OWNER_ONLY}`,
     inputSchema: z.object({ slotId: slotIdInput }),
@@ -196,6 +257,19 @@ export const autopilotDiscovery = {
   },
   autopilot_skip_slot: {
     keywords: "piloto automático pular vetar reativar autopilot skip veto restore",
+    effect: "write",
+  },
+  autopilot_approve_slot: {
+    keywords: "piloto automático aprovar aprovo aceite aceitar autopilot approve accept",
+    effect: "write",
+  },
+  autopilot_reject_slot: {
+    keywords:
+      "piloto automático recusar recuso negar não gostei rejeitar motivo justificativa autopilot reject deny",
+    effect: "write",
+  },
+  autopilot_forget_rule: {
+    keywords: "piloto automático esquecer regra aprendida desativar remover autopilot forget rule",
     effect: "write",
   },
   autopilot_regenerate_slot: {

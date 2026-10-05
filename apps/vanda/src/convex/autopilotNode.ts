@@ -10,6 +10,7 @@ import { ConnectedInstagramProvider } from "./instagram/service";
 import { definedOnly, nextWeekStart } from "./pipeline/autopilot";
 import {
   auditAccount,
+  classifyRejection,
   collectAccountEvidence,
   composeSlot,
   planWeek,
@@ -184,6 +185,7 @@ const runPlan = async (
             fixed,
             recentThemes: inputs.recentThemes,
             weekLabel: weekLabelOf(weekStart),
+            rules: inputs.rules,
           }).pipe(
             Effect.provide(languageModelLayer(openRouterKey(), PIPELINE_MODELS.autopilotPlan)),
           ),
@@ -303,6 +305,8 @@ export const produceSlot = internalAction({
               brief,
               references,
               whenLabel: `${weekdayNames[slot.weekday]} ${slot.time}`,
+              rules: slot.rules,
+              revisionNote: slot.revisionNote,
             }).pipe(Effect.provide(model)),
           ),
         (result) => `${result.slides.length} slides`,
@@ -422,5 +426,48 @@ export const tick = internalAction({
     }
 
     await collectResults(ctx, now);
+  },
+});
+
+// ------------------------------------------------------------------- feedback
+
+/** Decides whether a rejection teaches a general rule or only concerns that post. */
+export const classifyFeedback = internalAction({
+  args: { feedbackId: v.id("autopilotFeedback") },
+  handler: async (ctx, { feedbackId }): Promise<void> => {
+    const inputs = await ctx.runQuery(internal.autopilotData.feedbackInputs, { feedbackId });
+
+    if (!inputs) return;
+
+    try {
+      const result = await runTracked(
+        ctx,
+        {
+          accountId: inputs.accountId,
+          stage: "autopilot_feedback",
+          model: PIPELINE_MODELS.autopilotFeedback,
+          promptVersion: PROMPT_VERSIONS.autopilotFeedback,
+          inputIds: [feedbackId],
+        },
+        () =>
+          Effect.runPromise(
+            classifyRejection(inputs).pipe(
+              Effect.provide(languageModelLayer(openRouterKey(), PIPELINE_MODELS.autopilotFeedback)),
+            ),
+          ),
+        (scope) => `${scope.scope}: ${scope.rule || scope.why}`,
+      );
+
+      const rule = result.rule.trim();
+
+      await ctx.runMutation(internal.autopilotData.setFeedbackScope, {
+        feedbackId,
+        scope: result.scope === "geral" && rule ? "geral" : "post",
+        rule,
+      });
+    } catch (error) {
+      // Unclassified stays "pending": it still shaped the redo of its own post.
+      console.error("Autopilot feedback classification failed", { feedbackId, error });
+    }
   },
 });

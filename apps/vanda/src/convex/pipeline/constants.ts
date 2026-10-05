@@ -68,6 +68,7 @@ export const modelStages = [
   "market_adapt",
   "autopilot_audit",
   "autopilot_plan",
+  "autopilot_feedback",
 ] as const;
 
 export const marketCreatorStatuses = ["active", "paused", "rejected", "unavailable"] as const;

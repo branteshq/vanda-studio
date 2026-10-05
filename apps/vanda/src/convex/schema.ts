@@ -11,8 +11,11 @@ import {
   auditMetricsValidator,
   auditPostRefValidator,
   auditStatuses,
+  approvalModes,
   autopilotPostTypes,
   autopilotSlotStatusValidator,
+  feedbackDecisions,
+  feedbackScopes,
   autopilotWeekStatuses,
   cadenceEntryValidator,
   cadenceSourceValidator,
@@ -915,11 +918,32 @@ export default defineSchema({
     // "agent": the weekly plan may replace the cadence; "owner": only content is planned.
     cadenceSource: cadenceSourceValidator,
     cadenceRationale: v.optional(v.string()),
+    // Unset means "required": produced posts wait for the owner's approval.
+    approval: v.optional(v.union(...approvalModes.map((mode) => v.literal(mode)))),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_account", ["accountId"])
     .index("by_enabled", ["enabled"]),
+
+  // The owner's approvals and rejections. A rejection's reason is classified:
+  // "geral" turns it into a rule every future plan and post follows; "post"
+  // only redoes that post. This is how the autopilot learns the owner.
+  autopilotFeedback: defineTable({
+    accountId: v.id("accounts"),
+    slotId: v.id("autopilotSlots"),
+    postId: v.optional(v.id("posts")),
+    decision: v.union(...feedbackDecisions.map((decision) => v.literal(decision))),
+    reason: v.optional(v.string()),
+    scope: v.optional(v.union(...feedbackScopes.map((scope) => v.literal(scope)))),
+    // For "geral": the reason distilled into one imperative rule.
+    rule: v.optional(v.string()),
+    // Owner can retire a learned rule; inactive rules stop shaping new posts.
+    active: v.optional(v.boolean()),
+    createdAt: v.number(),
+  })
+    .index("by_account_created", ["accountId", "createdAt"])
+    .index("by_slot", ["slotId"]),
 
   accountAudits: defineTable({
     accountId: v.id("accounts"),
@@ -962,6 +986,8 @@ export default defineSchema({
     slideCount: v.number(),
     ...slotBriefFields,
     status: autopilotSlotStatusValidator,
+    // The owner's last rejection reason, applied when the post is produced again.
+    revisionNote: v.optional(v.string()),
     // Owner (UI or an agent on the owner's request) changed this slot; replans keep it.
     ownerEdited: v.boolean(),
     postId: v.optional(v.id("posts")),

@@ -26,6 +26,7 @@ export const PIPELINE_MODELS = {
   marketAdapt: "openai/gpt-5-nano",
   autopilotAudit: "openai/gpt-5-mini",
   autopilotPlan: "openai/gpt-5-mini",
+  autopilotFeedback: "openai/gpt-5-mini",
 } as const;
 
 export const DEFAULT_MODEL = PIPELINE_MODELS.consolidate;
@@ -55,6 +56,7 @@ export const PROMPT_VERSIONS = {
   marketAdapt: "market/adapt-carousel-pt-br-v1",
   autopilotAudit: "autopilot/account-audit-pt-br-v1",
   autopilotPlan: "autopilot/weekly-plan-pt-br-v1",
+  autopilotFeedback: "autopilot/feedback-scope-pt-br-v1",
 } as const;
 
 const MODEL_CONFIG = {

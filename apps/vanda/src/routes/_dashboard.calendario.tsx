@@ -20,6 +20,7 @@ export const Route = createFileRoute("/_dashboard/calendario")({
 const STATUS_META = {
   planned: { label: "Planejado", tone: "suggestion" },
   generating: { label: "Gerando", tone: "creating" },
+  awaiting_approval: { label: "Aguardando aceite", tone: "needs" },
   skipped: { label: "Pulado", tone: "neutral" },
   scheduled: { label: "Agendado", tone: "scheduled" },
   publishing: { label: "Publicando", tone: "creating" },

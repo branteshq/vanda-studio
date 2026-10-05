@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
-import { ExternalLink, RefreshCw, SkipForward, Undo2 } from "lucide-react";
+import { Check, ExternalLink, RefreshCw, SkipForward, Undo2, X } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import {
   Dialog,
@@ -24,6 +24,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { AutopilotSlotView } from "../../convex/autopilotData";
 import { purposeLabels } from "../../convex/pipeline/autopilot";
+import { MIN_REJECTION_REASON } from "../../convex/autopilotModel";
 import { postPurposes, type PostPurpose } from "../../convex/postPurposes";
 import { showErrorToast } from "../error-feedback";
 import { SLOT_STATUS, WEEKDAY_NAMES, hourLabel, slidesLabel } from "./week-strip";
@@ -128,6 +129,10 @@ export function SlotEditor({
   const skipSlot = useMutation(api.autopilot.skipSlot);
   const restoreSlot = useMutation(api.autopilot.restoreSlot);
   const regenerateSlot = useMutation(api.autopilot.regenerateSlot);
+  const approveSlot = useMutation(api.autopilot.approveSlot);
+  const rejectSlot = useMutation(api.autopilot.rejectSlot);
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState("");
   // The page remounts the editor per slot (key), so the draft starts from the slot.
   const [draft, setDraft] = useState<Draft | null>(slot ? draftOf(slot) : null);
   const [busy, setBusy] = useState(false);
@@ -178,6 +183,74 @@ export function SlotEditor({
             />
             <p className="line-clamp-6 text-note whitespace-pre-line text-text-3">{slot.caption}</p>
           </div>
+        ) : null}
+
+        {slot.status === "awaiting_approval" || slot.status === "scheduled" ? (
+          <div className="grid gap-2 rounded-md border border-border bg-inset p-3">
+            <p className="text-note text-text-2">
+              {slot.status === "awaiting_approval"
+                ? "Este post espera o seu aceite. Sem aceite até o horário, ele não é publicado."
+                : "Já agendado. Se não gostou, recuse com o motivo: a Vanda refaz e aprende."}
+            </p>
+            {rejecting ? (
+              <>
+                <textarea
+                  rows={3}
+                  value={reason}
+                  autoFocus
+                  placeholder="O que não ficou bom? Ex.: não use emoji em post de banco; o número está errado."
+                  onChange={(event) => setReason(event.target.value)}
+                  className="w-full resize-y rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                />
+                <p className="text-micro text-text-4">
+                  O motivo é obrigatório. A Vanda decide se ele vale para todos os próximos posts ou só
+                  para este, e refaz o post.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={busy || reason.trim().length < MIN_REJECTION_REASON}
+                    onClick={() =>
+                      void run(async () => {
+                        await rejectSlot({ accountId, slotId: slot.slotId, reason });
+                      })
+                    }
+                  >
+                    Enviar recusa
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setRejecting(false)}>
+                    Cancelar
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {slot.status === "awaiting_approval" ? (
+                  <Button
+                    size="sm"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(async () => {
+                        await approveSlot({ accountId, slotId: slot.slotId });
+                      })
+                    }
+                  >
+                    <Check /> Aprovar
+                  </Button>
+                ) : null}
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => setRejecting(true)}>
+                  <X /> Recusar
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {slot.revisionNote && (slot.status === "planned" || slot.status === "generating") ? (
+          <p className="rounded-md border border-border bg-inset px-3 py-2 text-note text-text-3">
+            Refazendo com o seu motivo: “{slot.revisionNote}”
+          </p>
         ) : null}
 
         {slot.lastError && slot.status !== "published" ? (

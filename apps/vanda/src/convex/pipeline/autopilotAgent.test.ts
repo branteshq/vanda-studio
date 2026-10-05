@@ -6,6 +6,7 @@ import type { InstagramPost } from "../instagram/types";
 import { DEFAULT_CADENCE } from "./autopilot";
 import {
   auditAccount,
+  classifyRejection,
   collectAccountEvidence,
   planWeek,
   type AccountEvidence,
@@ -131,6 +132,8 @@ describe("auditAccount", () => {
 
 describe("planWeek", () => {
   it("fills every cadence slot, keeps owner-fixed briefs and fits the slide outline", async () => {
+    let prompt = "";
+
     const fixed = {
       purpose: "bastidores" as const,
       theme: "Forno",
@@ -181,12 +184,57 @@ describe("planWeek", () => {
         fixed: new Map([[2, fixed]]),
         recentThemes: ["Natal"],
         weekLabel: "12/10",
-      }).pipe(Effect.provide(stubLanguageModelLayer(() => response))),
+        rules: ["Não usar emojis nas legendas"],
+      }).pipe(
+        Effect.provide(
+          stubLanguageModelLayer((input) => {
+            prompt = input;
+
+            return response;
+          }),
+        ),
+      ),
     );
 
     expect(plan.briefs).toHaveLength(3);
     expect(plan.briefs[0]?.slideOutline).toEqual(["Capa", "Erro 1"]);
     expect(plan.briefs[1]?.slideOutline).toEqual(["Print"]);
     expect(plan.briefs[2]).toEqual(fixed);
+    expect(prompt).toContain("REGRAS DO DONO");
+    expect(prompt).toContain("Não usar emojis nas legendas");
+  });
+});
+
+describe("classifyRejection", () => {
+  it("sends the reason, the post and the learned rules to the model", async () => {
+    let prompt = "";
+
+    const result = await Effect.runPromise(
+      classifyRejection({
+        reason: "Não gosto de emoji em post de banco",
+        slot: {
+          type: "image",
+          slideCount: 1,
+          purpose: "institucional",
+          theme: "Crédito",
+          angle: "Rápido",
+          hook: "Crédito rápido",
+        },
+        caption: "Crédito rápido 🚀",
+        rules: ["Sem promessas de aprovação"],
+      }).pipe(
+        Effect.provide(
+          stubLanguageModelLayer((input) => {
+            prompt = input;
+
+            return { scope: "geral", rule: "Não usar emojis", why: "preferência de tom" };
+          }),
+        ),
+      ),
+    );
+
+    expect(result).toEqual({ scope: "geral", rule: "Não usar emojis", why: "preferência de tom" });
+    expect(prompt).toContain("Não gosto de emoji em post de banco");
+    expect(prompt).toContain("Sem promessas de aprovação");
   });
 });

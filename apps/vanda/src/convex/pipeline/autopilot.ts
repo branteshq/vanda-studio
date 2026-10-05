@@ -232,6 +232,7 @@ export const purposeLabels: Record<PostPurpose, string> = {
 export const slotStatusLabels: Record<AutopilotSlotStatus, string> = {
   planned: "planejado",
   generating: "gerando",
+  awaiting_approval: "aguardando aceite",
   scheduled: "agendado",
   published: "publicado",
   skipped: "pulado",

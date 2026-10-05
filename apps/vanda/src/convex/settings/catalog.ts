@@ -57,6 +57,9 @@ export const NON_SETTING_UI_FUNCTIONS = [
   "autopilot.restoreSlot",
   "autopilot.regenerateSlot",
   "autopilot.reanalyze",
+  "autopilot.approveSlot",
+  "autopilot.rejectSlot",
+  "autopilot.forgetRule",
 ] as const;
 
 const THEME_LABELS = { system: "Sistema", light: "Claro", dark: "Escuro" } as const;
@@ -231,6 +234,22 @@ export const SETTINGS = [
     ],
     doc: "piloto-automatico",
     uiFunctions: ["autopilot.setEnabled"],
+  },
+  {
+    id: "autopilot.approval",
+    group: "Piloto automático",
+    title: "Aceite antes de publicar",
+    description:
+      'Se os posts gerados pelo piloto esperam o aceite do dono antes de publicar ("pedir aceite", o padrão: sem aceite até o horário, não publica) ou publicam sozinhos podendo ser vetados ("publicar sem aceite"). Recusar exige um motivo, que ensina o piloto.',
+    where: "Piloto automático › Aceite",
+    route: "/piloto",
+    access: "write",
+    options: (): readonly SettingOption[] => [
+      { value: "pedir aceite", label: "Pedir aceite" },
+      { value: "publicar sem aceite", label: "Publicar sem aceite" },
+    ],
+    doc: "piloto-automatico",
+    uiFunctions: ["autopilot.setApproval"],
   },
   {
     id: "autopilot.cadence",

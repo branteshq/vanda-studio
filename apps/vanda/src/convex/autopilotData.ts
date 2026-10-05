@@ -18,6 +18,8 @@ import {
   rubricItemValidator,
   slotBriefFields,
   slotResultsValidator,
+  MIN_REJECTION_REASON,
+  type ApprovalMode,
   type AutopilotSlotStatus,
   type CadenceEntry,
 } from "./autopilotModel";
@@ -167,6 +169,7 @@ export const slotView = async (ctx: QueryCtx, slot: Doc<"autopilotSlots">) => {
     coverUrl: await coverUrlOf(ctx, post),
     permalink: scheduled?.permalink ?? null,
     lastError: slot.lastError ?? null,
+    revisionNote: slot.revisionNote ?? null,
     results: slot.results ?? null,
   };
 };
@@ -234,6 +237,13 @@ export const overviewOf = async (ctx: QueryCtx, accountId: Id<"accounts">, now: 
     cadenceSource: config?.cadenceSource ?? "agent",
     cadenceRationale: config?.cadenceRationale ?? null,
     cadenceSummary: cadenceSummary(cadence),
+    approval: config?.approval ?? "required",
+    rules: (await activeRules(ctx, accountId)).map((row) => ({
+      feedbackId: row._id,
+      rule: row.rule!,
+      reason: row.reason ?? "",
+      createdAt: row.createdAt,
+    })),
     auditRunning: latest?.status === "running",
     audit: auditView(ready),
     weeks: [
@@ -604,6 +614,180 @@ export const reanalyzeInternal = internalMutation({
   handler: (ctx, { accountId }) => requestRefresh(ctx, accountId, true),
 });
 
+// ------------------------------------------------------------------- feedback
+
+/** Unset counts as "required": nothing publishes without the owner's approval. */
+export const approvalRequired = async (ctx: QueryCtx, accountId: Id<"accounts">) =>
+  (await getConfig(ctx, accountId))?.approval !== "auto";
+
+export const applyApprovalMode = async (
+  ctx: MutationCtx,
+  accountId: Id<"accounts">,
+  approval: ApprovalMode,
+): Promise<void> => {
+  const config = await ensureConfig(ctx, accountId);
+
+  await ctx.db.patch(config._id, { approval, updatedAt: Date.now() });
+};
+
+/** The rules the owner taught by rejecting posts; every plan and production follows them. */
+export const activeRules = async (ctx: QueryCtx, accountId: Id<"accounts">) => {
+  const rows = await ctx.db
+    .query("autopilotFeedback")
+    .withIndex("by_account_created", (q) => q.eq("accountId", accountId))
+    .order("desc")
+    .collect();
+
+  return rows.filter((row) => row.scope === "geral" && row.rule && row.active !== false);
+};
+
+/** The owner accepts the produced post: it is armed for its time. */
+export const applyApprove = async (
+  ctx: MutationCtx,
+  accountId: Id<"accounts">,
+  slotId: Id<"autopilotSlots">,
+): Promise<void> => {
+  const slot = await assertOwnedSlot(ctx, accountId, slotId);
+
+  if (slot.status !== "awaiting_approval" || !slot.postId)
+    throw new Error("esse post não está aguardando aceite");
+
+  if (slot.scheduledFor <= Date.now() + MINUTE) throw new Error("o horário desse post já passou");
+
+  await schedulePostIn(ctx, { accountId, postId: slot.postId, scheduledFor: slot.scheduledFor });
+  await ctx.db.patch(slotId, { status: "scheduled", lastError: undefined, updatedAt: Date.now() });
+  await ctx.db.insert("autopilotFeedback", {
+    accountId,
+    slotId,
+    postId: slot.postId,
+    decision: "approved",
+    createdAt: Date.now(),
+  });
+};
+
+/**
+ * The owner refuses the produced post and says why. The reason is recorded
+ * and classified (general rule or this post only), and the post is produced
+ * again with the reason as its revision note while there is time.
+ */
+export const applyReject = async (
+  ctx: MutationCtx,
+  accountId: Id<"accounts">,
+  slotId: Id<"autopilotSlots">,
+  reason: string,
+): Promise<AutopilotSlotStatus> => {
+  const slot = await assertOwnedSlot(ctx, accountId, slotId);
+  const why = reason.trim();
+
+  if (why.length < MIN_REJECTION_REASON)
+    throw new Error("diga o motivo da recusa: é ele que ensina o piloto");
+
+  if (slot.status !== "awaiting_approval" && slot.status !== "scheduled")
+    throw new Error("só dá para recusar um post já gerado e ainda não publicado");
+
+  await disarm(ctx, slot);
+
+  const feedbackId = await ctx.db.insert("autopilotFeedback", {
+    accountId,
+    slotId,
+    decision: "rejected",
+    reason: why,
+    scope: "pending",
+    createdAt: Date.now(),
+  });
+
+  if (slot.postId) await ctx.db.patch(feedbackId, { postId: slot.postId });
+
+  await ctx.scheduler.runAfter(0, internal.autopilotNode.classifyFeedback, { feedbackId });
+
+  const time = slot.scheduledFor > Date.now() + PRODUCE_MIN_LEAD_MS;
+  const status: AutopilotSlotStatus = time ? "planned" : "skipped";
+
+  await ctx.db.patch(slotId, {
+    status,
+    postId: undefined,
+    revisionNote: why,
+    attempts: 0,
+    lastError: time ? undefined : "recusado sem tempo para refazer antes do horário",
+    updatedAt: Date.now(),
+  });
+
+  if (time) await produceIfDue(ctx, slotId, slot.scheduledFor);
+
+  return status;
+};
+
+export const applyForgetRule = async (
+  ctx: MutationCtx,
+  accountId: Id<"accounts">,
+  feedbackId: Id<"autopilotFeedback">,
+): Promise<void> => {
+  const feedback = await ctx.db.get(feedbackId);
+
+  if (!feedback || feedback.accountId !== accountId) throw new Error("regra não encontrada");
+
+  await ctx.db.patch(feedbackId, { active: false });
+};
+
+export const approveSlotInternal = internalMutation({
+  args: { accountId: v.id("accounts"), slotId: v.id("autopilotSlots") },
+  handler: (ctx, { accountId, slotId }) => applyApprove(ctx, accountId, slotId),
+});
+
+export const rejectSlotInternal = internalMutation({
+  args: { accountId: v.id("accounts"), slotId: v.id("autopilotSlots"), reason: v.string() },
+  handler: (ctx, { accountId, slotId, reason }) => applyReject(ctx, accountId, slotId, reason),
+});
+
+export const forgetRuleInternal = internalMutation({
+  args: { accountId: v.id("accounts"), feedbackId: v.id("autopilotFeedback") },
+  handler: (ctx, { accountId, feedbackId }) => applyForgetRule(ctx, accountId, feedbackId),
+});
+
+export const feedbackInputs = internalQuery({
+  args: { feedbackId: v.id("autopilotFeedback") },
+  handler: async (ctx, { feedbackId }) => {
+    const feedback = await ctx.db.get(feedbackId);
+    const slot = feedback ? await ctx.db.get(feedback.slotId) : null;
+    const post = feedback?.postId ? await ctx.db.get(feedback.postId) : null;
+
+    if (!feedback || !slot || feedback.decision !== "rejected" || !feedback.reason) return null;
+
+    return {
+      accountId: feedback.accountId,
+      reason: feedback.reason,
+      slot: {
+        type: slot.type,
+        slideCount: slot.slideCount,
+        purpose: slot.purpose,
+        theme: slot.theme,
+        angle: slot.angle,
+        hook: slot.hook,
+      },
+      caption: post?.caption ?? null,
+      rules: (await activeRules(ctx, feedback.accountId)).map((row) => row.rule!),
+    };
+  },
+});
+
+export const setFeedbackScope = internalMutation({
+  args: {
+    feedbackId: v.id("autopilotFeedback"),
+    scope: v.union(v.literal("geral"), v.literal("post")),
+    // Empty for "post": only a general reason becomes a rule.
+    rule: v.string(),
+  },
+  handler: async (ctx, { feedbackId, scope, rule }) => {
+    const general = scope === "geral" && rule.trim() !== "";
+
+    await ctx.db.patch(feedbackId, {
+      scope: general ? "geral" : "post",
+      rule: general ? rule.trim() : undefined,
+      active: general ? true : undefined,
+    });
+  },
+});
+
 // ---------------------------------------------------------------------- audit
 
 export const startAudit = internalMutation({
@@ -711,6 +895,7 @@ export const failAudit = internalMutation({
 
 const KEPT_STATUSES: ReadonlySet<AutopilotSlotStatus> = new Set([
   "generating",
+  "awaiting_approval",
   "scheduled",
   "published",
   "skipped",
@@ -778,6 +963,7 @@ export const planInputs = internalQuery({
           : [];
       }),
       recentThemes: recent.map((slot) => `${slot.theme} — ${slot.angle}`),
+      rules: (await activeRules(ctx, accountId)).map((row) => row.rule!),
     };
   },
 });
@@ -940,8 +1126,9 @@ export const claimSlot = internalMutation({
     });
 
     const { weekday, time } = localSlot(slot.scheduledFor);
+    const rules = (await activeRules(ctx, slot.accountId)).map((row) => row.rule!);
 
-    return { ...slot, weekday, time };
+    return { ...slot, weekday, time, rules };
   },
 });
 
@@ -996,12 +1183,30 @@ export const finishProduction = internalMutation({
       return "failed";
     }
 
+    // The rejection reason did its job in this production; the post now waits for its verdict.
+    if (await approvalRequired(ctx, slot.accountId)) {
+      await ctx.db.patch(slotId, {
+        status: "awaiting_approval",
+        postId,
+        revisionNote: undefined,
+        updatedAt: Date.now(),
+      });
+      await ctx.scheduler.runAfter(0, internal.autopilotChat.notifyProduced, { slotId });
+
+      return "awaiting_approval";
+    }
+
     await schedulePostIn(ctx, {
       accountId: slot.accountId,
       postId,
       scheduledFor: slot.scheduledFor,
     });
-    await ctx.db.patch(slotId, { status: "scheduled", postId, updatedAt: Date.now() });
+    await ctx.db.patch(slotId, {
+      status: "scheduled",
+      postId,
+      revisionNote: undefined,
+      updatedAt: Date.now(),
+    });
     await ctx.scheduler.runAfter(0, internal.autopilotChat.notifyProduced, { slotId });
 
     return "scheduled";
@@ -1076,6 +1281,22 @@ export const dueSlots = internalQuery({
 export const expireStale = internalMutation({
   args: { now: v.number() },
   handler: async (ctx, { now }) => {
+    // No approval by the publish time: nothing goes out without the owner.
+    const unanswered = await ctx.db
+      .query("autopilotSlots")
+      .withIndex("by_status_scheduledFor", (q) =>
+        q.eq("status", "awaiting_approval").lte("scheduledFor", now + MINUTE),
+      )
+      .collect();
+
+    for (const slot of unanswered) {
+      await ctx.db.patch(slot._id, {
+        status: "skipped",
+        lastError: "não publicado: ficou sem aceite até o horário",
+        updatedAt: now,
+      });
+    }
+
     const missed = await ctx.db
       .query("autopilotSlots")
       .withIndex("by_status_scheduledFor", (q) =>

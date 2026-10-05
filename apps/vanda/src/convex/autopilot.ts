@@ -4,7 +4,10 @@ import { mutation, query, type MutationCtx } from "./_generated/server";
 import { publicError } from "../errors";
 import { requireOwnedAccount, requireUser } from "./authz";
 import {
+  applyApprove,
+  applyForgetRule,
   applyRegenerate,
+  applyReject,
   applyRestore,
   applySkip,
   applySlotChange,
@@ -128,6 +131,48 @@ export const regenerateSlot = mutation({
   handler: async (ctx, { accountId, slotId }) => {
     await requireOwnedAccount(ctx, accountId);
     await applyRegenerate(ctx, accountId, slotId);
+  },
+});
+
+/** The owner accepts a produced post: it is armed for its time. */
+export const approveSlot = mutation({
+  args: { accountId: v.id("accounts"), slotId: v.id("autopilotSlots") },
+  handler: async (ctx, { accountId, slotId }) => {
+    await requireOwnedAccount(ctx, accountId);
+    await applyApprove(ctx, accountId, slotId);
+  },
+});
+
+/** The owner refuses a produced post; the reason is required and teaches the autopilot. */
+export const rejectSlot = mutation({
+  args: { accountId: v.id("accounts"), slotId: v.id("autopilotSlots"), reason: v.string() },
+  handler: async (ctx, { accountId, slotId, reason }) => {
+    await requireOwnedAccount(ctx, accountId);
+
+    return applyReject(ctx, accountId, slotId, reason);
+  },
+});
+
+/** Retire a rule the autopilot learned from a rejection. */
+export const forgetRule = mutation({
+  args: { accountId: v.id("accounts"), feedbackId: v.id("autopilotFeedback") },
+  handler: async (ctx, { accountId, feedbackId }) => {
+    await requireOwnedAccount(ctx, accountId);
+    await applyForgetRule(ctx, accountId, feedbackId);
+  },
+});
+
+/** Whether produced posts wait for approval: the autopilot.approval setting. */
+export const setApproval = mutation({
+  args: { accountId: v.id("accounts"), approval: v.union(v.literal("required"), v.literal("auto")) },
+  handler: async (ctx, { accountId, approval }): Promise<void> => {
+    await requireActiveAccount(ctx, accountId);
+    await writeSetting(
+      ctx,
+      await requireUser(ctx),
+      "autopilot.approval",
+      approval === "required" ? "pedir aceite" : "publicar sem aceite",
+    );
   },
 });
 

@@ -20,8 +20,9 @@ Por enquanto ele faz só posts de **feed** (imagem e carrossel). Reels e stories
 1. **Diagnóstico.** A Vanda lê os últimos posts e as métricas da conta conectada, compara os melhores com os piores pelo alcance em relação à mediana da própria conta, salvamentos e envios, e dá uma nota de 0 a 100 ao perfil. O resultado diz o que parar, o que fazer mais e do que a conta precisa. Com poucos posts, ela avisa que a confiança é baixa.
 2. **Cadência.** A partir do diagnóstico, a Vanda sugere os dias, horários, formato e número de slides da semana — por exemplo, terça e quinta às 18h e sábado ao meio-dia, com 2, 1 e 3 slides.
 3. **Plano da semana.** Todo domingo de manhã a Vanda planeja a semana seguinte: para cada post, o propósito (educacional, prova social, bastidores…), o tema, o ângulo e o gancho da capa, sem repetir temas das duas últimas semanas.
-4. **Geração.** Cerca de 24 horas antes do horário, a Vanda gera as imagens e a legenda seguindo a sua marca e agenda a publicação.
-5. **Publicação.** No horário, o post é publicado no Instagram. Depois de dois dias, o resultado volta para o diagnóstico seguinte — o que funcionou ganha espaço nas próximas semanas.
+4. **Geração.** Cerca de 24 horas antes do horário, a Vanda gera as imagens e a legenda seguindo a sua marca e as regras que aprendeu com você.
+5. **Aceite.** O post pronto espera o seu aceite (veja abaixo). Aprovado, ele é agendado; sem aceite até o horário, não é publicado.
+6. **Publicação e resultado.** No horário, o post é publicado no Instagram. Depois de dois dias, o resultado volta para o diagnóstico seguinte — o que funcionou ganha espaço nas próximas semanas.
 
 Todos os horários são no horário de Brasília.
 
@@ -30,6 +31,20 @@ Todos os horários são no horário de Brasília.
 Para ligar, use o botão da página enquanto ele estiver desligado, ou peça à Vanda ou ao Caetano; para desligar, peça a um deles. Ao ligar, a Vanda faz o diagnóstico e planeja o resto desta semana e a próxima. Ao desligar, as publicações pendentes são canceladas; o que já foi publicado continua no histórico. Você também pode pedir à Vanda ou ao Caetano para ligar ou desligar.
 
 O piloto precisa do Instagram conectado. Veja [Conexões](/docs/conexoes).
+
+## Aceite e aprendizado
+
+Em **Piloto automático › Aceite** você escolhe:
+
+- **Pedir meu aceite** (padrão): cada post gerado fica "aguardando aceite". O Caetano avisa no WhatsApp e a página mostra os posts no topo. Sem aceite até o horário, o post não é publicado.
+- **Publicar sem aceite**: o post é agendado sozinho e você pode recusar ou pular até o horário.
+
+Para **aprovar**, use o botão no post ou responda "aprovo" ao Caetano ou à Vanda. Para **recusar**, o motivo é obrigatório: é ele que ensina o piloto. A Vanda analisa cada motivo:
+
+- se ele vale para **todos os posts** (tom, palavras a evitar, estilo, tipo de afirmação…), vira uma regra em **O que a Vanda aprendeu com você** e passa a guiar o planejamento e a criação de todos os posts seguintes;
+- se é **só sobre aquele post** (um dado errado, uma imagem), vale só para ele.
+
+Nos dois casos o post recusado é refeito com o seu motivo, se ainda houver tempo antes do horário. Uma regra aprendida pode ser esquecida a qualquer momento, na página ou pedindo à Vanda ou ao Caetano.
 
 ## Ver e editar a programação
 

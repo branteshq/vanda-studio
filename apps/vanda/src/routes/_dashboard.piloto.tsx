@@ -114,6 +114,8 @@ function PilotoContent({
 
       {!overview.enabled ? <Intro onEnable={onEnable} connected={overview.connected} /> : null}
 
+      <AwaitingApproval overview={overview} onOpen={(slotId) => setSelectedId(slotId)} />
+
       <CadenceCard overview={overview} onEdit={() => setCadenceOpen(true)} />
 
       {week ? (
@@ -151,6 +153,8 @@ function PilotoContent({
           )}
         </section>
       ) : null}
+
+      <LearnedRules overview={overview} />
 
       <AuditCard overview={overview} />
 
@@ -224,10 +228,133 @@ function CadenceCard({ overview, onEdit }: { overview: AutopilotOverview; onEdit
         {overview.cadenceRationale ? (
           <p className="text-note text-text-4">{overview.cadenceRationale}</p>
         ) : null}
+        <ApprovalChoice overview={overview} />
       </div>
       <Button variant="outline" size="sm" className="self-start" onClick={onEdit}>
         <Pencil /> Editar cadência
       </Button>
+    </section>
+  );
+}
+
+/** Posts produced and waiting for the owner's verdict: first thing on the page. */
+function AwaitingApproval({
+  overview,
+  onOpen,
+}: {
+  overview: AutopilotOverview;
+  onOpen: (slotId: string) => void;
+}) {
+  const waiting = overview.weeks
+    .flatMap((week) => week.slots)
+    .filter((slot) => slot.status === "awaiting_approval");
+
+  if (waiting.length === 0) return null;
+
+  return (
+    <section className="grid gap-2 rounded-lg border border-needs-border bg-needs-bg p-4">
+      <h2 className="text-sm font-semibold text-text">
+        {waiting.length === 1 ? "1 post espera o seu aceite" : `${waiting.length} posts esperam o seu aceite`}
+      </h2>
+      <p className="text-note text-text-3">
+        Aprove para publicar no horário, ou recuse dizendo o motivo: a Vanda refaz o post e aprende
+        para os próximos. Sem aceite até o horário, não publica.
+      </p>
+      <ul className="grid gap-1.5">
+        {waiting.map((slot) => (
+          <li key={slot.slotId}>
+            <button
+              type="button"
+              onClick={() => onOpen(slot.slotId)}
+              className="flex w-full items-center gap-3 rounded-md border border-border bg-surface p-2 text-left hover:border-border-strong"
+            >
+              {slot.coverUrl ? (
+                <img src={slot.coverUrl} alt="" className="aspect-4/5 w-10 rounded-sm object-cover" />
+              ) : null}
+              <span className="grid min-w-0 flex-1">
+                <span className="truncate text-body text-text">“{slot.hook}”</span>
+                <span className="text-note text-text-4">
+                  {WEEKDAY_NAMES[slot.weekday]} {hourLabel(slot.time)} · {slidesLabel(slot.slideCount)} ·{" "}
+                  {slot.purposeLabel}
+                </span>
+              </span>
+              <span className="text-note font-medium text-brand-accent">Revisar</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** autopilot.approval: whether produced posts wait for the owner. */
+function ApprovalChoice({ overview }: { overview: AutopilotOverview }) {
+  const setApproval = useMutation(api.autopilot.setApproval);
+
+  const choose = async (approval: "required" | "auto") => {
+    try {
+      await setApproval({ accountId: overview.accountId, approval });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 pt-1">
+      <span className="text-caption font-medium text-text-3">Aceite</span>
+      <Button
+        size="xs"
+        variant={overview.approval === "required" ? "secondary" : "ghost"}
+        onClick={() => void choose("required")}
+      >
+        Pedir meu aceite
+      </Button>
+      <Button
+        size="xs"
+        variant={overview.approval === "auto" ? "secondary" : "ghost"}
+        onClick={() => void choose("auto")}
+      >
+        Publicar sem aceite
+      </Button>
+    </div>
+  );
+}
+
+/** What the owner's rejections taught: rules every new plan and post follow. */
+function LearnedRules({ overview }: { overview: AutopilotOverview }) {
+  const forgetRule = useMutation(api.autopilot.forgetRule);
+
+  const forget = async (feedbackId: AutopilotOverview["rules"][number]["feedbackId"]) => {
+    try {
+      await forgetRule({ accountId: overview.accountId, feedbackId });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  };
+
+  return (
+    <section className={cn(PANEL, "grid gap-2")}>
+      <h2 className="text-sm font-semibold text-text">O que a Vanda aprendeu com você</h2>
+      {overview.rules.length === 0 ? (
+        <p className="text-note text-text-4">
+          Ainda nada. Cada recusa vem com um motivo; quando ele vale para todos os posts, vira uma
+          regra aqui e passa a guiar o planejamento e a criação.
+        </p>
+      ) : (
+        <ul className="grid gap-1.5">
+          {overview.rules.map((rule) => (
+            <li key={rule.feedbackId} className="flex items-start gap-2 text-body">
+              <span className="min-w-0 flex-1">
+                <span className="text-text-2">{rule.rule}</span>
+                <span className="block text-note text-text-4">Da recusa: “{rule.reason}”</span>
+              </span>
+              <Button size="xs" variant="ghost" onClick={() => void forget(rule.feedbackId)}>
+                Esquecer
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

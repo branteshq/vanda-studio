@@ -51,6 +51,7 @@ const setup = async () => {
       enabled: true,
       cadence: [...DEFAULT_CADENCE],
       cadenceSource: "agent",
+      approval: "auto",
       createdAt: NOW,
       updatedAt: NOW,
     });
@@ -413,6 +414,119 @@ describe("autopilot in the rest of the product", () => {
 
     expect(JSON.stringify(listing)).toContain("piloto automático");
     expect(JSON.stringify(planFile)).toContain(tuesday!._id);
+  });
+});
+
+describe("autopilot approval and learning", () => {
+  const requireApproval = (t: Awaited<ReturnType<typeof setup>>["t"], accountId: Id<"accounts">) =>
+    t.run(async (ctx) => {
+      const config = await ctx.db
+        .query("autopilotConfigs")
+        .withIndex("by_account", (q) => q.eq("accountId", accountId))
+        .unique();
+
+      await ctx.db.patch(config!._id, { approval: "required" });
+    });
+
+  it("waits for approval, and approving arms the post", async () => {
+    const { t, accountId, plan, slots, produce } = await setup();
+
+    await requireApproval(t, accountId);
+    await plan(NEXT_WEEK);
+    const tuesday = (await slots()).toSorted((a, b) => a.scheduledFor - b.scheduledFor)[0]!;
+
+    vi.setSystemTime(tuesday.scheduledFor - 20 * 3_600_000);
+    const { postId, status } = await produce(tuesday._id);
+
+    expect(status).toBe("awaiting_approval");
+    expect((await t.run((ctx) => ctx.db.get(postId)))?.status).toBe("draft");
+
+    await t.withIdentity({ subject: "me" }).mutation(api.autopilot.approveSlot, {
+      accountId,
+      slotId: tuesday._id,
+    });
+
+    expect((await t.run((ctx) => ctx.db.get(tuesday._id)))?.status).toBe("scheduled");
+    expect((await t.run((ctx) => ctx.db.get(postId)))?.status).toBe("scheduled");
+
+    const feedback = await t.run((ctx) => ctx.db.query("autopilotFeedback").collect());
+
+    expect(feedback.map((row) => row.decision)).toEqual(["approved"]);
+  });
+
+  it("requires a reason to reject, redoes the post with it and learns general rules", async () => {
+    const { t, accountId, plan, slots, produce } = await setup();
+
+    await requireApproval(t, accountId);
+    await plan(NEXT_WEEK);
+    const tuesday = (await slots()).toSorted((a, b) => a.scheduledFor - b.scheduledFor)[0]!;
+
+    vi.setSystemTime(tuesday.scheduledFor - 20 * 3_600_000);
+    await produce(tuesday._id);
+
+    const owner = t.withIdentity({ subject: "me" });
+
+    await expect(
+      owner.mutation(api.autopilot.rejectSlot, { accountId, slotId: tuesday._id, reason: "não" }),
+    ).rejects.toThrow();
+
+    const status = await owner.mutation(api.autopilot.rejectSlot, {
+      accountId,
+      slotId: tuesday._id,
+      reason: "Não use emoji em post de banco",
+    });
+
+    expect(status).toBe("planned");
+
+    const slot = await t.run((ctx) => ctx.db.get(tuesday._id));
+
+    expect(slot?.revisionNote).toBe("Não use emoji em post de banco");
+    expect(slot?.postId).toBeUndefined();
+
+    const jobs = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+
+    expect(jobs.map((job) => job.name)).toEqual(
+      expect.arrayContaining(["autopilotNode:classifyFeedback", "autopilotNode:produceSlot"]),
+    );
+
+    const [feedback] = await t.run((ctx) => ctx.db.query("autopilotFeedback").collect());
+
+    expect(feedback).toMatchObject({ decision: "rejected", scope: "pending" });
+
+    await t.mutation(internal.autopilotData.setFeedbackScope, {
+      feedbackId: feedback!._id,
+      scope: "geral",
+      rule: "Não usar emojis nas legendas",
+    });
+
+    const inputs = await t.query(internal.autopilotData.planInputs, {
+      accountId,
+      weekStart: NEXT_WEEK,
+    });
+
+    expect(inputs.rules).toEqual(["Não usar emojis nas legendas"]);
+
+    const overview = await owner.query(api.autopilot.overview, { accountId });
+
+    expect(overview.rules.map((rule) => rule.rule)).toEqual(["Não usar emojis nas legendas"]);
+
+    await owner.mutation(api.autopilot.forgetRule, { accountId, feedbackId: feedback!._id });
+
+    expect((await owner.query(api.autopilot.overview, { accountId })).rules).toEqual([]);
+  });
+
+  it("does not publish a post left without approval", async () => {
+    const { t, accountId, plan, slots, produce } = await setup();
+
+    await requireApproval(t, accountId);
+    await plan(NEXT_WEEK);
+    const tuesday = (await slots()).toSorted((a, b) => a.scheduledFor - b.scheduledFor)[0]!;
+
+    vi.setSystemTime(tuesday.scheduledFor - 20 * 3_600_000);
+    await produce(tuesday._id);
+    await t.mutation(internal.autopilotData.expireStale, { now: tuesday.scheduledFor });
+
+    expect((await t.run((ctx) => ctx.db.get(tuesday._id)))?.status).toBe("skipped");
   });
 });
 

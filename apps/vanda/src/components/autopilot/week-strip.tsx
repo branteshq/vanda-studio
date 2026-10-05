@@ -24,6 +24,7 @@ const COLUMNS = [
 export const SLOT_STATUS = {
   planned: { label: "Planejado", tone: "suggestion" },
   generating: { label: "Gerando", tone: "creating" },
+  awaiting_approval: { label: "Aguardando aceite", tone: "needs" },
   scheduled: { label: "Agendado", tone: "scheduled" },
   published: { label: "Publicado", tone: "done" },
   skipped: { label: "Pulado", tone: "neutral" },

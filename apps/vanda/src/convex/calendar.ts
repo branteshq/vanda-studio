@@ -13,7 +13,7 @@ import { purposeLabels } from "./pipeline/autopilot";
 
 export type CalendarStatus =
   | Doc<"scheduledPosts">["status"]
-  | Extract<AutopilotSlotStatus, "planned" | "generating" | "skipped">;
+  | Extract<AutopilotSlotStatus, "planned" | "generating" | "awaiting_approval" | "skipped">;
 
 export interface CalendarItem {
   key: string;
@@ -38,7 +38,13 @@ const autopilotOf = (slot: Doc<"autopilotSlots"> | null): CalendarItem["autopilo
   slot ? { slotId: slot._id, hook: slot.hook, purposeLabel: purposeLabels[slot.purpose] } : null;
 
 /** Slot states that have no publication row yet; later states show through scheduledPosts. */
-const UNPUBLISHED = new Set<AutopilotSlotStatus>(["planned", "generating", "skipped", "failed"]);
+const UNPUBLISHED = new Set<AutopilotSlotStatus>([
+  "planned",
+  "generating",
+  "awaiting_approval",
+  "skipped",
+  "failed",
+]);
 
 export const range = query({
   args: {
