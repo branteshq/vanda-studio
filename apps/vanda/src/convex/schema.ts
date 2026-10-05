@@ -856,6 +856,13 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_account", ["accountId"]),
 
+  // Data migrations that completed in this deployment (see migrations.ts).
+  migrationRuns: defineTable({
+    name: v.string(),
+    migrated: v.number(),
+    completedAt: v.number(),
+  }),
+
   scheduledPosts: defineTable({
     accountId: v.id("accounts"),
     postId: v.id("posts"),

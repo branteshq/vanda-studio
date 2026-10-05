@@ -13,7 +13,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The same revision goes through dev (Convex dev, migrations, staging site,
+  # smoke test) first; production only deploys once that succeeded.
+  staging:
+    name: Deploy to staging
+    uses: ./.github/workflows/deploy-staging.yml
+    with:
+      ref: ${{ github.sha }}
+    secrets: inherit
+
   deploy:
+    needs: staging
     # macOS, deliberately: the pinned nitro beta assigns react to server
     # chunks nondeterministically on linux, yielding two react copies and a
     # broken SSR bundle (null hook dispatcher). macOS builds have been
@@ -43,6 +53,13 @@ jobs:
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_PROD_DEPLOY_KEY }}
         run: pnpm exec convex deploy --yes --typecheck try --message "production $GITHUB_SHA"
+
+      # Every pending migration in migrations.ts, once per deployment.
+      - name: Run Convex migrations
+        working-directory: apps/vanda
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_PROD_DEPLOY_KEY }}
+        run: pnpm exec convex run migrations:runAll '{}'
 
       # Build on the runner and ship the output prebuilt: Vercel's remote build
       # container produces a broken SSR bundle for this app (bare require of

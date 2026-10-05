@@ -6,8 +6,8 @@ import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
 
-describe("migrations.feedToCarousel", () => {
-  it("rewrites legacy feed posts by image count and is idempotent", async () => {
+describe("migrations.runAll", () => {
+  it("rewrites legacy feed posts once per deployment and is idempotent", async () => {
     const t = convexTest(schema, modules);
 
     const ids = await t.run(async (ctx) => {
@@ -53,15 +53,22 @@ describe("migrations.feedToCarousel", () => {
         story: (await ctx.db.get(ids.story))?.type,
       }));
 
-    expect(await t.mutation(internal.migrations.feedToCarousel, {})).toEqual({
-      migrated: 2,
-      done: true,
+    expect(await t.action(internal.migrations.runAll, {})).toEqual({
+      ran: { feedToCarousel: 2 },
+      skipped: [],
     });
     expect(await types()).toEqual({ single: "image", multi: "carousel", story: "story" });
 
-    expect(await t.mutation(internal.migrations.feedToCarousel, {})).toEqual({
+    // Every later deploy finds it done and skips it.
+    expect(await t.action(internal.migrations.runAll, {})).toEqual({
+      ran: {},
+      skipped: ["feedToCarousel"],
+    });
+
+    // A page re-run (a crash mid-migration) changes nothing.
+    expect(await t.mutation(internal.migrations.feedToCarousel, { cursor: null })).toEqual({
       migrated: 0,
-      done: true,
+      cursor: null,
     });
   });
 });

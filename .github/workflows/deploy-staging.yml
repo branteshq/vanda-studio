@@ -1,5 +1,7 @@
 name: Deploy staging
 
+# Run by hand for any ref, and by deploy-production before every production
+# deploy: a revision reaches production only after it deployed to dev.
 on:
   workflow_dispatch:
     inputs:
@@ -7,6 +9,12 @@ on:
         description: Branch, tag, or commit SHA to deploy
         required: true
         default: main
+        type: string
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit SHA to deploy
+        required: true
         type: string
 
 permissions:
@@ -46,6 +54,13 @@ jobs:
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEV_DEPLOY_KEY }}
         run: pnpm exec convex deploy --yes --typecheck try --message "staging $GITHUB_SHA"
+
+      # Every pending migration in migrations.ts, once per deployment.
+      - name: Run Convex migrations
+        working-directory: apps/vanda
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEV_DEPLOY_KEY }}
+        run: pnpm exec convex run migrations:runAll '{}'
 
       # Runner-built + prebuilt deploy for the same reason as production:
       # Vercel's remote build container mis-bundles the SSR function.

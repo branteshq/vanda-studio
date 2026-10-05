@@ -22,6 +22,11 @@ Vanda and Caetano know and change the platform through one registry, and explain
 - **Docs.** Product docs are `apps/vanda/product-docs/*.md`, served at `/docs` in the app and read by the agents through `product_help` and `/docs` in the workspace. When user-visible behavior changes, update the relevant page and run `pnpm docs:build` in `apps/vanda`. The settings reference page is generated from the registry; do not write it by hand.
 - **Guard.** `src/convex/settings/drift.test.ts` fails when Perfil calls a backend function no setting claims, or when a setting's docs page does not mention where the UI shows it.
 
+## Data Migrations and Deploys
+
+- A push to `main` deploys the revision to dev (Convex dev, staging site, smoke test) and only then to production.
+- Data migrations live in `apps/vanda/src/convex/migrations.ts`: write an idempotent page mutation and append it to `MIGRATIONS`. Each deploy runs `migrations:runAll`, which runs every migration not yet recorded in `migrationRuns` for that deployment. Do not add per-migration CI steps.
+
 ## Version Control (Jujutsu)
 
 All version-control operations in this repository must use Jujutsu (`jj`), not Git.
