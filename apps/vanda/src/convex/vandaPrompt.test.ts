@@ -46,6 +46,8 @@ describe("Vanda routing prompt", () => {
     expect(schema.safeParse({ ...valid, format: "2:3" }).success).toBe(false);
     expect(schema.safeParse({ ...valid, purpose: "vendas" }).success).toBe(false);
     expect(schema.safeParse({ ...valid, rationale: "porque sim" }).success).toBe(false);
+    // Strict transports fill every field, so "no secondary purpose" is a value.
+    expect(schema.safeParse({ ...valid, secondaryPurpose: "nenhum" }).success).toBe(true);
   });
 
   it("tells Caetano on WhatsApp that media works and keeps it to marketing", () => {

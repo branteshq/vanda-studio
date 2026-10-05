@@ -429,6 +429,8 @@ const present = createTool({
   },
 });
 
+const NO_SECONDARY_PURPOSE = "nenhum";
+
 const createPost = createTool({
   description:
     "Salva um RASCUNHO no Calendário do Vanda, destinado ao Instagram, a partir de imagens da galeria (1 imagem ou carrossel de até 10, na ordem dos slides) + legenda que VOCÊ escreve + o tipo (type), o propósito, a proporção (format) e a justificativa escolhidos em post-production. Não envia nada ao Instagram nem cria rascunho no aplicativo Instagram. Agendar/publicar é outra ação e exige pedido explícito.",
@@ -448,10 +450,13 @@ const createPost = createTool({
     purpose: z
       .enum(postPurposes)
       .describe("propósito principal do post — o objetivo que guiou o design"),
+    // Strict transports (ChatGPT subscription) send every field, so "none" must be a value.
     secondaryPurpose: z
-      .enum(postPurposes)
+      .enum([NO_SECONDARY_PURPOSE, ...postPurposes])
       .optional()
-      .describe("propósito secundário, diferente do principal; omita se não houver"),
+      .describe(
+        `propósito secundário, só com um segundo objetivo real e diferente do principal; use "${NO_SECONDARY_PURPOSE}" no caso normal, de um objetivo só`,
+      ),
     rationale: z
       .string()
       .min(40)
@@ -477,7 +482,7 @@ const createPost = createTool({
       type: "image" | "carousel" | "story";
       format: PostFormat;
       purpose: PostPurpose;
-      secondaryPurpose?: PostPurpose | undefined;
+      secondaryPurpose?: PostPurpose | typeof NO_SECONDARY_PURPOSE | undefined;
       rationale: string;
     },
     options,
@@ -496,7 +501,13 @@ const createPost = createTool({
       rationale,
     };
 
-    if (secondaryPurpose) mutationArgs.secondaryPurpose = secondaryPurpose;
+    // Repeating the primary purpose also means there is no second one.
+    if (
+      secondaryPurpose &&
+      secondaryPurpose !== NO_SECONDARY_PURPOSE &&
+      secondaryPurpose !== purpose
+    )
+      mutationArgs.secondaryPurpose = secondaryPurpose;
 
     if (ctx.threadId) mutationArgs.originThreadId = ctx.threadId;
 
