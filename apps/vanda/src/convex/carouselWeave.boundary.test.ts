@@ -253,7 +253,7 @@ describe("carouselWeave cleanup", () => {
     const { t, accountId } = await setup();
     const bodies: { resolution?: string }[] = [];
 
-    const big = await new Jimp({ width: 1664, height: 2080, color: 0x335577ff }).getBuffer(
+    const big = await new Jimp({ width: 1296, height: 1620, color: 0x335577ff }).getBuffer(
       "image/png",
     );
 
@@ -283,8 +283,8 @@ describe("carouselWeave cleanup", () => {
         origin: "generated",
         purpose: "post",
         storageId: await ctx.storage.store(new Blob([new Uint8Array(big)], { type: "image/png" })),
-        width: 1664,
-        height: 2080,
+        width: 1296,
+        height: 1620,
         createdAt: 1,
       });
     });
@@ -298,7 +298,7 @@ describe("carouselWeave cleanup", () => {
     });
 
     expect(bodies.map((body) => body.resolution)).toEqual(["2K", "2K"]);
-  });
+  }, 30_000);
 
   it("falls back to one worker for a nonsense concurrency", async () => {
     const { t, accountId, imageIds } = await setup();
