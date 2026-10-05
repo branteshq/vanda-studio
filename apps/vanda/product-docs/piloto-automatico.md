@@ -23,7 +23,7 @@ Todos os horários são no horário de Brasília.
 
 ## Ligar e desligar
 
-O estado (ligado ou desligado) aparece no topo da página **Piloto automático**. Para ligar, use o botão da página enquanto ele estiver desligado, ou peça à Vanda ou ao Caetano; para desligar, peça a um deles. Ao ligar, a Vanda faz o diagnóstico e planeja o resto desta semana e a próxima. Ao desligar, as publicações pendentes são canceladas; o que já foi publicado continua no histórico. Você também pode pedir à Vanda ou ao Caetano para ligar ou desligar.
+Para ligar, use o botão da página enquanto ele estiver desligado, ou peça à Vanda ou ao Caetano; para desligar, peça a um deles. Ao ligar, a Vanda faz o diagnóstico e planeja o resto desta semana e a próxima. Ao desligar, as publicações pendentes são canceladas; o que já foi publicado continua no histórico. Você também pode pedir à Vanda ou ao Caetano para ligar ou desligar.
 
 O piloto precisa do Instagram conectado. Veja [Conexões](/docs/conexoes).
 

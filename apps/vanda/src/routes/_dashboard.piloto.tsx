@@ -62,11 +62,6 @@ function PilotoPage() {
       <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-app px-4 md:px-6">
         <CalendarClock className="size-4 text-text-4" aria-hidden="true" />
         <h1 className="mr-auto text-sm font-semibold text-text">Piloto automático</h1>
-        {overview ? (
-          <StatusPill tone={overview.enabled ? "live" : "neutral"}>
-            {overview.enabled ? "Ligado" : "Desligado"}
-          </StatusPill>
-        ) : null}
       </header>
 
       <main className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
