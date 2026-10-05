@@ -64,7 +64,7 @@ describe("posts.createPostInternal — the light post path", () => {
 
     const create = (
       type: "image" | "carousel" | "story",
-      format: "1:1" | "4:5" | "3:4" | "9:16",
+      format: "1:1" | "4:5" | "3:4" | "4:3" | "9:16",
       imageIds: (typeof imageId)[],
       extra: { rationale?: string; purpose?: PostPurpose } = { purpose: "anuncio", rationale },
     ) =>
@@ -89,6 +89,30 @@ describe("posts.createPostInternal — the light post path", () => {
     await create("image", "1:1", [imageId]);
     await expect(create("image", "4:5", [squareId])).rejects.toThrow("1080×1080, não 4:5");
     await expect(create("carousel", "4:5", [portraitId, squareId])).rejects.toThrow("mesmo format");
+
+    // A ready camera photo keeps its feed-valid ratio even off the format list.
+    const photo = (width: number, height: number) =>
+      t.run((ctx) =>
+        ctx.db.insert("images", {
+          accountId,
+          origin: "uploaded",
+          purpose: "post",
+          externalUrl: `https://example.com/photo-${width}x${height}.jpg`,
+          width,
+          height,
+          createdAt: 1,
+        }),
+      );
+
+    const cameraId = await photo(6000, 4000);
+    await create("image", "4:3", [cameraId]);
+    await create("carousel", "4:3", [cameraId, cameraId]);
+    await expect(create("carousel", "4:3", [cameraId, await photo(5000, 4000)])).rejects.toThrow(
+      "6000×4000",
+    );
+    // Outside the feed range (or painted art) the declared format still rules.
+    await expect(create("image", "4:5", [await photo(1000, 3000)])).rejects.toThrow("não 4:5");
+    await expect(create("image", "4:3", [await sized(6000, 4000)])).rejects.toThrow("não 4:3");
     const carouselId = await create("carousel", "4:5", [portraitId, portraitId]);
     expect(await t.run((ctx) => ctx.db.get(carouselId))).toMatchObject({ type: "carousel" });
 

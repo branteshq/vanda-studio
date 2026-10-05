@@ -21,6 +21,11 @@ const MAX_RATIONALE_CHARS = 400;
 // Providers round pixel sizes; 3% still separates 4:5 (0.8) from 3:4 (0.75).
 const FORMAT_TOLERANCE = 0.03;
 
+// Instagram's feed takes any ratio from 4:5 portrait to 1.91:1 landscape.
+const FEED_RATIO = { min: 0.8, max: 1.91 } as const;
+
+const ratioOff = (ratio: number, target: number) => Math.abs(ratio / target - 1) > FORMAT_TOLERANCE;
+
 /** Create a draft post from account-owned gallery images. */
 export const createPostInternal = internalMutation({
   args: {
@@ -100,6 +105,8 @@ export const createPostInternal = internalMutation({
       throw new Error(`legenda acima do limite do Instagram (${MAX_CAPTION_CHARS} caracteres)`);
     }
 
+    let shared: { ratio: number; size: string } | undefined;
+
     for (const imageId of imageIds) {
       const image = await ctx.db.get(imageId);
 
@@ -107,15 +114,32 @@ export const createPostInternal = internalMutation({
         throw new Error(`imagem ${imageId} não encontrada nesta conta`);
       }
 
-      if (format && image.width && image.height) {
-        const [w = 1, h = 1] = format.split(":").map(Number);
+      if (!format || !image.width || !image.height) continue;
+      const [w = 1, h = 1] = format.split(":").map(Number);
+      const ratio = image.width / image.height;
+      const size = `${image.width}×${image.height}`;
 
-        if (Math.abs(image.width / image.height / (w / h) - 1) > FORMAT_TOLERANCE) {
-          throw new Error(
-            `imagem ${imageId} é ${image.width}×${image.height}, não ${format}; todas as imagens do post precisam do mesmo format`,
-          );
-        }
+      // A ready photo (upload, gallery) keeps its own feed-valid ratio: there is no
+      // crop tool, and repainting it to fit the list would change the photo.
+      const readyPhoto =
+        image.origin !== "generated" &&
+        type !== "story" &&
+        ratio >= FEED_RATIO.min * (1 - FORMAT_TOLERANCE) &&
+        ratio <= FEED_RATIO.max * (1 + FORMAT_TOLERANCE);
+
+      if (ratioOff(ratio, w / h) && !readyPhoto) {
+        throw new Error(
+          `imagem ${imageId} é ${size}, não ${format}; todas as imagens do post precisam do mesmo format`,
+        );
       }
+
+      if (shared && ratioOff(ratio, shared.ratio)) {
+        throw new Error(
+          `imagem ${imageId} é ${size} e a anterior é ${shared.size}; todas as imagens do post precisam do mesmo format`,
+        );
+      }
+
+      shared ??= { ratio, size };
     }
 
     const resolvedType: (typeof postTypes)[number] =
