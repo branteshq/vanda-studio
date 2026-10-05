@@ -6,6 +6,22 @@ import { modelUsageValidator } from "./usageDetails";
 import { brandCanonColumns } from "./pipeline/storage";
 import { postPurposeValidator } from "./postPurposes";
 import {
+  auditConfidences,
+  auditFindingValidator,
+  auditMetricsValidator,
+  auditPostRefValidator,
+  auditStatuses,
+  autopilotPostTypes,
+  autopilotSlotStatusValidator,
+  autopilotWeekStatuses,
+  cadenceEntryValidator,
+  cadenceSourceValidator,
+  postOriginValidator,
+  rubricItemValidator,
+  slotBriefFields,
+  slotResultsValidator,
+} from "./autopilotModel";
+import {
   brandKinds,
   imageOrigins,
   imagePurposes,
@@ -856,6 +872,10 @@ export default defineSchema({
     platform: v.string(),
     status: v.union(...postStatuses.map((status) => v.literal(status))),
     opportunityId: v.optional(v.id("opportunities")),
+    // "autopilot" posts live in the Piloto automático view, not the rail or Calendário.
+    // Unset means manual (legacy rows).
+    origin: v.optional(postOriginValidator),
+    autopilotSlotId: v.optional(v.id("autopilotSlots")),
     createdAt: v.number(),
   }).index("by_account", ["accountId"]),
 
@@ -881,5 +901,75 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_account_scheduledFor", ["accountId", "scheduledFor"])
+    .index("by_post", ["postId"]),
+
+  // ----- Autopilot: agent-planned weekly feed cadence (see autopilotModel.ts) -----
+
+  autopilotConfigs: defineTable({
+    accountId: v.id("accounts"),
+    enabled: v.boolean(),
+    cadence: v.array(cadenceEntryValidator),
+    // "agent": the weekly plan may replace the cadence; "owner": only content is planned.
+    cadenceSource: cadenceSourceValidator,
+    cadenceRationale: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_account", ["accountId"])
+    .index("by_enabled", ["enabled"]),
+
+  accountAudits: defineTable({
+    accountId: v.id("accounts"),
+    status: v.union(...auditStatuses.map((status) => v.literal(status))),
+    confidence: v.optional(v.union(...auditConfidences.map((c) => v.literal(c)))),
+    metrics: v.optional(auditMetricsValidator),
+    profileScore: v.optional(v.number()),
+    rubric: v.optional(v.array(rubricItemValidator)),
+    top: v.optional(v.array(auditPostRefValidator)),
+    bottom: v.optional(v.array(auditPostRefValidator)),
+    findings: v.optional(v.array(auditFindingValidator)),
+    stop: v.optional(v.array(v.string())),
+    doMore: v.optional(v.array(v.string())),
+    needs: v.optional(v.array(v.string())),
+    summary: v.optional(v.string()),
+    recommendedCadence: v.optional(v.array(cadenceEntryValidator)),
+    cadenceRationale: v.optional(v.string()),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+  }).index("by_account_created", ["accountId", "createdAt"]),
+
+  autopilotWeeks: defineTable({
+    accountId: v.id("accounts"),
+    // Monday 00:00 America/Sao_Paulo, as epoch ms.
+    weekStart: v.number(),
+    status: v.union(...autopilotWeekStatuses.map((status) => v.literal(status))),
+    auditId: v.optional(v.id("accountAudits")),
+    strategy: v.optional(v.string()),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_account_week", ["accountId", "weekStart"]),
+
+  autopilotSlots: defineTable({
+    accountId: v.id("accounts"),
+    weekId: v.id("autopilotWeeks"),
+    scheduledFor: v.number(),
+    type: v.union(...autopilotPostTypes.map((type) => v.literal(type))),
+    slideCount: v.number(),
+    ...slotBriefFields,
+    status: autopilotSlotStatusValidator,
+    // Owner (UI or an agent on the owner's request) changed this slot; replans keep it.
+    ownerEdited: v.boolean(),
+    postId: v.optional(v.id("posts")),
+    attempts: v.number(),
+    lastError: v.optional(v.string()),
+    results: v.optional(slotResultsValidator),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_week", ["weekId"])
+    .index("by_account_scheduledFor", ["accountId", "scheduledFor"])
+    .index("by_status_scheduledFor", ["status", "scheduledFor"])
     .index("by_post", ["postId"]),
 });
