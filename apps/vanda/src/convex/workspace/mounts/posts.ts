@@ -13,15 +13,15 @@ import {
 
 const LISTING_CAP = 60;
 
-// Autopilot posts live in /autopilot, apart from the owner's own calendar.
 const loadPosts = async (ctx: QueryCtx, accountId: Id<"accounts">) =>
-  (
-    await ctx.db
-      .query("posts")
-      .withIndex("by_account", (q) => q.eq("accountId", accountId))
-      .order("desc")
-      .take(LISTING_CAP)
-  ).filter((post) => post.origin !== "autopilot");
+  ctx.db
+    .query("posts")
+    .withIndex("by_account", (q) => q.eq("accountId", accountId))
+    .order("desc")
+    .take(LISTING_CAP);
+
+const originOf = (post: Doc<"posts">): string =>
+  post.origin === "autopilot" ? " · piloto automático" : "";
 
 const scheduledOf = (ctx: QueryCtx, postId: Id<"posts">) =>
   ctx.db
@@ -44,7 +44,7 @@ const captionHead = (caption: string): string => caption.replaceAll("\n", " ").s
  * schedule_post — never by writing files. */
 export const postsMount: WorkspaceMount = {
   root: "posts",
-  summary: "calendário de posts: rascunhos, agendados e publicados",
+  summary: "calendário de posts: rascunhos, agendados e publicados, inclusive os do piloto automático",
   writeHint: "estado dos posts — somente leitura; crie com create_post e agende com schedule_post.",
   list: async (ctx, accountId, segments): Promise<WorkspaceEntry[] | null> => {
     if (segments.length !== 0) return null;
@@ -63,6 +63,7 @@ export const postsMount: WorkspaceMount = {
             `${scheduled ? ` · ${formatDate(scheduled.scheduledFor)}` : ""}` +
             ` · ${currentPostType(post.type, post.imageIds.length)}${post.format ? ` · ${post.format}` : ""} · ${purposeOf(post)}` +
             ` · ${post.imageIds.length} imagem(ns)` +
+            originOf(post) +
             ` · ${captionHead(post.caption)}`,
         };
       }),
@@ -90,6 +91,8 @@ export const postsMount: WorkspaceMount = {
       scheduledFor: scheduled ? formatDate(scheduled.scheduledFor) : null,
       permalink: scheduled?.permalink ?? null,
       lastError: scheduled?.lastError ?? null,
+      // Autopilot posts are changed with the autopilot_* tools, by slotId (see /autopilot/plan.md).
+      autopilotSlotId: post.autopilotSlotId ?? null,
     });
   },
 };

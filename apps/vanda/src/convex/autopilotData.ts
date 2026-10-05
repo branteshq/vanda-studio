@@ -134,7 +134,7 @@ const coverUrlOf = async (ctx: QueryCtx, post: Doc<"posts"> | null): Promise<str
   return image.externalUrl ?? (image.storageId ? await ctx.storage.getUrl(image.storageId) : null);
 };
 
-const slotView = async (ctx: QueryCtx, slot: Doc<"autopilotSlots">) => {
+export const slotView = async (ctx: QueryCtx, slot: Doc<"autopilotSlots">) => {
   const post = slot.postId ? await ctx.db.get(slot.postId) : null;
 
   const scheduled = post
@@ -991,6 +991,7 @@ export const finishProduction = internalMutation({
         lastError: "o post ficou pronto depois do horário; ele ficou salvo como rascunho",
         updatedAt: Date.now(),
       });
+      await ctx.scheduler.runAfter(0, internal.autopilotChat.notifyFailed, { slotId });
 
       return "failed";
     }
@@ -1001,6 +1002,7 @@ export const finishProduction = internalMutation({
       scheduledFor: slot.scheduledFor,
     });
     await ctx.db.patch(slotId, { status: "scheduled", postId, updatedAt: Date.now() });
+    await ctx.scheduler.runAfter(0, internal.autopilotChat.notifyProduced, { slotId });
 
     return "scheduled";
   },
@@ -1018,6 +1020,12 @@ export const failProduction = internalMutation({
       lastError: error.slice(0, 500),
       updatedAt: Date.now(),
     });
+
+    // The hourly tick retries once; only the final failure reaches the owner.
+    const noRetry =
+      slot.attempts >= MAX_ATTEMPTS || slot.scheduledFor <= Date.now() + PRODUCE_MIN_LEAD_MS;
+
+    if (noRetry) await ctx.scheduler.runAfter(0, internal.autopilotChat.notifyFailed, { slotId });
   },
 });
 

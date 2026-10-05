@@ -1,29 +1,43 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "convex-helpers/react/cache";
-import { CalendarDays, ChevronLeft, ChevronRight, Layers3 } from "lucide-react";
+import { CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Layers3 } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { StatusPill } from "@vanda-studio/ui/components/status-pill";
+import { Tag } from "@vanda-studio/ui/components/tag";
 import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { useActiveAccount } from "../components/active-account";
+import { SlotEditorById } from "../components/autopilot/slot-editor";
 import { api } from "../convex/_generated/api";
+import type { Id } from "../convex/_generated/dataModel";
+import type { CalendarStatus } from "../convex/calendar";
 
 export const Route = createFileRoute("/_dashboard/calendario")({
   component: CalendarioPage,
 });
 
 const STATUS_META = {
+  planned: { label: "Planejado", tone: "suggestion" },
+  generating: { label: "Gerando", tone: "creating" },
+  skipped: { label: "Pulado", tone: "neutral" },
   scheduled: { label: "Agendado", tone: "scheduled" },
   publishing: { label: "Publicando", tone: "creating" },
   published: { label: "Publicado", tone: "done" },
   failed: { label: "Falhou", tone: "needs" },
-} satisfies Record<string, { label: string; tone: "scheduled" | "done" | "needs" | "creating" }>;
+} satisfies Record<
+  CalendarStatus,
+  {
+    label: string;
+    tone: "scheduled" | "done" | "needs" | "creating" | "suggestion" | "neutral";
+  }
+>;
 
 const WEEKDAYS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 
 function CalendarioPage() {
   const { activeAccount } = useActiveAccount();
+  const [openSlot, setOpenSlot] = useState<Id<"autopilotSlots"> | null>(null);
 
   const [cursor, setCursor] = useState(() => {
     const now = new Date();
@@ -122,7 +136,7 @@ function CalendarioPage() {
             </div>
             <h2 className="mt-4 text-base font-semibold text-text">Nada agendado neste mês</h2>
             <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-text-4">
-              Quando você aprovar um carrossel na conversa com a Vanda, a publicação aparece aqui.
+              Os posts agendados na conversa e os do Piloto automático aparecem aqui.
             </p>
           </div>
         ) : (
@@ -156,10 +170,17 @@ function CalendarioPage() {
                           const status = STATUS_META[item.status];
 
                           return (
-                            <div
-                              key={item.scheduledPostId}
-                              className="flex items-center gap-1.5 rounded-md border border-border bg-surface p-1"
-                              title={item.caption}
+                            <button
+                              type="button"
+                              key={item.key}
+                              disabled={!item.autopilot}
+                              onClick={() => setOpenSlot(item.autopilot?.slotId ?? null)}
+                              className={cn(
+                                "flex w-full items-center gap-1.5 rounded-md border border-border bg-surface p-1 text-left",
+                                item.autopilot && "hover:border-border-strong",
+                                item.status === "skipped" && "opacity-60",
+                              )}
+                              title={item.autopilot ? item.autopilot.hook : item.caption}
                             >
                               {item.coverUrl ? (
                                 <img
@@ -172,21 +193,25 @@ function CalendarioPage() {
                                   <Layers3 className="size-3.5" />
                                 </span>
                               )}
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-note leading-tight text-text-2">
+                              <span className="block min-w-0 flex-1">
+                                <span className="block truncate text-note leading-tight text-text-2">
                                   {new Date(item.scheduledFor).toLocaleTimeString("pt-BR", {
                                     hour: "2-digit",
                                     minute: "2-digit",
                                   })}
                                   {item.slideCount > 1 ? ` · ${item.slideCount} slides` : ""}
-                                </p>
-                                {status ? (
-                                  <StatusPill tone={status.tone} className="mt-0.5">
-                                    {status.label}
-                                  </StatusPill>
-                                ) : null}
-                              </div>
-                            </div>
+                                </span>
+                                <span className="mt-0.5 flex flex-wrap items-center gap-1">
+                                  <StatusPill tone={status.tone}>{status.label}</StatusPill>
+                                  {item.autopilot ? (
+                                    <Tag tone="brand" title="Piloto automático">
+                                      <CalendarClock className="size-3" aria-hidden="true" />
+                                      Piloto
+                                    </Tag>
+                                  ) : null}
+                                </span>
+                              </span>
+                            </button>
                           );
                         })}
                       </div>
@@ -198,6 +223,11 @@ function CalendarioPage() {
           </div>
         )}
       </main>
+      <SlotEditorById
+        accountId={activeAccount.id}
+        slotId={openSlot}
+        onClose={() => setOpenSlot(null)}
+      />
     </div>
   );
 }

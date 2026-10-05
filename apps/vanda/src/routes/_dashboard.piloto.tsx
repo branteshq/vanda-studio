@@ -2,7 +2,7 @@ import { useMemo, useState, type CSSProperties } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
-import { CalendarClock, Pencil, RefreshCw, Sparkles } from "lucide-react";
+import { CalendarClock, CalendarDays, Pencil, RefreshCw, Sparkles } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { Spinner } from "@vanda-studio/ui/components/spinner";
@@ -120,6 +120,9 @@ function PilotoContent({
         <section className="grid gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="mr-auto text-sm font-semibold text-text">Programação</h2>
+            <Button size="sm" variant="ghost" render={<Link to="/calendario" />}>
+              <CalendarDays /> Ver no Calendário
+            </Button>
             {overview.weeks.map((item, index) => (
               <Button
                 key={item.weekStart}

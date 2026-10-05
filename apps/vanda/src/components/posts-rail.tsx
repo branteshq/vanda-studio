@@ -25,11 +25,13 @@ import {
 } from "@vanda-studio/ui/components/sidebar";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { StatusPill } from "@vanda-studio/ui/components/status-pill";
+import { Tag } from "@vanda-studio/ui/components/tag";
 import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { useActiveAccount } from "./active-account";
+import { SlotEditorById } from "./autopilot/slot-editor";
 import { useWorkRail } from "./work-rail";
 
 /**
@@ -234,6 +236,7 @@ function PostList({ accountId }: { accountId: Id<"accounts"> }) {
                       </span>
                       <span className="mt-0.5 flex items-center gap-1.5">
                         <StatusPill tone={meta.tone}>{meta.label}</StatusPill>
+                        {post.autopilotSlotId ? <Tag tone="brand">Piloto</Tag> : null}
                         <span className="truncate text-note text-text-5">
                           {post.scheduledFor !== null
                             ? formatWhen(post.scheduledFor)
@@ -250,6 +253,30 @@ function PostList({ accountId }: { accountId: Id<"accounts"> }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Autopilot posts are edited as their slot: same editor as Piloto automático and Calendário. */
+function AutopilotSlotLink({
+  accountId,
+  slotId,
+}: {
+  accountId: Id<"accounts">;
+  slotId: Id<"autopilotSlots">;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <Button variant="outline" size="sm" className="w-full" onClick={() => setOpen(true)}>
+        Editar ou pular no piloto
+      </Button>
+      <SlotEditorById
+        accountId={accountId}
+        slotId={open ? slotId : null}
+        onClose={() => setOpen(false)}
+      />
+    </>
   );
 }
 
@@ -277,11 +304,17 @@ function PostDetail({ accountId, postId }: { accountId: Id<"accounts">; postId: 
   return (
     <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
       <div className="flex items-center justify-between gap-2">
-        <StatusPill tone={meta.tone}>{meta.label}</StatusPill>
+        <span className="flex items-center gap-1.5">
+          <StatusPill tone={meta.tone}>{meta.label}</StatusPill>
+          {post.autopilotSlotId ? <Tag tone="brand">Piloto automático</Tag> : null}
+        </span>
         <span className="text-note text-text-5">
           {post.scheduledFor !== null ? formatWhen(post.scheduledFor) : formatWhen(post.createdAt)}
         </span>
       </div>
+      {post.autopilotSlotId ? (
+        <AutopilotSlotLink accountId={accountId} slotId={post.autopilotSlotId} />
+      ) : null}
 
       {url !== undefined ? (
         <div className="relative overflow-hidden rounded-lg border border-border bg-inset">

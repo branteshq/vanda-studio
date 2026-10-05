@@ -410,6 +410,8 @@ export interface RailPost {
   permalink: string | null;
   lastError: string | null;
   createdAt: number;
+  /** Set when the Piloto automático made it: the rail marks it and opens its slot. */
+  autopilotSlotId: Id<"autopilotSlots"> | null;
 }
 
 const railStatusOf = (
@@ -429,36 +431,34 @@ export const listForRail = query({
       .order("desc")
       .take(60);
 
-    // Autopilot posts have their own view (Piloto automático).
     return Promise.all(
-      posts
-        .filter((post) => post.origin !== "autopilot")
-        .map(async (post) => {
-          const scheduled = await ctx.db
-            .query("scheduledPosts")
-            .withIndex("by_post", (q) => q.eq("postId", post._id))
-            .first();
+      posts.map(async (post) => {
+        const scheduled = await ctx.db
+          .query("scheduledPosts")
+          .withIndex("by_post", (q) => q.eq("postId", post._id))
+          .first();
 
-          const first = post.imageIds[0] !== undefined ? await ctx.db.get(post.imageIds[0]) : null;
+        const first = post.imageIds[0] !== undefined ? await ctx.db.get(post.imageIds[0]) : null;
 
-          const thumbnailUrl =
-            first === null || first === undefined
-              ? null
-              : (first.externalUrl ??
-                (first.storageId !== undefined ? await ctx.storage.getUrl(first.storageId) : null));
+        const thumbnailUrl =
+          first === null || first === undefined
+            ? null
+            : (first.externalUrl ??
+              (first.storageId !== undefined ? await ctx.storage.getUrl(first.storageId) : null));
 
-          return {
-            postId: post._id,
-            caption: post.caption,
-            status: railStatusOf(post, scheduled),
-            slideCount: post.imageIds.length,
-            thumbnailUrl,
-            scheduledFor: scheduled?.scheduledFor ?? null,
-            permalink: scheduled?.permalink ?? null,
-            lastError: scheduled?.lastError ?? null,
-            createdAt: post.createdAt,
-          };
-        }),
+        return {
+          postId: post._id,
+          caption: post.caption,
+          status: railStatusOf(post, scheduled),
+          slideCount: post.imageIds.length,
+          thumbnailUrl,
+          scheduledFor: scheduled?.scheduledFor ?? null,
+          permalink: scheduled?.permalink ?? null,
+          lastError: scheduled?.lastError ?? null,
+          createdAt: post.createdAt,
+          autopilotSlotId: post.autopilotSlotId ?? null,
+        };
+      }),
     );
   },
 });
@@ -500,6 +500,7 @@ export const detail = query({
       scheduledFor: scheduled?.scheduledFor ?? null,
       permalink: scheduled?.permalink ?? null,
       lastError: scheduled?.lastError ?? null,
+      autopilotSlotId: post.autopilotSlotId ?? null,
       createdAt: post.createdAt,
     };
   },

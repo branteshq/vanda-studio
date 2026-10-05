@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "convex/react";
+import { useQuery } from "convex-helpers/react/cache";
 import { ExternalLink, RefreshCw, SkipForward, Undo2 } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import {
@@ -363,5 +364,27 @@ export function SlotEditor({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** The editor for a slot known only by id (Calendário, rail): loads it, then edits it. */
+export function SlotEditorById({
+  accountId,
+  slotId,
+  onClose,
+}: {
+  accountId: Id<"accounts">;
+  slotId: Id<"autopilotSlots"> | null;
+  onClose: () => void;
+}) {
+  const slot = useQuery(api.autopilot.slot, slotId ? { accountId, slotId } : "skip");
+
+  return (
+    <SlotEditor
+      key={slot?.slotId ?? "none"}
+      accountId={accountId}
+      slot={slotId ? (slot ?? null) : null}
+      onClose={onClose}
+    />
   );
 }

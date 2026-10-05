@@ -10,6 +10,8 @@ import {
   applySlotChange,
   historyOf,
   overviewOf,
+  slotView,
+  type AutopilotSlotView,
   requestRefresh,
   slotChangeValidator,
   type AutopilotOverview,
@@ -51,6 +53,17 @@ export const setEnabled = mutation({
       "autopilot.enabled",
       enabled ? "ligado" : "desligado",
     );
+  },
+});
+
+/** One autopilot post, for the editor opened from the Calendário or the rail. */
+export const slot = query({
+  args: { accountId: v.id("accounts"), slotId: v.id("autopilotSlots") },
+  handler: async (ctx, { accountId, slotId }): Promise<AutopilotSlotView | null> => {
+    await requireOwnedAccount(ctx, accountId);
+    const found = await ctx.db.get(slotId);
+
+    return found && found.accountId === accountId ? slotView(ctx, found) : null;
   },
 });
 

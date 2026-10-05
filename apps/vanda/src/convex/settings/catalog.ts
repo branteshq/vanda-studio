@@ -51,6 +51,7 @@ export const NON_SETTING_UI_FUNCTIONS = [
   "workspacePublic.file",
   // Autopilot posts are content, not settings: the agents change them with autopilot_* tools.
   "autopilot.history",
+  "autopilot.slot",
   "autopilot.updateSlot",
   "autopilot.skipSlot",
   "autopilot.restoreSlot",

@@ -359,15 +359,19 @@ describe("autopilot production and veto", () => {
   });
 });
 
-describe("autopilot segregation", () => {
-  it("keeps autopilot posts out of the rail, the calendar and /posts but shows them in /autopilot", async () => {
+describe("autopilot in the rest of the product", () => {
+  it("shows autopilot posts in the rail, the calendar and /posts, marked as Piloto", async () => {
     const { t, accountId, imageIds, plan, slots, produce } = await setup();
 
     await plan(NEXT_WEEK);
-    const tuesday = (await slots()).toSorted((a, b) => a.scheduledFor - b.scheduledFor)[0]!;
+    const [tuesday, thursday] = (await slots()).toSorted((a, b) => a.scheduledFor - b.scheduledFor);
 
-    vi.setSystemTime(tuesday.scheduledFor - 20 * 3_600_000);
-    await produce(tuesday._id);
+    vi.setSystemTime(tuesday!.scheduledFor - 20 * 3_600_000);
+    const { postId } = await produce(tuesday!._id);
+
+    const jobs = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+
+    expect(jobs.map((job) => job.name)).toContain("autopilotChat:notifyProduced");
 
     const manualId = await t.mutation(internal.posts.createPostInternal, {
       accountId,
@@ -378,13 +382,14 @@ describe("autopilot segregation", () => {
     await t.mutation(internal.posts.schedulePostInternal, {
       accountId,
       postId: manualId,
-      scheduledFor: tuesday.scheduledFor + 3_600_000,
+      scheduledFor: tuesday!.scheduledFor + 3_600_000,
     });
 
     const owner = t.withIdentity({ subject: "me" });
     const rail = await owner.query(api.posts.listForRail, { accountId });
 
-    expect(rail.map((post) => post.postId)).toEqual([manualId]);
+    expect(rail.find((post) => post.postId === postId)?.autopilotSlotId).toBe(tuesday!._id);
+    expect(rail.find((post) => post.postId === manualId)?.autopilotSlotId).toBeNull();
 
     const calendar = await owner.query(api.calendar.range, {
       accountId,
@@ -392,7 +397,12 @@ describe("autopilot segregation", () => {
       end: NEXT_WEEK + 7 * 86_400_000,
     });
 
-    expect(calendar.map((item) => item.caption)).toEqual(["post manual"]);
+    expect(calendar.map((item) => [item.status, item.autopilot?.slotId ?? null])).toEqual([
+      ["scheduled", tuesday!._id],
+      ["scheduled", null],
+      ["planned", thursday!._id],
+      ["planned", expect.any(String)],
+    ]);
 
     const listing = await t.query(internal.workspaceData.list, { accountId, path: "/posts" });
 
@@ -401,9 +411,8 @@ describe("autopilot segregation", () => {
       path: "/autopilot/plan.md",
     });
 
-    expect(JSON.stringify(listing)).not.toContain("fermentação");
-    expect(JSON.stringify(planFile)).toContain("gancho 0");
-    expect(JSON.stringify(planFile)).toContain(tuesday._id);
+    expect(JSON.stringify(listing)).toContain("piloto automático");
+    expect(JSON.stringify(planFile)).toContain(tuesday!._id);
   });
 });
 

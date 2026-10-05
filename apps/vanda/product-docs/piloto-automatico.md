@@ -7,7 +7,11 @@ keywords: piloto automatico automático autopilot automatizar cadencia cadência
 
 # Piloto automático
 
-O **Piloto automático** mantém a conta postando no feed sem você pedir cada post. Ele fica separado dos posts que você cria na conversa: tem página própria na barra lateral, e os posts dele não aparecem no Calendário nem na lista de posts da conversa.
+O **Piloto automático** mantém a conta postando no feed sem você pedir cada post. Ele tem página própria na barra lateral e está ligado ao resto do Vanda Studio:
+
+- os posts dele aparecem no **Calendário** e na lista de posts com a etiqueta **Piloto**, inclusive os que ainda estão só planejados; clicar abre o mesmo editor da página do piloto;
+- o **Caetano** avisa no WhatsApp quando a semana é planejada, quando cada post fica pronto (a partir daí você pode vetar até o horário) e quando algo falha — e responde se você pedir para mudar ou pular;
+- a Vanda mostra a programação na conversa.
 
 Por enquanto ele faz só posts de **feed** (imagem e carrossel). Reels e stories ficam de fora.
 
@@ -29,7 +33,7 @@ O piloto precisa do Instagram conectado. Veja [Conexões](/docs/conexoes).
 
 ## Ver e editar a programação
 
-A página mostra a semana em colunas de segunda a domingo, com o horário, o formato, o propósito e o estado de cada post: planejado, gerando, agendado, publicado, pulado ou com falha. Clique em um post para:
+A página mostra a semana em colunas de segunda a domingo (o botão **Ver no Calendário** leva ao mês inteiro), com o horário, o formato, o propósito e o estado de cada post: planejado, gerando, agendado, publicado, pulado ou com falha. Clique em um post para:
 
 - mudar o dia, o horário, o formato, os slides, o propósito, o tema, o ângulo, o gancho ou o que a legenda deve dizer;
 - **Pular** — o post não será publicado (dá para reativar até o horário);

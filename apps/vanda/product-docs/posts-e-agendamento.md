@@ -28,4 +28,4 @@ O **Calendário** mostra cada post como rascunho, agendado, publicado ou com fal
 
 Publicar exige o Instagram do negócio conectado. Veja [Conexões](/docs/conexoes).
 
-Os posts do [Piloto automático](/docs/piloto-automatico) ficam na página dele, não no Calendário.
+Os posts do [Piloto automático](/docs/piloto-automatico) também aparecem no Calendário, com a etiqueta **Piloto**, desde que são planejados; clique para editar ou pular.

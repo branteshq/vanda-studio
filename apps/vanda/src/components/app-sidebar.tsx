@@ -7,6 +7,7 @@ import {
   Archive,
   BadgeCheckIcon,
   CalendarClock,
+  CalendarDays,
   Images,
   MessageSquareText,
   PanelLeftClose,
@@ -637,11 +638,37 @@ function CaetanoNav() {
         </SidebarMenuButton>
       </SidebarMenuItem>
       <AutopilotNavItem />
+      <CalendarNavItem />
     </SidebarMenu>
   );
 }
 
-/** The automatic feed posts live apart from the conversations: their own page. */
+/** Every publication of the business, from the conversation and from the autopilot. */
+function CalendarNavItem() {
+  const navigate = useNavigate();
+  const { setOpenMobile } = useSidebar();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        size="navigation"
+        tooltip="Calendário"
+        isActive={pathname === "/calendario"}
+        onClick={() => {
+          setOpenMobile(false);
+          void navigate({ to: "/calendario" });
+        }}
+        className="h-10"
+      >
+        <CalendarDays aria-hidden="true" />
+        <span className="group-data-[collapsible=icon]:hidden">Calendário</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
+/** The automatic feed posts: planned, produced and published by the Piloto automático. */
 function AutopilotNavItem() {
   const navigate = useNavigate();
   const { setOpenMobile } = useSidebar();
