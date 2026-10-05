@@ -24,7 +24,7 @@ Vanda and Caetano know and change the platform through one registry, and explain
 
 ## Data Migrations and Deploys
 
-- A push to `main` deploys the revision to dev (Convex dev, staging site, smoke test) and only then to production.
+- A push to `main` validates and deploys the revision to dev (Convex dev, staging site) and only then to production.
 - Data migrations live in `apps/vanda/src/convex/migrations.ts`: write an idempotent page mutation and append it to `MIGRATIONS`. Each deploy runs `migrations:runAll`, which runs every migration not yet recorded in `migrationRuns` for that deployment. Do not add per-migration CI steps.
 
 ## Version Control (Jujutsu)

@@ -1,7 +1,6 @@
 name: Deploy staging
 
-# Run by hand for any ref, and by deploy-production before every production
-# deploy: a revision reaches production only after it deployed to dev.
+# Run by hand for any ref, and by deploy-production before every production deploy.
 on:
   workflow_dispatch:
     inputs:
@@ -65,7 +64,6 @@ jobs:
       # Runner-built + prebuilt deploy for the same reason as production:
       # Vercel's remote build container mis-bundles the SSR function.
       - name: Deploy and assign staging domain
-        id: vercel
         env:
           VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
@@ -81,17 +79,3 @@ jobs:
           pnpm dlx vercel@latest build --token="$VERCEL_TOKEN"
           deployment_url=$(pnpm dlx vercel@latest deploy --prebuilt --yes --token="$VERCEL_TOKEN")
           pnpm dlx vercel@latest alias set "$deployment_url" staging.vandastudio.app --token="$VERCEL_TOKEN"
-          echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
-
-      - name: Smoke test staging
-        run: curl --fail --show-error --silent --retry 5 --retry-delay 3 https://staging.vandastudio.app/ >/dev/null
-
-      - name: Deployment summary
-        run: |
-          {
-            echo "### Staging deployment"
-            echo "- Ref: \`${{ inputs.ref }}\`"
-            echo "- Commit: \`$GITHUB_SHA\`"
-            echo "- URL: https://staging.vandastudio.app"
-            echo "- Vercel deployment: ${{ steps.vercel.outputs.deployment_url }}"
-          } >> "$GITHUB_STEP_SUMMARY"

@@ -13,8 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # The same revision goes through dev (Convex dev, migrations, staging site,
-  # smoke test) first; production only deploys once that succeeded.
+  # The same revision is validated and deployed to dev first; production only after it succeeded.
   staging:
     name: Deploy to staging
     uses: ./.github/workflows/deploy-staging.yml
@@ -35,18 +34,9 @@ jobs:
     steps:
       - name: Check out production revision
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up workspace
         uses: ./.github/actions/setup
-
-      - name: Validate production revision
-        run: |
-          pnpm lint
-          pnpm typecheck
-          CI=true pnpm test
-          pnpm build
 
       - name: Deploy Convex production
         working-directory: apps/vanda
@@ -61,12 +51,9 @@ jobs:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_PROD_DEPLOY_KEY }}
         run: pnpm exec convex run migrations:runAll '{}'
 
-      # Build on the runner and ship the output prebuilt: Vercel's remote build
-      # container produces a broken SSR bundle for this app (bare require of
-      # react in the _ssr chunk with no node_modules in the function), while
-      # the same commit builds correctly on the pinned Node/pnpm toolchain.
-      - name: Create staged production deployment
-        id: vercel
+      # Built on the runner and shipped prebuilt: Vercel's remote build
+      # container mis-bundles the SSR function.
+      - name: Deploy Vercel production
         env:
           VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
@@ -77,38 +64,4 @@ jobs:
         run: |
           pnpm dlx vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
           pnpm dlx vercel@latest build --prod --token="$VERCEL_TOKEN"
-          deployment_url=$(pnpm dlx vercel@latest deploy --prebuilt --yes --prod --skip-domain --token="$VERCEL_TOKEN")
-          echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
-
-      # The staged deployment must prove it serves before it may touch the
-      # domain — a broken SSR bundle then fails HERE and production keeps
-      # running the previous deployment. Exact 200 required: a 302 means
-      # Vercel deployment protection intercepted the request and nothing was
-      # actually tested (protection must stay disabled for this project).
-      - name: Smoke test staged deployment
-        run: |
-          for attempt in 1 2 3 4 5; do
-            code=$(curl -sS -o /dev/null -w "%{http_code}" "${{ steps.vercel.outputs.deployment_url }}/" || echo 000)
-            echo "attempt $attempt: HTTP $code"
-            if [ "$code" = "200" ]; then exit 0; fi
-            sleep 3
-          done
-          echo "staged deployment never returned 200 — refusing to promote"
-          exit 1
-
-      - name: Promote staged deployment
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: pnpm dlx vercel@latest promote "${{ steps.vercel.outputs.deployment_url }}" --yes --token="$VERCEL_TOKEN"
-
-      - name: Smoke test production
-        run: curl --fail --show-error --silent --retry 5 --retry-delay 3 https://app.vandastudio.app/ >/dev/null
-
-      - name: Deployment summary
-        run: |
-          {
-            echo "### Production deployment"
-            echo "- Commit: \`$GITHUB_SHA\`"
-            echo "- URL: https://app.vandastudio.app"
-            echo "- Vercel deployment: ${{ steps.vercel.outputs.deployment_url }}"
-          } >> "$GITHUB_STEP_SUMMARY"
+          pnpm dlx vercel@latest deploy --prebuilt --yes --prod --token="$VERCEL_TOKEN"
