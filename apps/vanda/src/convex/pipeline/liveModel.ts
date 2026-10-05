@@ -24,6 +24,8 @@ export const PIPELINE_MODELS = {
   studioAssetReview: "google/gemini-2.5-flash",
   studioRender: "vanda/carousel-renderer-v1",
   marketAdapt: "openai/gpt-5-nano",
+  autopilotAudit: "openai/gpt-5-mini",
+  autopilotPlan: "openai/gpt-5-mini",
 } as const;
 
 export const DEFAULT_MODEL = PIPELINE_MODELS.consolidate;
@@ -51,6 +53,8 @@ export const PROMPT_VERSIONS = {
   studioAssetReview: "studio/asset-review-v1",
   studioRender: "studio/render-v1",
   marketAdapt: "market/adapt-carousel-pt-br-v1",
+  autopilotAudit: "autopilot/account-audit-pt-br-v1",
+  autopilotPlan: "autopilot/weekly-plan-pt-br-v1",
 } as const;
 
 const MODEL_CONFIG = {
