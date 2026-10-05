@@ -32,6 +32,13 @@ export const imageOrigins = ["generated", "uploaded", "gallery"] as const;
 // `feed` is legacy (it meant carousel); migrations:feedToCarousel rewrites it, then it goes.
 export const postTypes = ["image", "carousel", "story", "reel", "tweet", "feed"] as const;
 
+/** A post's type as it reads today: legacy `feed` is a carousel (2+ images) or an image. */
+export const currentPostType = (
+  type: (typeof postTypes)[number],
+  imageCount: number,
+): Exclude<(typeof postTypes)[number], "feed"> =>
+  type === "feed" ? (imageCount > 1 ? "carousel" : "image") : type;
+
 // Aspect ratio (width:height) shared by every image of a post; story is always 9:16.
 export const postFormats = ["1:1", "4:5", "3:4", "4:3", "16:9", "9:16"] as const;
 

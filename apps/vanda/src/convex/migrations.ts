@@ -1,14 +1,16 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
+import { currentPostType } from "./pipeline/constants";
 
 const BATCH = 100;
 
 /**
  * One-off: legacy `feed` meant carousel. Rewrites it to `carousel` (2+ images)
  * or `image` (1 image), one page per run, rescheduling itself until the table
- * is scanned. Idempotent; delete this file and `feed` from postTypes once it
- * has run in every deployment.
+ * is scanned. Idempotent; run it by hand per deployment (reads already show
+ * `feed` as its current type). Delete this file and `feed` from postTypes once
+ * it has run in every deployment.
  */
 export const feedToCarousel = internalMutation({
   args: { cursor: v.optional(v.union(v.string(), v.null())) },
@@ -19,7 +21,7 @@ export const feedToCarousel = internalMutation({
 
     for (const post of page.page) {
       if (post.type !== "feed") continue;
-      await ctx.db.patch(post._id, { type: post.imageIds.length > 1 ? "carousel" : "image" });
+      await ctx.db.patch(post._id, { type: currentPostType(post.type, post.imageIds.length) });
       migrated++;
     }
 

@@ -273,6 +273,19 @@ describe("workspace renders", () => {
       caption: "Post antigo",
     });
 
+    // A legacy `feed` row reads as what it meant, migrated or not.
+    await t.run((ctx) =>
+      ctx.db.insert("posts", {
+        accountId,
+        type: "feed",
+        imageIds: [galleryImageId, galleryImageId],
+        caption: "Carrossel legado",
+        platform: "instagram",
+        status: "draft",
+        createdAt: 1,
+      }),
+    );
+
     const listing = await t.query(internal.workspaceData.list, { accountId, path: "/posts" });
 
     expect(listing.ok).toBe(true);
@@ -282,8 +295,10 @@ describe("workspace renders", () => {
       expect.arrayContaining([
         expect.stringContaining("image · 4:5 · anuncio (+promocional)"),
         expect.stringContaining("sem propósito"),
+        expect.stringContaining("carousel · sem propósito · 2 imagem(ns) · Carrossel legado"),
       ]),
     );
+    expect(summaries.some((summary) => summary?.includes("feed"))).toBe(false);
 
     const entry = listing.ok
       ? listing.entries?.find((item) => item.summary?.includes("anuncio"))

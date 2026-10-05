@@ -1,5 +1,6 @@
 import type { Doc, Id } from "../../_generated/dataModel";
 import type { QueryCtx } from "../../_generated/server";
+import { currentPostType } from "../../pipeline/constants";
 import {
   entityName,
   formatDate,
@@ -57,7 +58,7 @@ export const postsMount: WorkspaceMount = {
           summary:
             `${status}` +
             `${scheduled ? ` · ${formatDate(scheduled.scheduledFor)}` : ""}` +
-            ` · ${post.type}${post.format ? ` · ${post.format}` : ""} · ${purposeOf(post)}` +
+            ` · ${currentPostType(post.type, post.imageIds.length)}${post.format ? ` · ${post.format}` : ""} · ${purposeOf(post)}` +
             ` · ${post.imageIds.length} imagem(ns)` +
             ` · ${captionHead(post.caption)}`,
         };
@@ -75,7 +76,7 @@ export const postsMount: WorkspaceMount = {
     return jsonFile({
       postId: post._id,
       status: statusOf(post, scheduled),
-      type: post.type,
+      type: currentPostType(post.type, post.imageIds.length),
       format: post.format ?? null,
       purpose: post.purpose ?? null,
       secondaryPurpose: post.secondaryPurpose ?? null,
