@@ -20,7 +20,7 @@ Em **Perfil › Plano e uso**: o plano atual, a porcentagem da cota usada, a ren
 ## Planos
 
 - **Básico** e **Profissional**, mensais ou anuais.
-- **ChatGPT**: usa a assinatura do ChatGPT do dono para conversas e imagens. Veja [Conexões](/docs/conexoes).
+- **ChatGPT**: usa a assinatura do ChatGPT do dono para conversas e imagens enquanto a conta OpenAI está conectada. Sem a conexão, conversas e imagens usam o saldo do plano e param quando ele acaba; **Perfil › Plano e uso** mostra o aviso "Conta OpenAI desconectada" com o botão para conectar de novo. Veja [Conexões](/docs/conexoes).
 
 ## Mudar de plano
 
