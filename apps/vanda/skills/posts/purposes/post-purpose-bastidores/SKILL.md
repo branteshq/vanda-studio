@@ -1,6 +1,6 @@
 ---
 name: post-purpose-bastidores
-description: "Propósito de post bastidores — humanizar: equipe, processo, rotina, produção, por trás das câmeras."
+description: "Propósito de post bastidores — humanizar: equipe, processo, rotina, preparo, fabricação, por trás das câmeras."
 allowed-tools: paint create_post
 ---
 

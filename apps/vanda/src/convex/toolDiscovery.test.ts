@@ -372,3 +372,42 @@ describe("discovery execution", () => {
     },
   );
 });
+
+describe("post skill ranking", () => {
+  // Queries Vanda actually sent in the skill benchmark; a plain word count tied
+  // every purpose and the alphabet (or "produção") handed the slot to bastidores.
+  it.each([
+    [
+      "habilidades post-production carrossel infinito contínuo panorâmico e propósito post produto; produção carrossel Instagram",
+      "post-purpose-produto",
+    ],
+    [
+      "habilidade produção carrossel infinito contínuo panorâmico post-production propósito educacional prevenção mofo",
+      "post-purpose-educacional",
+    ],
+    [
+      "post-production carrossel infinito contínuo panorâmico loop; post propósito storytelling; skill produção carrossel infinito",
+      "post-purpose-storytelling",
+    ],
+    ["carrossel propósito dados enquete resultado", "post-purpose-dados"],
+  ])("returns production, type and the named purpose for %s", async (query, purpose) => {
+    const result = await vandaToolDiscovery.search.execute!(
+      { query },
+      { toolCallId: "search", messages: [] },
+    );
+
+    const names = z
+      .object({ skills: z.array(z.object({ name: z.string() })) })
+      .parse(result)
+      .skills.map((skill) => skill.name);
+
+    expect(names).toContain(purpose);
+    // The named purpose outranks every other purpose.
+    expect(names.find((name) => name.startsWith("post-purpose-"))).toBe(purpose);
+    expect(names).not.toContain("post-purpose-bastidores");
+
+    if (query.includes("post-production")) expect(names[0]).toBe("post-production");
+
+    if (query.includes("infinito")) expect(names).toContain("post-type-infinite-carousel");
+  });
+});

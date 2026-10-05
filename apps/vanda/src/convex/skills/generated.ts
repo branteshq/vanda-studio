@@ -54,7 +54,7 @@ export const INSTALLED_SKILLS = [
   {
     name: "post-purpose-bastidores",
     description:
-      "Propósito de post bastidores — humanizar: equipe, processo, rotina, produção, por trás das câmeras.",
+      "Propósito de post bastidores — humanizar: equipe, processo, rotina, preparo, fabricação, por trás das câmeras.",
     body: "# Propósito: bastidores\n\n- Objetivo: humanizar a marca. Princípio: autenticidade, fotografia documental.\n- Estrutura: imagem única ou sequência do processo (antes → durante → depois).\n- Visual: aparência de foto real, luz natural, pessoas e mãos em ação, pouco texto sobre a imagem.\n- Texto e CTA: tom próximo, conte o que está acontecendo e por quê.\n- Decisões de estilo: aparência de foto real com luz natural; pessoas e mãos em ação; texto mínimo sobre a imagem.\n- Evite: estética de estúdio artificial, pessoas inventadas apresentadas como a equipe real.\n- Fatos necessários: o processo ou a equipe real; use fotos de referência para pessoas reais.",
     metadata: {},
     allowedTools: "paint create_post",
@@ -63,7 +63,7 @@ export const INSTALLED_SKILLS = [
     basePath: "/skills/post-purpose-bastidores",
     files: {
       "SKILL.md":
-        '---\nname: post-purpose-bastidores\ndescription: "Propósito de post bastidores — humanizar: equipe, processo, rotina, produção, por trás das câmeras."\nallowed-tools: paint create_post\n---\n\n# Propósito: bastidores\n\n- Objetivo: humanizar a marca. Princípio: autenticidade, fotografia documental.\n- Estrutura: imagem única ou sequência do processo (antes → durante → depois).\n- Visual: aparência de foto real, luz natural, pessoas e mãos em ação, pouco texto sobre a imagem.\n- Texto e CTA: tom próximo, conte o que está acontecendo e por quê.\n- Decisões de estilo: aparência de foto real com luz natural; pessoas e mãos em ação; texto mínimo sobre a imagem.\n- Evite: estética de estúdio artificial, pessoas inventadas apresentadas como a equipe real.\n- Fatos necessários: o processo ou a equipe real; use fotos de referência para pessoas reais.\n',
+        '---\nname: post-purpose-bastidores\ndescription: "Propósito de post bastidores — humanizar: equipe, processo, rotina, preparo, fabricação, por trás das câmeras."\nallowed-tools: paint create_post\n---\n\n# Propósito: bastidores\n\n- Objetivo: humanizar a marca. Princípio: autenticidade, fotografia documental.\n- Estrutura: imagem única ou sequência do processo (antes → durante → depois).\n- Visual: aparência de foto real, luz natural, pessoas e mãos em ação, pouco texto sobre a imagem.\n- Texto e CTA: tom próximo, conte o que está acontecendo e por quê.\n- Decisões de estilo: aparência de foto real com luz natural; pessoas e mãos em ação; texto mínimo sobre a imagem.\n- Evite: estética de estúdio artificial, pessoas inventadas apresentadas como a equipe real.\n- Fatos necessários: o processo ou a equipe real; use fotos de referência para pessoas reais.\n',
     },
     alwaysApply: false,
   },

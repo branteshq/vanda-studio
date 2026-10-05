@@ -30,8 +30,18 @@ const searchResultSchema = z.object({
   message: z.string(),
 });
 
-// Per search: enough tools to cover a task, and the few skills worth reading.
-const RESULTS = { tool: 4, skill: 3 } as const;
+// Per search: enough tools to cover a task, and the skills worth reading. A post
+// search asks for three at once (production, type, purpose), so three is too tight.
+const RESULTS = { tool: 4, skill: 5 } as const;
+
+// Name words every skill of a family shares; only the rest identify one skill.
+const FAMILY_WORDS = new Set(["post", "purpose", "type"]);
+
+// A query word that names a skill ("produto" for post-purpose-produto) outweighs
+// any description word; naming the entry exactly guarantees it a place.
+const NAME_WEIGHT = 3;
+
+const EXACT_NAME = 100;
 
 const normalize = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
@@ -68,6 +78,23 @@ export function toolDiscovery<Tools extends ToolSet>(
     ...skills.map((skill) => ({ kind: "skill" as const, keywords: "", ...skill })),
   ];
 
+  const indexed = catalog.map((entry) => ({
+    entry,
+    tokens: new Set(words(`${entry.name} ${entry.description} ${entry.keywords}`)),
+    // Skill names are chosen to identify; tool names (read_instagram_post) are generic.
+    nameTokens: new Set(
+      entry.kind === "skill" ? words(entry.name).filter((word) => !FAMILY_WORDS.has(word)) : [],
+    ),
+  }));
+
+  // Rare words decide the ranking: "post" and "propósito" sit in every purpose
+  // skill, so a plain count lets any incidental word (or the alphabet) pick one.
+  const weight = (term: string) => {
+    const frequency = indexed.filter(({ tokens }) => tokens.has(term)).length;
+
+    return Math.log((indexed.length + 1) / (frequency + 1)) + 0.1;
+  };
+
   const deferredNames = new Set(toolEntries.map((entry) => entry.name));
   const core = ["tool_search", ...Object.keys(tools).filter((name) => !deferredNames.has(name))];
 
@@ -83,10 +110,20 @@ export function toolDiscovery<Tools extends ToolSet>(
       const normalizedQuery = normalize(query.trim());
       const exact = catalog.find((entry) => entry.name === normalizedQuery);
 
-      const ranked = (exact ? [exact] : catalog).flatMap((entry) => {
-        const tokens = new Set(words(`${entry.name} ${entry.description} ${entry.keywords}`));
+      const ranked = indexed.flatMap(({ entry, tokens, nameTokens }) => {
+        if (exact && entry !== exact) return [];
 
-        const score = normalizedQuery === "*" ? 1 : terms.filter((term) => tokens.has(term)).length;
+        if (normalizedQuery === "*") return [{ entry, score: 1 }];
+
+        const named = normalizedQuery.includes(entry.name) ? EXACT_NAME : 0;
+
+        const score = terms.reduce(
+          (total, term) =>
+            total +
+            (tokens.has(term) ? weight(term) : 0) +
+            (nameTokens.has(term) ? NAME_WEIGHT * weight(term) : 0),
+          named,
+        );
 
         return score > 0 ? [{ entry, score }] : [];
       });
