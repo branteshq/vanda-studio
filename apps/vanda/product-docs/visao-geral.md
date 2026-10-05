@@ -21,7 +21,7 @@ Os dois usam as mesmas ferramentas: criar imagens e posts, pesquisar o mercado, 
 - **Conversa**: onde se pede trabalho à Vanda.
 - **Galeria**: imagens geradas e enviadas do negócio.
 - **Calendário**: posts em rascunho, agendados, publicados ou com falha.
-- **Perfil**: plano e uso, modelos, conexões, marca, memória e skills.
+- **Perfil**: sua conta e plano, as conexões e o arquivo da marca de cada negócio.
 
 ## Vários negócios
 

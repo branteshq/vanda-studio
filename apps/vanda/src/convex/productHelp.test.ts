@@ -11,7 +11,7 @@ describe("productHelp", () => {
     ["como conectar meu instagram?", "conexoes"],
     ["qual é o limite de uso do plano?", "planos-e-uso"],
     ["onde encontro meus rascunhos?", "posts-e-agendamento"],
-    ["cores e preferências da marca", "marca-e-memoria"],
+    ["cores e preferências da marca", "arquivo-da-marca"],
     ["como vincular o whatsapp do caetano", "caetano-no-whatsapp"],
     ["trocar o modelo de imagem", "modelos"],
   ])("finds the docs page for %s", async (query, slug) => {
@@ -26,7 +26,10 @@ describe("productHelp", () => {
     const exact = await search("/docs/modelos");
     const browse = await search("*");
 
-    expect(exact).toHaveProperty("page.markdown", expect.stringContaining("Perfil › Modelos"));
+    expect(exact).toHaveProperty(
+      "page.markdown",
+      expect.stringContaining("Perfil › Avançado › Modelos"),
+    );
     expect(browse).toHaveProperty("results.length", productDocs().length);
   });
 

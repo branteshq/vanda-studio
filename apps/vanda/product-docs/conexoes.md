@@ -9,7 +9,7 @@ keywords: conexao conexoes conectar reconectar instagram publicar openai chatgpt
 
 ## Instagram
 
-Cada negócio conecta o próprio Instagram em **Perfil › negócio › Conexões**. A conexão permite publicar e ler métricas privadas. Se uma publicação falhar por conexão expirada, conecte de novo.
+Cada negócio conecta o próprio Instagram em **Perfil › Conexões**, que lista uma linha por negócio. A conexão permite publicar e ler métricas privadas. Se uma publicação falhar por conexão expirada, conecte de novo.
 
 ## Conta OpenAI
 

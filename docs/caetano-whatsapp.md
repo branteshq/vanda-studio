@@ -77,7 +77,7 @@ Production onboarding does not require sandbox activation. Link the production a
 
 ## Link the Vanda account
 
-In the authenticated web app, open Perfil → Conta → Caetano no WhatsApp (the sidebar's Caetano entry leads there until the phone is linked, and opens the WhatsApp chat afterwards). Generate a link, open it and send the prefilled `vanda conectar …` message. This is a separate code from Kapso's activation code. Sending it also opens the messaging window. In live testing, Kapso rejected a send immediately after sandbox activation with HTTP 422, saying the 24-hour window was closed. The adapter holds those replies until a fresh incoming message.
+In the authenticated web app, open Perfil › Conexões › Caetano no WhatsApp (the sidebar's Caetano entry leads there until the phone is linked, and opens the WhatsApp chat afterwards). Generate a link, open it and send the prefilled `vanda conectar …` message. This is a separate code from Kapso's activation code. Sending it also opens the messaging window. In live testing, Kapso rejected a send immediately after sandbox activation with HTTP 422, saying the 24-hour window was closed. The adapter holds those replies until a fresh incoming message.
 
 The application stores only a SHA-256 token hash, valid for 10 minutes and consumed once. Tokens never enter the agent conversation. An already-active sender cannot be reassigned to another account. Reassignment after disconnect creates a new connection row so old queued responses cannot reach the new owner. The user can revoke the connection in Perfil; an HTTP send already in flight may still arrive.
 

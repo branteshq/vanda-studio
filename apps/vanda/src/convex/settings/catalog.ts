@@ -38,14 +38,16 @@ export interface SettingDefinition {
 }
 
 /**
- * Public functions the Perfil UI calls that are not settings: browsing the
- * account workspace. The drift test requires every other call to be claimed
- * by a setting above.
+ * Public functions the Perfil UI calls that are not settings: the brand file and
+ * the visual kit. The drift test requires every other call to be claimed by a
+ * setting above.
  */
 export const NON_SETTING_UI_FUNCTIONS = [
-  "workspacePublic.installedSkills",
+  // The brand file is what Vanda knows, edited as a document, not a setting.
+  "brandFile.get",
+  "brandFile.save",
+  // The visual kit shown beside it.
   "workspacePublic.file",
-  "workspacePublic.browse",
 ] as const;
 
 const textModelOptions = ({ conectado }: OptionContext): readonly SettingOption[] =>
@@ -69,7 +71,7 @@ export const SETTINGS = [
     title: "Modelo da Vanda",
     description:
       "Modelo de linguagem que pensa como a Vanda nas conversas do aplicativo. Vale a partir do próximo turno.",
-    where: "Perfil › Modelos",
+    where: "Perfil › Avançado › Modelos",
     route: "/perfil",
     access: "write",
     options: textModelOptions,
@@ -82,7 +84,7 @@ export const SETTINGS = [
     title: "Modelo do Caetano",
     description:
       "Modelo de linguagem do Caetano no WhatsApp, independente do modelo da Vanda. Vale a partir do próximo turno.",
-    where: "Perfil › Modelos",
+    where: "Perfil › Avançado › Modelos",
     route: "/perfil",
     access: "write",
     options: textModelOptions,
@@ -95,7 +97,7 @@ export const SETTINGS = [
     title: "Modelo de imagem",
     description:
       "Modelo padrão para gerar e editar imagens. No plano ChatGPT, as imagens rodam pela assinatura conectada.",
-    where: "Perfil › Modelos",
+    where: "Perfil › Avançado › Modelos",
     route: "/perfil",
     access: "write",
     options: imageModelOptions,
@@ -122,11 +124,11 @@ export const SETTINGS = [
     title: "Plano e uso",
     description:
       "Plano atual, percentual da cota usada no período, renovação e mudança de plano agendada. A cota é compartilhada entre os negócios do dono.",
-    where: "Perfil › Plano e uso",
+    where: "Perfil › Gerenciar plano",
     route: "/perfil",
     access: "read",
     change:
-      "Só o dono muda de plano ou paga, em Perfil › Plano e uso. Envie esse caminho em vez de tentar mudar.",
+      "Só o dono muda de plano ou paga, em Perfil › Gerenciar plano. Envie esse caminho em vez de tentar mudar.",
     doc: "planos-e-uso",
     uiFunctions: [
       "usage.summary",
@@ -143,11 +145,11 @@ export const SETTINGS = [
     title: "Instagram do negócio ativo",
     description:
       "Se o Instagram do negócio ativo está conectado para publicar e ler métricas, e com qual @.",
-    where: "Perfil › negócio › Conexões",
+    where: "Perfil › Conexões",
     route: "/perfil",
     access: "read",
     change:
-      "O dono conecta ou reconecta em Perfil › negócio › Conexões; a conexão passa pelo login do Instagram.",
+      "O dono conecta ou reconecta em Perfil › Conexões; a conexão passa pelo login do Instagram.",
     doc: "conexoes",
     uiFunctions: [
       "publisherConnect.connectionStatus",

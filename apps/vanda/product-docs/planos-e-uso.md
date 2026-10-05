@@ -9,7 +9,7 @@ keywords: plano planos uso cota limite renovacao assinatura cobranca pagamento t
 
 ## Onde ver
 
-Em **Perfil › Plano e uso**: o plano atual, a porcentagem da cota usada, a renovação e mudanças de plano agendadas. A tela não mostra custo interno em dinheiro.
+No topo do **Perfil**: o plano atual, a porcentagem da cota usada e a renovação. Em **Perfil › Gerenciar plano** ficam os planos, as mudanças agendadas e a cobrança. A tela não mostra custo interno em dinheiro.
 
 ## Como a cota funciona
 
@@ -24,4 +24,4 @@ Em **Perfil › Plano e uso**: o plano atual, a porcentagem da cota usada, a ren
 
 ## Mudar de plano
 
-Só o dono muda de plano ou paga, em **Perfil › Plano e uso**. A Vanda e o Caetano podem dizer o plano e o uso atuais, mas não alteram a assinatura.
+Só o dono muda de plano ou paga, em **Perfil › Gerenciar plano**. A Vanda e o Caetano podem dizer o plano e o uso atuais, mas não alteram a assinatura.

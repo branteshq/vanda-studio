@@ -7,6 +7,7 @@ import { NON_SETTING_UI_FUNCTIONS, SETTINGS } from "./catalog";
 // The Perfil page and the cards it renders from other files.
 const PERFIL_SOURCES = [
   "../../routes/_dashboard.perfil.tsx",
+  "../../components/profile/runtime.tsx",
   "../../components/whatsapp-settings.tsx",
 ];
 

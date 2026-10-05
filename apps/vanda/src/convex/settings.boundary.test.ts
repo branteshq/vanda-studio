@@ -71,7 +71,7 @@ describe("platform settings registry", () => {
 
     await expect(
       t.mutation(internal.settingsData.set, { userId, id: "billing.plan", value: "profissional" }),
-    ).rejects.toThrow("Perfil › Plano e uso");
+    ).rejects.toThrow("Perfil › Gerenciar plano");
     await expect(
       t.mutation(internal.settingsData.set, { userId, id: "nope", value: "x" }),
     ).rejects.toThrow("configuração desconhecida");
@@ -93,7 +93,7 @@ describe("platform settings registry", () => {
     const { setting } = await t.query(internal.settingsData.get, { userId, id: "models.image" });
     expect(setting).toMatchObject({
       access: "write",
-      where: "Perfil › Modelos",
+      where: "Perfil › Avançado › Modelos",
       docs: "/docs/modelos",
     });
     expect(setting?.options?.length).toBeGreaterThan(1);

@@ -7,7 +7,7 @@ keywords: modelo modelos vanda caetano imagem imagens trocar mudar padrao gpt cl
 
 # Modelos
 
-Há três escolhas independentes em **Perfil › Modelos**:
+A Vanda já começa com bons modelos. Para trocar, há três escolhas independentes em **Perfil › Avançado › Modelos**:
 
 - **Modelo da Vanda**: quem pensa nas conversas do aplicativo.
 - **Modelo do Caetano**: quem pensa no WhatsApp.

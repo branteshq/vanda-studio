@@ -123,6 +123,7 @@ import type * as workspace_mounts_brand from "../workspace/mounts/brand.js";
 import type * as workspace_mounts_docs from "../workspace/mounts/docs.js";
 import type * as workspace_mounts_images from "../workspace/mounts/images.js";
 import type * as workspace_mounts_instagram from "../workspace/mounts/instagram.js";
+import type * as workspace_mounts_legacy from "../workspace/mounts/legacy.js";
 import type * as workspace_mounts_market from "../workspace/mounts/market.js";
 import type * as workspace_mounts_posts from "../workspace/mounts/posts.js";
 import type * as workspace_mounts_runs from "../workspace/mounts/runs.js";
@@ -253,6 +254,7 @@ declare const fullApi: ApiFromModules<{
   "workspace/mounts/docs": typeof workspace_mounts_docs;
   "workspace/mounts/images": typeof workspace_mounts_images;
   "workspace/mounts/instagram": typeof workspace_mounts_instagram;
+  "workspace/mounts/legacy": typeof workspace_mounts_legacy;
   "workspace/mounts/market": typeof workspace_mounts_market;
   "workspace/mounts/posts": typeof workspace_mounts_posts;
   "workspace/mounts/runs": typeof workspace_mounts_runs;

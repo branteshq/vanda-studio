@@ -5,7 +5,6 @@ import { getFunctionName } from "convex/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
-import { installedSkillSummaries } from "../convex/skills/catalog";
 import { ProfilePage } from "../routes/_dashboard.perfil";
 
 // SAFETY: test IDs model opaque identifiers without pretending to be account records.
@@ -23,6 +22,7 @@ const mocks = {
   navigate: vi.fn(),
   selectAccount: vi.fn(),
   openUserProfile: vi.fn(),
+  saveBrandFile: vi.fn().mockResolvedValue(undefined),
   // SAFETY: the mutable fixture intentionally models Clerk's nullable first name.
   user: { fullName: "Test Owner", firstName: "Test" as string | null },
 };
@@ -65,12 +65,12 @@ const runtime = {
     pollDeviceAuth: mocks.action,
     disconnect: mocks.action,
   }),
-  useInstalledSkills: (accountId: string) =>
-    mocks.query(api.workspacePublic.installedSkills, { accountId }),
-  useWorkspaceFile: (accountId: string, path: string, skip: boolean) =>
-    mocks.query(api.workspacePublic.file, skip ? "skip" : { accountId, path }),
-  useWorkspaceBrowse: (accountId: string, path: string) =>
-    mocks.query(api.workspacePublic.browse, { accountId, path }),
+  useBrandFile: (accountId: string) => ({
+    file: mocks.query(api.brandFile.get, { accountId }),
+    save: mocks.saveBrandFile,
+  }),
+  useWorkspaceFile: (accountId: string, path: string) =>
+    mocks.query(api.workspacePublic.file, { accountId, path }),
   WhatsAppSettings: () => createElement("p", null, "Caetano no WhatsApp"),
 };
 
@@ -91,16 +91,22 @@ beforeEach(async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   vi.clearAllMocks();
   mocks.user.firstName = "Test";
-  mocks.query.mockImplementation((ref, args) => {
+  mocks.query.mockImplementation((ref, args: { accountId: string }) => {
     const name = getFunctionName(ref);
 
     if (name === "usage:summary") return { plan: "profissional", usedPct: 37 };
 
-    if (name === "workspacePublic:browse") return { ok: true, entries: [] };
+    if (name === "workspacePublic:file") return { ok: false };
 
-    if (name === "workspacePublic:installedSkills") return installedSkillSummaries();
-
-    if (name === "workspacePublic:file") return args === "skip" ? undefined : { ok: false };
+    if (name === "brandFile:get")
+      return {
+        content: `# Marca · ${args.accountId}\n\n## Tom e voz\n\n- Sem gírias (dono)\n`,
+        persisted: true,
+        updatedAt: Date.UTC(2026, 9, 1),
+        updatedBy: "owner",
+        bytes: 60,
+        maxBytes: 24_000,
+      };
 
     if (name === "whatsappData:state")
       return { connected: false, configured: true, deliveries: [] };
@@ -134,7 +140,7 @@ it.each([
 
     return undefined;
   });
-  await click("Modelos");
+  await act(async () => root.render(createElement(ProfilePage, { runtime })));
   const picker = container.querySelector('[aria-label="Modelo de imagens"]');
 
   expect(picker).not.toBeNull();
@@ -175,7 +181,7 @@ it.each(["Modelo de conversa", "Modelo do Caetano"])(
 
       return undefined;
     });
-    await click("Modelos");
+    await act(async () => root.render(createElement(ProfilePage, { runtime })));
     await click(label);
 
     const muse = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((option) =>
@@ -195,147 +201,94 @@ it.each(["Modelo de conversa", "Modelo do Caetano"])(
   },
 );
 
-it("refreshes billing on arrival without opening the plan comparison", () => {
-  expect(mocks.action).toHaveBeenCalledTimes(1);
-  expect(container.querySelector("h1")?.textContent).toBe("Conta");
-  expect(container.querySelector("dl")?.textContent).toContain("Test Owner");
+it("shows the account, plan, connections and businesses on one page", () => {
+  // Billing refreshes once on arrival (no args); Instagram rows sync per business.
+  expect(mocks.action.mock.calls.filter((call) => call.length === 0)).toHaveLength(1);
+  expect(container.querySelector("h1")?.textContent).toBe("Perfil");
+  expect(container.textContent).toContain("Test Owner");
   expect(container.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("37");
   expect(container.textContent).not.toContain("Escolha seu plano");
-});
-
-it("labels the personal page with the first name and omits sidebar branding", async () => {
-  expect(container.querySelector('header [aria-label="Test"]')?.getAttribute("aria-pressed")).toBe(
-    "true",
-  );
-  expect(container.querySelector("aside")?.textContent).not.toContain("Vanda Studio");
-  expect(container.querySelector("aside")?.textContent).toContain("Sair da conta");
-  mocks.user.firstName = null;
-  await act(async () => root.render(createElement(ProfilePage, { runtime })));
-  expect(container.querySelector('header [aria-label="Minha conta"]')).not.toBeNull();
-});
-
-it("separates account settings and marks the selected destination", async () => {
-  await click("Plano e uso");
-  expect(container.querySelector('[aria-current="page"]')?.textContent).toBe("Plano e uso");
-  expect(container.textContent).toContain("Escolha seu plano");
-  expect(container.textContent).not.toContain("Caetano no WhatsApp");
-  await click("Conexões");
   expect(container.textContent).toContain("Caetano no WhatsApp");
-  expect(container.textContent).not.toContain("Instagram · Business A");
-  expect(container.textContent).not.toContain("Escolha seu plano");
-  expect(container.querySelector('[aria-label="Negócio em foco"]')).toBeNull();
-  await click("Business A");
-  await click("Conexões");
   expect(container.textContent).toContain("Instagram · Business A");
-  expect(container.textContent).not.toContain("Caetano no WhatsApp");
-  expect(container.querySelector('[aria-label="Negócio em foco"]')).toBeNull();
-  await click("Business B");
   expect(container.textContent).toContain("Instagram · Business B");
-  expect(container.textContent).not.toContain("Instagram · Business A");
-  expect(container.querySelector('header [aria-label="Unfinished"]')).toBeNull();
+  expect(container.textContent).not.toContain("Instagram · Unfinished");
+  expect(container.textContent).toContain("Cadastro incompleto");
+  expect(container.textContent).not.toContain("Skills");
 });
 
-it("offers a business-scoped path from empty memory back to the conversation", async () => {
-  await click("Business A");
-  await click("Memória");
-  expect(container.textContent).toContain("Nenhuma nota ainda");
-  await click("Ajuste com a Vanda na conversa");
-  expect(mocks.selectAccount).toHaveBeenCalledWith("business-a");
-  expect(mocks.navigate).toHaveBeenCalledWith({ to: "/conversa", search: {} });
-});
-
-it("remembers each scope's destination instead of showing the wrong settings", async () => {
-  await click("Modelos");
-  await click("Business A");
-  expect(container.querySelector("aside")?.textContent).not.toContain("Templates");
-  await click("Skills");
-  expect(container.textContent).toContain("post-production");
-  expect(container.textContent).not.toContain("post-instagram-template");
-  expect(container.textContent).not.toContain("prompt-foto-fiel");
-  await click("Test");
-  expect(container.querySelector("h1")?.textContent).toBe("Modelos");
-  expect(container.querySelector('[aria-current="page"]')?.textContent).toBe("Modelos");
-  await click("Business A");
-  expect(container.querySelector("h1")?.textContent).toBe("Skills");
-  expect(container.querySelector('[aria-current="page"]')?.textContent).toBe("Skills");
-});
-
-it("opens the real profile editor and routes plan management to billing", async () => {
-  await click("Editar perfil");
+it("opens the profile editor and toggles plan management in place", async () => {
+  await click("Editar");
   expect(mocks.openUserProfile).toHaveBeenCalledTimes(1);
   await click("Gerenciar plano");
-  expect(container.querySelector("h1")?.textContent).toBe("Plano e uso");
-  expect(container.textContent).toContain("Gerenciar cobrança e faturas");
+  expect(container.textContent).toContain("Escolha seu plano");
+  expect(container.textContent).toContain("Cobrança e faturas");
+  await click("Fechar planos");
+  expect(container.textContent).not.toContain("Escolha seu plano");
+});
+
+it("opens a business's brand file and the onboarding for unfinished ones", async () => {
+  await click("Business AVer arquivo da marca");
+  expect(mocks.navigate).toHaveBeenLastCalledWith({
+    to: "/perfil",
+    search: { marca: "business-a" },
+  });
+  await click("UnfinishedCadastro incompleto. Concluir");
+  expect(mocks.navigate).toHaveBeenLastCalledWith({
+    to: "/onboarding",
+    search: { accountId: "unfinished" },
+  });
+  await click("Adicionar negócio");
+  expect(mocks.navigate).toHaveBeenLastCalledWith({ to: "/onboarding", search: { flow: "add" } });
+});
+
+it("reads and edits the brand file, then hands off to the conversation", async () => {
+  await act(async () => root.render(createElement(ProfilePage, { runtime, marca: "business-a" })));
+  expect(container.querySelector("h1")?.textContent).toBe("Business A");
+  expect(container.textContent).toContain("Sem gírias (dono)");
+  expect(container.textContent).toContain("Atualizado por você");
+
+  await click("Editar");
+  const editor = container.querySelector<HTMLTextAreaElement>('[aria-label="Arquivo da marca"]');
+  expect(editor?.value).toContain("Sem gírias (dono)");
+  await act(async () => {
+    const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
+    setValue.call(editor, `${editor!.value}- Sem emojis (dono)\n`);
+    editor!.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await click("Salvar");
+  expect(mocks.saveBrandFile).toHaveBeenCalledWith(expect.stringContaining("Sem emojis (dono)"));
+  expect(container.querySelector('[aria-label="Arquivo da marca"]')).toBeNull();
+
+  await click("Ajustar com a Vanda na conversa");
+  expect(mocks.selectAccount).toHaveBeenCalledWith("business-a");
+  expect(mocks.navigate).toHaveBeenLastCalledWith({ to: "/conversa", search: {} });
+});
+
+it("does not open the brand file of a business that has not finished onboarding", async () => {
+  await act(async () => root.render(createElement(ProfilePage, { runtime, marca: "unfinished" })));
+  expect(container.textContent).toContain("Negócio não encontrado");
+  expect(container.textContent).not.toContain("Arquivo da marca");
+});
+
+it("warns when the ChatGPT plan runs without a connected OpenAI account", async () => {
+  mocks.query.mockImplementation((ref) => {
+    const name = getFunctionName(ref);
+
+    if (name === "usage:summary") return { plan: "conectado", usedPct: 12 };
+
+    if (name === "openaiSub:connectionStatus") return { connected: false };
+
+    return undefined;
+  });
+  await act(async () => root.render(createElement(ProfilePage, { runtime })));
+  expect(container.textContent).toContain("Sua conta OpenAI não está conectada");
+  expect(container.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("12");
+  expect(container.textContent).toContain("Conta OpenAI");
 });
 
 it("does not claim zero usage or a trial plan while the summary is loading", async () => {
   mocks.query.mockReturnValue(undefined);
   await act(async () => root.render(createElement(ProfilePage, { runtime })));
-  expect(container.querySelector('[aria-label="Carregando uso do plano"]')).not.toBeNull();
   expect(container.querySelector('[role="progressbar"]')).toBeNull();
   expect(container.textContent).not.toContain("Teste grátis");
-});
-
-const renderConectado = async (connected: boolean) => {
-  mocks.query.mockImplementation((ref) => {
-    const name = getFunctionName(ref);
-
-    // Mirrors usage.summary: chat is limited only off ChatGPT.
-    if (name === "usage:summary")
-      return {
-        plan: "conectado",
-        usedPct: 100,
-        limited: true,
-        chatLimited: !connected,
-        viaChatGpt: connected,
-      };
-
-    if (name === "openaiSub:connectionStatus") return { connected, connectedAt: null };
-
-    if (name === "whatsappData:state")
-      return { connected: false, configured: true, deliveries: [] };
-
-    return undefined;
-  });
-  await act(async () => root.render(createElement(ProfilePage, { runtime })));
-};
-
-it("only claims ChatGPT usage while the OpenAI account is actually connected", async () => {
-  await renderConectado(true);
-  expect(container.textContent).toContain("Uso pela sua assinatura do ChatGPT");
-  expect(container.querySelector('[role="alert"]')).toBeNull();
-});
-
-it("follows the backend's routing for a lingering OpenAI login without a plan", async () => {
-  mocks.query.mockImplementation((ref) => {
-    const name = getFunctionName(ref);
-
-    if (name === "usage:summary")
-      return { plan: null, usedPct: 0, limited: false, chatLimited: false, viaChatGpt: true };
-
-    if (name === "openaiSub:connectionStatus") return { connected: true, connectedAt: null };
-
-    if (name === "whatsappData:state")
-      return { connected: false, configured: true, deliveries: [] };
-
-    return undefined;
-  });
-  await act(async () => root.render(createElement(ProfilePage, { runtime })));
-  expect(container.textContent).toContain("Uso pela sua assinatura do ChatGPT");
-  expect(container.textContent).not.toContain("Crédito de teste");
-});
-
-it("warns and routes to connections when the Conectado plan lost its OpenAI login", async () => {
-  await renderConectado(false);
-  expect(container.textContent).not.toContain("Uso pela sua assinatura do ChatGPT");
-  expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-    "Conta OpenAI desconectada",
-  );
-  // The balance bar is real again: usage falls back to the plan's balance.
-  expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
-  expect(container.textContent).toContain("Limite atingido. Conecte sua conta OpenAI");
-  expect(container.textContent).not.toContain("Mude de plano");
-
-  await click("Conectar OpenAI");
-  expect(container.querySelector("h1")?.textContent).toBe("Conexões");
 });
