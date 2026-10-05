@@ -762,10 +762,20 @@ type WeaveArgs = {
 const weaveOutputSchema = z.object({
   slides: z.array(z.object({ imageId: z.string() })),
   strip: z.object({ imageId: z.string(), url: z.string() }).optional(),
+  cuts: z.object({ imageId: z.string(), url: z.string() }).optional(),
   seams: z.array(
     z.object({ seam: z.string(), bridge: z.string(), score: z.number(), woven: z.boolean() }),
   ),
 });
+
+const CUTS_CHECK =
+  "A segunda imagem mostra cada corte de perto, na ordem (1→2, 2→3, …, a volta por último): confira em cada um se alguma letra foi cortada ou apagada, se um texto encosta em objeto e se algum objeto flutua sem apoio. Se houver defeito, refaça só aquele corte com weave_infinite_carousel e onlySeams antes do create_post.";
+
+/** The strip, then the cut close-ups, when the carousel is finished. */
+const previewImages = (data: z.infer<typeof weaveOutputSchema>) =>
+  [data.strip, data.cuts].flatMap((preview) =>
+    preview ? [{ type: "image-url" as const, url: preview.url }] : [],
+  );
 
 const weaveInfiniteCarousel = createTool({
   description:
@@ -853,11 +863,12 @@ const weaveInfiniteCarousel = createTool({
           text: [
             `Slides costurados, na ordem: ${data.slides.map((slide) => `imageId=${slide.imageId}`).join(", ")}.`,
             `Emendas: ${data.seams.map((seam) => `${seam.seam} nota ${seam.score}${seam.woven ? "" : " (mantida)"}`).join("; ")}.`,
-            "A imagem é a prévia em faixa (o slide 1 se repete no fim para mostrar a volta). Inspecione cada emenda e cada slide nela antes de create_post; use read num imageId só se precisar ver um slide de perto. Use os novos imageIds.",
+            "A primeira imagem é a prévia em faixa (o slide 1 se repete no fim para mostrar a volta). Use read num imageId só se precisar ver um slide inteiro de perto. Use os novos imageIds.",
+            ...(data.cuts ? [CUTS_CHECK] : []),
           ].join(" "),
         },
-        // Only the strip: every slide at full size would flood the context.
-        ...(data.strip ? [{ type: "image-url" as const, url: data.strip.url }] : []),
+        // The strip and the cut close-ups: every slide at full size would flood the context.
+        ...previewImages(data),
       ],
     };
   },
@@ -986,12 +997,13 @@ const extendInfiniteCarousel = createTool({
             `Cadeia atual, na ordem: ${data.slides.map((slide) => `imageId=${slide.imageId}`).join(", ")}.`,
             `Cortes: ${data.seams.map((seam) => `${seam.seam} nota ${seam.score}`).join("; ")}.`,
             closed
-              ? "A volta está fechada. A imagem é a prévia final em faixa com o slide 1 repetido no fim: inspecione uma vez e use estes imageIds no create_post."
+              ? "A volta está fechada. A primeira imagem é a prévia final em faixa com o slide 1 repetido no fim; use estes imageIds no create_post."
               : "Passe estes imageIds na próxima chamada, sem read e sem comentar no chat; a prévia vem só quando a volta fechar.",
+            ...(closed && data.cuts ? [CUTS_CHECK] : []),
           ].join(" "),
         },
-        // One preview at the end; every slide at full size would flood the context.
-        ...(data.strip ? [{ type: "image-url" as const, url: data.strip.url }] : []),
+        // Previews only at the end; every slide at full size would flood the context.
+        ...previewImages(data),
       ],
     };
   },

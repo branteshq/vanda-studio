@@ -156,4 +156,29 @@ describe("seamWeave", () => {
     expect(pixel(next, 1, 0)).toEqual([200, 200, 200]); // patch x=3 → next x=1
     expect(pixel(next, 2, 0)).toEqual([0, 0, 0]);
   });
+
+  it("keeps letters the repaint erased but lets a new bridge object through", () => {
+    const size = 400;
+    const left = solid(size, size, [240, 230, 220]);
+    const right = solid(size, size, [240, 230, 220]);
+
+    // Stripes stand in for type on left's right edge, 30 px before the cut.
+    for (let y = 40; y < 120; y++)
+      for (let x = size - 60; x < size - 30; x++)
+        if (x % 4 < 2) left.data.set([40, 20, 10], (y * size + x) * 4);
+
+    // The repaint is plain where the stripes were and adds a bar across the cut lower down.
+    const repaint = solid(size, size, [240, 230, 220]);
+    const cut = size - Math.floor(size / 2);
+
+    for (let y = 300; y < 340; y++)
+      for (let x = cut - 50; x < cut + 50; x++)
+        if (x % 4 < 2) repaint.data.set([30, 30, 200], (y * size + x) * 4);
+
+    blendBand(left, right, repaint, weaveGeometry(size));
+
+    expect(pixel(left, size - 60, 80)).toEqual([40, 20, 10]); // letter kept
+    expect(pixel(left, size - 40, 320)).toEqual([30, 30, 200]); // bridge pasted
+    expect(pixel(right, 20, 320)).toEqual([30, 30, 200]);
+  });
 });

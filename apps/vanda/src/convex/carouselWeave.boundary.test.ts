@@ -58,6 +58,10 @@ async function runDiscards(t: Test) {
     await t.mutation(internal.gallery.discardChainSlides, job.args[0]);
   }
 
+  // The cut close-ups leave on the same delay.
+  for (const job of jobs.filter((entry) => entry.name.includes("discardWorking")))
+    await t.mutation(internal.gallery.discardWorking, job.args[0]);
+
   return discards;
 }
 
@@ -100,8 +104,9 @@ describe("carouselWeave.weave", () => {
     for (const seam of result.seams) expect(seam.score).toBe(0);
 
     const images = await t.run((ctx) => ctx.db.query("images").collect());
-    // 3 sources + 3 woven slides + 1 strip; repainted seams were discarded.
-    expect(images).toHaveLength(7);
+    // 3 sources + 3 woven slides + strip + cut close-ups; repainted seams were discarded.
+    expect(images).toHaveLength(8);
+    expect(result.cuts).toBeDefined();
     const woven = images.find((image) => image._id === result.slides[0]!.imageId);
     expect(woven).toMatchObject({
       editOfImageId: imageIds[0],
@@ -164,8 +169,8 @@ describe("carouselWeave.weave", () => {
     expect(result.slides[1]!.imageId).toBe(imageIds[1]);
     expect(result.slides[0]!.imageId).not.toBe(imageIds[0]);
     expect(result.slides[2]!.imageId).not.toBe(imageIds[2]);
-    // 3 sources + 2 changed slides + 1 strip, and the replaced versions are queued for discard.
-    expect(await t.run((ctx) => ctx.db.query("images").collect())).toHaveLength(6);
+    // 3 sources + 2 changed slides + strip + cuts, and the replaced versions are queued for discard.
+    expect(await t.run((ctx) => ctx.db.query("images").collect())).toHaveLength(7);
     const [discard] = await runDiscards(t);
     expect(discard!.args[0].imageIds).toEqual([imageIds[0], imageIds[2]]);
     expect(result.seams[0]!.score).toBeGreaterThan(50);
@@ -394,7 +399,7 @@ describe("carouselWeave.extend", () => {
     expect(new Set(third.slides.map((slide) => slide.imageId)).size).toBe(3);
 
     // Superseded slides wait out the turn, so links the model already holds stay valid.
-    expect(await t.run((ctx) => ctx.db.query("images").collect())).toHaveLength(9);
+    expect(await t.run((ctx) => ctx.db.query("images").collect())).toHaveLength(10);
     await runDiscards(t);
 
     const images = await t.run((ctx) => ctx.db.query("images").collect());
@@ -407,7 +412,8 @@ describe("carouselWeave.extend", () => {
 
     for (const slide of third.slides) expect(ids.has(slide.imageId)).toBe(true);
     expect(third.strip).toBeDefined();
-    // 3 sources + 3 final slides + the one final strip.
+    expect(ids.has(third.cuts!.imageId)).toBe(false);
+    // 3 sources + 3 final slides + the one final strip; the cut close-ups are gone.
     expect(images).toHaveLength(7);
   });
 

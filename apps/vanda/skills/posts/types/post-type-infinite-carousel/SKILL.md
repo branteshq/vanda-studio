@@ -84,7 +84,7 @@ O carrossel é da marca, não da skill. O contexto da marca já está na convers
 ## 3. Regras de design
 
 1. **Herói no corte 1→2:** um só por carrossel, nascido no slide 1 e continuado no slide 2 pela ferramenta.
-2. **Toda costura tem uma ponte:** o herói no 1→2 e um satélite em cada um dos outros cortes, inclusive a volta. Satélites com 20–30% da altura, alternando cima e baixo, sem texto nem logo.
+2. **Toda costura tem uma ponte:** o herói no 1→2 e um satélite em cada um dos outros cortes, inclusive a volta. Satélites com 20–30% da altura, alternando cima e baixo, sem texto nem logo. **Numa cena com chão ou mesa, todo satélite está apoiado em algo visível** (a mesa, o piso, uma prateleira, um parapeito) ou pendurado (um galho, uma luminária). Só flutua em cena de céu, espaço ou água. Escreva o apoio na ponte: _"xícara de cerâmica apoiada na mesa, no terço inferior"_, nunca só _"no terço superior"_.
 3. **Ambiente contínuo:** o fundo encosta nas quatro bordas de todo slide. Proibido: moldura, vinheta, recorte de papel, mapa ou silhueta fechada, figura isolada no centro. Mudança de ambiente só em diagonal, dentro de um slide.
 4. **Ordem de profundidade** (de trás para a frente): ambiente → véu → brilho → plano médio desfocado → herói → satélites → cartões de evidência → texto → progresso e @perfil. Quanto mais longe, mais desfoque; o herói é nítido.
 5. **Colunas de texto** (fora das faixas repintadas):
@@ -129,15 +129,16 @@ Uma chamada por slide, em ordem:
 - `total`: quantos slides o carrossel terá (3 a 5), igual em toda chamada;
 - `loopBridge`: o satélite da volta N→1, igual em toda chamada. A ferramenta só o pinta quando o novo slide é o último, e então fecha a volta sozinha.
 
-As chamadas intermediárias devolvem só a cadeia e a nota do corte (perto de 0 = invisível). A chamada que fecha a volta traz a única prévia em faixa.
+As chamadas intermediárias devolvem só a cadeia e a nota do corte (perto de 0 = invisível). A chamada que fecha a volta traz a prévia em faixa e os **cortes de perto**: uma imagem com cada corte ampliado, na ordem (1→2, 2→3, …, a volta por último).
 
 ## 6. Revisão
 
 1. **Prévia em faixa:** o herói atravessa o corte 1→2 inteiro e reconhecível; cada satélite atravessa o seu corte; a volta N→1 é contínua; nenhum degrau de cor ou horizonte desalinhado; nenhum slide parece cartão.
-2. **Cada slide sozinho** carrega a sua mensagem; o slide 1 vende o deslize.
-3. **Texto** exato, legível e fora das bordas. Use `read` num imageId só se precisar ver um slide de perto.
+2. **Cortes de perto, um por um:** a faixa é pequena demais para defeitos de acabamento. Em cada corte, confira: nenhuma letra cortada, apagada ou pela metade; nenhum texto encostado num objeto; nenhum objeto flutuando sem apoio numa cena com chão ou mesa; nenhum objeto duplicado ou fantasma.
+3. **Cada slide sozinho** carrega a sua mensagem; o slide 1 vende o deslize.
+4. **Texto** exato e legível. Use `read` num imageId só se precisar ver um slide inteiro de perto.
 
-**Conserto (no máximo 1):** só se a prévia final mostrar um salto visível (objeto partido, degrau de cor), use `weave_infinite_carousel` com a cadeia final, uma ponte por corte e `onlySeams` com o número dele (1 = herói, N = volta). Nota alta sem salto visível não precisa de conserto. Se ainda houver salto, diga ao dono qual corte.
+**Conserto (no máximo 1 chamada):** se a faixa ou os cortes de perto mostrarem um defeito (salto, objeto partido, letra cortada, texto encostado, objeto flutuando ou duplicado), use `weave_infinite_carousel` com a cadeia final, uma ponte por corte (a do corte com defeito já com o apoio e longe do texto) e `onlySeams` com os números dos cortes ruins (1 = herói, N = volta). Nota alta sem defeito visível não precisa de conserto. Se o defeito continuar, diga ao dono qual corte e o que está errado.
 
 ### Falhas comuns
 
@@ -149,6 +150,7 @@ As chamadas intermediárias devolvem só a cadeia e a nota do corte (perto de 0 
 | Volta N→1 com salto                   | Os 20% da esquerda do slide 1 tinham objeto ou texto: conserte com `onlySeams: [N]`                                   |
 | Texto cortado ou apagado na borda     | O texto estava fora da coluna; no slide 1, mantenha-o entre 22% e 60%                                                 |
 | Texto sobre o herói                   | No slide 1, o herói só nos 35% da direita e o vão de 4% escrito no prompt; nos seguintes, a ferramenta já exige o vão |
+| Objeto flutuando no céu ou no ar      | A ponte não dizia onde o objeto se apoia: descreva o apoio (mesa, piso, galho) e refaça o corte com `onlySeams`       |
 | Números ou ponteiros errados no herói | O herói tinha detalhes exatos (relógio, placa, tela): troque por uma forma lisa, sem inscrição                        |
 
 ## 7. Entrega

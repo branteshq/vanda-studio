@@ -151,9 +151,196 @@ export const matchColors = (
   return out;
 };
 
+// Text guard. Generative repaints often drop letters they were told to keep, and
+// pasting the band back would erase them. Blocks where the original had strong
+// fine detail that the repaint lost keep the original pixels; blocks where the
+// repaint adds detail (the bridge object on plain background) still go through.
+const GUARD_BLOCK = 8;
+
+// Mean |dx|+|dy| luma per pixel above which a block reads as type or fine line art.
+const GUARD_DETAIL = 22;
+
+// The repaint "lost" a block's detail when it keeps less than this share of it
+// and is near flat there: erased type turns into plain background, while a
+// re-rendered subject (softer texture, same object) keeps some detail.
+const GUARD_LOSS = 0.5;
+
+const GUARD_FLAT = 8;
+
+// Erased type leaves the background around the letters as it was: at least this
+// share of the block's pixels match the repaint. A moved subject changes them all.
+const GUARD_KEPT = 0.35;
+
+const GUARD_MATCH = 14;
+
+// Erased type clusters into lines; a cluster taller than this (in blocks) and at
+// least twice as tall as wide is a moved subject's outline, which must not stay.
+const GUARD_OUTLINE = 16;
+
+// Fewer blocks than this is a speck of changed texture, not erased type.
+const GUARD_MIN_CLUSTER = 4;
+
+// Closest blocks to the cut always take the repaint, or the cut itself would show.
+const GUARD_MARGIN = 0.04;
+
+const luma = (image: Bitmap, x: number, y: number): number => {
+  const i = (y * image.width + x) * 4;
+
+  return 0.299 * image.data[i]! + 0.587 * image.data[i + 1]! + 0.114 * image.data[i + 2]!;
+};
+
+/** Mean gradient magnitude of a block, read through `at` so patch and slide share one function. */
+const blockDetail = (
+  at: (x: number, y: number) => number,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+): number => {
+  let total = 0;
+  let count = 0;
+
+  for (let y = y0; y < y1 - 1; y++) {
+    for (let x = x0; x < x1 - 1; x++) {
+      const here = at(x, y);
+      total += Math.abs(at(x + 1, y) - here) + Math.abs(at(x, y + 1) - here);
+      count++;
+    }
+  }
+
+  return count ? total / count : 0;
+};
+
+/**
+ * Clear erased clusters shaped like an outline (tall and thin) or too small to
+ * be type. Blocks up to two apart join one cluster: an outline breaks into pieces.
+ */
+const dropOutlines = (raw: Float32Array, columns: number, rows: number): void => {
+  const seen = new Uint8Array(raw.length);
+
+  for (let start = 0; start < raw.length; start++) {
+    if (!raw[start] || seen[start]) continue;
+    const cluster = [start];
+    seen[start] = 1;
+    let [top, bottom, leftmost, rightmost] = [rows, 0, columns, 0];
+
+    for (let next = 0; next < cluster.length; next++) {
+      const index = cluster[next]!;
+      const row = Math.floor(index / columns);
+      const column = index % columns;
+      [top, bottom] = [Math.min(top, row), Math.max(bottom, row)];
+      [leftmost, rightmost] = [Math.min(leftmost, column), Math.max(rightmost, column)];
+
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const r = row + dy;
+          const c = column + dx;
+
+          if (r < 0 || c < 0 || r >= rows || c >= columns) continue;
+          const neighbor = r * columns + c;
+
+          if (!raw[neighbor] || seen[neighbor]) continue;
+          seen[neighbor] = 1;
+          cluster.push(neighbor);
+        }
+      }
+    }
+
+    const height = bottom - top + 1;
+
+    const outline = height > GUARD_OUTLINE && height >= 2 * (rightmost - leftmost + 1);
+
+    if (outline || cluster.length < GUARD_MIN_CLUSTER) for (const index of cluster) raw[index] = 0;
+  }
+};
+
+/** One protection value (0–1) per GUARD_BLOCK block, row-major. */
+export interface GuardMask {
+  readonly columns: number;
+  readonly rows: number;
+  readonly values: Float32Array;
+}
+
+/**
+ * Patch-space mask (one value per GUARD_BLOCK block, 0–1) of where pasting the
+ * repaint would erase detail the slides already had, grown by two blocks so
+ * glyph edges are covered and the transition is not blocky.
+ */
+export const erasureMask = (
+  left: Bitmap,
+  right: Bitmap,
+  repaint: Bitmap,
+  geometry: WeaveGeometry,
+  cut: number,
+): GuardMask => {
+  const { width, height } = left;
+  const columns = Math.ceil(width / GUARD_BLOCK);
+  const rows = Math.ceil(height / GUARD_BLOCK);
+  const raw = new Float32Array(columns * rows);
+  const margin = Math.round(width * GUARD_MARGIN);
+
+  const original = (x: number, y: number) =>
+    x < cut ? luma(left, x + width - cut, y) : luma(right, x - cut, y);
+
+  const repainted = (x: number, y: number) => luma(repaint, x, y);
+
+  for (let row = 0; row < rows; row++) {
+    for (let column = 0; column < columns; column++) {
+      const x0 = column * GUARD_BLOCK;
+      const x1 = Math.min(width, x0 + GUARD_BLOCK);
+      const center = (x0 + x1) / 2;
+
+      if (Math.abs(center - cut) > geometry.band || Math.abs(center - cut) < margin) continue;
+      const y0 = row * GUARD_BLOCK;
+      const y1 = Math.min(height, y0 + GUARD_BLOCK);
+      const before = blockDetail(original, x0, y0, x1, y1);
+
+      if (before < GUARD_DETAIL) continue;
+
+      const after = blockDetail(repainted, x0, y0, x1, y1);
+
+      if (after >= Math.min(before * GUARD_LOSS, GUARD_FLAT)) continue;
+      let kept = 0;
+
+      for (let y = y0; y < y1; y++)
+        for (let x = x0; x < x1; x++)
+          if (Math.abs(original(x, y) - repainted(x, y)) < GUARD_MATCH) kept++;
+
+      if (kept >= GUARD_KEPT * (x1 - x0) * (y1 - y0)) raw[row * columns + column] = 1;
+    }
+  }
+
+  dropOutlines(raw, columns, rows);
+
+  // Blocks touching an erased one are protected too (glyph edges carry less
+  // detail); the ring after that is half protected so the edge is not blocky.
+  const values = new Float32Array(columns * rows);
+
+  for (let row = 0; row < rows; row++) {
+    for (let column = 0; column < columns; column++) {
+      let nearest = Infinity;
+
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const r = row + dy;
+          const c = column + dx;
+
+          if (r < 0 || c < 0 || r >= rows || c >= columns || !raw[r * columns + c]) continue;
+          nearest = Math.min(nearest, Math.max(Math.abs(dx), Math.abs(dy)));
+        }
+      }
+
+      values[row * columns + column] = nearest <= 1 ? 1 : nearest === 2 ? 0.5 : 0;
+    }
+  }
+
+  return { columns, rows, values };
+};
+
 /**
  * Paste the repaint's central band back into both slides in place: the part
  * left of the cut lands on `left`'s right edge, the rest on `right`'s left edge.
+ * Detail the repaint erased (usually text) keeps its original pixels.
  */
 export const blendBand = (
   left: Bitmap,
@@ -164,14 +351,20 @@ export const blendBand = (
   cut = left.width - Math.floor(left.width / 2),
 ): void => {
   const { width, height } = left;
+  const guard = erasureMask(left, right, repaint, geometry, cut);
 
   for (let x = Math.max(0, cut - geometry.band); x < Math.min(width, cut + geometry.band); x++) {
-    const alpha = bandAlpha(x, cut, geometry);
+    const base = bandAlpha(x, cut, geometry);
 
-    if (alpha <= 0) continue;
+    if (base <= 0) continue;
     const [target, targetX] = x < cut ? [left, x + width - cut] : [right, x - cut];
+    const column = Math.floor(x / GUARD_BLOCK);
 
     for (let y = 0; y < height; y++) {
+      const protectedShare = guard.values[Math.floor(y / GUARD_BLOCK) * guard.columns + column]!;
+      const alpha = base * (1 - protectedShare);
+
+      if (alpha <= 0) continue;
       const from = (y * width + x) * 4;
       const to = (y * width + targetX) * 4;
 

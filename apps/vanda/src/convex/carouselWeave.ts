@@ -36,6 +36,14 @@ const concurrency = () => {
 // Preview strip height; the loop shows as slide 1 repeated after the last.
 const STRIP_HEIGHT = 360;
 
+// Cut close-ups: each cut shows this share of both slides beside it, at this height,
+// so clipped letters and floating objects are visible (the strip is too small).
+const CUT_SHARE = 0.3;
+
+const CUT_HEIGHT = 720;
+
+const CUT_GAP = 8;
+
 const RATIOS = { "4:5": 4 / 5, "1:1": 1 } as const;
 
 type WeaveFormat = keyof typeof RATIOS;
@@ -94,6 +102,10 @@ export const brandDirection = (kit: BrandKit | null): string => {
   return parts.join(" ");
 };
 
+// Bridges that float in a scene with a floor or table read as a glitch.
+const GROUNDED =
+  "It rests on a visible surface of the scene (table, floor, shelf, ledge) or hangs from something visible (branch, lamp); it floats only if the scene is sky, space or underwater. Exactly one of it, whole on both sides, with a contact shadow.";
+
 /** The repaint brief for one seam patch; the agent supplies only the bridge and style. */
 export const seamPrompt = (
   bridge: string,
@@ -111,7 +123,7 @@ export const seamPrompt = (
           "Keep the left and right fifths as they are: same composition, colors, lighting and any text there.",
         ]
       : [
-          `Add this bridge element crossing the vertical center line, extending well into both halves and about 25–45% of the image height: ${bridge.trim()}.`,
+          `Add this bridge element crossing the vertical center line, extending well into both halves and about 25–45% of the image height: ${bridge.trim()}. ${GROUNDED}`,
           "Keep the left and right quarters as they are: same composition, colors, lighting and any text there.",
         ]),
     "Do not add any new text, letters, numbers, logos, frames or borders.",
@@ -132,7 +144,7 @@ export const extendPrompt = (
     `Extend the scene to the right as ONE seamless panoramic picture: keep the left ${keep}% exactly as it is and paint the rest as its natural continuation — same environment, horizon height, light, palette, perspective, texture and technique — with no visible line, border or color step at x=${keep}%.`,
     role === "hero"
       ? `The large subject cut off at x=${keep}% is the hero: ${bridge.trim()}. Continue it across that line, complete, at the same scale, pose and lighting, so it reads as one subject; keep it inside the left half of the image.`
-      : `Add this bridge element crossing the vertical line at x=${keep}%, extending to both sides and about 20–30% of the image height: ${bridge.trim()}.`,
+      : `Add this bridge element crossing the vertical line at x=${keep}%, extending to both sides and about 20–30% of the image height: ${bridge.trim()}. ${GROUNDED}`,
     "Paint no text, letters, numbers, logos, frames or borders anywhere. Right of the bridge, only the environment continues to the edge.",
     ...direction(style, brand),
   ].join(" ");
@@ -300,6 +312,37 @@ const stripPreview = async (size: Size, slides: readonly SlideSource[]): Promise
   });
 };
 
+/** Every cut (the loop one last) as a close-up: the edges of both slides beside it. */
+const cutsPreview = async (size: Size, slides: readonly SlideSource[]): Promise<Blob> => {
+  const count = slides.length;
+  const share = Math.round(size.width * CUT_SHARE);
+  const half = Math.round((share * CUT_HEIGHT) / size.height);
+  const tileWidth = half * 2 + CUT_GAP;
+
+  const sheet = new Jimp({
+    width: tileWidth * count - CUT_GAP,
+    height: CUT_HEIGHT,
+    color: 0xffffffff,
+  });
+
+  // One full-size slide in memory at a time: its right edge opens cut i, its left edge closes cut i-1.
+  for (const [index, load] of slides.entries()) {
+    const slide = await load();
+
+    const edge = (x: number) =>
+      Jimp.fromBitmap({ ...slide, data: bufferOf(slide.data) })
+        .crop({ x, y: 0, w: share, h: size.height })
+        .resize({ w: half, h: CUT_HEIGHT });
+
+    sheet.composite(edge(size.width - share), index * tileWidth, 0);
+    sheet.composite(edge(0), ((index - 1 + count) % count) * tileWidth + half, 0);
+  }
+
+  return new Blob([new Uint8Array(await sheet.getBuffer("image/jpeg", { quality: 88 }))], {
+    type: "image/jpeg",
+  });
+};
+
 type Run = {
   accountId: Id<"accounts">;
   format: WeaveFormat;
@@ -344,6 +387,8 @@ type WeaveResult = {
   slides: { imageId: Id<"images"> }[];
   // Absent while a chain is still growing: one preview, at the end, is enough.
   strip?: { imageId: Id<"images">; url: string };
+  // Every cut up close, with the strip; working image for the agent's check.
+  cuts?: { imageId: Id<"images">; url: string };
   seams: { seam: string; bridge: string; score: number; woven: boolean }[];
 };
 
@@ -480,34 +525,66 @@ const saveSlide = async (
   return ctx.runMutation(internal.imagesData.savePaintedImage, slideArgs);
 };
 
-const saveStrip = async (
+type Preview = { imageId: Id<"images">; url: string };
+
+const savePreview = async (
+  ctx: ActionCtx,
+  run: Run,
+  blob: Blob,
+  meta: { prompt: string; name: string; width: number; height: number },
+): Promise<Preview> => {
+  const storageId = await ctx.storage.store(blob);
+
+  const previewArgs: SaveImageArgs = {
+    accountId: run.accountId,
+    storageId,
+    mimeType: "image/jpeg",
+    promptAuthor: "vanda",
+    ...meta,
+  };
+
+  if (run.activityId) previewArgs.activityId = run.activityId;
+
+  const imageId = await ctx.runMutation(internal.imagesData.savePaintedImage, previewArgs);
+  const url = await ctx.storage.getUrl(storageId);
+
+  if (!url) throw new Error("stored preview URL is unavailable");
+
+  return { imageId, url };
+};
+
+/** The finished carousel's previews: the strip the owner sees, and cut close-ups for the agent's check. */
+const savePreviews = async (
   ctx: ActionCtx,
   run: Run,
   size: Size,
   slides: readonly SlideSource[],
-): Promise<{ imageId: Id<"images">; url: string }> => {
+): Promise<{ strip: Preview; cuts: Preview }> => {
   const { width, height } = size;
-  const storageId = await ctx.storage.store(await stripPreview(size, slides));
+  const tileWidth = Math.round((width * STRIP_HEIGHT) / height);
+  const half = Math.round((Math.round(width * CUT_SHARE) * CUT_HEIGHT) / height);
 
-  const stripArgs: SaveImageArgs = {
-    accountId: run.accountId,
-    storageId,
+  const strip = await savePreview(ctx, run, await stripPreview(size, slides), {
     prompt: "Prévia do carrossel infinito: slides lado a lado e o slide 1 repetido no fim",
-    mimeType: "image/jpeg",
-    width: Math.round((width * STRIP_HEIGHT) / height) * (slides.length + 1),
-    height: STRIP_HEIGHT,
     name: "Prévia infinito",
-    promptAuthor: "vanda",
-  };
+    width: tileWidth * (slides.length + 1),
+    height: STRIP_HEIGHT,
+  });
 
-  if (run.activityId) stripArgs.activityId = run.activityId;
+  const cuts = await savePreview(ctx, run, await cutsPreview(size, slides), {
+    prompt: "Cortes do carrossel infinito de perto, para conferência",
+    name: "Cortes de perto",
+    width: (half * 2 + CUT_GAP) * slides.length - CUT_GAP,
+    height: CUT_HEIGHT,
+  });
 
-  const imageId = await ctx.runMutation(internal.imagesData.savePaintedImage, stripArgs);
-  const url = await ctx.storage.getUrl(storageId);
+  // Only the agent's check needs the close-ups; they leave the gallery later.
+  await ctx.scheduler.runAfter(DISCARD_DELAY_MS, internal.gallery.discardWorking, {
+    accountId: run.accountId,
+    imageIds: [cuts.imageId],
+  });
 
-  if (!url) throw new Error("stored strip URL is unavailable");
-
-  return { imageId, url };
+  return { strip, cuts };
 };
 
 /** Schedule the superseded chain slides for removal; the mutation spares anything still in use. */
@@ -642,14 +719,16 @@ export const weave = internalAction({
         saved,
       );
 
+      const previews = await savePreviews(
+        ctx,
+        run,
+        size,
+        slides.map((slide) => async () => slide),
+      );
+
       return {
         slides: saved,
-        strip: await saveStrip(
-          ctx,
-          run,
-          size,
-          slides.map((slide) => async () => slide),
-        ),
+        ...previews,
         seams: pairs.map(([left, right], seam) => ({
           seam:
             seam === count - 1 ? `${left + 1}→${right + 1} (volta)` : `${left + 1}→${right + 1}`,
@@ -835,7 +914,7 @@ export const extend = internalAction({
         return bitmap ? async () => bitmap : () => decode(sources.bytes[position]!);
       });
 
-      return { slides: saved, strip: await saveStrip(ctx, run, size, tiles), seams };
+      return { slides: saved, ...(await savePreviews(ctx, run, size, tiles)), seams };
     } finally {
       await discardWorking(ctx, run, workingImageIds);
     }
