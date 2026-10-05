@@ -127,6 +127,9 @@ export default defineSchema({
     email: v.string(),
     clerkId: v.string(),
     imageUrl: v.optional(v.string()),
+    // UI theme preference ("system" | "light" | "dark") already present on dev data;
+    // nothing reads it yet, it is declared so existing rows validate.
+    theme: v.optional(v.string()),
     activeAccountId: v.optional(v.id("accounts")),
     // Billing snapshot cached from Autumn so usage enforcement never leaves
     // Convex: the active plan, its usage allowance, and the current period.
