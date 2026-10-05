@@ -152,6 +152,11 @@ describe("publishDue", () => {
       );
 
       expect(error._tag).toBe("PublishJobNotFound");
+      // The calendar row records the failure instead of staying "scheduled".
+      expect(store.state.get("missing")).toMatchObject({
+        status: "failed",
+        lastError: expect.stringContaining("não existe mais"),
+      });
     }),
   );
 });

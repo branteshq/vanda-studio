@@ -6,6 +6,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction, type ActionCtx } from "./_generated/server";
 import { agentActivityIdValidator, type AgentActivityId } from "./agentActivity";
+import { chainSlidePrompt } from "./gallery";
 import type { BrandKit } from "./workspace/brandKit";
 import {
   blendBand,
@@ -42,8 +43,9 @@ const HERO_SEAM = 0;
 // The hero seam keeps more, since half the hero lives there.
 const KEEP = { hero: 0.32, satellite: 0.24 } as const;
 
-// Every slide the chain or the weave saves starts with this; superseded ones are discarded.
-const CHAIN_PROMPT_PREFIX = "Carrossel infinito, slide";
+// Superseded slides go only after the turn that made them can no longer show or
+// post them (a chat turn is capped well below this).
+const DISCARD_DELAY_MS = 60 * 60 * 1000;
 
 type SeamRole = "hero" | "satellite";
 
@@ -387,7 +389,7 @@ const saveSlide = async (
   const slideArgs: SaveImageArgs = {
     accountId: run.accountId,
     storageId,
-    prompt: `${CHAIN_PROMPT_PREFIX} ${label}`,
+    prompt: chainSlidePrompt(label),
     mimeType: "image/jpeg",
     width: slide.width,
     height: slide.height,
@@ -429,6 +431,22 @@ const saveStrip = async (
   if (!url) throw new Error("stored strip URL is unavailable");
 
   return { imageId, url };
+};
+
+/** Schedule the superseded chain slides for removal; the mutation spares anything still in use. */
+const discardSuperseded = async (
+  ctx: ActionCtx,
+  run: Run,
+  superseded: Id<"images">[],
+  chain: WeaveResult["slides"],
+): Promise<void> => {
+  if (!superseded.length) return;
+
+  await ctx.scheduler.runAfter(DISCARD_DELAY_MS, internal.gallery.discardChainSlides, {
+    accountId: run.accountId,
+    imageIds: superseded,
+    keep: chain.map((slide) => slide.imageId),
+  });
 };
 
 const score = (left: Bitmap, right: Bitmap) => Math.round(seamScore(left, right) * 10) / 10;
@@ -690,11 +708,7 @@ export const extend = internalAction({
         position < args.imageIds.length ? [args.imageIds[position]!] : [],
       );
 
-      await ctx.runMutation(internal.gallery.discardChainSlides, {
-        accountId: args.accountId,
-        imageIds: superseded,
-        promptPrefix: CHAIN_PROMPT_PREFIX,
-      });
+      await discardSuperseded(ctx, run, superseded, saved);
 
       const seams = [
         {

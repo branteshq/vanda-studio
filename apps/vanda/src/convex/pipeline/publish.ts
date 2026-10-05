@@ -77,7 +77,8 @@ const failureReason = (error: {
   readonly reason?: string;
   readonly type?: string;
 }): string => {
-  const detail = error.message ?? error.reason ?? error.type;
+  // Tagged errors carry an empty message by default.
+  const detail = error.message || error.reason || error.type;
 
   return detail !== undefined ? `${error._tag}: ${detail}`.slice(0, 300) : error._tag;
 };
@@ -89,7 +90,20 @@ const failureReason = (error: {
  */
 export const publishDue = Effect.fn("pipeline.publishDue")(function* (scheduledPostId: string) {
   const store = yield* PublishStore;
-  const job = yield* store.loadJob(scheduledPostId);
+  // A post whose images are gone can't load: record why, or the row stays "scheduled" forever.
+  const job = yield* store
+    .loadJob(scheduledPostId)
+    .pipe(
+      Effect.tapError((error) =>
+        store.markFailed(
+          scheduledPostId,
+          error._tag === "PublishJobNotFound"
+            ? "PublishJobNotFound: o post ou uma das imagens dele não existe mais"
+            : failureReason(error),
+        ),
+      ),
+    );
+
   yield* store.markPublishing(scheduledPostId);
 
   const receipt = yield* publishPost(job).pipe(

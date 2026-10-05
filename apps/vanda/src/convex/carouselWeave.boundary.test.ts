@@ -47,6 +47,20 @@ async function setup() {
   return { t, accountId, imageIds };
 }
 
+type Test = Awaited<ReturnType<typeof setup>>["t"];
+
+/** Run the deferred discards now: they are scheduled an hour out, past the turn. */
+async function runDiscards(t: Test) {
+  const jobs = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+  const discards = jobs.filter((job) => job.name.includes("discardChainSlides"));
+
+  for (const job of discards) {
+    await t.mutation(internal.gallery.discardChainSlides, job.args[0]);
+  }
+
+  return discards;
+}
+
 describe("carouselWeave.weave", () => {
   it("repaints every seam including the loop and keeps only the woven slides", async () => {
     const { t, accountId, imageIds } = await setup();
@@ -221,6 +235,10 @@ describe("carouselWeave.extend", () => {
     // Slide 1 changed again for the loop; every slide is a fresh image.
     expect(new Set(third.slides.map((slide) => slide.imageId)).size).toBe(3);
 
+    // Superseded slides wait out the turn, so links the model already holds stay valid.
+    expect(await t.run((ctx) => ctx.db.query("images").collect())).toHaveLength(9);
+    await runDiscards(t);
+
     const images = await t.run((ctx) => ctx.db.query("images").collect());
     const ids = new Set(images.map((image) => image._id));
 
@@ -233,6 +251,58 @@ describe("carouselWeave.extend", () => {
     expect(third.strip).toBeDefined();
     // 3 sources + 3 final slides + the one final strip.
     expect(images).toHaveLength(7);
+  });
+
+  it("never discards a slide a post, the chain or an agent paint still owns", async () => {
+    const { t, accountId, imageIds } = await setup();
+    await stubPaint([]);
+
+    // An agent paint whose prompt opens the way chain slides do is not a chain slide.
+    await t.run((ctx) =>
+      ctx.db.patch(imageIds[0]!, { prompt: "Carrossel infinito, slide 1 de 3: astronauta" }),
+    );
+
+    const second = await t.action(internal.carouselWeave.extend, {
+      accountId,
+      imageIds: [imageIds[0]!],
+      format: "4:5",
+      bridge: "astronauta",
+      content: "passo 1",
+    });
+
+    const third = await t.action(internal.carouselWeave.extend, {
+      accountId,
+      imageIds: second.slides.map((slide) => slide.imageId),
+      format: "4:5",
+      bridge: "esfera",
+      content: "fim",
+      loopBridge: "esfera azul",
+    });
+
+    // The owner already drafted (and maybe scheduled) the earlier chain.
+    await t.mutation(internal.posts.createPostInternal, {
+      accountId,
+      imageIds: [...second.slides.map((slide) => slide.imageId), imageIds[1]!],
+      caption: "legenda",
+    });
+
+    expect(await runDiscards(t)).toHaveLength(2);
+    const ids = new Set((await t.run((ctx) => ctx.db.query("images").collect())).map((i) => i._id));
+
+    expect(ids.has(imageIds[0]!)).toBe(true);
+
+    for (const slide of [...second.slides, ...third.slides]) expect(ids.has(slide.imageId)).toBe(true);
+
+    // A superseded id the returned chain repeats at another position stays too.
+    const repeated = third.slides[1]!.imageId;
+
+    await t.mutation(internal.gallery.discardChainSlides, {
+      accountId,
+      imageIds: [repeated],
+      keep: [third.slides[0]!.imageId, repeated],
+    });
+
+    expect(await t.run((ctx) => ctx.db.get(repeated))).not.toBeNull();
   });
 
   it("carries the brand kit into every repaint and slide 1 into the text step", async () => {
