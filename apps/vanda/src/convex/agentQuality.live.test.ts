@@ -31,6 +31,12 @@ import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
 
+// The real methods, taken once: a timed-out case is abandoned while still running,
+// so binding inside a case could wrap the previous case's spy and stack forever.
+const streamVanda = vanda.streamText.bind(vanda);
+
+const streamCaetano = caetano.streamText.bind(caetano);
+
 const enabled = process.env.VANDA_LIVE_EVAL === "1";
 
 const model = process.env.VANDA_EVAL_MODEL ?? "openai/gpt-5.6-terra";
@@ -277,7 +283,6 @@ it.skipIf(!enabled).each(suite)(
         new Error("Gerador temporariamente indisponível; nenhuma imagem criada"),
       );
 
-    const streamVanda = vanda.streamText.bind(vanda);
     vi.spyOn(vanda, "streamText").mockImplementation(async (ctx, thread, options, persistence) => {
       const system =
         (options.system ?? "") +
@@ -312,7 +317,6 @@ it.skipIf(!enabled).each(suite)(
         persistence,
       );
     });
-    const streamCaetano = caetano.streamText.bind(caetano);
     vi.spyOn(caetano, "streamText").mockImplementation(
       async (ctx, thread, options, persistence) => {
         trace.push({ agent: "caetano", system: options.system });
