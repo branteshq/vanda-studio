@@ -18,6 +18,7 @@ import { Route as DocsIndexRouteImport } from './routes/docs.index'
 import { Route as DashboardIndexRouteImport } from './routes/_dashboard.index'
 import { Route as LoginSplatRouteImport } from './routes/login.$'
 import { Route as DocsSlugRouteImport } from './routes/docs.$slug'
+import { Route as DashboardPilotoRouteImport } from './routes/_dashboard.piloto'
 import { Route as DashboardPerfilRouteImport } from './routes/_dashboard.perfil'
 import { Route as DashboardGaleriaRouteImport } from './routes/_dashboard.galeria'
 import { Route as DashboardConversaRouteImport } from './routes/_dashboard.conversa'
@@ -67,6 +68,11 @@ const DocsSlugRoute = DocsSlugRouteImport.update({
   path: '/$slug',
   getParentRoute: () => DocsRoute,
 } as any)
+const DashboardPilotoRoute = DashboardPilotoRouteImport.update({
+  id: '/piloto',
+  path: '/piloto',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardPerfilRoute = DashboardPerfilRouteImport.update({
   id: '/perfil',
   path: '/perfil',
@@ -98,6 +104,7 @@ export interface FileRoutesByFullPath {
   '/conversa': typeof DashboardConversaRoute
   '/galeria': typeof DashboardGaleriaRoute
   '/perfil': typeof DashboardPerfilRoute
+  '/piloto': typeof DashboardPilotoRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/login/$': typeof LoginSplatRoute
   '/docs/': typeof DocsIndexRoute
@@ -110,6 +117,7 @@ export interface FileRoutesByTo {
   '/conversa': typeof DashboardConversaRoute
   '/galeria': typeof DashboardGaleriaRoute
   '/perfil': typeof DashboardPerfilRoute
+  '/piloto': typeof DashboardPilotoRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/login/$': typeof LoginSplatRoute
   '/': typeof DashboardIndexRoute
@@ -126,6 +134,7 @@ export interface FileRoutesById {
   '/_dashboard/conversa': typeof DashboardConversaRoute
   '/_dashboard/galeria': typeof DashboardGaleriaRoute
   '/_dashboard/perfil': typeof DashboardPerfilRoute
+  '/_dashboard/piloto': typeof DashboardPilotoRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/login/$': typeof LoginSplatRoute
   '/_dashboard/': typeof DashboardIndexRoute
@@ -143,6 +152,7 @@ export interface FileRouteTypes {
     | '/conversa'
     | '/galeria'
     | '/perfil'
+    | '/piloto'
     | '/docs/$slug'
     | '/login/$'
     | '/docs/'
@@ -155,6 +165,7 @@ export interface FileRouteTypes {
     | '/conversa'
     | '/galeria'
     | '/perfil'
+    | '/piloto'
     | '/docs/$slug'
     | '/login/$'
     | '/'
@@ -170,6 +181,7 @@ export interface FileRouteTypes {
     | '/_dashboard/conversa'
     | '/_dashboard/galeria'
     | '/_dashboard/perfil'
+    | '/_dashboard/piloto'
     | '/docs/$slug'
     | '/login/$'
     | '/_dashboard/'
@@ -250,6 +262,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsSlugRouteImport
       parentRoute: typeof DocsRoute
     }
+    '/_dashboard/piloto': {
+      id: '/_dashboard/piloto'
+      path: '/piloto'
+      fullPath: '/piloto'
+      preLoaderRoute: typeof DashboardPilotoRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/_dashboard/perfil': {
       id: '/_dashboard/perfil'
       path: '/perfil'
@@ -286,6 +305,7 @@ interface DashboardRouteChildren {
   DashboardConversaRoute: typeof DashboardConversaRoute
   DashboardGaleriaRoute: typeof DashboardGaleriaRoute
   DashboardPerfilRoute: typeof DashboardPerfilRoute
+  DashboardPilotoRoute: typeof DashboardPilotoRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
 }
 
@@ -294,6 +314,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardConversaRoute: DashboardConversaRoute,
   DashboardGaleriaRoute: DashboardGaleriaRoute,
   DashboardPerfilRoute: DashboardPerfilRoute,
+  DashboardPilotoRoute: DashboardPilotoRoute,
   DashboardIndexRoute: DashboardIndexRoute,
 }
 

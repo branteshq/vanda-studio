@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { requireOwnedAccount } from "./authz";
+import { requireOwnedAccount, requireUser } from "./authz";
 import {
   applyCadence,
   applyRegenerate,
@@ -16,6 +16,7 @@ import {
   type AutopilotWeekView,
 } from "./autopilotData";
 import { cadenceEntryValidator } from "./autopilotModel";
+import { writeSetting } from "./settings/registry";
 
 /**
  * The Piloto automático view and the chat card. Every write goes through the
@@ -29,6 +30,19 @@ export const overview = query({
     await requireOwnedAccount(ctx, accountId);
 
     return overviewOf(ctx, accountId, now ?? Date.now());
+  },
+});
+
+/** The on/off switch is a platform setting, shared with the agents' settings_set. */
+export const setEnabled = mutation({
+  args: { enabled: v.boolean() },
+  handler: async (ctx, { enabled }): Promise<void> => {
+    await writeSetting(
+      ctx,
+      await requireUser(ctx),
+      "autopilot.enabled",
+      enabled ? "ligado" : "desligado",
+    );
   },
 });
 

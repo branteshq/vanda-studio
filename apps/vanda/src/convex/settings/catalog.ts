@@ -49,6 +49,13 @@ export const NON_SETTING_UI_FUNCTIONS = [
   "brandFile.save",
   // The visual kit shown beside it.
   "workspacePublic.file",
+  // Autopilot posts are content, not settings: the agents change them with autopilot_* tools.
+  "autopilot.history",
+  "autopilot.updateSlot",
+  "autopilot.skipSlot",
+  "autopilot.restoreSlot",
+  "autopilot.regenerateSlot",
+  "autopilot.reanalyze",
 ] as const;
 
 const THEME_LABELS = { system: "Sistema", light: "Claro", dark: "Escuro" } as const;
@@ -207,6 +214,36 @@ export const SETTINGS = [
       "O dono gera o vínculo em Perfil › Conexões › Caetano no WhatsApp e envia a mensagem pronta pelo próprio WhatsApp.",
     doc: "caetano-no-whatsapp",
     uiFunctions: ["whatsappData.state", "whatsapp.createLink", "whatsappData.disconnect"],
+  },
+  {
+    id: "autopilot.enabled",
+    group: "Piloto automático",
+    title: "Piloto automático",
+    description:
+      "Liga ou desliga os posts automáticos de feed do negócio ativo: a Vanda analisa a conta, planeja a semana, gera cada post cerca de 24 horas antes e publica sozinha, com um aviso para o dono vetar. Desligar cancela as publicações pendentes.",
+    where: "Piloto automático",
+    route: "/piloto",
+    access: "write",
+    options: (): readonly SettingOption[] => [
+      { value: "ligado", label: "Ligado" },
+      { value: "desligado", label: "Desligado" },
+    ],
+    doc: "piloto-automatico",
+    uiFunctions: ["autopilot.setEnabled"],
+  },
+  {
+    id: "autopilot.cadence",
+    group: "Piloto automático",
+    title: "Cadência do piloto automático",
+    description:
+      "Dias, horários, tipo (imagem ou carrossel) e número de slides dos posts automáticos da semana, e se foi sugerida pela Vanda ou definida pelo dono.",
+    where: "Piloto automático › Cadência",
+    route: "/piloto",
+    access: "read",
+    change:
+      "O dono edita em Piloto automático › Cadência. Quando o dono pedir na conversa, use autopilot_update_cadence (ou autopilot_update_slot para um post só).",
+    doc: "piloto-automatico",
+    uiFunctions: ["autopilot.overview", "autopilot.updateCadence", "autopilot.resetCadence"],
   },
 ] as const satisfies readonly SettingDefinition[];
 

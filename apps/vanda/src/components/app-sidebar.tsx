@@ -6,6 +6,7 @@ import { useQuery } from "convex-helpers/react/cache";
 import {
   Archive,
   BadgeCheckIcon,
+  CalendarClock,
   Images,
   MessageSquareText,
   PanelLeftClose,
@@ -635,7 +636,47 @@ function CaetanoNav() {
           <span className="group-data-[collapsible=icon]:hidden">Caetano</span>
         </SidebarMenuButton>
       </SidebarMenuItem>
+      <AutopilotNavItem />
     </SidebarMenu>
+  );
+}
+
+/** The automatic feed posts live apart from the conversations: their own page. */
+function AutopilotNavItem() {
+  const navigate = useNavigate();
+  const { setOpenMobile } = useSidebar();
+  const { activeAccount } = useActiveAccount();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+
+  const overview = useQuery(
+    api.autopilot.overview,
+    activeAccount ? { accountId: activeAccount.id } : "skip",
+  );
+
+  if (!activeAccount) return null;
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        size="navigation"
+        tooltip="Piloto automático"
+        isActive={pathname === "/piloto"}
+        onClick={() => {
+          setOpenMobile(false);
+          void navigate({ to: "/piloto" });
+        }}
+        className="h-10"
+      >
+        <CalendarClock aria-hidden="true" />
+        <span className="flex-1 group-data-[collapsible=icon]:hidden">Piloto automático</span>
+        {overview?.enabled ? (
+          <span
+            className="size-1.5 rounded-full bg-green group-data-[collapsible=icon]:hidden"
+            aria-label="ligado"
+          />
+        ) : null}
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }
 
