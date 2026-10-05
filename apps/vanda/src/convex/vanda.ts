@@ -873,7 +873,7 @@ type ExtendArgs = {
 
 const extendInfiniteCarousel = createTool({
   description:
-    "Cria o próximo slide de um carrossel infinito continuando a cena do anterior (outpainting em cadeia), então o corte é contínuo de verdade. Passe a cadeia atual na ordem (o slide 1 vem do paint), a ponte que atravessa o novo corte e o conteúdo do novo slide. Informe total (3 a 5) em toda chamada: quando o novo slide é o último, a volta N→1 fecha sozinha com loopBridge. Cada chamada repinta a borda direita do slide anterior: devolve a cadeia inteira com novos imageIds, uma prévia em faixa e a nota de cada corte (0 = invisível). Use sempre a cadeia devolvida na chamada seguinte e no create_post.",
+    "Cria o próximo slide de um carrossel infinito continuando a cena do anterior (outpainting em cadeia), então o corte é contínuo de verdade. Passe a cadeia atual na ordem (o slide 1 vem do paint), a ponte que atravessa o novo corte e o conteúdo do novo slide. Informe total (3 a 5) em toda chamada: quando o novo slide é o último, a volta N→1 fecha sozinha com loopBridge. Cada chamada repinta a borda direita do slide anterior e devolve a cadeia inteira com novos imageIds e a nota de cada corte (0 = invisível); a prévia em faixa vem só na chamada que fecha a volta. Use sempre a cadeia devolvida na chamada seguinte e no create_post.",
   inputSchema: z.object({
     imageIds: z
       .array(z.string())
@@ -932,7 +932,7 @@ const extendInfiniteCarousel = createTool({
     // The provider sends every field, so the loop closes by count, never by presence.
     if (count > args.total) {
       throw new Error(
-        `a cadeia já tem ${args.imageIds.length} slides e total é ${args.total}: o carrossel está completo, siga para create_post`,
+        `a cadeia já tem ${args.imageIds.length} slides e total é ${args.total}: mantenha o mesmo total em toda chamada. Se a última chamada devolveu a prévia, a volta está fechada: siga para create_post; senão feche a volta com weave_infinite_carousel e onlySeams=[${args.imageIds.length}]`,
       );
     }
 
@@ -970,7 +970,8 @@ const extendInfiniteCarousel = createTool({
   },
   toModelOutput: (_ctx, { output }) => {
     const data = weaveOutputSchema.parse(output.data);
-    const closed = data.seams.some((seam) => seam.seam.includes("volta"));
+    // The strip comes only with the call that closes the loop.
+    const closed = data.strip !== undefined;
 
     return {
       type: "content" as const,
