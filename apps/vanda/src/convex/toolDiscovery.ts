@@ -30,6 +30,9 @@ const searchResultSchema = z.object({
   message: z.string(),
 });
 
+// Per search: enough tools to cover a task, and the few skills worth reading.
+const RESULTS = { tool: 4, skill: 3 } as const;
+
 const normalize = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
 const stopWords = new Set(
@@ -90,9 +93,14 @@ export function toolDiscovery<Tools extends ToolSet>(
 
       ranked.sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name));
 
-      const matches = (query.trim() === "*" ? ranked : ranked.slice(0, 4)).map(
-        ({ entry }) => entry,
-      );
+      // Tools and skills keep separate cuts, so a skill never pushes out the tool it needs.
+      const top = (kind: "tool" | "skill") => {
+        const ofKind = ranked.filter(({ entry }) => entry.kind === kind);
+
+        return query.trim() === "*" ? ofKind : ofKind.slice(0, RESULTS[kind]);
+      };
+
+      const matches = [...top("tool"), ...top("skill")].map(({ entry }) => entry);
 
       const found = {
         tools: matches.flatMap((entry) =>

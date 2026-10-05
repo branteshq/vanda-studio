@@ -171,6 +171,23 @@ describe("role-specific discovery", () => {
     if (query === name) expect(result).toHaveProperty("tools.length", 1);
   });
 
+  it.each([
+    ["agendar post no instagram", "schedule_post"],
+    ["publicar post no instagram", "schedule_post"],
+    ["publish post to instagram", "schedule_post"],
+    ["foto do produto", "search_media"],
+  ])("never lets a skill push %s out of the tool cut", async (query, name) => {
+    const result = await vandaToolDiscovery.search.execute!(
+      { query },
+      { toolCallId: "search", messages: [] },
+    );
+
+    expect(result).toHaveProperty(
+      "tools",
+      expect.arrayContaining([expect.objectContaining({ name })]),
+    );
+  });
+
   it.each([vandaToolDiscovery, caetanoToolDiscovery])(
     "reports no match without inventing tools",
     async (discovery) => {
