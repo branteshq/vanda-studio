@@ -62,5 +62,14 @@
   },
   "post-type-infinite-carousel": {
     "alwaysApply": false
+  },
+  "instagram-account-audit": {
+    "alwaysApply": false
+  },
+  "instagram-weekly-plan": {
+    "alwaysApply": false
+  },
+  "instagram-caption": {
+    "alwaysApply": false
   }
 }
