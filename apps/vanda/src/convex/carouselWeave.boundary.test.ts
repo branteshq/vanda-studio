@@ -545,7 +545,7 @@ describe("brandDirection", () => {
         fonts: [{ family: "Archivo", role: "títulos" }, { family: "Source Sans 3" }],
       }),
     ).toBe(
-      "Brand palette — use exactly these colors for background, accents and objects, no other dominant colors: #F2C14E (Amarelo fita), #F7F7F2. Brand typography — set every text in: Archivo for títulos, Source Sans 3.",
+      "Brand palette: #F2C14E (Amarelo fita), #F7F7F2. Paint new objects, accents and text in these colors, no other dominant colors; scenery that continues from the existing image keeps the colors it already has. Brand typography: set every text in Archivo for títulos, Source Sans 3, unless slide 1 already sets its text in another face; then match slide 1 so the carousel reads as one piece.",
     );
     expect(brandDirection(null)).toBe("");
     expect(seamPrompt("esfera", undefined, "satellite")).not.toContain("Brand palette");

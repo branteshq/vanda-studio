@@ -59,7 +59,7 @@ Faixas que a ferramenta repinta (o que estiver nelas muda):
 O carrossel é da marca, não da skill. O contexto da marca já está na conversa: memória (identidade, voz, público, restrições), kit e notas.
 
 - Leia `/brand/kit.json` e `list /brand/references`.
-- **Kit com cores ou fontes:** a ficha de estilo usa só essas cores (fundo, destaques, satélites, título) e só essas fontes, com os hex exatos. A direção de estilo da tabela define apenas a cena e a luz, nunca a paleta nem as fontes. `extend_infinite_carousel` já anexa o kit a cada slide, mas o slide 1 (`paint`) depende de você escrever os hex e as fontes no prompt.
+- **Kit com cores ou fontes:** a ficha de estilo usa só essas cores (fundo, destaques, satélites, título) e só essas fontes, com os hex exatos. A direção de estilo da tabela define apenas a cena e a luz, nunca a paleta nem as fontes. `extend_infinite_carousel` já anexa o kit a cada slide, mas o slide 1 (`paint`) depende de você escrever os hex e as fontes no prompt: a cena continua com as cores e a tipografia do slide 1, então um slide 1 fora do kit deixa o carrossel inteiro fora do kit.
 - **Kit vazio:** proponha uma paleta sóbria (2–3 cores em hex) coerente com a voz e o setor da memória. Diga na linha do plano que é uma proposta, não a paleta oficial. Nunca apresente cores inventadas como "da marca". Na entrega, ofereça em uma frase salvar a paleta no kit.
 - **Referências:** imagens de estilo ou produto em `/brand/references` entram em `referenceImageIds` no `paint` do slide 1 (estilo, luz, produto real). Rosto de pessoa só se a referência for daquela pessoa.
 - **Assinatura:** o nome da marca (ou o @perfil) em texto pequeno e discreto. Nunca invente um logo nem símbolo.

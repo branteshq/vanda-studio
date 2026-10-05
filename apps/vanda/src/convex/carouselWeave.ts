@@ -74,8 +74,10 @@ export const brandDirection = (kit: BrandKit | null): string => {
       })
       .join(", ");
 
+    // Continuity outranks the kit: if slide 1 was painted off-kit, recoloring the
+    // continued scenery would make every later slide drift away from it.
     parts.push(
-      `Brand palette — use exactly these colors for background, accents and objects, no other dominant colors: ${colors}.`,
+      `Brand palette: ${colors}. Paint new objects, accents and text in these colors, no other dominant colors; scenery that continues from the existing image keeps the colors it already has.`,
     );
   }
 
@@ -84,7 +86,9 @@ export const brandDirection = (kit: BrandKit | null): string => {
       .map((font) => (font.role ? `${font.family} for ${font.role}` : font.family))
       .join(", ");
 
-    parts.push(`Brand typography — set every text in: ${fonts}.`);
+    parts.push(
+      `Brand typography: set every text in ${fonts}, unless slide 1 already sets its text in another face; then match slide 1 so the carousel reads as one piece.`,
+    );
   }
 
   return parts.join(" ");
