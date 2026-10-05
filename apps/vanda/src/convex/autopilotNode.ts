@@ -216,13 +216,23 @@ const runPlan = async (
   }
 };
 
-/** Diagnose (optionally) then plan the given weeks. */
+/** Diagnose (optionally) then plan the given weeks, then tell the owner. */
 export const refresh = internalAction({
   args: { accountId: v.id("accounts"), weekStarts: v.array(v.number()), audit: v.boolean() },
   handler: async (ctx, { accountId, weekStarts, audit }): Promise<void> => {
     if (audit) await runAudit(ctx, accountId);
 
-    for (const weekStart of weekStarts) await runPlan(ctx, accountId, weekStart);
+    let announced: number | null = null;
+
+    for (const weekStart of weekStarts) {
+      if ((await runPlan(ctx, accountId, weekStart)) > 0) announced = weekStart;
+    }
+
+    if (announced !== null)
+      await ctx.runMutation(internal.autopilotChat.announcePlan, {
+        accountId,
+        weekStart: announced,
+      });
   },
 });
 

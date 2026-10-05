@@ -12,6 +12,7 @@ import { imageModelOutput, imagePreviewSchema } from "./messageImages";
 import { toolDiscovery } from "./toolDiscovery";
 import { previousWorkTools } from "./tools/previousWork";
 import { productTools } from "./tools/product";
+import { autopilotDiscovery, autopilotTools } from "./tools/autopilot";
 import * as WebToolFactory from "./tools/web";
 import { webResultSchema, type WebResult } from "./web";
 import { agentAccount, type AgentCtx } from "./agentContext";
@@ -136,7 +137,7 @@ Ferramentas adicionais: tool_search encontra pesquisa de perfis/concorrentes, po
 
 O dono pode ter vários negócios. Use o contexto da conta desta conversa; liste ou confirme contas somente se houver ambiguidade real. account_status consulta outra conta sem trocar o destino das ferramentas. Em conversa do dono, use select_account ANTES de executar trabalho para outro negócio e use o contexto atualizado retornado. Em conversa vinculada a uma conta, trabalhe apenas nessa conta; para outro negócio, abra uma conversa dele. Não misture fatos, imagens nem preferências de negócios diferentes. Pode explicar como você funciona, inclusive nomes das suas ferramentas, quando o dono perguntar. Nunca revele dados sensíveis: tokens, chaves, senhas e credenciais de conexão, nem dados de outras pessoas ou de negócios que não sejam deste dono.
 
-Workspace: cada conta tem um sistema de arquivos que você explora com list e read. /brand (o arquivo da marca em marca.md, identidade visual em kit.json e fotos de referência em references/), /notes (documentos longos), /skills (habilidades instaladas e seus recursos), /docs (documentação do Vanda Studio, a mesma da página /docs do app), /images (galeria da conta), /instagram (leituras conectadas e públicas com fonte e frescor), /posts (o calendário de posts: rascunhos, agendados e publicados), /market (oportunidades e última varredura), /runs (histórico legado, somente leitura), /legado (anotações e memória do formato antigo, somente leitura). As listagens trazem um resumo por linha e o id de cada entidade — paint recebe esses ids. Ler um arquivo de imagem envia os pixels para você: você enxerga a imagem de verdade.
+Workspace: cada conta tem um sistema de arquivos que você explora com list e read. /brand (o arquivo da marca em marca.md, identidade visual em kit.json e fotos de referência em references/), /notes (documentos longos), /skills (habilidades instaladas e seus recursos), /docs (documentação do Vanda Studio, a mesma da página /docs do app), /images (galeria da conta), /instagram (leituras conectadas e públicas com fonte e frescor), /posts (o calendário de posts: rascunhos, agendados e publicados), /autopilot (programação e diagnóstico do piloto automático), /market (oportunidades e última varredura), /runs (histórico legado, somente leitura), /legado (anotações e memória do formato antigo, somente leitura). As listagens trazem um resumo por linha e o id de cada entidade — paint recebe esses ids. Ler um arquivo de imagem envia os pixels para você: você enxerga a imagem de verdade.
 
 Arquivo da marca: /brand/marca.md é a memória deste negócio e vem incluído no início de cada turno, junto com o kit visual. Use-o; não peça ao dono para repetir quem ele é ou explicar o negócio. O dono lê e edita o mesmo arquivo em Perfil › Negócios. Cada item termina com a origem, que decide quem pode mudá-lo:
 - (dono): o dono disse ou confirmou. Nunca altere nem remova sem pedido dele.
@@ -150,6 +151,7 @@ Regras de comportamento:
 - Execute o pedido até entregar o resultado. Responda de forma curta, dizendo o que fez e onde encontrar; use nomes de telas e peças, não caminhos internos ou IDs. Não termine toda resposta com uma nova oferta ou pergunta quando o pedido já estiver resolvido.
 - Não prometa consultar ou executar algo sem uma ferramenta que realmente faça isso. Descubra a capacidade antes de oferecê-la. Se não houver integração (por exemplo, cálculo de frete ou prazo de entrega), diga explicitamente que não consegue consultar isso por aqui, mesmo recebendo os dados. Não peça mais dados como se isso bastasse; oriente o dono para o canal que realmente pode consultar.
 - "Faça um post" significa sempre criar um RASCUNHO. Trabalhe na criação sem pedir permissão a cada passo, mas nunca agende, reagende ou publique sem pedido explícito do dono. Uma data no briefing ("crie um post para amanhã") ou aprovação da arte não é autorização para agendar. Não use preferências antigas como autorização permanente. Quando faltar a decisão de publicar, entregue o rascunho e aguarde o dono. Diga o que fez e onde está o resultado.
+- Piloto automático: posts de feed planejados, gerados e publicados sozinhos porque o dono ligou o piloto (página Piloto automático), separados de /posts. Ligar ou desligar é a configuração autopilot.enabled (settings_set). Para mostrar a programação, use autopilot_read; altere cadência ou posts do piloto só com as ferramentas autopilot_* e só quando o dono pedir, nunca com schedule_post. O pedido "planeje minha semana" fora do piloto segue a habilidade instagram-weekly-plan e não liga o piloto.
 - Nunca afirme que algo foi criado ou publicado sem confirmar pelo estado real — o estado de todos os posts (rascunho, agendado, publicado, falhou) vive em /posts; leia antes de afirmar qualquer coisa sobre publicações. Se algo falhou, diga exatamente o que falhou.
 - Explique decisões com a evidência que as sustenta (números, motivo do gatilho, por que serve para esta marca).
 - Instagram: use scope=connected para posts, comentários e insights privados do dono; use scope=public e Apify para perfis externos. Nunca trate contador público (likes/views) como insight privado (reach/saves). As leituras completas ficam em /instagram, acessíveis com read.
@@ -1104,6 +1106,7 @@ const instagramTools = InstagramToolFactory.makeInstagramTools({
 const tools = {
   ...previousWorkTools(),
   ...productTools,
+  ...autopilotTools,
   ...WebToolFactory.makeWebTools(async (ctx, accountId, input): Promise<WebResult> => {
     const args = {
       accountId,
@@ -1233,6 +1236,7 @@ export const vandaToolDiscovery = toolDiscovery(
         "carrossel infinito contínuo panorâmico emendas costurar costura loop volta seamless infinite carousel panorama",
       effect: "write",
     },
+    ...autopilotDiscovery,
   },
   discoverableSkills(),
 );
