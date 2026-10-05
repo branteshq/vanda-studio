@@ -66,6 +66,25 @@ describe("platform settings registry", () => {
     expect((await owner.query(api.users.modelPreferences))?.caetano).toBe("openai/gpt-6-luna");
   });
 
+  it("switches the theme by its name and exposes it to the app", async () => {
+    const { t, userId, owner } = await setup();
+
+    expect(await owner.query(api.users.appearance)).toEqual({ theme: "dark" });
+    expect(
+      await t.mutation(internal.settingsData.set, {
+        userId,
+        id: "appearance.theme",
+        value: "claro",
+      }),
+    ).toMatchObject({ previous: "dark", value: "light", label: "Claro" });
+    expect(await owner.query(api.users.appearance)).toEqual({ theme: "light" });
+    await owner.mutation(api.users.setTheme, { theme: "system" });
+    expect(await owner.query(api.users.appearance)).toEqual({ theme: "system" });
+    await expect(owner.mutation(api.users.setTheme, { theme: "roxo" })).rejects.toThrow(
+      "tema desconhecido",
+    );
+  });
+
   it("refuses read-only settings with where the owner changes them", async () => {
     const { t, userId } = await setup();
 

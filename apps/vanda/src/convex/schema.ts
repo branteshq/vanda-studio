@@ -133,6 +133,8 @@ export default defineSchema({
     // Same resolution rules; overridden entirely by the Conectado plan, which
     // runs every paint on the owner's ChatGPT subscription.
     imageModel: v.optional(v.string()),
+    // Interface theme (themes.ts); absent = DEFAULT_THEME.
+    theme: v.optional(v.union(v.literal("system"), v.literal("light"), v.literal("dark"))),
     // One canonical user-level conversation with Caetano, shared by every
     // present and future client (web first, WhatsApp later).
     caetanoThreadId: v.optional(v.string()),

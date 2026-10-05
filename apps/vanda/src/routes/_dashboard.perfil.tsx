@@ -7,6 +7,7 @@ import { Button } from "@vanda-studio/ui/components/button";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { tierOfPlan } from "../convex/billing/plans";
 import type { Id } from "../convex/_generated/dataModel";
+import { AppearanceControl } from "../components/profile/appearance";
 import { BrandFileCard, BrandKitCard, SectionCard } from "../components/profile/brand";
 import { InstagramConnectionRow, OpenAiConnectionRow } from "../components/profile/connections";
 import { ModelsCard } from "../components/profile/models";
@@ -228,9 +229,15 @@ function Overview() {
             <ChevronRight className="size-4 text-text-4 transition-transform group-open:rotate-90" />
           </span>
         </summary>
-        <div className="mt-5">
-          <h2 className="mb-2 text-body-sm font-medium">Modelos</h2>
-          <ModelsCard />
+        <div className="mt-5 space-y-6">
+          <div>
+            <h2 className="mb-2 text-body-sm font-medium">Aparência</h2>
+            <AppearanceControl />
+          </div>
+          <div>
+            <h2 className="mb-2 text-body-sm font-medium">Modelos</h2>
+            <ModelsCard />
+          </div>
         </div>
       </details>
     </>

@@ -1,5 +1,6 @@
 import { ORCHESTRATOR_MODELS, isTextModelAvailable } from "../agentModels";
 import { CONECTADO_IMAGE_MODELS, IMAGE_MODELS } from "../imageModels";
+import { THEMES } from "../../themes";
 
 /**
  * The platform settings the agents and the Perfil UI share. This file is pure
@@ -49,6 +50,11 @@ export const NON_SETTING_UI_FUNCTIONS = [
   // The visual kit shown beside it.
   "workspacePublic.file",
 ] as const;
+
+const THEME_LABELS = { system: "Sistema", light: "Claro", dark: "Escuro" } as const;
+
+const themeOptions = (): readonly SettingOption[] =>
+  THEMES.map((theme) => ({ value: theme, label: THEME_LABELS[theme] }));
 
 const textModelOptions = ({ conectado }: OptionContext): readonly SettingOption[] =>
   ORCHESTRATOR_MODELS.filter((model) => isTextModelAvailable(model, conectado)).map((model) => ({
@@ -103,6 +109,19 @@ export const SETTINGS = [
     options: imageModelOptions,
     doc: "modelos",
     uiFunctions: ["users.setImageModel"],
+  },
+  {
+    id: "appearance.theme",
+    group: "Aparência",
+    title: "Tema",
+    description:
+      "Tema claro ou escuro do aplicativo, ou o mesmo do dispositivo. Vale em todos os aparelhos do dono.",
+    where: "Perfil › Avançado › Aparência",
+    route: "/perfil",
+    access: "write",
+    options: themeOptions,
+    doc: "visao-geral",
+    uiFunctions: ["users.appearance", "users.setTheme"],
   },
   {
     id: "accounts.active",

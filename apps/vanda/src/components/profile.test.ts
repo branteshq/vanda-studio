@@ -23,6 +23,7 @@ const mocks = {
   selectAccount: vi.fn(),
   openUserProfile: vi.fn(),
   saveBrandFile: vi.fn().mockResolvedValue(undefined),
+  setTheme: vi.fn().mockResolvedValue(undefined),
   // SAFETY: the mutable fixture intentionally models Clerk's nullable first name.
   user: { fullName: "Test Owner", firstName: "Test" as string | null },
 };
@@ -68,6 +69,10 @@ const runtime = {
   useBrandFile: (accountId: string) => ({
     file: mocks.query(api.brandFile.get, { accountId }),
     save: mocks.saveBrandFile,
+  }),
+  useAppearance: () => ({
+    theme: mocks.query(api.users.appearance),
+    setTheme: mocks.setTheme,
   }),
   useWorkspaceFile: (accountId: string, path: string) =>
     mocks.query(api.workspacePublic.file, { accountId, path }),
@@ -284,6 +289,16 @@ it("warns when the ChatGPT plan runs without a connected OpenAI account", async 
   expect(container.textContent).toContain("Sua conta OpenAI não está conectada");
   expect(container.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("12");
   expect(container.textContent).toContain("Conta OpenAI");
+});
+
+it("applies a theme at once and saves it to the account", async () => {
+  document.documentElement.classList.add("dark");
+  await click("Claro");
+  expect(document.documentElement.classList.contains("dark")).toBe(false);
+  expect(localStorage.getItem("vanda-theme")).toBe("light");
+  expect(mocks.setTheme).toHaveBeenCalledWith("light");
+  await click("Escuro");
+  expect(document.documentElement.classList.contains("dark")).toBe(true);
 });
 
 it("does not claim zero usage or a trial plan while the summary is loading", async () => {

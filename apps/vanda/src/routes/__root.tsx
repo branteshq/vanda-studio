@@ -11,8 +11,8 @@ import {
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexQueryCacheProvider } from "convex-helpers/react/cache";
 import { TooltipProvider } from "@vanda-studio/ui/components/tooltip";
-import { Toaster } from "sonner";
 import { ErrorNotice } from "../components/error-feedback";
+import { THEME_BOOT_SCRIPT, ThemeSync } from "../components/theme";
 import { getConvexClient } from "../convexClient";
 import appCss from "../styles.css?url";
 import vandaMarkIconUrl from "@vanda-studio/ui/assets/vanda-mark.svg?url";
@@ -60,8 +60,10 @@ function RootDocument({ children }: { children: ReactNode }) {
   const convex = getConvexClient();
 
   return (
-    <html lang="pt-BR" className="dark">
+    // The theme class is set by THEME_BOOT_SCRIPT before paint, then by ThemeSync.
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <HeadContent />
       </head>
       <body>
@@ -72,11 +74,7 @@ function RootDocument({ children }: { children: ReactNode }) {
             <ConvexQueryCacheProvider>
               <TooltipProvider>
                 {children}
-                <Toaster
-                  theme="dark"
-                  position="bottom-right"
-                  toastOptions={{ className: "border-border bg-surface text-text" }}
-                />
+                <ThemeSync />
               </TooltipProvider>
             </ConvexQueryCacheProvider>
           </ConvexProviderWithClerk>

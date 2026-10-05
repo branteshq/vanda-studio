@@ -5,6 +5,7 @@ import type { Id } from "./_generated/dataModel";
 import { internalQuery, mutation, query } from "./_generated/server";
 import { requireUser } from "./authz";
 import { modelPreferencesOf, writeSetting } from "./settings/registry";
+import { DEFAULT_THEME, type Theme } from "../themes";
 
 const identityProfileSchema = z.object({
   name: z.string().optional(),
@@ -140,6 +141,30 @@ export const setCaetanoModel = mutation({
   args: { modelId: v.string() },
   handler: async (ctx, { modelId }): Promise<void> => {
     await writeSetting(ctx, await requireUser(ctx), "models.caetano", modelId);
+  },
+});
+
+/** The interface theme, for the client to apply; null when signed out. */
+export const appearance = query({
+  args: {},
+  handler: async (ctx): Promise<{ theme: Theme } | null> => {
+    const identity = await ctx.auth.getUserIdentity();
+
+    if (!identity) return null;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+
+    return user ? { theme: user.theme ?? DEFAULT_THEME } : null;
+  },
+});
+
+export const setTheme = mutation({
+  args: { theme: v.string() },
+  handler: async (ctx, { theme }): Promise<void> => {
+    await writeSetting(ctx, await requireUser(ctx), "appearance.theme", theme);
   },
 });
 

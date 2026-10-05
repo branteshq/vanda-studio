@@ -56,6 +56,14 @@ const profileHooks = {
       save: (content: string) => save({ accountId, content }),
     };
   },
+  useAppearance: () => {
+    const setTheme = useMutation(api.users.setTheme);
+
+    return {
+      theme: useQuery(api.users.appearance),
+      setTheme: (theme: string) => setTheme({ theme }),
+    };
+  },
   useWorkspaceFile: (accountId: Id<"accounts">, path: string) =>
     useQuery(api.workspacePublic.file, { accountId, path }),
 };

@@ -11,6 +11,7 @@ import {
 import { isConnectedSubscriber } from "../openaiSub";
 import { budgetOf } from "../usage";
 import { activeConnection } from "../whatsappData";
+import { DEFAULT_THEME, isTheme } from "../../themes";
 import {
   SETTINGS,
   findSetting,
@@ -64,6 +65,7 @@ const readers = {
   "models.vanda": (_ctx, user) => Promise.resolve(modelPreferencesOf(user).orchestrator),
   "models.caetano": (_ctx, user) => Promise.resolve(modelPreferencesOf(user).caetano),
   "models.image": (_ctx, user) => Promise.resolve(modelPreferencesOf(user).image),
+  "appearance.theme": (_ctx, user) => Promise.resolve(user.theme ?? DEFAULT_THEME),
   "accounts.active": async (ctx, user) => {
     const accounts = await ctx.db
       .query("accounts")
@@ -120,6 +122,13 @@ const readers = {
 } satisfies Record<SettingId, Reader>;
 
 const writers: Partial<Record<SettingId, Writer>> = {
+  "appearance.theme": async (ctx, user, value) => {
+    const theme = resolveOption(value, optionsOf("appearance.theme", false))?.value;
+
+    if (!isTheme(theme)) throw new Error("tema desconhecido: use Sistema, Claro ou Escuro");
+
+    await ctx.db.patch(user._id, { theme, updatedAt: Date.now() });
+  },
   "models.vanda": writeTextModel("orchestratorModel"),
   "models.caetano": writeTextModel("caetanoModel"),
   "models.image": async (ctx, user, value) => {
