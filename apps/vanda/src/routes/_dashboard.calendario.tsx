@@ -8,7 +8,7 @@ import { Tag } from "@vanda-studio/ui/components/tag";
 import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { useActiveAccount } from "../components/active-account";
-import { SlotEditorById } from "../components/autopilot/slot-editor";
+import { AutopilotPostDialogById } from "../components/autopilot/post-dialog";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import type { CalendarStatus } from "../convex/calendar";
@@ -233,7 +233,7 @@ function CalendarioPage() {
           </div>
         )}
       </main>
-      <SlotEditorById
+      <AutopilotPostDialogById
         accountId={activeAccount.id}
         slotId={openSlot}
         onClose={() => setOpenSlot(null)}

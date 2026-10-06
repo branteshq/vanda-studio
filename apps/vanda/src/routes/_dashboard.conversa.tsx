@@ -32,7 +32,11 @@ import type { Id } from "../convex/_generated/dataModel";
 
 export const Route = createFileRoute("/_dashboard/conversa")({
   component: ConversaPage,
-  validateSearch: z.object({ t: z.string().min(1).optional() }),
+  // `rascunho` prefills a new conversation, e.g. "Mudar na conversa" on an automatic post.
+  validateSearch: z.object({
+    t: z.string().min(1).optional(),
+    rascunho: z.string().max(500).optional(),
+  }),
 });
 
 function ConversaPage() {
@@ -177,7 +181,8 @@ function PendingFirstMessage({
 function NewConversation({ accountId }: { accountId: Id<"accounts"> }) {
   const sendMessage = useMutation(api.chat.sendMessage);
   const navigate = Route.useNavigate();
-  const [draft, setDraft] = useState("");
+  const { rascunho } = Route.useSearch();
+  const [draft, setDraft] = useState(rascunho ?? "");
 
   const [pending, setPending] = useState<{
     text: string;

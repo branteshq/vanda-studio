@@ -675,11 +675,6 @@ function AutopilotNavItem() {
   const { activeAccount } = useActiveAccount();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
 
-  const enabled = useQuery(
-    api.autopilot.enabled,
-    activeAccount ? { accountId: activeAccount.id } : "skip",
-  );
-
   if (!activeAccount) return null;
 
   return (
@@ -695,13 +690,7 @@ function AutopilotNavItem() {
         className="h-10"
       >
         <CalendarClock aria-hidden="true" />
-        <span className="flex-1 group-data-[collapsible=icon]:hidden">Posts automáticos</span>
-        {enabled ? (
-          <span
-            className="size-1.5 rounded-full bg-green group-data-[collapsible=icon]:hidden"
-            aria-label="Caetano no controle"
-          />
-        ) : null}
+        <span className="group-data-[collapsible=icon]:hidden">Posts automáticos</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
   );

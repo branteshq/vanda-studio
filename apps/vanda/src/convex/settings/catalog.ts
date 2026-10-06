@@ -51,19 +51,11 @@ export const NON_SETTING_UI_FUNCTIONS = [
   // The visual kit shown beside it.
   "workspacePublic.file",
   // Autopilot posts are content, not settings: the agents change them with autopilot_* tools.
-  "autopilot.history",
   "autopilot.slot",
   "autopilot.skipSlot",
   "autopilot.restoreSlot",
   "autopilot.approveSlot",
   "autopilot.regenerateSlot",
-  "autopilot.reanalyze",
-  // Caetano's chat on Posts automáticos: every change there is a message he acts on.
-  "caetano.state",
-  "caetano.sendMessage",
-  "caetano.stopGeneration",
-  "caetano.listMessages",
-  "threadResources.listForCaetano",
 ] as const;
 
 const THEME_LABELS = { system: "Sistema", light: "Claro", dark: "Escuro" } as const;
@@ -244,7 +236,7 @@ export const SETTINGS = [
     title: "Aceite antes de publicar",
     description:
       'Se os posts que o Caetano gera esperam o aceite do dono antes de publicar ("pedir aceite", o padrão: sem aceite até o horário, não publica) ou publicam sozinhos podendo ser vetados ("publicar sem aceite"). Recusar exige um motivo, que ensina o Caetano.',
-    where: "Posts automáticos › Aceite",
+    where: "Posts automáticos",
     route: "/posts-automaticos",
     access: "write",
     options: (): readonly SettingOption[] => [
@@ -252,7 +244,7 @@ export const SETTINGS = [
       { value: "publicar sem aceite", label: "Publicar sem aceite" },
     ],
     doc: "posts-automaticos",
-    uiFunctions: ["autopilot.setApproval"],
+    uiFunctions: [],
   },
   {
     id: "autopilot.cadence",
@@ -260,7 +252,7 @@ export const SETTINGS = [
     title: "Cadência dos posts automáticos",
     description:
       'Dias, horários (Brasília), formato e slides dos posts automáticos da semana. Para mudar, escreva um post por item separado por ";": "ter 18h carrossel 2; qui 18h imagem; sab 12h carrossel 3". O valor "caetano" devolve a cadência à sugestão do diagnóstico. Os posts ainda não gerados são replanejados.',
-    where: "Posts automáticos › Planejamento",
+    where: "Posts automáticos",
     route: "/posts-automaticos",
     access: "write",
     doc: "posts-automaticos",

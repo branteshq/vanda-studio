@@ -29,7 +29,7 @@ import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { useActiveAccount } from "./active-account";
-import { SlotEditorById } from "./autopilot/slot-editor";
+import { AutopilotPostDialogById } from "./autopilot/post-dialog";
 import { useWorkRail } from "./work-rail";
 
 /**
@@ -239,9 +239,9 @@ function AutopilotSlotLink({
   return (
     <>
       <Button variant="outline" size="sm" className="w-full" onClick={() => setOpen(true)}>
-        Editar ou pular com o Caetano
+        Ver post automático
       </Button>
-      <SlotEditorById
+      <AutopilotPostDialogById
         accountId={accountId}
         slotId={open ? slotId : null}
         onClose={() => setOpen(false)}

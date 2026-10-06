@@ -1,37 +1,24 @@
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
-import { mutation, query, type MutationCtx } from "./_generated/server";
-import { publicError } from "../errors";
+import { mutation, query } from "./_generated/server";
 import { requireOwnedAccount, requireUser } from "./authz";
 import {
   applyApprove,
   applyRegenerate,
   applyRestore,
   applySkip,
-  getConfig,
-  historyOf,
   overviewOf,
   slotView,
   type AutopilotSlotView,
-  requestRefresh,
   type AutopilotOverview,
-  type AutopilotWeekView,
 } from "./autopilotData";
 import { writeSetting } from "./settings/registry";
 
 /**
- * The Posts automáticos view and the chat card. Every write goes through the
- * same helpers as Vanda and Caetano's tools (autopilotData.ts). Turning the
- * autopilot on or off is a platform setting: settingsData.writeSetting.
+ * The Posts automáticos page: the queue and its one-tap decisions. Every write
+ * goes through the same helpers as Vanda and Caetano's tools (autopilotData.ts).
+ * Turning it on or off is a platform setting (settings/registry.writeSetting);
+ * cadence and approval change in the conversation, through settings_set.
  */
-
-/** Settings act on the active business; the page always shows that one. */
-const requireActiveAccount = async (ctx: MutationCtx, accountId: Id<"accounts">) => {
-  await requireOwnedAccount(ctx, accountId);
-  const user = await requireUser(ctx);
-
-  if (user.activeAccountId !== accountId) throw publicError("INVALID_INPUT");
-};
 
 export const overview = query({
   args: { accountId: v.id("accounts"), now: v.optional(v.number()) },
@@ -39,16 +26,6 @@ export const overview = query({
     await requireOwnedAccount(ctx, accountId);
 
     return overviewOf(ctx, accountId, now ?? Date.now());
-  },
-});
-
-/** Just whether Caetano is in control: the sidebar's dot, without the whole overview. */
-export const enabled = query({
-  args: { accountId: v.id("accounts") },
-  handler: async (ctx, { accountId }): Promise<boolean> => {
-    await requireOwnedAccount(ctx, accountId);
-
-    return (await getConfig(ctx, accountId))?.enabled ?? false;
   },
 });
 
@@ -73,15 +50,6 @@ export const slot = query({
     const found = await ctx.db.get(slotId);
 
     return found && found.accountId === accountId ? slotView(ctx, found) : null;
-  },
-});
-
-export const history = query({
-  args: { accountId: v.id("accounts") },
-  handler: async (ctx, { accountId }): Promise<AutopilotWeekView[]> => {
-    await requireOwnedAccount(ctx, accountId);
-
-    return historyOf(ctx, accountId, Date.now());
   },
 });
 
@@ -117,31 +85,5 @@ export const regenerateSlot = mutation({
   handler: async (ctx, { accountId, slotId }) => {
     await requireOwnedAccount(ctx, accountId);
     await applyRegenerate(ctx, accountId, slotId);
-  },
-});
-
-/** Whether produced posts wait for approval: the autopilot.approval setting. */
-export const setApproval = mutation({
-  args: {
-    accountId: v.id("accounts"),
-    approval: v.union(v.literal("required"), v.literal("auto")),
-  },
-  handler: async (ctx, { accountId, approval }): Promise<void> => {
-    await requireActiveAccount(ctx, accountId);
-    await writeSetting(
-      ctx,
-      await requireUser(ctx),
-      "autopilot.approval",
-      approval === "required" ? "pedir aceite" : "publicar sem aceite",
-    );
-  },
-});
-
-/** "Reanalisar": fresh diagnosis, then replan what isn't produced or fixed yet. */
-export const reanalyze = mutation({
-  args: { accountId: v.id("accounts") },
-  handler: async (ctx, { accountId }) => {
-    await requireOwnedAccount(ctx, accountId);
-    await requestRefresh(ctx, accountId, true);
   },
 });

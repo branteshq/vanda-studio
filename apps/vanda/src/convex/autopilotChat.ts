@@ -14,7 +14,7 @@ import {
 } from "./pipeline/autopilot";
 import type { ThreadResource } from "./resourceRefs";
 import { upsertManifest } from "./threadResources";
-import { activeConnection, notifyOwner } from "./whatsappData";
+import { activeConnection, notifyOwner, type OutboundItem } from "./whatsappData";
 
 /**
  * Posts automáticos news reach the owner where they already talk: a short note
@@ -27,7 +27,7 @@ const accountLabel = (account: { name?: string; handle?: string } | null): strin
   account?.name ?? (account?.handle ? `@${account.handle}` : "seu negócio");
 
 /**
- * Caetano: the text in his thread (seen on the Posts automáticos page) and, when
+ * Caetano: the text in his thread (his context for the owner's replies) and, when
  * the owner linked WhatsApp, there too. `context` is appended only in the
  * thread (ids the tools need).
  */
@@ -38,6 +38,7 @@ const tellCaetano = async (
   text: string,
   resources: ThreadResource[],
   context = "",
+  images: readonly OutboundItem[] = [],
 ): Promise<void> => {
   const account = await ctx.db.get(accountId);
   const owner = account?.ownerUserId ? await ctx.db.get(account.ownerUserId) : null;
@@ -66,7 +67,7 @@ const tellCaetano = async (
     });
   }
 
-  if (await activeConnection(ctx, owner._id)) await notifyOwner(ctx, owner._id, text);
+  if (await activeConnection(ctx, owner._id)) await notifyOwner(ctx, owner._id, text, images);
 };
 
 /** The account's most recent Vanda conversation, where in-app notices land. */
@@ -170,8 +171,25 @@ export const notifyProduced = internalMutation({
       ? `O Caetano preparou um post para o seu aceite: ${slotLine(slot)}. Aprove ou recuse dizendo o motivo — sem aceite até o horário, ele não publica.`
       : `O Caetano preparou um post: ${slotLine(slot)}. Ele publica no horário; dá para recusar ou pular até lá.`;
 
+    // On WhatsApp the owner decides from the post itself: every slide, the caption on the last.
+    const produced = await ctx.db.get(slot.postId);
+
+    const slides: OutboundItem[] = (produced?.imageIds ?? []).map((imageId, index, all) =>
+      index === all.length - 1 && produced?.caption
+        ? { kind: "image", imageId, caption: `Legenda: ${produced.caption}` }
+        : { kind: "image", imageId },
+    );
+
     await tellVanda(ctx, slot.accountId, `autopilot:produced:${slotId}`, forChat, [post]);
-    await tellCaetano(ctx, slot.accountId, `autopilot:produced:${slotId}`, text, [post], context);
+    await tellCaetano(
+      ctx,
+      slot.accountId,
+      `autopilot:produced:${slotId}`,
+      text,
+      [post],
+      context,
+      slides,
+    );
   },
 });
 

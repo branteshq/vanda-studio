@@ -637,6 +637,33 @@ describe("autopilot approval cannot be bypassed", () => {
     await t.mutation(internal.autopilotData.setEnabledInternal, { accountId, enabled: false });
   });
 
+  it("asks for approval on WhatsApp with the post's slides and caption", async () => {
+    const { t, accountId, tuesday, postId } = await awaiting();
+
+    await t.run(async (ctx) => {
+      const account = await ctx.db.get(accountId);
+
+      await ctx.db.insert("whatsappConnections", {
+        userId: account!.ownerUserId!,
+        phoneNumberId: "sandbox",
+        sender: "55119999",
+        recipientKind: "phone",
+        active: true,
+        connectedAt: NOW,
+        lastInboundAt: Date.now(),
+      });
+    });
+    await t.mutation(internal.autopilotChat.notifyProduced, { slotId: tuesday._id });
+
+    const outbox = await t.run((ctx) => ctx.db.query("whatsappOutbox").collect());
+    const post = await t.run((ctx) => ctx.db.get(postId));
+    const images = outbox.filter((row) => row.kind === "image");
+
+    expect(outbox[0]?.text).toContain("aprovo");
+    expect(images.map((row) => row.imageId)).toEqual(post!.imageIds);
+    expect(images.at(-1)?.text).toBe(`Legenda: ${post!.caption}`);
+  });
+
   it("turning approval on holds posts that were armed without it", async () => {
     const { t, accountId, plan, slots, produce } = await setup();
 

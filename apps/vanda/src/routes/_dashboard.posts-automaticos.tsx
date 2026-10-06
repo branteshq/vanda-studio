@@ -1,52 +1,32 @@
-import { useEffect, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
+import { useState } from "react";
+import { Link, createFileRoute } from "@tanstack/react-router";
+import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
-import caetanoWelcomeUrl from "@vanda-studio/ui/assets/caetano/caetano-expression-welcome.png?url";
-import { useSidebar } from "@vanda-studio/ui/components/sidebar";
+import { Check, ImageOff } from "lucide-react";
+import { Button } from "@vanda-studio/ui/components/button";
+import { Skeleton } from "@vanda-studio/ui/components/skeleton";
+import { StatusPill } from "@vanda-studio/ui/components/status-pill";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { useActiveAccount } from "../components/active-account";
-import { SlotEditorById, focusFor } from "../components/autopilot/slot-editor";
-import { PlanningPanel } from "../components/caetano/autopilot-panel";
-import { PlanningDock } from "../components/caetano/planning-dock";
-import {
-  CaetanoChat,
-  useCaetanoConversation,
-  type PostFocus,
-} from "../components/caetano/caetano-chat";
-import { DetailsSheet } from "../components/caetano/details-sheet";
-import { GuidedReplies, focusReplies, guidedReplies } from "../components/caetano/guided-replies";
+import { SLOT_STATUS, formatLabel, publishLabel, slotWhen } from "../components/autopilot/format";
+import { AutopilotPostDialog } from "../components/autopilot/post-dialog";
+import { groupQueue } from "../components/autopilot/queue";
 import { showErrorToast } from "../components/error-feedback";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import type { AutopilotOverview, AutopilotSlotView } from "../convex/autopilotData";
+import { PRODUCE_AHEAD_MS } from "../convex/autopilotModel";
 
 export const Route = createFileRoute("/_dashboard/posts-automaticos")({
   component: AutomaticPostsPage,
-  // Arriving from the Calendário or the post list with a post to talk about.
-  validateSearch: z.object({
-    foco: z.string().min(1).optional(),
-    slide: z.number().int().positive().optional(),
-  }),
 });
 
 /**
- * Posts automáticos: one guided conversation with Caetano, with his planning
- * laid out inside it as a live card. Everything is clickable — the card and
- * editors act directly — and everything can also be asked of Caetano, who uses
- * the same settings and helpers (writeSetting, autopilotData) through his tools.
+ * Posts automáticos: the queue of what Caetano makes, not a place to chat.
+ * What needs the owner's yes comes first, then what is coming, then what went
+ * out. Settings are one line; changing them, or any post, is a sentence to
+ * Vanda (or to Caetano on WhatsApp), who use the same settings and tools.
  */
-
-const welcomeOf = (overview: AutopilotOverview): string => {
-  if (!overview.connected)
-    return "Oi! Sou o Caetano. Conecte o Instagram do negócio e eu cuido dos seus posts de feed.";
-
-  if (!overview.enabled)
-    return "Oi! Sou o Caetano. Posso cuidar dos seus posts de feed: analiso a conta, planejo a semana, crio cada post e publico com o seu aceite.";
-
-  return "Estou cuidando dos seus posts de feed. Pergunte o que quiser ou peça qualquer mudança.";
-};
-
 function AutomaticPostsPage() {
   const { activeAccount } = useActiveAccount();
 
@@ -55,132 +35,235 @@ function AutomaticPostsPage() {
     activeAccount ? { accountId: activeAccount.id } : "skip",
   );
 
-  const conversation = useCaetanoConversation();
-  const sidebar = useSidebar();
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [openSlot, setOpenSlot] = useState<Id<"autopilotSlots"> | null>(null);
-  const search = Route.useSearch();
-  const navigate = Route.useNavigate();
-
-  // SAFETY: the id only selects a slot; autopilot.slot checks it belongs to the account.
-  const linkedSlotId = search.foco as Id<"autopilotSlots"> | undefined;
-
-  const linkedSlot = useQuery(
-    api.autopilot.slot,
-    activeAccount && linkedSlotId ? { accountId: activeAccount.id, slotId: linkedSlotId } : "skip",
-  );
-
-  /** Lock the chat on a post and open the conversation about it. */
-  const talkAbout = (focus: PostFocus) => {
-    conversation.setFocus(focus);
-    conversation
-      .send(
-        focus.slide
-          ? `Quero falar sobre a imagem ${focus.slide} deste post.`
-          : "Quero falar sobre este post.",
-        [],
-        focus,
-      )
-      .catch(showErrorToast);
-  };
-
-  // A deep link focuses once, then leaves a clean address.
-  useEffect(() => {
-    if (!linkedSlot) return;
-
-    talkAbout(focusFor(linkedSlot, search.slide));
-    void navigate({ search: {}, replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per linked slot
-  }, [linkedSlot?.slotId]);
-
   if (!activeAccount) return null;
 
-  const focusedSlot = conversation.focus
-    ? overview?.weeks
-        .flatMap((week) => week.slots)
-        .find((slot) => slot.slotId === conversation.focus?.slotId)
-    : undefined;
+  return (
+    <main className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto w-full max-w-3xl px-4 py-8 md:px-6">
+        <h1 className="text-xl font-semibold tracking-tight">Posts automáticos</h1>
+        {overview === undefined ? (
+          <div className="mt-6 space-y-3" aria-hidden>
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        ) : (
+          <Queue accountId={activeAccount.id} overview={overview} />
+        )}
+      </div>
+    </main>
+  );
+}
 
-  const ask = (text: string) => {
-    conversation.send(text).catch(showErrorToast);
-  };
-
-  const draftForCaetano = (text: string) => conversation.setDraft(text);
-
-  /** Refusing asks for the reason: the chat locks on the post with the sentence started. */
-  const rejectWithReason = (slot: AutopilotSlotView) => {
-    conversation.setFocus(focusFor(slot));
-    conversation.setDraft("Recuso este post porque ");
-  };
+function Queue({
+  accountId,
+  overview,
+}: {
+  accountId: Id<"accounts">;
+  overview: AutopilotOverview;
+}) {
+  const [openSlot, setOpenSlot] = useState<Id<"autopilotSlots"> | null>(null);
+  const slots = overview.weeks.flatMap((week) => week.slots);
+  const queue = groupQueue(slots, Date.now());
+  const opened = slots.find((slot) => slot.slotId === openSlot) ?? null;
+  const planning = overview.enabled && overview.weeks.some((week) => week.status === "planning");
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <header
-        className={cn(
-          "flex h-14 shrink-0 items-center gap-3 border-b border-border bg-app px-4 md:px-6",
-          // The collapsed sidebar floats its controls over the top-left corner.
-          sidebar.state === "collapsed" && "md:pl-36",
-        )}
-      >
-        <span
-          className="flex size-7 items-center justify-center overflow-hidden rounded-full bg-brand-accent/12"
-          aria-hidden="true"
-        >
-          <img
-            src={caetanoWelcomeUrl}
-            alt=""
-            className="size-9 max-w-none translate-y-1 object-contain"
-          />
-        </span>
-        <div className="mr-auto grid">
-          <h1 className="text-sm font-semibold text-text">Posts automáticos</h1>
-          <span className="hidden text-note text-text-4 sm:block">com o Caetano no controle</span>
-        </div>
-      </header>
-
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <CaetanoChat
-          conversation={conversation}
-          welcome={overview ? welcomeOf(overview) : "Oi! Sou o Caetano."}
-          replies={
-            overview ? (
-              <GuidedReplies
-                replies={
-                  conversation.focus
-                    ? focusReplies(focusedSlot, () => conversation.setFocus(null))
-                    : guidedReplies(overview)
-                }
-                disabled={conversation.busy}
-                onSend={ask}
-                onPrefill={draftForCaetano}
-              />
-            ) : null
-          }
-          pinned={
-            overview ? (
-              <PlanningDock overview={overview}>
-                <PlanningPanel
-                  overview={overview}
-                  onOpenSlot={setOpenSlot}
-                  onReject={rejectWithReason}
-                  onDetails={() => setDetailsOpen(true)}
-                />
-              </PlanningDock>
-            ) : null
-          }
-        />
-      </div>
-
-      <SlotEditorById
-        accountId={activeAccount.id}
-        slotId={openSlot}
-        onClose={() => setOpenSlot(null)}
-        onTalk={talkAbout}
-      />
-
-      {overview ? (
-        <DetailsSheet overview={overview} open={detailsOpen} onOpenChange={setDetailsOpen} />
+    <>
+      <StatusLine overview={overview} />
+      {overview.enabled && slots.length === 0 ? (
+        <p className="mt-8 text-body-sm text-text-3">
+          {planning || overview.auditRunning
+            ? "O Caetano está analisando a conta e planejando a semana. Os posts aparecem aqui em alguns minutos."
+            : "Nenhum post planejado para esta semana e a próxima ainda."}
+        </p>
       ) : null}
+      <Section title="Precisa da sua aprovação" slots={queue.approval}>
+        {(slot) => (
+          <Row key={slot.slotId} slot={slot} onOpen={() => setOpenSlot(slot.slotId)}>
+            <ApproveButton accountId={accountId} slotId={slot.slotId} />
+          </Row>
+        )}
+      </Section>
+      <Section title="Próximos" slots={queue.upcoming}>
+        {(slot) => <Row key={slot.slotId} slot={slot} onOpen={() => setOpenSlot(slot.slotId)} />}
+      </Section>
+      <Section title="Publicados" slots={queue.past}>
+        {(slot) => <Row key={slot.slotId} slot={slot} onOpen={() => setOpenSlot(slot.slotId)} />}
+      </Section>
+      {overview.enabled ? (
+        <p className="mt-10 text-note text-text-4">
+          Para mudar dias, horários, formatos ou o que evitar, é só pedir na{" "}
+          <Link to="/conversa" search={{}} className="underline">
+            conversa
+          </Link>
+          . O Caetano também te manda cada post para aprovar no WhatsApp.
+        </p>
+      ) : null}
+      <AutopilotPostDialog
+        key={opened?.slotId ?? "none"}
+        accountId={accountId}
+        slot={opened}
+        onClose={() => setOpenSlot(null)}
+      />
+    </>
+  );
+}
+
+/** The settings as one sentence and the single switch the page keeps. */
+function StatusLine({ overview }: { overview: AutopilotOverview }) {
+  const setEnabled = useMutation(api.autopilot.setEnabled);
+  const [busy, setBusy] = useState(false);
+
+  const toggle = (enabled: boolean) => {
+    setBusy(true);
+    setEnabled({ enabled })
+      .catch(showErrorToast)
+      .finally(() => setBusy(false));
+  };
+
+  if (!overview.connected) {
+    return (
+      <p className="mt-2 text-body-sm text-text-3">
+        O Caetano planeja, cria e publica seus posts de feed toda semana. Para começar, conecte o
+        Instagram em{" "}
+        <Link to="/perfil" className="underline">
+          Perfil
+        </Link>
+        .
+      </p>
+    );
+  }
+
+  if (!overview.enabled) {
+    return (
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+        <p className="max-w-xl text-body-sm text-text-3">
+          Desligado. Quando ligado, o Caetano planeja a semana, cria cada post um dia antes e te
+          pede aprovação antes de publicar.
+        </p>
+        <Button size="sm" disabled={busy} onClick={() => toggle(true)}>
+          Ligar
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+      <p className="text-body-sm text-text-3">
+        <span className="text-text">Ligado</span> · {overview.cadenceSummary} ·{" "}
+        {overview.approval === "required" ? "com aprovação" : "publica sem pedir aprovação"}
+      </p>
+      <Button size="sm" variant="outline" disabled={busy} onClick={() => toggle(false)}>
+        Pausar
+      </Button>
     </div>
+  );
+}
+
+function Section({
+  title,
+  slots,
+  children,
+}: {
+  title: string;
+  slots: readonly AutopilotSlotView[];
+  children: (slot: AutopilotSlotView) => React.ReactNode;
+}) {
+  if (slots.length === 0) return null;
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-note font-medium text-text-3">{title}</h2>
+      <ul className="mt-2 divide-y divide-border rounded-xl border border-border">
+        {slots.map(children)}
+      </ul>
+    </section>
+  );
+}
+
+/** "fica pronto qua 18h" for a planned post, the status otherwise. */
+const rowNote = (slot: AutopilotSlotView): string | null => {
+  if (slot.status === "planned")
+    return `fica pronto ${publishLabel(slot.scheduledFor - PRODUCE_AHEAD_MS)}`;
+
+  if (slot.status === "published" && slot.results?.reach !== undefined)
+    return `${slot.results.reach.toLocaleString("pt-BR")} de alcance`;
+
+  return null;
+};
+
+function Row({
+  slot,
+  onOpen,
+  children,
+}: {
+  slot: AutopilotSlotView;
+  onOpen: () => void;
+  children?: React.ReactNode;
+}) {
+  const status = SLOT_STATUS[slot.status];
+  const note = rowNote(slot);
+
+  return (
+    <li
+      className={cn(
+        "flex items-center gap-3 px-3 py-2.5",
+        slot.status === "skipped" && "opacity-55",
+      )}
+    >
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        aria-label={`Ver o post de ${slotWhen(slot)}`}
+      >
+        <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-inset">
+          {slot.coverUrl ? (
+            <img src={slot.coverUrl} alt="" className="size-full object-cover" />
+          ) : (
+            <ImageOff className="size-4 text-text-5" aria-hidden="true" />
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-body-sm font-medium text-text">
+            {slotWhen(slot)} · {formatLabel(slot)}
+          </span>
+          <span className="block truncate text-note text-text-3">“{slot.hook}”</span>
+        </span>
+        <span className="hidden shrink-0 text-right sm:block">
+          <StatusPill tone={status.tone}>{status.label}</StatusPill>
+          {note ? <span className="mt-1 block text-micro text-text-4">{note}</span> : null}
+        </span>
+      </button>
+      {children}
+    </li>
+  );
+}
+
+function ApproveButton({
+  accountId,
+  slotId,
+}: {
+  accountId: Id<"accounts">;
+  slotId: Id<"autopilotSlots">;
+}) {
+  const approveSlot = useMutation(api.autopilot.approveSlot);
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <Button
+      size="sm"
+      disabled={busy}
+      onClick={() => {
+        setBusy(true);
+        approveSlot({ accountId, slotId })
+          .catch(showErrorToast)
+          .finally(() => setBusy(false));
+      }}
+    >
+      <Check /> Aprovar
+    </Button>
   );
 }
