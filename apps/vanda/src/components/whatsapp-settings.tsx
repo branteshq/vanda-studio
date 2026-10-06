@@ -1,16 +1,64 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
+import type { FunctionReturnType } from "convex/server";
 import { Button, buttonVariants } from "@vanda-studio/ui/components/button";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import { showErrorToast } from "./error-feedback";
 
+type Link = { url: string; expiresAt: number };
+
+const time = (at: number) =>
+  new Date(at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+/** The pending link until it expires; null once it does, so the owner can make a new one. */
+function useLiveLink(link: Link | null): Link | null {
+  const [expired, setExpired] = useState(false);
+
+  useEffect(() => {
+    setExpired(false);
+
+    if (!link) return;
+    const timer = setTimeout(() => setExpired(true), Math.max(0, link.expiresAt - Date.now()));
+
+    return () => clearTimeout(timer);
+  }, [link]);
+
+  return link && !expired ? link : null;
+}
+
+export interface WhatsAppConnection {
+  /** Undefined while loading. */
+  readonly state:
+    | Pick<
+        FunctionReturnType<typeof api.whatsappData.state>,
+        "configured" | "connected" | "sender" | "chatUrl"
+      >
+    | undefined;
+  readonly createLink: () => Promise<Link>;
+  readonly disconnect: () => Promise<void>;
+}
+
 export function WhatsAppSettings() {
   const state = useQuery(api.whatsappData.state);
   const createLink = useAction(api.whatsapp.createLink);
   const disconnect = useMutation(api.whatsappData.disconnect);
-  const [link, setLink] = useState<{ url: string; expiresAt: number } | null>(null);
+
+  return (
+    <WhatsAppSettingsView
+      state={state}
+      createLink={() => createLink()}
+      disconnect={async () => {
+        await disconnect();
+      }}
+    />
+  );
+}
+
+export function WhatsAppSettingsView({ state, createLink, disconnect }: WhatsAppConnection) {
+  const [link, setLink] = useState<Link | null>(null);
   const [busy, setBusy] = useState(false);
+  const pending = useLiveLink(state?.connected ? null : link);
 
   const run = async <Result,>(work: () => Promise<Result>) => {
     setBusy(true);
@@ -24,6 +72,20 @@ export function WhatsAppSettings() {
     }
   };
 
+  const generate = () => void run(async () => setLink(await createLink()));
+
+  // While a link is live, the one thing left is sending it: that is the button.
+  const status =
+    state === undefined
+      ? "Carregando…"
+      : state.connected
+        ? `Conectado${state.sender ? `: +${state.sender}` : ""}`
+        : pending
+          ? "Aguardando sua mensagem no WhatsApp…"
+          : link
+            ? "O link expirou. Gere um novo para conectar."
+            : "Converse com o Caetano pelo WhatsApp.";
+
   return (
     <div className="py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -32,18 +94,12 @@ export function WhatsAppSettings() {
             aria-hidden
             className={cn(
               "inline-block size-2 shrink-0 rounded-full",
-              state?.connected ? "bg-green" : "bg-text-5",
+              state?.connected ? "bg-green" : pending ? "bg-amber" : "bg-text-5",
             )}
           />
           <div className="min-w-0">
             <p className="text-body-sm font-medium">Caetano no WhatsApp</p>
-            <p className="text-xs text-text-4">
-              {state === undefined
-                ? "Carregando…"
-                : state.connected
-                  ? `Conectado${state.sender ? `: +${state.sender}` : ""}`
-                  : "Converse com o Caetano pelo WhatsApp."}
-            </p>
+            <p className="text-xs text-text-4">{status}</p>
           </div>
         </div>
         {state?.connected ? (
@@ -77,13 +133,18 @@ export function WhatsAppSettings() {
               Desconectar
             </Button>
           </div>
-        ) : state ? (
-          <Button
-            size="sm"
-            disabled={busy || !state.configured}
-            onClick={() => void run(async () => setLink(await createLink()))}
+        ) : pending ? (
+          <a
+            className={buttonVariants({ size: "sm" })}
+            href={pending.url}
+            target="_blank"
+            rel="noreferrer"
           >
-            {busy ? "Gerando…" : "Conectar"}
+            Abrir WhatsApp
+          </a>
+        ) : state ? (
+          <Button size="sm" disabled={busy || !state.configured} onClick={generate}>
+            {busy ? "Gerando…" : link ? "Gerar novo link" : "Conectar"}
           </Button>
         ) : null}
       </div>
@@ -92,14 +153,10 @@ export function WhatsAppSettings() {
           A conexão com o WhatsApp ainda não está disponível.
         </p>
       ) : null}
-      {link && !state?.connected ? (
-        <p className="mt-3 rounded-lg border border-border bg-app px-3 py-2 text-body-sm">
-          <a className="font-medium underline" href={link.url} target="_blank" rel="noreferrer">
-            Abrir WhatsApp e enviar o vínculo
-          </a>
-          <span className="ml-2 text-text-3">
-            Válido até {new Date(link.expiresAt).toLocaleTimeString("pt-BR")}. Não compartilhe.
-          </span>
+      {pending ? (
+        <p className="mt-2 text-xs text-text-3">
+          O WhatsApp abre com uma mensagem pronta: toque em enviar. Válido até{" "}
+          {time(pending.expiresAt)}. Não compartilhe.
         </p>
       ) : null}
     </div>
