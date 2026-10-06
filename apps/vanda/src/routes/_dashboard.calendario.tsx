@@ -28,6 +28,7 @@ const STATUS_META = {
   generating: { label: "Criando", dot: "animate-caetano-dot bg-brand-accent" },
   awaiting_approval: { label: "Aguardando aprovação", dot: "bg-amber" },
   skipped: { label: "Pulado", dot: "border border-text-5" },
+  paused: { label: "Pausado", dot: "border border-dashed border-text-4" },
   scheduled: { label: "Agendado", dot: "bg-brand-accent" },
   publishing: { label: "Publicando", dot: "animate-caetano-dot bg-brand-accent" },
   published: { label: "Publicado", dot: "bg-green" },
@@ -41,6 +42,9 @@ const LEGEND: readonly CalendarStatus[] = [
   "published",
   "failed",
 ];
+
+// Shown in the legend only when the month has them.
+const OCCASIONAL: readonly CalendarStatus[] = ["paused", "skipped"];
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -234,6 +238,8 @@ function CalendarioPage() {
                               className={cn(
                                 "mt-0.5 line-clamp-2 leading-snug text-text-2",
                                 item.status === "skipped" && "text-text-4 line-through",
+                                item.status === "paused" && "text-text-4",
+                                item.status === "paused" && "text-text-4",
                               )}
                             >
                               {title}
@@ -249,7 +255,10 @@ function CalendarioPage() {
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-note text-text-3">
-            {LEGEND.map((status) => (
+            {[
+              ...LEGEND,
+              ...OCCASIONAL.filter((status) => items?.some((item) => item.status === status)),
+            ].map((status) => (
               <span key={status} className="inline-flex items-center gap-2">
                 <span className={cn("size-2.5 rounded-full", STATUS_META[status].dot)} />
                 {STATUS_META[status].label}

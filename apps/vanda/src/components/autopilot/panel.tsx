@@ -190,7 +190,7 @@ const ZZZ_DELAYS = ["[animation-delay:0ms]", "[animation-delay:800ms]", "[animat
 function Zzz() {
   return (
     <span
-      className="pointer-events-none absolute -top-1 right-1 text-note font-semibold text-text-3"
+      className="pointer-events-none absolute top-3 right-0 text-note font-semibold text-text-3"
       aria-hidden
     >
       {ZZZ_DELAYS.map((delay) => (

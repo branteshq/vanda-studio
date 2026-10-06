@@ -509,7 +509,8 @@
     transform: translate(2px, -2px) rotate(3deg);
   }
 }
-/* Asleep: a "z" drifts up and fades; three of them, staggered. */
+/* Asleep: a "z" drifts out to the side of his head and fades, staying inside
+ * the strip (never up into the page title); three of them, staggered. */
 @keyframes caetano-zzz {
   0% {
     opacity: 0;
@@ -520,7 +521,7 @@
   }
   100% {
     opacity: 0;
-    transform: translate(10px, -22px) scale(1.15);
+    transform: translate(14px, -8px) scale(1.15);
   }
 }
 /* Hovered while asleep: a sleepy wobble that says "tap me". */

@@ -23,7 +23,7 @@ import type { Id } from "../../convex/_generated/dataModel";
 import type { AutopilotSlotView } from "../../convex/autopilotData";
 import { PRODUCE_AHEAD_LABEL, PRODUCE_AHEAD_MS } from "../../convex/autopilotModel";
 import { showErrorToast } from "../error-feedback";
-import { SLOT_STATUS, changeDraft, formatLabel, publishLabel } from "./format";
+import { changeDraft, formatLabel, publishLabel, slotStatus } from "./format";
 
 /**
  * One automatic post: its slides, caption and the one-tap decisions (approve,
@@ -129,10 +129,11 @@ export function AutopilotPostDialog({
 
   if (!slot) return null;
 
-  const status = SLOT_STATUS[slot.status];
+  const status = slotStatus(slot);
   const urls = slot.imageUrls.length > 0 ? slot.imageUrls : slot.coverUrl ? [slot.coverUrl] : [];
   const current = Math.min(index, Math.max(0, urls.length - 1));
-  const open = slot.status !== "published";
+  // Paused posts wait for Caetano to be woken: nothing to approve, skip or restore here.
+  const open = slot.status !== "published" && !slot.paused;
   const generating = slot.status === "generating";
   const canGenerate = open && !generating && slot.status !== "skipped";
   const ids = { accountId, slotId: slot.slotId };
@@ -145,7 +146,12 @@ export function AutopilotPostDialog({
       () => undefined,
     );
 
-  const empty = generating ? (
+  const empty = slot.paused ? (
+    <>
+      <ImageOff className="size-6 text-text-5" aria-hidden="true" />
+      <span className="text-note text-text-3">Será criado quando o Caetano acordar</span>
+    </>
+  ) : generating ? (
     <>
       <Spinner />
       <span className="text-note text-text-3">Criando as imagens…</span>
@@ -199,7 +205,13 @@ export function AutopilotPostDialog({
                 Refazendo: “{slot.revisionNote}”
               </p>
             ) : null}
-            {slot.lastError && slot.status !== "published" ? (
+            {slot.paused ? (
+              <p className="rounded-md bg-inset px-3 py-2 text-note text-text-2">
+                Os posts automáticos estão pausados. Acorde o Caetano no topo do Calendário para
+                retomar: este post volta sozinho.
+              </p>
+            ) : null}
+            {slot.lastError && slot.status !== "published" && !slot.paused ? (
               <p className="rounded-md border border-needs-border bg-needs-bg px-3 py-2 text-micro text-text-2">
                 {slot.lastError}
               </p>

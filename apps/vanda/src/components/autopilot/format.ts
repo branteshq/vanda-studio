@@ -46,3 +46,7 @@ export const formatLabel = (slot: Pick<AutopilotSlotView, "type" | "slideCount">
 /** What to write to Vanda to change a post: she finds it by day, time and hook. */
 export const changeDraft = (slot: Pick<AutopilotSlotView, "weekday" | "time" | "hook">): string =>
   `Sobre o post automático de ${slotWhen(slot)} ("${slot.hook}"): `;
+
+/** The status the owner sees: a slot set aside by a pause reads as paused, not skipped. */
+export const slotStatus = (slot: Pick<AutopilotSlotView, "status" | "paused">) =>
+  slot.paused ? ({ label: "Pausado", tone: "neutral" } as const) : SLOT_STATUS[slot.status];

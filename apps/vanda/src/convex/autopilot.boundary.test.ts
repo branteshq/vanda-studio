@@ -694,6 +694,20 @@ describe("autopilot paused mid-work", () => {
     expect(saved.length).toBeGreaterThan(0);
     expect(saved.every((slot) => slot.status === "skipped")).toBe(true);
 
+    // Shown as paused, not skipped: in the post view and in the calendar.
+    const owner = t.withIdentity({ subject: "me" });
+    const view = await owner.query(api.autopilot.slot, { accountId, slotId: saved[0]!._id });
+
+    expect(view?.paused).toBe(true);
+
+    const calendar = await owner.query(api.calendar.range, {
+      accountId,
+      start: NEXT_WEEK,
+      end: NEXT_WEEK + 7 * 86_400_000,
+    });
+
+    expect(calendar.every((item) => item.status === "paused")).toBe(true);
+
     await t.mutation(internal.autopilotData.setEnabledInternal, { accountId, enabled: true });
 
     expect((await slots()).every((slot) => slot.status === "planned")).toBe(true);

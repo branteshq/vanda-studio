@@ -41,6 +41,15 @@ export const autopilotSlotStatuses = [
 
 export type AutopilotSlotStatus = (typeof autopilotSlotStatuses)[number];
 
+/** Why a slot was set aside when the owner paused posts automáticos (restored on resume). */
+export const PAUSED_REASON = "posts automáticos pausados";
+
+/** A slot set aside by a pause, as opposed to one the owner skipped. */
+export const isPausedSlot = (slot: {
+  status: AutopilotSlotStatus;
+  lastError?: string | undefined;
+}) => slot.status === "skipped" && slot.lastError === PAUSED_REASON;
+
 export const autopilotWeekStatuses = ["planning", "planned", "failed"] as const;
 
 export const auditStatuses = ["running", "ready", "failed"] as const;

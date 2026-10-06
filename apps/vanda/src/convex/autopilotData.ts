@@ -28,6 +28,8 @@ import {
   type ApprovalMode,
   type AutopilotSlotStatus,
   type CadenceEntry,
+  PAUSED_REASON,
+  isPausedSlot,
 } from "./autopilotModel";
 import { brandFileContent, brandFileFacts } from "./brandFile";
 import {
@@ -189,6 +191,8 @@ export const slotView = async (ctx: QueryCtx, slot: Doc<"autopilotSlots">) => {
     slideOutline: slot.slideOutline,
     captionBrief: slot.captionBrief,
     status: slot.status,
+    // Set aside by a pause (comes back on resume), not skipped by the owner.
+    paused: isPausedSlot(slot),
     ownerEdited: slot.ownerEdited,
     postId: slot.postId ?? null,
     caption: post?.caption ?? null,
@@ -698,7 +702,7 @@ export const applyEnabled = async (
   }
 };
 
-const PAUSED = "posts automáticos pausados";
+const PAUSED = PAUSED_REASON;
 
 const PAUSABLE: ReadonlySet<AutopilotSlotStatus> = new Set([
   "scheduled",

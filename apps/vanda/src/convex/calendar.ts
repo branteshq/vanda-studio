@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { query, type QueryCtx } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
-import type { AutopilotSlotStatus } from "./autopilotModel";
+import { isPausedSlot, type AutopilotSlotStatus } from "./autopilotModel";
 import { purposeLabels } from "./pipeline/autopilot";
 
 /**
@@ -13,7 +13,9 @@ import { purposeLabels } from "./pipeline/autopilot";
 
 export type CalendarStatus =
   | Doc<"scheduledPosts">["status"]
-  | Extract<AutopilotSlotStatus, "planned" | "generating" | "awaiting_approval" | "skipped">;
+  | Extract<AutopilotSlotStatus, "planned" | "generating" | "awaiting_approval" | "skipped">
+  // Set aside while posts automáticos are paused; back when Caetano is woken.
+  | "paused";
 
 export interface CalendarItem {
   key: string;
@@ -113,7 +115,7 @@ export const range = query({
         key: slot._id,
         scheduledFor: slot.scheduledFor,
         // A slot that failed before a publication row existed reads as a failed publication.
-        status: slot.status === "failed" ? "failed" : slot.status,
+        status: isPausedSlot(slot) ? "paused" : slot.status === "failed" ? "failed" : slot.status,
         lastError: slot.lastError ?? null,
         caption: post?.caption ?? slot.hook,
         slideCount: slot.slideCount,
