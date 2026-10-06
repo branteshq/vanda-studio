@@ -2,7 +2,14 @@ import { useState, type CSSProperties, type ReactNode } from "react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Markdown } from "@vanda-studio/ui/components/markdown";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
+import { cn } from "@vanda-studio/ui/lib/utils";
 import type { Id } from "../../convex/_generated/dataModel";
+import {
+  BRAND_FILE_SECTIONS,
+  brandFileFacts,
+  factOrigin,
+  type BrandFactOrigin,
+} from "../../convex/brandFileText";
 import { parseBrandKit } from "../../convex/workspace/brandKit";
 import { errorMessage } from "../../errors";
 import { useProfileRuntime } from "./runtime";
@@ -38,6 +45,133 @@ const formatUpdated = (updatedAt: number | null, updatedBy: string | null): stri
 
   return `Atualizado por ${who} em ${new Date(updatedAt).toLocaleDateString("pt-BR")}.`;
 };
+
+const ORIGINS = {
+  dono: { label: "Dono", dot: "bg-brand-accent", hint: "você disse ou confirmou" },
+  observado: { label: "Observado", dot: "bg-green", hint: "aprendido com resultados" },
+  vanda: { label: "Vanda", dot: "bg-border-strong", hint: "sugestão, muda quando quiser" },
+} as const satisfies Record<
+  NonNullable<BrandFactOrigin>,
+  { label: string; dot: string; hint: string }
+>;
+
+const ORIGIN_ORDER = ["dono", "observado", "vanda"] as const;
+
+const LEGACY_HEADING = "## Notas anteriores";
+
+// Sections made only of short items (tone words, audiences) read better as chips.
+const CHIP_MAX = 32;
+
+type GuideItem = ReturnType<typeof brandFileFacts>[number] & ReturnType<typeof factOrigin>;
+
+function OriginDot({ item }: { item: GuideItem }) {
+  if (!item.origin) return null;
+
+  const origin = ORIGINS[item.origin];
+
+  return (
+    <span
+      className={cn("mt-1.5 size-1.5 shrink-0 rounded-full", origin.dot)}
+      role="img"
+      aria-label={item.detail ? `${origin.label}: ${item.detail}` : origin.label}
+      title={item.detail ? `${origin.label}: ${item.detail}` : origin.label}
+    />
+  );
+}
+
+function GuideSection({ title, items }: { title: string; items: readonly GuideItem[] }) {
+  const chips = items.length > 0 && items.every((item) => item.text.length <= CHIP_MAX);
+
+  return (
+    <section className="rounded-lg border border-border bg-app p-4">
+      <h3 className="text-body-sm font-semibold text-text">{title}</h3>
+      {items.length === 0 ? <p className="mt-2 text-note text-text-5">Nada ainda.</p> : null}
+      {chips ? (
+        <ul className="mt-3 flex flex-wrap gap-1.5">
+          {items.map((item) => (
+            <li
+              key={item.id}
+              className="inline-flex items-start gap-1.5 rounded-full border border-border bg-surface px-2.5 py-1 text-note text-text-2"
+            >
+              <OriginDot item={item} />
+              {item.text}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {items.length > 0 && !chips ? (
+        <ul className="mt-3 space-y-2">
+          {items.map((item) => (
+            <li key={item.id} className="flex gap-2 text-body-sm leading-snug text-text-2">
+              <OriginDot item={item} />
+              <span>{item.text}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * The brand file laid out as a guide: one card per section, each item marked
+ * with where it came from (a dot keyed in the legend) instead of the raw
+ * "(dono)" suffix. Notes carried over from the old memory stay apart, folded.
+ */
+function BrandGuide({ content }: { content: string }) {
+  const legacyAt = content.indexOf(`\n${LEGACY_HEADING}`);
+
+  const items: GuideItem[] = brandFileFacts(
+    legacyAt === -1 ? content : content.slice(0, legacyAt),
+  ).map((fact) => Object.assign(fact, factOrigin(fact.text)));
+
+  const known = BRAND_FILE_SECTIONS.map((section) => section.title);
+
+  const extra = [...new Set(items.map((item) => item.kind))].filter(
+    (kind) => !known.includes(kind),
+  );
+
+  const origins = ORIGIN_ORDER.filter((origin) => items.some((item) => item.origin === origin));
+
+  return (
+    <div className="space-y-4">
+      {origins.length > 0 ? (
+        <p className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-note text-text-4">
+          {origins.map((origin) => (
+            <span key={origin} className="inline-flex items-center gap-1.5">
+              <span className={cn("size-1.5 rounded-full", ORIGINS[origin].dot)} aria-hidden />
+              <span className="font-medium text-text-3">{ORIGINS[origin].label}</span>
+              {ORIGINS[origin].hint}
+            </span>
+          ))}
+        </p>
+      ) : null}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {[...known, ...extra].map((title) => (
+          <GuideSection
+            key={title}
+            title={title}
+            items={items.filter((item) => item.kind === title)}
+          />
+        ))}
+      </div>
+
+      {legacyAt === -1 ? null : (
+        <details className="rounded-lg border border-border px-4 py-3">
+          <summary className="cursor-pointer text-body-sm font-medium text-text-3">
+            Notas anteriores
+          </summary>
+          <div className="mt-3">
+            <Markdown variant="reading">
+              {content.slice(legacyAt + LEGACY_HEADING.length + 1)}
+            </Markdown>
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
 
 /**
  * The brand file: what both agents know about this business, one document the
@@ -95,7 +229,7 @@ export function BrandFileCard({ accountId }: { accountId: Id<"accounts"> }) {
           <Skeleton className="h-3.5 w-2/5" />
         </div>
       ) : draft === null ? (
-        <Markdown variant="reading">{file.content}</Markdown>
+        <BrandGuide content={file.content} />
       ) : (
         <>
           <textarea

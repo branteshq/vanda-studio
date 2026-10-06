@@ -77,6 +77,7 @@ const runtime = {
   useWorkspaceFile: (accountId: string, path: string) =>
     mocks.query(api.workspacePublic.file, { accountId, path }),
   WhatsAppSettings: () => createElement("p", null, "Caetano no WhatsApp"),
+  InstagramDiagnosis: () => createElement("p", null, "Nota do perfil"),
 };
 
 let root: Root;
@@ -249,8 +250,14 @@ it("opens a business's brand file and the onboarding for unfinished ones", async
 it("reads and edits the brand file, then hands off to the conversation", async () => {
   await act(async () => root.render(createElement(ProfilePage, { runtime, marca: "business-a" })));
   expect(container.querySelector("h1")?.textContent).toBe("Business A");
-  expect(container.textContent).toContain("Sem gírias (dono)");
+  // Laid out as a guide: the item under its section, its origin as a badge.
+  expect(container.textContent).toContain("Tom e voz");
+  expect(container.textContent).toContain("Sem gírias");
+  expect(container.textContent).not.toContain("(dono)");
+  expect(container.querySelector('[aria-label="Dono"]')).not.toBeNull();
   expect(container.textContent).toContain("Atualizado por você");
+  expect(container.textContent).toContain("Diagnóstico do Instagram");
+  expect(container.textContent).toContain("Nota do perfil");
 
   await click("Editar");
   const editor = container.querySelector<HTMLTextAreaElement>('[aria-label="Arquivo da marca"]');

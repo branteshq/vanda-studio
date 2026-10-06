@@ -260,6 +260,12 @@ function BrandPage({ accountId, name }: { accountId: Id<"accounts">; name: strin
       {/* Keyed by business so an unsaved draft never carries over to another one. */}
       <BrandFileCard key={accountId} accountId={accountId} />
       <BrandKitCard accountId={accountId} />
+      <SectionCard
+        title="Diagnóstico do Instagram"
+        caption="A análise da conta que o Caetano usa para planejar os posts automáticos."
+      >
+        <runtime.InstagramDiagnosis accountId={accountId} />
+      </SectionCard>
       <Button
         variant="subtle"
         onClick={() => {
