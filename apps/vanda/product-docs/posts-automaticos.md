@@ -13,12 +13,12 @@ Por enquanto são só posts de **feed** (imagem e carrossel). Reels e stories fi
 
 ## Onde fica
 
-Os posts automáticos ficam no **Calendário**, no painel **Calendário › Posts automáticos**, no topo da página:
+Os posts automáticos ficam no **Calendário**, no topo da página (**Calendário › Posts automáticos**), com o Caetano:
 
-- **Posts automáticos**: o botão que liga ou pausa;
-- **Pedir minha aprovação**: ligado (o padrão), nada é publicado sem o seu sim; desligado, o Caetano publica sozinho e você ainda pode pular até o horário;
-- os dias e horários da semana, com **Mudar dias e horários**, que abre a conversa;
-- **Precisa da sua aprovação**: os posts prontos esperando você, com **Aprovar** direto na linha.
+- desligado, ele está dormindo: **toque no Caetano para acordá-lo** e ligar os posts automáticos;
+- ligado, a linha ao lado dele mostra os dias e horários e três opções: **com aprovação** (toque para trocar por **sem aprovação**), **mudar** (abre a conversa para mudar dias e horários) e **pausar**;
+- com aprovação (o padrão), nada é publicado sem o seu sim; sem aprovação, o Caetano publica sozinho e você ainda pode pular até o horário;
+- os posts prontos esperando você aparecem logo abaixo, com **Aprovar** na própria linha.
 
 Tudo isso também muda pedindo na conversa, à Vanda ou ao Caetano no WhatsApp.
 
@@ -26,7 +26,7 @@ Os posts do Caetano aparecem no próprio calendário com a etiqueta **Caetano**,
 
 ## Ligar e pausar
 
-Peça na conversa ("cuida dos meus posts toda semana"), ao Caetano no WhatsApp, ou use o botão **Posts automáticos** no Calendário.
+Peça na conversa ("cuida dos meus posts toda semana"), ao Caetano no WhatsApp, ou toque no Caetano no topo do Calendário para acordá-lo.
 
 Ao ligar, o Caetano analisa a conta e planeja o resto desta semana e a próxima; os posts aparecem no Calendário em alguns minutos. Enquanto isso, o painel mostra o Caetano trabalhando, passo a passo: analisando a conta, planejando a semana e, depois, criando cada post. Se algo der errado, ele diz o motivo e oferece **Tentar de novo**. Ao pausar, as publicações pendentes ficam suspensas, inclusive as que esperam sua aprovação, e nada novo é planejado. Ao ligar de novo, os posts suspensos voltam e a semana é replanejada.
 
@@ -41,7 +41,7 @@ Com o WhatsApp conectado, o Caetano manda cada post pronto por lá: o texto, as 
 Tudo isso muda conversando, com a Vanda ou com o Caetano:
 
 - **Dias, horários e formatos**: "segunda, quarta e sexta às 18h, carrossel de 3". A programação passa a ser sua e o Caetano planeja só o conteúdo. Para voltar à sugestão dele: "volta para a cadência que você sugeriu".
-- **Aprovação**: "pode publicar sem me pedir" ou "quero aprovar antes", ou o botão **Pedir minha aprovação**. Ao ligar a aprovação de novo, os posts já agendados voltam a esperar por você.
+- **Aprovação**: "pode publicar sem me pedir" ou "quero aprovar antes", ou toque em **com aprovação** / **sem aprovação** no Calendário. Ao ligar a aprovação de novo, os posts já agendados voltam a esperar por você.
 - **Um post**: no post, toque em **Mudar na conversa**. A conversa abre com o post citado; diga o que mudar (tema, gancho, formato, dia, horário) ou o que não gostou.
 
 Quando você diz o que não gostou, o Caetano pergunta se isso vale para **todos os próximos posts** ou **só para este**. O que vale para todos é anotado no [arquivo da marca](/docs/arquivo-da-marca), em Preferências ou Nunca fazer, e passa a guiar o planejamento e a criação, e também a Vanda. O post é refeito com o seu motivo se ainda houver tempo.

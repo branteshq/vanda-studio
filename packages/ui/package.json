@@ -24,7 +24,9 @@
     "./assets/caetano/work/caetano-walking.webp": "./src/assets/caetano/work/caetano-walking.webp",
     "./assets/caetano/work/caetano-celebrating.webp": "./src/assets/caetano/work/caetano-celebrating.webp",
     "./assets/caetano/work/caetano-sleepy.webp": "./src/assets/caetano/work/caetano-sleepy.webp",
-    "./assets/caetano/work/caetano-welcome.webp": "./src/assets/caetano/work/caetano-welcome.webp"
+    "./assets/caetano/work/caetano-welcome.webp": "./src/assets/caetano/work/caetano-welcome.webp",
+    "./assets/caetano/work/caetano-surprised.webp": "./src/assets/caetano/work/caetano-surprised.webp",
+    "./assets/caetano/work/caetano-laughing.webp": "./src/assets/caetano/work/caetano-laughing.webp"
   },
   "scripts": {
     "build": "tsc --noEmit",

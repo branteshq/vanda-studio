@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
-import { Toggle } from "@vanda-studio/ui/components/toggle";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -22,11 +21,11 @@ import { slotWhen } from "./format";
 const CADENCE_DRAFT = "Quero mudar os dias e horários dos posts automáticos: ";
 
 /**
- * Posts automáticos as one quiet strip above the Calendário: Caetano's face
- * and one sentence say the state, the two switches sit on the right, and posts
- * waiting for the owner follow as a thin list. Every switch is the same
- * setting the agents change with settings_set, so asking in the conversation
- * and tapping here always agree.
+ * Posts automáticos as one quiet strip above the Calendário. Caetano is the
+ * switch: asleep when off, a tap wakes him (and turns it on); pausing and
+ * approval are words in his status line. Every change is the same setting the
+ * agents change with settings_set, so asking in the conversation and tapping
+ * here always agree.
  */
 export function AutopilotPanel({
   accountId,
@@ -55,6 +54,12 @@ function useSetting<Args, Result>(run: (args: Args) => Promise<Result>) {
   return { busy, apply };
 }
 
+// How long the wake-up reaction plays before the real work stage takes over.
+const WAKE_MS = 1500;
+
+// How long a poke while awake makes him laugh.
+const TICKLE_MS = 900;
+
 function Strip({
   accountId,
   overview,
@@ -68,8 +73,32 @@ function Strip({
   const approval = useSetting(useMutation(api.autopilot.setApproval));
   const retry = useSetting(useMutation(api.autopilot.retry));
   const stage = useStageWithDone(workStage(overview));
-  const mood: Mood = !overview.enabled ? "off" : (stage?.kind ?? "idle");
+  const [reaction, setReaction] = useState<"waking" | "tickled" | null>(null);
   const now = Date.now();
+
+  useEffect(() => {
+    if (!reaction) return;
+    const timer = setTimeout(() => setReaction(null), reaction === "waking" ? WAKE_MS : TICKLE_MS);
+
+    return () => clearTimeout(timer);
+  }, [reaction]);
+
+  const mood: Mood = reaction ?? (!overview.enabled ? "off" : (stage?.kind ?? "idle"));
+  const asleep = overview.connected && !overview.enabled && !reaction;
+
+  // Asleep, a tap wakes him (turns posts automáticos on); awake, it only makes him laugh.
+  const poke = () => {
+    if (!overview.connected) return;
+
+    if (overview.enabled) {
+      setReaction("tickled");
+
+      return;
+    }
+
+    setReaction("waking");
+    enabled.apply({ enabled: true });
+  };
 
   const waiting = overview.weeks
     .flatMap((week) => week.slots)
@@ -79,79 +108,117 @@ function Strip({
   return (
     <section className="flex items-end gap-4 border-b border-border pl-2">
       {/* No box: Caetano leans over the calendar's top edge, which this border is. */}
-      <CaetanoFigure mood={mood} className="-mb-px size-16 sm:size-18" />
-      <div className="flex min-w-0 flex-1 flex-wrap items-end gap-x-6 gap-y-2 pb-2.5">
-        <div className="min-w-0 flex-1" role="status" aria-live="polite">
-          <p className="text-body font-semibold">Posts automáticos</p>
-          <p
-            className={cn(
-              "truncate text-body-sm",
-              stage?.kind === "failed" ? "text-text-2" : "text-text-3",
-            )}
-          >
-            <StatusLine overview={overview} stage={stage} />
-            {stage?.kind === "failed" ? (
-              <button
-                type="button"
-                className="ml-2 font-medium text-text underline"
-                disabled={retry.busy}
-                onClick={() => retry.apply({ accountId })}
-              >
-                Tentar de novo
-              </button>
-            ) : null}
+      <button
+        type="button"
+        onClick={poke}
+        disabled={!overview.connected || enabled.busy}
+        title={asleep ? "Acordar o Caetano" : undefined}
+        aria-label={
+          asleep ? "Acordar o Caetano e ligar os posts automáticos" : "Caetano, posts automáticos"
+        }
+        className={cn(
+          "relative -mb-px shrink-0 cursor-pointer rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/40 disabled:cursor-default",
+          asleep && "hover-caetano-wobble",
+        )}
+      >
+        <CaetanoFigure mood={mood} className="size-16 sm:size-18" />
+        {asleep ? <Zzz /> : null}
+      </button>
+      <div className="min-w-0 flex-1 pb-2.5" role="status" aria-live="polite">
+        <p className="text-body font-semibold">Posts automáticos</p>
+        <p className={cn("text-body-sm", stage?.kind === "failed" ? "text-text-2" : "text-text-3")}>
+          <StatusLine
+            overview={overview}
+            stage={reaction === "waking" ? null : stage}
+            waking={reaction === "waking"}
+            approvalBusy={approval.busy}
+            onApproval={() => approval.apply({ required: overview.approval !== "required" })}
+            onPause={() => enabled.apply({ enabled: false })}
+          />
+          {stage?.kind === "failed" ? (
+            <button
+              type="button"
+              className="ml-2 font-medium text-text underline"
+              disabled={retry.busy}
+              onClick={() => retry.apply({ accountId })}
+            >
+              Tentar de novo
+            </button>
+          ) : null}
+        </p>
+        {waiting.slice(0, 2).map((slot) => (
+          <Waiting
+            key={slot.slotId}
+            accountId={accountId}
+            slot={slot}
+            onOpen={() => onOpen(slot.slotId)}
+          />
+        ))}
+        {waiting.length > 2 ? (
+          <p className="text-note text-text-4">
+            e mais {waiting.length - 2} aguardando aprovação no calendário
           </p>
-          {waiting.slice(0, 2).map((slot) => (
-            <Waiting
-              key={slot.slotId}
-              accountId={accountId}
-              slot={slot}
-              onOpen={() => onOpen(slot.slotId)}
-            />
-          ))}
-          {waiting.length > 2 ? (
-            <p className="text-note text-text-4">
-              e mais {waiting.length - 2} aguardando aprovação no calendário
-            </p>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-4">
-          {overview.enabled ? (
-            <label className="hidden items-center gap-2 text-note text-text-3 sm:flex">
-              Pedir aprovação
-              <Toggle
-                checked={overview.approval === "required"}
-                disabled={approval.busy}
-                onCheckedChange={(checked) => approval.apply({ required: checked })}
-              />
-            </label>
-          ) : null}
-          {overview.connected ? (
-            <label className="flex items-center gap-2 text-note text-text-3">
-              {overview.enabled ? "Ligado" : "Desligado"}
-              <Toggle
-                checked={overview.enabled}
-                disabled={enabled.busy}
-                onCheckedChange={(checked) => enabled.apply({ enabled: checked })}
-                aria-label="Posts automáticos"
-              />
-            </label>
-          ) : (
-            <Link to="/perfil" className="text-note font-medium underline">
-              Conectar Instagram
-            </Link>
-          )}
-        </div>
+        ) : null}
       </div>
     </section>
   );
 }
 
-function StatusLine({ overview, stage }: { overview: AutopilotOverview; stage: WorkStage | null }) {
-  if (!overview.connected) return <>O Caetano cuida dos seus posts toda semana.</>;
+// Each "z" starts a beat after the previous one.
+const ZZZ_DELAYS = ["[animation-delay:0ms]", "[animation-delay:800ms]", "[animation-delay:1600ms]"];
+
+/** Three "z"s drifting up from a sleeping Caetano. */
+function Zzz() {
+  return (
+    <span
+      className="pointer-events-none absolute -top-1 right-1 text-note font-semibold text-text-3"
+      aria-hidden
+    >
+      {ZZZ_DELAYS.map((delay) => (
+        <span key={delay} className={cn("animate-caetano-zzz absolute opacity-0", delay)}>
+          z
+        </span>
+      ))}
+    </span>
+  );
+}
+
+const linkClass = "text-text-3 underline decoration-dotted underline-offset-2 hover:text-text";
+
+function StatusLine({
+  overview,
+  stage,
+  waking,
+  approvalBusy,
+  onApproval,
+  onPause,
+}: {
+  overview: AutopilotOverview;
+  stage: WorkStage | null;
+  waking: boolean;
+  approvalBusy: boolean;
+  onApproval: () => void;
+  onPause: () => void;
+}) {
+  if (!overview.connected)
+    return (
+      <>
+        O Caetano cuida dos seus posts toda semana.{" "}
+        <Link to="/perfil" className={linkClass}>
+          Conectar o Instagram
+        </Link>
+      </>
+    );
+
+  if (waking) return <>Bom dia! O Caetano está acordando…</>;
 
   if (!overview.enabled)
-    return <>Desligado. O Caetano pode planejar, criar e publicar seus posts toda semana.</>;
+    return (
+      <>
+        Desligado. <span className="text-text-2">Toque no Caetano para acordá-lo</span>: ele
+        planeja, cria e publica seus posts toda semana.
+      </>
+    );
 
   if (stage) {
     const working = stage.kind !== "done" && stage.kind !== "failed";
@@ -167,9 +234,27 @@ function StatusLine({ overview, stage }: { overview: AutopilotOverview; stage: W
   return (
     <>
       {overview.cadenceSummary} ·{" "}
-      <Link to="/conversa" search={{ rascunho: CADENCE_DRAFT }} className="hover:text-text">
+      <button
+        type="button"
+        className={linkClass}
+        disabled={approvalBusy}
+        onClick={onApproval}
+        title={
+          overview.approval === "required"
+            ? "Toque para publicar sem pedir aprovação"
+            : "Toque para pedir sua aprovação antes de publicar"
+        }
+      >
+        {overview.approval === "required" ? "com aprovação" : "sem aprovação"}
+      </button>{" "}
+      ·{" "}
+      <Link to="/conversa" search={{ rascunho: CADENCE_DRAFT }} className={linkClass}>
         mudar
-      </Link>
+      </Link>{" "}
+      ·{" "}
+      <button type="button" className={linkClass} onClick={onPause}>
+        pausar
+      </button>
     </>
   );
 }

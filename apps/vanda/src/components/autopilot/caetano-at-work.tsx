@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import celebratingUrl from "@vanda-studio/ui/assets/caetano/work/caetano-celebrating.webp?url";
 import focusedUrl from "@vanda-studio/ui/assets/caetano/work/caetano-focused.webp?url";
+import laughingUrl from "@vanda-studio/ui/assets/caetano/work/caetano-laughing.webp?url";
 import puzzledUrl from "@vanda-studio/ui/assets/caetano/work/caetano-puzzled.webp?url";
 import sleepyUrl from "@vanda-studio/ui/assets/caetano/work/caetano-sleepy.webp?url";
+import surprisedUrl from "@vanda-studio/ui/assets/caetano/work/caetano-surprised.webp?url";
 import thinkingUrl from "@vanda-studio/ui/assets/caetano/work/caetano-thinking.webp?url";
 import thumbsUpUrl from "@vanda-studio/ui/assets/caetano/work/caetano-thumbs-up.webp?url";
 import walkingUrl from "@vanda-studio/ui/assets/caetano/work/caetano-walking.webp?url";
@@ -45,7 +47,11 @@ export function workStage(overview: AutopilotOverview): WorkStage | null {
   return making ? { kind: "creating", when: slotWhen(making) } : null;
 }
 
-export type Mood = WorkStage["kind"] | "idle" | "off";
+/** Moods beyond the work stages: asleep, awake, just woken up, poked while awake. */
+export type Mood = WorkStage["kind"] | "idle" | "off" | "waking" | "tickled";
+
+// Moods that play once (a reaction), not loop.
+const ONCE = new Set<Mood>(["done", "waking"]);
 
 /** Each mood's frames (crossfaded in turn) and how the figure moves. */
 const FIGURE = {
@@ -56,6 +62,8 @@ const FIGURE = {
   creating: { frames: [walkingUrl], motion: "animate-caetano-walk", every: 0 },
   failed: { frames: [puzzledUrl], motion: "", every: 0 },
   done: { frames: [celebratingUrl, thumbsUpUrl], motion: "animate-caetano-hop", every: 1500 },
+  waking: { frames: [surprisedUrl, celebratingUrl], motion: "animate-caetano-jolt", every: 650 },
+  tickled: { frames: [laughingUrl], motion: "animate-caetano-hop", every: 0 },
 } as const satisfies Record<Mood, { frames: readonly string[]; motion: string; every: number }>;
 
 export function CaetanoFigure({ mood, className }: { mood: Mood; className?: string }) {
@@ -67,11 +75,10 @@ export function CaetanoFigure({ mood, className }: { mood: Mood; className?: str
 
     if (!every || frames.length < 2) return;
 
-    // "done" plays once (celebrate, then thumbs up); the working moods loop.
-    const timer =
-      mood === "done"
-        ? setTimeout(() => setFrame(1), every)
-        : setInterval(() => setFrame((current) => (current + 1) % frames.length), every);
+    // Reactions play once (startled then joyful, celebrate then thumbs up); work loops.
+    const timer = ONCE.has(mood)
+      ? setTimeout(() => setFrame(1), every)
+      : setInterval(() => setFrame((current) => (current + 1) % frames.length), every);
 
     return () => {
       clearTimeout(timer);
