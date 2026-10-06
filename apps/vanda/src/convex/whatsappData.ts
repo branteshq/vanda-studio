@@ -189,6 +189,8 @@ export async function notifyOwner(
   ctx: MutationCtx,
   userId: Id<"users">,
   text: string,
+  // A post to show with the note (an automatic post waiting for approval): its slides in order.
+  images: readonly OutboundItem[] = [],
 ): Promise<boolean> {
   const connection = await activeConnection(ctx, userId);
 
@@ -197,6 +199,7 @@ export async function notifyOwner(
 
   await enqueueItems(ctx, connection._id, [
     template ? { kind: "text", text, template } : { kind: "text", text },
+    ...images.slice(0, 10),
   ]);
 
   return true;

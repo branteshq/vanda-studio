@@ -16,7 +16,17 @@
     "./hooks/*": "./src/hooks/*.ts",
     "./lib/*": "./src/lib/*.ts",
     "./lib/utils": "./src/lib/utils.ts",
-    "./styles/globals.css": "./src/styles/globals.css"
+    "./styles/globals.css": "./src/styles/globals.css",
+    "./assets/caetano/work/caetano-thinking.webp": "./src/assets/caetano/work/caetano-thinking.webp",
+    "./assets/caetano/work/caetano-focused.webp": "./src/assets/caetano/work/caetano-focused.webp",
+    "./assets/caetano/work/caetano-puzzled.webp": "./src/assets/caetano/work/caetano-puzzled.webp",
+    "./assets/caetano/work/caetano-thumbs-up.webp": "./src/assets/caetano/work/caetano-thumbs-up.webp",
+    "./assets/caetano/work/caetano-walking.webp": "./src/assets/caetano/work/caetano-walking.webp",
+    "./assets/caetano/work/caetano-celebrating.webp": "./src/assets/caetano/work/caetano-celebrating.webp",
+    "./assets/caetano/work/caetano-sleepy.webp": "./src/assets/caetano/work/caetano-sleepy.webp",
+    "./assets/caetano/work/caetano-welcome.webp": "./src/assets/caetano/work/caetano-welcome.webp",
+    "./assets/caetano/work/caetano-surprised.webp": "./src/assets/caetano/work/caetano-surprised.webp",
+    "./assets/caetano/work/caetano-laughing.webp": "./src/assets/caetano/work/caetano-laughing.webp"
   },
   "scripts": {
     "build": "tsc --noEmit",

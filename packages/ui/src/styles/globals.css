@@ -445,13 +445,180 @@
   animation: vanda-title-in 0.5s var(--ease-out) both;
 }
 
+/* Caetano at work (Posts automáticos): he reads (a slow bob with a tilt),
+ * plans (a quicker nod), walks to make the post (a sway) and hops when done.
+ * Frames swap underneath by crossfade; these only move the figure. */
+@keyframes caetano-read {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-3px) rotate(2deg);
+  }
+}
+@keyframes caetano-nod {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-4px);
+  }
+  60% {
+    transform: translateY(1px);
+  }
+}
+@keyframes caetano-walk {
+  0%,
+  100% {
+    transform: translateX(-3px) rotate(-3deg);
+  }
+  50% {
+    transform: translateX(3px) rotate(3deg);
+  }
+}
+@keyframes caetano-hop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  35% {
+    transform: translateY(-10px) scale(1.04);
+  }
+  60% {
+    transform: translateY(0) scale(0.98, 1.02);
+  }
+}
+/* Woken up: a startled jolt before he jumps for joy. */
+@keyframes caetano-jolt {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0);
+  }
+  15% {
+    transform: translate(-3px, -6px) rotate(-6deg);
+  }
+  30% {
+    transform: translate(3px, -8px) rotate(6deg);
+  }
+  45% {
+    transform: translate(-2px, -4px) rotate(-4deg);
+  }
+  60% {
+    transform: translate(2px, -2px) rotate(3deg);
+  }
+}
+/* Asleep: a "z" drifts out to the side of his head and fades, staying inside
+ * the strip (never up into the page title); three of them, staggered. */
+@keyframes caetano-zzz {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.6);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(14px, -8px) scale(1.15);
+  }
+}
+/* Hovered while asleep: a sleepy wobble that says "tap me". */
+@keyframes caetano-wobble {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  30% {
+    transform: rotate(-4deg);
+  }
+  70% {
+    transform: rotate(4deg);
+  }
+}
+.animate-caetano-jolt {
+  animation: caetano-jolt 0.6s var(--ease-out) 1;
+}
+.animate-caetano-zzz {
+  animation: caetano-zzz 2.4s ease-out infinite;
+}
+.hover-caetano-wobble:hover {
+  animation: caetano-wobble 0.8s ease-in-out infinite;
+}
+
+/* Inline actions inside a sentence (Posts automáticos: com aprovação · mudar ·
+ * pausar). A hairline rests under the word; on hover or focus a brand line
+ * sweeps over it from the left and the word brightens. Nothing moves the text. */
+.inline-action {
+  background-image:
+    linear-gradient(var(--color-brand-accent), var(--color-brand-accent)),
+    linear-gradient(var(--color-border-strong), var(--color-border-strong));
+  background-position:
+    0 100%,
+    0 100%;
+  background-repeat: no-repeat;
+  background-size:
+    0% 1px,
+    100% 1px;
+  padding-bottom: 1px;
+  transition:
+    background-size 320ms var(--ease-out),
+    color 150ms var(--ease-out);
+}
+.inline-action:hover,
+.inline-action:focus-visible {
+  background-size:
+    100% 1px,
+    100% 1px;
+  color: var(--color-text);
+}
+
+/* Three dots after "trabalhando": each fades in turn. */
+@keyframes caetano-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+.animate-caetano-read {
+  animation: caetano-read 2.4s ease-in-out infinite;
+}
+.animate-caetano-nod {
+  animation: caetano-nod 1.2s ease-in-out infinite;
+}
+.animate-caetano-walk {
+  animation: caetano-walk 0.9s ease-in-out infinite;
+}
+.animate-caetano-hop {
+  animation: caetano-hop 0.7s var(--ease-out) 2;
+}
+.animate-caetano-dot {
+  animation: caetano-dot 1.2s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-message-in,
   .animate-attachment-in,
   .animate-card-in,
   .animate-canvas-in,
-  .animate-title-in {
+  .animate-title-in,
+  .animate-caetano-read,
+  .animate-caetano-nod,
+  .animate-caetano-walk,
+  .animate-caetano-hop,
+  .animate-caetano-dot,
+  .animate-caetano-jolt,
+  .animate-caetano-zzz,
+  .hover-caetano-wobble:hover {
     animation: none;
+  }
+  .inline-action {
+    transition: none;
   }
   /* Keep the crossfade for comprehension; drop the movement. */
   .animate-mode-in {

@@ -2,7 +2,7 @@ import { createTool, type ToolCtx } from "@convex-dev/agent";
 import { z } from "zod";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { agentIdentity, agentOwner, type AgentCtx } from "../agentContext";
+import { agentIdentity, agentOwner, requireOwnerTurn, type AgentCtx } from "../agentContext";
 import { recordCapabilityResult } from "../capabilityTools";
 import { capabilityResult, capabilityResultSchema, type ThreadResource } from "../resourceRefs";
 import { findSetting } from "../settings/catalog";
@@ -96,7 +96,7 @@ export const productTools = {
   }),
   settings_get: createTool({
     description:
-      "Lê as configurações da plataforma do dono: plano e uso, modelos da Vanda, do Caetano e de imagem, negócio ativo e negócios, e conexões (Instagram, OpenAI, WhatsApp). Sem id ou com '*', devolve todos os valores atuais de uma vez. Com um id, devolve descrição, onde fica no app, opções válidas e como mudar.",
+      "Lê as configurações da plataforma do dono: plano e uso, modelos da Vanda, do Caetano e de imagem, negócio ativo e negócios, conexões (Instagram, OpenAI, WhatsApp) e os posts automáticos do Caetano (se estão ligados e a programação semanal). Sem id ou com '*', devolve todos os valores atuais de uma vez. Com um id, devolve descrição, onde fica no app, opções válidas e como mudar.",
     inputSchema: z.object({ id: z.string().optional() }),
     outputSchema: capabilityResultSchema,
     execute: async (ctx: ProductCtx, { id }): Promise<CapabilityOutput> => {
@@ -109,10 +109,12 @@ export const productTools = {
   }),
   settings_set: createTool({
     description:
-      "Altera uma configuração alterável quando o dono pedir, pelo mesmo caminho do Perfil. value aceita o id ou o nome da opção (por exemplo 'GPT-6.1 Sol'). Devolve o valor anterior, para desfazer se o dono pedir. Plano, pagamento e conexões não são alteráveis por aqui: o resultado explica onde o dono muda.",
+      "Altera uma configuração alterável quando o dono pedir, pelo mesmo caminho do Perfil. value aceita o id ou o nome da opção (por exemplo 'GPT-6.1 Sol'); os posts automáticos ligam com autopilot.enabled = ligado/desligado e a cadência com autopilot.cadence = 'ter 18h carrossel 2; qui 18h imagem'. Devolve o valor anterior, para desfazer se o dono pedir. Plano, pagamento e conexões não são alteráveis por aqui: o resultado explica onde o dono muda.",
     inputSchema: z.object({ id: z.string(), value: z.string() }),
     outputSchema: capabilityResultSchema,
     execute: async (ctx: ProductCtx, { id, value }, options): Promise<CapabilityOutput> => {
+      requireOwnerTurn(ctx);
+
       const result = await ctx.runMutation(internal.settingsData.set, {
         userId: await agentOwner(ctx),
         id,

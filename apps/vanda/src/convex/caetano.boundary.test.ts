@@ -401,6 +401,44 @@ describe("Caetano control plane", () => {
     expect((await owner.query(api.caetano.state, {})).processing).toBe(false);
   });
 
+  it("runs posts automáticos work in the owner's thread without merging it with messages", async () => {
+    const { t, userId, accountId } = await setup();
+    const owner = t.withIdentity({ subject: "ana" });
+    const sent = await owner.mutation(api.caetano.sendMessage, { prompt: "Oi, Caetano" });
+
+    await t.mutation(internal.caetano.submitJob, {
+      userId,
+      job: { kind: "audit", accountId },
+      prompt: "Faça o diagnóstico <caetano_ref>autopilot tarefa=audit</caetano_ref>",
+    });
+
+    const rows = await t.run((ctx) => ctx.db.query("caetanoInbox").collect());
+
+    expect(rows.map((row) => row.threadId)).toEqual([sent.threadId, sent.threadId]);
+    expect(rows[1]?.autopilotJob).toEqual({ kind: "audit", accountId });
+
+    // The owner's turn does not swallow the queued work as a follow-up.
+    await t.mutation(internal.caetano.startNext, { userId });
+    const activity = await t.run((ctx) => ctx.db.query("caetanoThreadActivity").first());
+
+    expect(
+      await t.mutation(internal.caetano.claimFollowups, { activityId: activity!._id }),
+    ).toEqual([]);
+
+    // The owner's Stop ends his own turn; the queued work stays and runs next.
+    await owner.mutation(api.caetano.stopGeneration, { threadId: sent.threadId });
+
+    const after = await t.run((ctx) => ctx.db.query("caetanoInbox").collect());
+
+    expect(after.map((row) => [!!row.autopilotJob, row.status])).toEqual([
+      [false, "stopped"],
+      [true, "queued"],
+    ]);
+    // Work in the queue does not make the owner's composer busy.
+    expect((await owner.query(api.caetano.state, {})).processing).toBe(false);
+    expect((await owner.query(api.caetano.state, {})).working).toBe(true);
+  });
+
   it("accepts an owned image-only message and exposes the image in the transcript", async () => {
     const { t, accountId } = await setup();
     const owner = t.withIdentity({ subject: "ana" });

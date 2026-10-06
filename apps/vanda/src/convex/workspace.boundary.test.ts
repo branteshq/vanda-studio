@@ -92,6 +92,7 @@ describe("workspace navigation", () => {
         "instagram",
         "web",
         "posts",
+        "autopilot",
         "market",
         "runs",
         "legado",

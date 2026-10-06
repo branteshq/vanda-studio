@@ -1,6 +1,7 @@
 import { ORCHESTRATOR_MODELS, isTextModelAvailable } from "../agentModels";
 import { CONECTADO_IMAGE_MODELS, IMAGE_MODELS } from "../imageModels";
 import { THEMES } from "../../themes";
+import { PRODUCE_AHEAD_LABEL } from "../autopilotModel";
 
 /**
  * The platform settings the agents and the Perfil UI share. This file is pure
@@ -49,6 +50,15 @@ export const NON_SETTING_UI_FUNCTIONS = [
   "brandFile.save",
   // The visual kit shown beside it.
   "workspacePublic.file",
+  // The Calendário's posts are content, not settings.
+  "calendar.range",
+  // Autopilot posts are content, not settings: the agents change them with autopilot_* tools.
+  "autopilot.slot",
+  "autopilot.retry",
+  "autopilot.skipSlot",
+  "autopilot.restoreSlot",
+  "autopilot.approveSlot",
+  "autopilot.regenerateSlot",
 ] as const;
 
 const THEME_LABELS = { system: "Sistema", light: "Claro", dark: "Escuro" } as const;
@@ -207,6 +217,49 @@ export const SETTINGS = [
       "O dono gera o vínculo em Perfil › Conexões › Caetano no WhatsApp e envia a mensagem pronta pelo próprio WhatsApp.",
     doc: "caetano-no-whatsapp",
     uiFunctions: ["whatsappData.state", "whatsapp.createLink", "whatsappData.disconnect"],
+  },
+  {
+    id: "autopilot.enabled",
+    group: "Posts automáticos",
+    title: "Posts automáticos do Caetano",
+    description: `Liga ou pausa os posts automáticos de feed do negócio ativo: o Caetano analisa a conta, planeja a semana, cria cada post cerca de ${PRODUCE_AHEAD_LABEL} antes e publica com o aceite do dono (ou sozinho, se o aceite estiver desligado). Pausar suspende as publicações pendentes; ligar de novo as retoma.`,
+    where: "Calendário › Posts automáticos",
+    route: "/calendario",
+    access: "write",
+    options: (): readonly SettingOption[] => [
+      { value: "ligado", label: "Ligado" },
+      { value: "desligado", label: "Desligado" },
+    ],
+    doc: "posts-automaticos",
+    uiFunctions: ["autopilot.setEnabled"],
+  },
+  {
+    id: "autopilot.approval",
+    group: "Posts automáticos",
+    title: "Aceite antes de publicar",
+    description:
+      'Se os posts que o Caetano gera esperam o aceite do dono antes de publicar ("pedir aceite", o padrão: sem aceite até o horário, não publica) ou publicam sozinhos podendo ser vetados ("publicar sem aceite"). Recusar exige um motivo, que ensina o Caetano.',
+    where: "Calendário › Posts automáticos",
+    route: "/calendario",
+    access: "write",
+    options: (): readonly SettingOption[] => [
+      { value: "pedir aceite", label: "Pedir aceite" },
+      { value: "publicar sem aceite", label: "Publicar sem aceite" },
+    ],
+    doc: "posts-automaticos",
+    uiFunctions: ["autopilot.setApproval"],
+  },
+  {
+    id: "autopilot.cadence",
+    group: "Posts automáticos",
+    title: "Cadência dos posts automáticos",
+    description:
+      'Dias, horários (Brasília), formato e slides dos posts automáticos da semana. Para mudar, escreva um post por item separado por ";": "ter 18h carrossel 2; qui 18h imagem; sab 12h carrossel 3". O valor "caetano" devolve a cadência à sugestão do diagnóstico. Os posts ainda não gerados são replanejados.',
+    where: "Calendário › Posts automáticos",
+    route: "/calendario",
+    access: "write",
+    doc: "posts-automaticos",
+    uiFunctions: ["autopilot.overview"],
   },
 ] as const satisfies readonly SettingDefinition[];
 

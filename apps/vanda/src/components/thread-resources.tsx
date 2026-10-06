@@ -109,6 +109,9 @@ function ThreadResourceView({
       return <LinkResource resource={resource} />;
     case "operation":
       return <OperationResource resource={resource} />;
+    case "autopilotWeek":
+      // Older turns stored the week as a card; the planning card on Posts automáticos replaced it.
+      return null;
   }
 }
 

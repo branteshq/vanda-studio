@@ -4,11 +4,15 @@ import { describe, expect, it } from "vitest";
 import { PRODUCT_DOC_SOURCES } from "../productDocs/generated";
 import { NON_SETTING_UI_FUNCTIONS, SETTINGS } from "./catalog";
 
-// The Perfil page and the cards it renders from other files.
+// The settings UIs: the Perfil page, the cards it renders from other files, and
+// the Posts automáticos view with its shared components.
 const PERFIL_SOURCES = [
   "../../routes/_dashboard.perfil.tsx",
   "../../components/profile/runtime.tsx",
   "../../components/whatsapp-settings.tsx",
+  "../../routes/_dashboard.calendario.tsx",
+  "../../components/autopilot/panel.tsx",
+  "../../components/autopilot/post-dialog.tsx",
 ];
 
 const perfilCalls = (): Set<string> => {

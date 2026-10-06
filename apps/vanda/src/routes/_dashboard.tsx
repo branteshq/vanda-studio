@@ -4,7 +4,7 @@ import { SidebarInset, SidebarProvider } from "@vanda-studio/ui/components/sideb
 import { AppSidebar, CollapsedSidebarControls } from "../components/app-sidebar";
 import { ActiveAccountProvider, useActiveAccount } from "../components/active-account";
 import { ModeNavProvider } from "../components/mode-nav";
-import { CollapsedRailControls, PostsRailHost } from "../components/posts-rail";
+import { PostsRailHost } from "../components/posts-rail";
 import { WorkRailProvider } from "../components/work-rail";
 
 export const Route = createFileRoute("/_dashboard")({
@@ -55,7 +55,6 @@ function DashboardGate() {
           <AppSidebar />
           <SidebarInset className="relative flex h-svh flex-col overflow-hidden">
             <CollapsedSidebarControls />
-            <CollapsedRailControls />
             <Outlet />
           </SidebarInset>
           {/* The right rail: its own provider (independent open state, cookie

@@ -39,6 +39,40 @@ const formatUpdated = (updatedAt: number | null, updatedBy: string | null): stri
   return `Atualizado por ${who} em ${new Date(updatedAt).toLocaleDateString("pt-BR")}.`;
 };
 
+// "(dono)", "(Vanda)" or "(observado: evidência, data)" closing an item.
+const ORIGIN = /\s*\((dono|Vanda|observado:[^)]*)\)\s*$/;
+
+/**
+ * The file as a page to read: no repeated title or legend (the page says it),
+ * the origin of each item as a quiet italic note, and empty sections named
+ * once instead of shown as empty headings. Editing still sees the whole file.
+ */
+export interface BrandFileView {
+  readonly markdown: string;
+  /** Sections with nothing in them yet, by title. */
+  readonly empty: string[];
+}
+
+export function brandFileReading(content: string): BrandFileView {
+  const lines = content.split("\n");
+  const firstSection = lines.findIndex((line) => line.startsWith("## "));
+  const sections: { title: string; body: string[] }[] = [];
+
+  for (const line of firstSection === -1 ? [] : lines.slice(firstSection)) {
+    if (line.startsWith("## ")) sections.push({ title: line.slice(3).trim(), body: [] });
+    else sections.at(-1)?.body.push(line.replace(ORIGIN, (_, origin: string) => ` *· ${origin}*`));
+  }
+
+  const filled = sections.filter((section) => section.body.some((line) => line.trim()));
+
+  return {
+    markdown: filled
+      .map((section) => [`## ${section.title}`, ...section.body].join("\n").trim())
+      .join("\n\n"),
+    empty: sections.flatMap((section) => (filled.includes(section) ? [] : [section.title])),
+  };
+}
+
 /**
  * The brand file: what both agents know about this business, one document the
  * owner reads and edits directly. Edits are revisions, like the agents' writes.
@@ -95,7 +129,7 @@ export function BrandFileCard({ accountId }: { accountId: Id<"accounts"> }) {
           <Skeleton className="h-3.5 w-2/5" />
         </div>
       ) : draft === null ? (
-        <Markdown variant="reading">{file.content}</Markdown>
+        <BrandFileReading content={file.content} />
       ) : (
         <>
           <textarea
@@ -208,5 +242,28 @@ export function BrandKitCard({ accountId }: { accountId: Id<"accounts"> }) {
         </div>
       )}
     </SectionCard>
+  );
+}
+
+function BrandFileReading({ content }: { content: string }) {
+  const { markdown, empty } = brandFileReading(content);
+
+  return (
+    <>
+      {markdown ? (
+        <Markdown variant="reading">{markdown}</Markdown>
+      ) : (
+        <p className="text-body-sm text-text-3">
+          Nada anotado ainda. Conte sobre o negócio na conversa e a Vanda escreve aqui.
+        </p>
+      )}
+      {empty.length > 0 ? (
+        <p className="mt-5 text-note text-text-4">Ainda vazio: {empty.join(", ")}.</p>
+      ) : null}
+      <p className="mt-2 text-note text-text-4">
+        <em>dono</em>: você disse ou confirmou, só muda se você pedir · <em>observado</em>:
+        aprendido com resultados · <em>Vanda</em>: sugestão dela, mude quando quiser.
+      </p>
+    </>
   );
 }

@@ -6,6 +6,7 @@ import { useQuery } from "convex-helpers/react/cache";
 import {
   Archive,
   BadgeCheckIcon,
+  CalendarDays,
   Images,
   MessageSquareText,
   PanelLeftClose,
@@ -635,7 +636,33 @@ function CaetanoNav() {
           <span className="group-data-[collapsible=icon]:hidden">Caetano</span>
         </SidebarMenuButton>
       </SidebarMenuItem>
+      <CalendarNavItem />
     </SidebarMenu>
+  );
+}
+
+/** Every publication of the business, and the Posts automáticos switches on top. */
+function CalendarNavItem() {
+  const navigate = useNavigate();
+  const { setOpenMobile } = useSidebar();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        size="navigation"
+        tooltip="Calendário"
+        isActive={pathname === "/calendario"}
+        onClick={() => {
+          setOpenMobile(false);
+          void navigate({ to: "/calendario" });
+        }}
+        className="h-10"
+      >
+        <CalendarDays aria-hidden="true" />
+        <span className="group-data-[collapsible=icon]:hidden">Calendário</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }
 

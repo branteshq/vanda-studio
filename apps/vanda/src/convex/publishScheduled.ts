@@ -31,6 +31,30 @@ export const loadScheduledPostData = internalQuery({
   },
 });
 
+/**
+ * The last gate before Instagram: an autopilot post publishes only while its
+ * slot is armed for this exact post (approved, or approval off). Anything else
+ * (awaiting approval, skipped, a replaced version) is disarmed back to draft.
+ * Returns whether the publish must stop.
+ */
+export const holdUnapproved = internalMutation({
+  args: { scheduledPostId: v.id("scheduledPosts") },
+  handler: async (ctx, { scheduledPostId }): Promise<boolean> => {
+    const scheduled = await ctx.db.get(scheduledPostId);
+    const post = scheduled ? await ctx.db.get(scheduled.postId) : null;
+
+    if (!scheduled || !post?.autopilotSlotId) return false;
+    const slot = await ctx.db.get(post.autopilotSlotId);
+
+    if (slot?.status === "scheduled" && slot.postId === post._id) return false;
+
+    await ctx.db.delete(scheduled._id);
+    await ctx.db.patch(post._id, { status: "draft" });
+
+    return true;
+  },
+});
+
 /** Resolves the Instagram connection (id + encrypted token) for a scheduled post's account. */
 export const getPublishProfile = internalQuery({
   args: { scheduledPostId: v.id("scheduledPosts") },
@@ -80,6 +104,13 @@ export const setScheduledStatus = internalMutation({
     if (!post) return;
 
     if (status === "published") await ctx.db.patch(post._id, { status: "published" });
+
+    const slot = post.autopilotSlotId ? await ctx.db.get(post.autopilotSlotId) : null;
+
+    // Only the slot's current post speaks for it, never a version it replaced.
+    if (slot?.postId === post._id && (status === "published" || status === "failed")) {
+      await ctx.db.patch(slot._id, { status, lastError, updatedAt: now });
+    }
 
     // The follow-up also notifies a linked WhatsApp, even for posts created outside chat.
     if (scheduled.status !== status && (status === "published" || status === "failed")) {

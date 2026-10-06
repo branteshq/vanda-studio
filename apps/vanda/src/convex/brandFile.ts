@@ -3,6 +3,7 @@ import type { Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
 import type { brandCanonKinds } from "./pipeline/constants";
+import { BRAND_FILE_SECTIONS as SECTIONS, brandFileFacts } from "./brandFileText";
 import { saveDocument, type DocumentAuthor } from "./workspace/documents";
 import type { WorkspaceWriteResult } from "./workspace/types";
 
@@ -23,31 +24,12 @@ export const MAX_BRAND_FILE_BYTES = 24_000;
 export const brandFileBytes = (content: string): number =>
   new TextEncoder().encode(content).byteLength;
 
+export { brandFileFacts, type BrandFileFact } from "./brandFileText";
+
 /** The kinds of fact onboarding extracts; each lands in one section. */
 export type BrandFactKind = (typeof brandCanonKinds)[number];
 
 type CanonKind = BrandFactKind;
-
-const SECTIONS: ReadonlyArray<{ title: string; kinds: readonly CanonKind[] }> = [
-  {
-    title: "O negócio",
-    kinds: [
-      "summary",
-      "identity",
-      "positioning",
-      "offer",
-      "differentiator",
-      "location",
-      "objective",
-    ],
-  },
-  { title: "Público", kinds: ["audience"] },
-  { title: "Tom e voz", kinds: ["voice", "character"] },
-  { title: "Provas e credenciais", kinds: ["proof"] },
-  { title: "Preferências", kinds: [] },
-  { title: "Nunca fazer", kinds: ["restriction", "forbidden_claim"] },
-  { title: "O que funciona", kinds: [] },
-];
 
 export const BRAND_FILE_LEGEND = [
   "A Vanda e o Caetano leem este arquivo em toda conversa. Cada item termina com a origem:",
@@ -129,34 +111,6 @@ export function composeBrandFile(sources: BrandFileSources): string {
   }
 
   return `${lines.join("\n")}\n`;
-}
-
-export interface BrandFileFact {
-  /** Position in this exact text: stable for an immutable snapshot of it. */
-  readonly id: string;
-  /** The section title the item sits under. */
-  readonly kind: string;
-  readonly text: string;
-}
-
-/** Every item ("- …") of the brand file under its section, the legend excluded. */
-export function brandFileFacts(content: string): BrandFileFact[] {
-  const facts: BrandFileFact[] = [];
-  let section: string | null = null;
-
-  for (const line of content.split("\n")) {
-    const heading = /^##\s+(.+?)\s*$/.exec(line);
-
-    if (heading) section = heading[1]!;
-    else if (section && /^\s*[-*]\s+\S/.test(line))
-      facts.push({
-        id: `marca-${facts.length + 1}`,
-        kind: section,
-        text: line.replace(/^\s*[-*]\s+/, "").trim(),
-      });
-  }
-
-  return facts;
 }
 
 /** The onboarding kinds the file covers: a section with at least one item covers its kinds. */

@@ -89,6 +89,16 @@ describe("role-specific discovery", () => {
   ];
 
   const deferred = [
+    "autopilot_approve_slot",
+    "autopilot_measure_account",
+    "autopilot_read",
+    "autopilot_reanalyze",
+    "autopilot_regenerate_slot",
+    "autopilot_reject_slot",
+    "autopilot_save_audit",
+    "autopilot_save_plan",
+    "autopilot_skip_slot",
+    "autopilot_update_slot",
     "cancel_schedule",
     "delete_post",
     "extend_infinite_carousel",
@@ -157,6 +167,11 @@ describe("role-specific discovery", () => {
     ["caetano", "search_media", "search_media", "read"],
     ["vanda", "search_conversations", "search_conversations", "read"],
     ["vanda", "web_search", "web_search", "read"],
+    ["vanda", "programação dos posts automáticos", "autopilot_read", "read"],
+    ["caetano", "pular o post automático", "autopilot_skip_slot", "write"],
+    ["caetano", "aprovo o post automático", "autopilot_approve_slot", "write"],
+    ["caetano", "não gostei, recusar o post automático", "autopilot_reject_slot", "write"],
+    ["caetano", "mudar a cadência dos posts automáticos", "settings_set", "write"],
     ["caetano", "read_web_page", "read_web_page", "read"],
   ] as const)("finds %s / %s", async (role, query, name, effect) => {
     const discovery = role === "vanda" ? vandaToolDiscovery : caetanoToolDiscovery;

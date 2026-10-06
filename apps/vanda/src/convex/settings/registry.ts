@@ -1,6 +1,14 @@
 import type { Doc } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { requireTextModel, resolveCaetanoModel, resolveOrchestratorModel } from "../agentModels";
+import {
+  applyApprovalMode,
+  applyCadence,
+  applyEnabled,
+  applyResetCadence,
+  getConfig,
+} from "../autopilotData";
+import { DEFAULT_CADENCE, cadenceSummary, parseCadenceText } from "../pipeline/autopilot";
 import { planLabel } from "../billing/plans";
 import {
   DEFAULT_IMAGE_MODEL,
@@ -119,7 +127,53 @@ const readers = {
 
     return { linked: !!connection, phone: connection?.phone ? `+${connection.phone}` : null };
   },
+  "autopilot.enabled": async (ctx, user) => {
+    const account = await ownedActiveAccount(ctx, user);
+
+    if (!account) return { account: null, enabled: false };
+
+    return {
+      account: account.name ?? account.handle ?? "Novo negócio",
+      enabled: (await getConfig(ctx, account._id))?.enabled ?? false,
+    };
+  },
+  "autopilot.approval": async (ctx, user) => {
+    const account = await ownedActiveAccount(ctx, user);
+    const config = account ? await getConfig(ctx, account._id) : null;
+
+    return config?.approval === "auto" ? "publicar sem aceite" : "pedir aceite";
+  },
+  "autopilot.cadence": async (ctx, user) => {
+    const account = await ownedActiveAccount(ctx, user);
+    const config = account ? await getConfig(ctx, account._id) : null;
+    const cadence = config?.cadence ?? [...DEFAULT_CADENCE];
+
+    return {
+      summary: cadenceSummary(cadence),
+      source: config?.cadenceSource === "owner" ? "definida pelo dono" : "sugerida pelo Caetano",
+      entries: cadence.map((entry) => ({ ...entry })),
+    };
+  },
 } satisfies Record<SettingId, Reader>;
+
+const ownedActiveAccount = async (ctx: QueryCtx, user: Doc<"users">) => {
+  const account = user.activeAccountId ? await ctx.db.get(user.activeAccountId) : null;
+
+  return account && account.ownerUserId === user._id ? account : null;
+};
+
+const ON_VALUES = new Set(["ligado", "true", "on", "sim", "ligar"]);
+
+const OFF_VALUES = new Set(["desligado", "false", "off", "não", "nao", "desligar"]);
+
+const AGENT_CADENCE_VALUES = new Set([
+  "caetano",
+  "vanda",
+  "sugestão",
+  "sugestao",
+  "sugerida",
+  "agente",
+]);
 
 const writers: Partial<Record<SettingId, Writer>> = {
   "appearance.theme": async (ctx, user, value) => {
@@ -128,6 +182,45 @@ const writers: Partial<Record<SettingId, Writer>> = {
     if (!isTheme(theme)) throw new Error("tema desconhecido: use Sistema, Claro ou Escuro");
 
     await ctx.db.patch(user._id, { theme, updatedAt: Date.now() });
+  },
+  "autopilot.enabled": async (ctx, user, value) => {
+    const normalized = value.trim().toLowerCase();
+
+    if (!ON_VALUES.has(normalized) && !OFF_VALUES.has(normalized))
+      throw new Error("use ligado ou desligado");
+
+    const account = await ownedActiveAccount(ctx, user);
+
+    if (!account) throw new Error("nenhum negócio ativo");
+
+    await applyEnabled(ctx, account._id, ON_VALUES.has(normalized));
+  },
+  "autopilot.approval": async (ctx, user, value) => {
+    const normalized = value.trim().toLowerCase();
+    const auto = normalized === "publicar sem aceite" || normalized === "auto";
+
+    if (!auto && normalized !== "pedir aceite" && normalized !== "required")
+      throw new Error('use "pedir aceite" ou "publicar sem aceite"');
+
+    const account = await ownedActiveAccount(ctx, user);
+
+    if (!account) throw new Error("nenhum negócio ativo");
+
+    await applyApprovalMode(ctx, account._id, auto ? "auto" : "required");
+  },
+  "autopilot.cadence": async (ctx, user, value) => {
+    const account = await ownedActiveAccount(ctx, user);
+
+    if (!account) throw new Error("nenhum negócio ativo");
+
+    // "caetano" (or "sugerida") hands the cadence back to the diagnosis.
+    if (AGENT_CADENCE_VALUES.has(value.trim().toLowerCase())) {
+      await applyResetCadence(ctx, account._id);
+
+      return;
+    }
+
+    await applyCadence(ctx, account._id, parseCadenceText(value));
   },
   "models.vanda": writeTextModel("orchestratorModel"),
   "models.caetano": writeTextModel("caetanoModel"),

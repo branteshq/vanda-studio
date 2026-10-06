@@ -2,6 +2,7 @@ import type { ToolCtx } from "@convex-dev/agent";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import type { AgentActivityId } from "./agentActivity";
+import type { AutopilotJob } from "./autopilotModel";
 
 export type AgentCtx = {
   accountId?: Id<"accounts">;
@@ -13,6 +14,19 @@ export type AgentCtx = {
   };
   activityId?: AgentActivityId | undefined;
   caetanoThreadId?: string | undefined;
+  // Set on Caetano's posts automáticos work turns: what the turn must produce.
+  autopilotJob?: AutopilotJob | undefined;
+};
+
+/**
+ * Owner-only actions refuse inside Caetano's posts automáticos work turns: no
+ * owner asked for them there, and approval must stay the owner's decision.
+ */
+export const requireOwnerTurn = (ctx: AgentCtx): void => {
+  if (ctx.autopilotJob)
+    throw new Error(
+      "só o dono decide isso: num trabalho dos posts automáticos, crie o post e deixe agendar, aprovar e mudar configurações para o dono",
+    );
 };
 
 export const agentOwner = async (ctx: ToolCtx & AgentCtx): Promise<Id<"users">> => {
