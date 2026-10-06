@@ -48,4 +48,4 @@ Com poucos slides (2 ou 3), junte: capa → conteúdo → resumo/chamada. Numere
 
 ## Verificação
 
-Antes de `create_post`, confira: linha 1 até ~125 caracteres e sem hashtag; um pedido; até 5 hashtags sem genéricas; nenhum link; termos de busca presentes. O piloto automático roda essa mesma verificação e devolve o que falhou.
+Antes de `create_post`, confira: linha 1 até ~125 caracteres e sem hashtag; um pedido; até 5 hashtags sem genéricas; nenhum link; termos de busca presentes.

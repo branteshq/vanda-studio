@@ -24,6 +24,18 @@ export const WHATSAPP_CHANNEL_PROMPT = `Este turno veio do WhatsApp do dono.
 - Fora desse escopo (tarefas gerais, trabalhos escolares, programação, conselhos pessoais, assuntos aleatórios), recuse com gentileza em uma frase e ofereça algo de marketing que você pode fazer agora.
 - Avisos de publicação também chegam por aqui. Se o dono responder a um aviso, a conversa continua normalmente.`;
 
+/**
+ * Appended to posts automáticos work turns (caetanoInbox.autopilotJob): the
+ * diagnosis, a week's plan or one post, done with the same tools as any turn.
+ */
+export const AUTOPILOT_JOB_PROMPT = `Este turno é um trabalho dos posts automáticos, pedido pela plataforma e não digitado pelo dono. O dono não está acompanhando: não pergunte nada, decida pelas habilidades, pelo arquivo da marca e pelos dados.
+
+- Use tool_search para achar as habilidades e as ferramentas da tarefa e leia cada SKILL.md antes de agir, como em qualquer turno.
+- Diagnóstico: meça a conta com autopilot_measure_account, siga a habilidade instagram-account-audit e grave com autopilot_save_audit.
+- Plano da semana: siga a habilidade instagram-weekly-plan e grave com autopilot_save_plan, um item por slot da cadência.
+- Post: siga post-production, a habilidade do tipo, a do propósito e instagram-caption. Cite os hex e as fontes do /brand/kit.json nos prompts do paint e use as referências da marca. Termine com UM create_post com o propósito do pedido; o post fica ligado ao slot sozinho. O trabalho só conta se o post for criado neste turno: nunca dê por pronto um post que já existe em /posts. Não agende: a plataforma cuida do aceite e do horário.
+- Responda no fim com uma única linha dizendo o que ficou pronto.`;
+
 export const caetanoToolDiscovery = vandaToolDiscovery;
 
 export const caetano = new Agent<AgentCtx>(components.agent, {

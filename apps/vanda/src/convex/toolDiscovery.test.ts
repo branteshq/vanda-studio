@@ -90,11 +90,13 @@ describe("role-specific discovery", () => {
 
   const deferred = [
     "autopilot_approve_slot",
-    "autopilot_forget_rule",
+    "autopilot_measure_account",
     "autopilot_read",
     "autopilot_reanalyze",
     "autopilot_regenerate_slot",
     "autopilot_reject_slot",
+    "autopilot_save_audit",
+    "autopilot_save_plan",
     "autopilot_skip_slot",
     "autopilot_update_slot",
     "cancel_schedule",
@@ -165,11 +167,11 @@ describe("role-specific discovery", () => {
     ["caetano", "search_media", "search_media", "read"],
     ["vanda", "search_conversations", "search_conversations", "read"],
     ["vanda", "web_search", "web_search", "read"],
-    ["vanda", "programação do piloto automático", "autopilot_read", "read"],
-    ["caetano", "pular o post do piloto automático", "autopilot_skip_slot", "write"],
-    ["caetano", "aprovo o post do piloto", "autopilot_approve_slot", "write"],
-    ["caetano", "não gostei, recusar o post do piloto", "autopilot_reject_slot", "write"],
-    ["caetano", "mudar a cadência do piloto automático", "settings_set", "write"],
+    ["vanda", "programação dos posts automáticos", "autopilot_read", "read"],
+    ["caetano", "pular o post automático", "autopilot_skip_slot", "write"],
+    ["caetano", "aprovo o post automático", "autopilot_approve_slot", "write"],
+    ["caetano", "não gostei, recusar o post automático", "autopilot_reject_slot", "write"],
+    ["caetano", "mudar a cadência dos posts automáticos", "settings_set", "write"],
     ["caetano", "read_web_page", "read_web_page", "read"],
   ] as const)("finds %s / %s", async (role, query, name, effect) => {
     const discovery = role === "vanda" ? vandaToolDiscovery : caetanoToolDiscovery;

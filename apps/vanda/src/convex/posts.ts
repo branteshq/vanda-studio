@@ -1,7 +1,13 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
 import { postPurposeValidator } from "./postPurposes";
 import { postFormats, type postTypes } from "./pipeline/constants";
@@ -410,7 +416,7 @@ export interface RailPost {
   permalink: string | null;
   lastError: string | null;
   createdAt: number;
-  /** Set when the Piloto automático made it: the rail marks it and opens its slot. */
+  /** Set when Caetano made it (posts automáticos): the rail marks it and opens its slot. */
   autopilotSlotId: Id<"autopilotSlots"> | null;
 }
 
@@ -420,6 +426,16 @@ const railStatusOf = (
 ): RailPost["status"] => (scheduled === null ? post.status : scheduled.status);
 
 /** Every post of the business, newest first — the right rail's feed. */
+/** A posts automáticos post links to its slot only while it is that slot's current version. */
+const currentSlotOf = async (
+  ctx: QueryCtx,
+  post: Doc<"posts">,
+): Promise<Id<"autopilotSlots"> | null> => {
+  const slot = post.autopilotSlotId ? await ctx.db.get(post.autopilotSlotId) : null;
+
+  return slot?.postId === post._id ? slot._id : null;
+};
+
 export const listForRail = query({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<RailPost[]> => {
@@ -456,7 +472,7 @@ export const listForRail = query({
           permalink: scheduled?.permalink ?? null,
           lastError: scheduled?.lastError ?? null,
           createdAt: post.createdAt,
-          autopilotSlotId: post.autopilotSlotId ?? null,
+          autopilotSlotId: await currentSlotOf(ctx, post),
         };
       }),
     );
@@ -500,7 +516,7 @@ export const detail = query({
       scheduledFor: scheduled?.scheduledFor ?? null,
       permalink: scheduled?.permalink ?? null,
       lastError: scheduled?.lastError ?? null,
-      autopilotSlotId: post.autopilotSlotId ?? null,
+      autopilotSlotId: await currentSlotOf(ctx, post),
       createdAt: post.createdAt,
     };
   },

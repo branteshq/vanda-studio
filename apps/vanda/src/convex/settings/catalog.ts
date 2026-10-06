@@ -1,6 +1,7 @@
 import { ORCHESTRATOR_MODELS, isTextModelAvailable } from "../agentModels";
 import { CONECTADO_IMAGE_MODELS, IMAGE_MODELS } from "../imageModels";
 import { THEMES } from "../../themes";
+import { PRODUCE_AHEAD_LABEL } from "../autopilotModel";
 
 /**
  * The platform settings the agents and the Perfil UI share. This file is pure
@@ -52,14 +53,17 @@ export const NON_SETTING_UI_FUNCTIONS = [
   // Autopilot posts are content, not settings: the agents change them with autopilot_* tools.
   "autopilot.history",
   "autopilot.slot",
-  "autopilot.updateSlot",
   "autopilot.skipSlot",
   "autopilot.restoreSlot",
+  "autopilot.approveSlot",
   "autopilot.regenerateSlot",
   "autopilot.reanalyze",
-  "autopilot.approveSlot",
-  "autopilot.rejectSlot",
-  "autopilot.forgetRule",
+  // Caetano's chat on Posts automáticos: every change there is a message he acts on.
+  "caetano.state",
+  "caetano.sendMessage",
+  "caetano.stopGeneration",
+  "caetano.listMessages",
+  "threadResources.listForCaetano",
 ] as const;
 
 const THEME_LABELS = { system: "Sistema", light: "Claro", dark: "Escuro" } as const;
@@ -221,47 +225,46 @@ export const SETTINGS = [
   },
   {
     id: "autopilot.enabled",
-    group: "Piloto automático",
-    title: "Piloto automático",
-    description:
-      "Liga ou desliga os posts automáticos de feed do negócio ativo: a Vanda analisa a conta, planeja a semana, gera cada post cerca de 24 horas antes e publica sozinha, com um aviso para o dono vetar. Desligar cancela as publicações pendentes.",
-    where: "Piloto automático",
-    route: "/piloto",
+    group: "Posts automáticos",
+    title: "Posts automáticos do Caetano",
+    description: `Liga ou pausa os posts automáticos de feed do negócio ativo: o Caetano analisa a conta, planeja a semana, cria cada post cerca de ${PRODUCE_AHEAD_LABEL} antes e publica com o aceite do dono (ou sozinho, se o aceite estiver desligado). Pausar suspende as publicações pendentes; ligar de novo as retoma.`,
+    where: "Posts automáticos",
+    route: "/posts-automaticos",
     access: "write",
     options: (): readonly SettingOption[] => [
       { value: "ligado", label: "Ligado" },
       { value: "desligado", label: "Desligado" },
     ],
-    doc: "piloto-automatico",
+    doc: "posts-automaticos",
     uiFunctions: ["autopilot.setEnabled"],
   },
   {
     id: "autopilot.approval",
-    group: "Piloto automático",
+    group: "Posts automáticos",
     title: "Aceite antes de publicar",
     description:
-      'Se os posts gerados pelo piloto esperam o aceite do dono antes de publicar ("pedir aceite", o padrão: sem aceite até o horário, não publica) ou publicam sozinhos podendo ser vetados ("publicar sem aceite"). Recusar exige um motivo, que ensina o piloto.',
-    where: "Piloto automático › Aceite",
-    route: "/piloto",
+      'Se os posts que o Caetano gera esperam o aceite do dono antes de publicar ("pedir aceite", o padrão: sem aceite até o horário, não publica) ou publicam sozinhos podendo ser vetados ("publicar sem aceite"). Recusar exige um motivo, que ensina o Caetano.',
+    where: "Posts automáticos › Aceite",
+    route: "/posts-automaticos",
     access: "write",
     options: (): readonly SettingOption[] => [
       { value: "pedir aceite", label: "Pedir aceite" },
       { value: "publicar sem aceite", label: "Publicar sem aceite" },
     ],
-    doc: "piloto-automatico",
+    doc: "posts-automaticos",
     uiFunctions: ["autopilot.setApproval"],
   },
   {
     id: "autopilot.cadence",
-    group: "Piloto automático",
-    title: "Cadência do piloto automático",
+    group: "Posts automáticos",
+    title: "Cadência dos posts automáticos",
     description:
-      'Dias, horários (Brasília), formato e slides dos posts automáticos da semana. Para mudar, escreva um post por item separado por ";": "ter 18h carrossel 2; qui 18h imagem; sab 12h carrossel 3". O valor "vanda" devolve a cadência à sugestão do diagnóstico. Os posts ainda não gerados são replanejados.',
-    where: "Piloto automático › Cadência",
-    route: "/piloto",
+      'Dias, horários (Brasília), formato e slides dos posts automáticos da semana. Para mudar, escreva um post por item separado por ";": "ter 18h carrossel 2; qui 18h imagem; sab 12h carrossel 3". O valor "caetano" devolve a cadência à sugestão do diagnóstico. Os posts ainda não gerados são replanejados.',
+    where: "Posts automáticos › Planejamento",
+    route: "/posts-automaticos",
     access: "write",
-    doc: "piloto-automatico",
-    uiFunctions: ["autopilot.overview", "autopilot.updateCadence", "autopilot.resetCadence"],
+    doc: "posts-automaticos",
+    uiFunctions: ["autopilot.overview"],
   },
 ] as const satisfies readonly SettingDefinition[];
 

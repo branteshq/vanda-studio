@@ -3,17 +3,12 @@ import * as Layer from "effect/Layer";
 import { describe, expect, it } from "vitest";
 import { ConnectedInstagramProvider, InstagramProviderFailed } from "../instagram/service";
 import type { InstagramPost } from "../instagram/types";
-import { DEFAULT_CADENCE } from "./autopilot";
 import {
-  auditAccount,
-  classifyRejection,
   collectAccountEvidence,
-  planWeek,
+  fitOutline,
+  measureAccount,
   type AccountEvidence,
-  type AuditOutput,
-  type PlanOutput,
 } from "./autopilotAgent";
-import { stubLanguageModelLayer } from "./testLanguageModel";
 
 const NOW = Date.UTC(2026, 9, 7, 18, 0);
 
@@ -74,28 +69,8 @@ describe("collectAccountEvidence", () => {
   });
 });
 
-const auditResponse: AuditOutput = {
-  summary: "Conta ativa, carrosséis vão melhor.",
-  rubric: [
-    { item: "nome", score: 6, max: 12, fix: "Coloque a categoria no nome" },
-    { item: "atividade_recente", score: 10, max: 10, fix: "" },
-  ],
-  postNotes: [{ postId: "1", why: "Capa com número" }],
-  findings: [{ claim: "Carrossel rende mais", evidence: "3× contra 1×", n: 3 }],
-  stop: ["Promoção sem contexto"],
-  doMore: ["Passo a passo"],
-  needs: ["Constância"],
-  recommendedCadence: [
-    { weekday: 4, time: "18:00", type: "image", slideCount: 4 },
-    { weekday: 2, time: "18:00", type: "carousel", slideCount: 2 },
-  ],
-  cadenceRationale: "Terça e quinta à noite.",
-};
-
-describe("auditAccount", () => {
-  it("scores only observable rubric items and normalizes the recommended cadence", async () => {
-    let prompt = "";
-
+describe("measureAccount", () => {
+  it("ranks posts by multiple of the median and states low confidence for few posts", () => {
     const evidence: AccountEvidence = {
       profile: { handle: "padaria" },
       followers: 1200,
@@ -106,135 +81,18 @@ describe("auditAccount", () => {
       ],
     };
 
-    const result = await Effect.runPromise(
-      auditAccount({ brand: "Padaria em Santos", evidence, previous: [], now: NOW }).pipe(
-        Effect.provide(
-          stubLanguageModelLayer((input) => {
-            prompt = input;
+    const measured = measureAccount(evidence, NOW);
 
-            return auditResponse;
-          }),
-        ),
-      ),
-    );
-
-    expect(result.profileScore).toBe(73);
-    expect(result.confidence).toBe("baixa");
-    expect(result.top[0]?.post.id).toBe("1");
-    expect(result.recommendedCadence).toEqual([
-      { weekday: 2, time: "18:00", type: "carousel", slideCount: 2 },
-      { weekday: 4, time: "18:00", type: "image", slideCount: 1 },
-    ]);
-    expect(prompt).toContain("Padaria em Santos");
-    expect(prompt).toContain("rubric.json");
+    expect(measured.basis).toBe("reach");
+    expect(measured.confidence).toBe("baixa");
+    expect(measured.top[0]?.post.id).toBe("1");
+    expect(measured.bottom[0]?.post.id).toBe("2");
   });
 });
 
-describe("planWeek", () => {
-  it("fills every cadence slot, keeps owner-fixed briefs and fits the slide outline", async () => {
-    let prompt = "";
-
-    const fixed = {
-      purpose: "bastidores" as const,
-      theme: "Forno",
-      angle: "4h da manhã",
-      hook: "Antes do sol nascer",
-      slideOutline: ["Capa", "Forno", "Pão"],
-      captionBrief: "Conte a rotina",
-    };
-
-    const response: PlanOutput = {
-      strategy: "Ensinar, provar e mostrar bastidores.",
-      slots: [
-        {
-          index: 0,
-          purpose: "educacional",
-          theme: "Fermentação",
-          angle: "Por que o pão murcha",
-          hook: "3 erros na fermentação",
-          slideOutline: ["Capa", "Erro 1", "Erro 2", "Resumo"],
-          captionBrief: "Peça para salvar",
-        },
-        {
-          index: 1,
-          purpose: "prova_social",
-          theme: "Clientes",
-          angle: "120 encomendas",
-          hook: "120 encomendas em setembro",
-          slideOutline: ["Print"],
-          captionBrief: "Agradeça",
-        },
-        {
-          index: 2,
-          purpose: "promocional",
-          theme: "ignorar",
-          angle: "ignorar",
-          hook: "ignorar",
-          slideOutline: [],
-          captionBrief: "",
-        },
-      ],
-    };
-
-    const plan = await Effect.runPromise(
-      planWeek({
-        brand: "Padaria",
-        auditSummary: "Carrossel rende mais",
-        cadence: DEFAULT_CADENCE,
-        fixed: new Map([[2, fixed]]),
-        recentThemes: ["Natal"],
-        weekLabel: "12/10",
-        rules: ["Não usar emojis nas legendas"],
-      }).pipe(
-        Effect.provide(
-          stubLanguageModelLayer((input) => {
-            prompt = input;
-
-            return response;
-          }),
-        ),
-      ),
-    );
-
-    expect(plan.briefs).toHaveLength(3);
-    expect(plan.briefs[0]?.slideOutline).toEqual(["Capa", "Erro 1"]);
-    expect(plan.briefs[1]?.slideOutline).toEqual(["Print"]);
-    expect(plan.briefs[2]).toEqual(fixed);
-    expect(prompt).toContain("REGRAS DO DONO");
-    expect(prompt).toContain("Não usar emojis nas legendas");
-  });
-});
-
-describe("classifyRejection", () => {
-  it("sends the reason, the post and the learned rules to the model", async () => {
-    let prompt = "";
-
-    const result = await Effect.runPromise(
-      classifyRejection({
-        reason: "Não gosto de emoji em post de banco",
-        slot: {
-          type: "image",
-          slideCount: 1,
-          purpose: "institucional",
-          theme: "Crédito",
-          angle: "Rápido",
-          hook: "Crédito rápido",
-        },
-        caption: "Crédito rápido 🚀",
-        rules: ["Sem promessas de aprovação"],
-      }).pipe(
-        Effect.provide(
-          stubLanguageModelLayer((input) => {
-            prompt = input;
-
-            return { scope: "geral", rule: "Não usar emojis", why: "preferência de tom" };
-          }),
-        ),
-      ),
-    );
-
-    expect(result).toEqual({ scope: "geral", rule: "Não usar emojis", why: "preferência de tom" });
-    expect(prompt).toContain("Não gosto de emoji em post de banco");
-    expect(prompt).toContain("Sem promessas de aprovação");
+describe("fitOutline", () => {
+  it("keeps one line per slide, dropping blanks and padding with the hook", () => {
+    expect(fitOutline(["Capa", "", "Erro 1", "Erro 2"], 2, "Gancho")).toEqual(["Capa", "Erro 1"]);
+    expect(fitOutline([], 2, "Gancho")).toEqual(["Gancho", "Resumo e chamada"]);
   });
 });

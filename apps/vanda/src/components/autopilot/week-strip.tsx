@@ -1,11 +1,11 @@
-import { GalleryHorizontalEnd, ImageIcon } from "lucide-react";
 import { StatusPill } from "@vanda-studio/ui/components/status-pill";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import type { AutopilotSlotView, AutopilotWeekView } from "../../convex/autopilotData";
+import { STATUS_FILL, SlidePips, purposeGroupOf } from "./visuals";
 
 /**
  * The autopilot week as seven columns, Seg → Dom. One component for the
- * Piloto automático board and the chat card, so both always look the same.
+ * Caetano page board and the chat card, so both always look the same.
  */
 
 const DAY = 86_400_000;
@@ -72,41 +72,79 @@ function SlotChip({
   onSelect?: ((slot: AutopilotSlotView) => void) | undefined;
 }) {
   const status = SLOT_STATUS[slot.status];
-  const TypeIcon = slot.type === "carousel" ? GalleryHorizontalEnd : ImageIcon;
+  const group = purposeGroupOf(slot.purpose);
+  const GroupIcon = group.icon;
   const dimmed = slot.status === "skipped";
+
+  const shared = {
+    type: "button" as const,
+    onClick: onSelect ? () => onSelect(slot) : undefined,
+    disabled: !onSelect,
+    "aria-label": `${WEEKDAY_NAMES[slot.weekday]} ${hourLabel(slot.time)}, ${slidesLabel(slot.slideCount)}, ${slot.purposeLabel}, ${status.label}: ${slot.hook}`,
+  };
+
+  const frame = cn(
+    "flex w-full flex-col rounded-md border border-border bg-surface text-left transition-colors",
+    onSelect && "hover:border-border-strong hover:bg-inset",
+    selected && "border-brand-accent ring-2 ring-brand-accent/30",
+    dimmed && "opacity-50",
+  );
+
+  // The planning board: everything the plan says about the post, readable.
+  if (size === "board") {
+    return (
+      <button {...shared} className={cn(frame, "gap-1.5 p-1.5")}>
+        {slot.coverUrl ? (
+          <img
+            src={slot.coverUrl}
+            alt=""
+            className="aspect-4/5 w-full rounded-sm bg-inset object-cover"
+          />
+        ) : (
+          <span className="grid aspect-4/5 w-full place-items-center rounded-sm bg-inset">
+            <GroupIcon className="size-6 text-text-5" aria-hidden="true" />
+          </span>
+        )}
+        <span className="flex items-center justify-between gap-1">
+          <span className="text-body font-semibold text-text">{hourLabel(slot.time)}</span>
+          <SlidePips count={slot.slideCount} type={slot.type} />
+        </span>
+        <span className="flex min-w-0 items-center gap-1 text-caption text-text-3">
+          <GroupIcon className="size-3.5 shrink-0" aria-hidden="true" />
+          <span className="truncate">{slot.purposeLabel}</span>
+        </span>
+        <span className="line-clamp-3 text-note leading-snug text-text-2">“{slot.hook}”</span>
+        <StatusPill tone={status.tone} className="self-start">
+          {status.label}
+        </StatusPill>
+      </button>
+    );
+  }
 
   return (
     <button
-      type="button"
-      onClick={onSelect ? () => onSelect(slot) : undefined}
-      disabled={!onSelect}
-      aria-label={`${WEEKDAY_NAMES[slot.weekday]} ${hourLabel(slot.time)}, ${slidesLabel(slot.slideCount)}, ${slot.purposeLabel}, ${status.label}`}
-      className={cn(
-        "flex w-full flex-col gap-1 rounded-md border border-border bg-surface p-1.5 text-left transition-colors",
-        onSelect && "hover:border-border-strong hover:bg-inset",
-        selected && "border-brand-accent ring-2 ring-brand-accent/30",
-        dimmed && "opacity-60",
-      )}
+      {...shared}
+      title={`“${slot.hook}” · ${slot.purposeLabel}`}
+      className={cn(frame, "gap-1 p-1")}
     >
-      {size === "board" && slot.coverUrl ? (
+      {slot.coverUrl ? (
         <img
           src={slot.coverUrl}
           alt=""
           className="aspect-4/5 w-full rounded-sm bg-inset object-cover"
         />
       ) : null}
-      <span className="flex items-center gap-1 font-mono text-note text-text-2">
-        <span className="font-semibold text-text">{hourLabel(slot.time)}</span>
-        <TypeIcon className="size-3 shrink-0 text-text-4" aria-hidden="true" />
-        <span className="truncate">{slot.slideCount}</span>
+      <span className="flex items-center justify-between gap-1">
+        <span className="text-note font-semibold text-text">{hourLabel(slot.time)}</span>
+        <span
+          className={cn("size-2 shrink-0 rounded-full", STATUS_FILL[slot.status])}
+          aria-hidden="true"
+        />
       </span>
-      <span className="truncate text-caption text-text-3">{slot.purposeLabel}</span>
-      {size === "board" ? (
-        <span className="line-clamp-3 text-note leading-snug text-text-2">“{slot.hook}”</span>
-      ) : null}
-      <StatusPill tone={status.tone} className="self-start">
-        {status.label}
-      </StatusPill>
+      <span className="flex items-center justify-between gap-1">
+        <SlidePips count={slot.slideCount} type={slot.type} />
+        <GroupIcon className="size-3 shrink-0 text-text-4" aria-hidden="true" />
+      </span>
     </button>
   );
 }
@@ -138,14 +176,15 @@ export function WeekStrip({
           <div
             key={column.weekday}
             className={cn(
-              "flex min-w-0 flex-col gap-1 bg-app p-1",
-              size === "board" ? "min-h-40" : "min-h-20",
+              "flex min-w-0 flex-col bg-app",
+              size === "board" ? "min-h-64 gap-2 p-1.5" : "min-h-20 gap-1 p-1",
               slots.length === 0 && "bg-inset/40",
             )}
           >
             <span
               className={cn(
-                "px-0.5 text-center font-mono text-micro tracking-wide uppercase",
+                "px-0.5 text-center font-mono tracking-wide uppercase",
+                size === "board" ? "text-caption" : "text-micro",
                 slots.length > 0 ? "text-text-3" : "text-text-5",
               )}
             >

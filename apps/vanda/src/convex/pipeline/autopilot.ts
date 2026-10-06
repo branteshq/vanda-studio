@@ -16,7 +16,7 @@ import type { InstagramPost } from "../instagram/types";
 /**
  * Pure autopilot logic: São Paulo week math, cadence normalization, account
  * metrics for the audit, and the PT-BR schedule text the chat, WhatsApp and
- * the Piloto automático view share.
+ * the Posts automáticos view share.
  */
 
 const HOUR = 60 * 60 * 1000;

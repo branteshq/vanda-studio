@@ -83,7 +83,8 @@ export const setScheduledStatus = internalMutation({
 
     const slot = post.autopilotSlotId ? await ctx.db.get(post.autopilotSlotId) : null;
 
-    if (slot && (status === "published" || status === "failed")) {
+    // Only the slot's current post speaks for it, never a version it replaced.
+    if (slot?.postId === post._id && (status === "published" || status === "failed")) {
       await ctx.db.patch(slot._id, { status, lastError, updatedAt: now });
     }
 

@@ -4,7 +4,8 @@ import type { WorkspaceMount } from "../types";
 
 const FILES = {
   "plan.md": {
-    summary: "programação do piloto automático: cadência e posts desta semana e da próxima",
+    summary:
+      "programação dos posts automáticos do Caetano: cadência e posts desta semana e da próxima",
     render: renderPlanMarkdown,
   },
   "audit.md": {
@@ -18,7 +19,7 @@ const isFileName = (name: string): name is keyof typeof FILES => Object.hasOwn(F
 /** The autopilot, read-only for the agents; changes go through the autopilot_* tools. */
 export const autopilotMount: WorkspaceMount = {
   root: "autopilot",
-  summary: "piloto automático de posts de feed: programação semanal e diagnóstico da conta",
+  summary: "posts automáticos do Caetano: programação semanal e diagnóstico da conta",
   writeHint:
     "somente leitura; quando o dono pedir, mude posts com autopilot_update_slot / autopilot_skip_slot e a cadência com settings_set (autopilot.cadence)",
   list: (_ctx, _accountId, segments) =>

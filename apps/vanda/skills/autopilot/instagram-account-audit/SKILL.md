@@ -1,7 +1,7 @@
 ---
 name: instagram-account-audit
-description: Diagnóstico da própria conta do dono no Instagram — o que está funcionando, o que parar de fazer, nota do perfil (0–100) e do que a conta precisa. Use para "analise minha conta", "o que está funcionando", "por que esse post flopou", auditoria de conteúdo ou antes de planejar a semana do piloto automático.
-allowed-tools: list read write read_instagram_profile read_instagram_posts read_instagram_post read_instagram_metrics
+description: Diagnóstico da própria conta do dono no Instagram — o que está funcionando, o que parar de fazer, nota do perfil (0–100) e do que a conta precisa. Use para "analise minha conta", "o que está funcionando", "por que esse post flopou", auditoria de conteúdo ou antes de planejar a semana dos posts automáticos.
+allowed-tools: list read write read_instagram_profile read_instagram_posts read_instagram_post read_instagram_metrics autopilot_measure_account autopilot_save_audit
 ---
 
 # Diagnóstico da conta
@@ -10,7 +10,7 @@ A única evidência honesta do que funciona para uma conta são os posts dela. R
 
 ## Leitura
 
-1. Leia `/brand/memory.md` para saber o que a marca vende e para quem.
+1. Leia `/brand/marca.md` para saber o que a marca vende e para quem.
 2. Leia o perfil conectado (`read_instagram_profile`, scope connected), os últimos posts (`read_instagram_posts`, até 30) e as métricas privadas (`read_instagram_metrics`).
 3. Se existir `/autopilot/audit.md`, leia o diagnóstico anterior e compare.
 
@@ -64,4 +64,6 @@ FAÇA MAIS: passo a passo com número concreto na capa.
 A CONTA PRECISA: ...
 ```
 
-Salve o resultado em `/memory/diagnostico-instagram.md` quando o dono pedir em conversa. O piloto automático guarda o próprio diagnóstico em `/autopilot/audit.md`.
+Salve o resultado em `/notes/diagnostico-instagram.md` quando o dono pedir em conversa.
+
+Num trabalho dos posts automáticos: meça a conta com `autopilot_measure_account` (os números vêm calculados; interprete, não refaça contas), pontue a rubrica de `rubric.json` só com itens observáveis e grave tudo com `autopilot_save_audit` — rubrica, por que cada melhor e pior post foi assim (com o id), achados com n, PARE / FAÇA MAIS / A CONTA PRECISA e a cadência recomendada de 3 a 5 posts de feed por semana. O diagnóstico fica em `/autopilot/audit.md`.

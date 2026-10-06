@@ -5,26 +5,22 @@ import { publicError } from "../errors";
 import { requireOwnedAccount, requireUser } from "./authz";
 import {
   applyApprove,
-  applyForgetRule,
   applyRegenerate,
-  applyReject,
   applyRestore,
   applySkip,
-  applySlotChange,
+  getConfig,
   historyOf,
   overviewOf,
   slotView,
   type AutopilotSlotView,
   requestRefresh,
-  slotChangeValidator,
   type AutopilotOverview,
   type AutopilotWeekView,
 } from "./autopilotData";
-import { cadenceEntryValidator } from "./autopilotModel";
 import { writeSetting } from "./settings/registry";
 
 /**
- * The Piloto automático view and the chat card. Every write goes through the
+ * The Posts automáticos view and the chat card. Every write goes through the
  * same helpers as Vanda and Caetano's tools (autopilotData.ts). Turning the
  * autopilot on or off is a platform setting: settingsData.writeSetting.
  */
@@ -43,6 +39,16 @@ export const overview = query({
     await requireOwnedAccount(ctx, accountId);
 
     return overviewOf(ctx, accountId, now ?? Date.now());
+  },
+});
+
+/** Just whether Caetano is in control: the sidebar's dot, without the whole overview. */
+export const enabled = query({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }): Promise<boolean> => {
+    await requireOwnedAccount(ctx, accountId);
+
+    return (await getConfig(ctx, accountId))?.enabled ?? false;
   },
 });
 
@@ -79,36 +85,6 @@ export const history = query({
   },
 });
 
-/** The cadence is the autopilot.cadence setting, the same write settings_set makes. */
-export const updateCadence = mutation({
-  args: { accountId: v.id("accounts"), cadence: v.array(cadenceEntryValidator) },
-  handler: async (ctx, { accountId, cadence }): Promise<void> => {
-    await requireActiveAccount(ctx, accountId);
-    await writeSetting(ctx, await requireUser(ctx), "autopilot.cadence", JSON.stringify(cadence));
-  },
-});
-
-export const resetCadence = mutation({
-  args: { accountId: v.id("accounts") },
-  handler: async (ctx, { accountId }): Promise<void> => {
-    await requireActiveAccount(ctx, accountId);
-    await writeSetting(ctx, await requireUser(ctx), "autopilot.cadence", "vanda");
-  },
-});
-
-export const updateSlot = mutation({
-  args: {
-    accountId: v.id("accounts"),
-    slotId: v.id("autopilotSlots"),
-    change: slotChangeValidator,
-  },
-  handler: async (ctx, { accountId, slotId, change }) => {
-    await requireOwnedAccount(ctx, accountId);
-
-    return applySlotChange(ctx, accountId, slotId, change);
-  },
-});
-
 export const skipSlot = mutation({
   args: { accountId: v.id("accounts"), slotId: v.id("autopilotSlots") },
   handler: async (ctx, { accountId, slotId }) => {
@@ -126,14 +102,6 @@ export const restoreSlot = mutation({
   },
 });
 
-export const regenerateSlot = mutation({
-  args: { accountId: v.id("accounts"), slotId: v.id("autopilotSlots") },
-  handler: async (ctx, { accountId, slotId }) => {
-    await requireOwnedAccount(ctx, accountId);
-    await applyRegenerate(ctx, accountId, slotId);
-  },
-});
-
 /** The owner accepts a produced post: it is armed for its time. */
 export const approveSlot = mutation({
   args: { accountId: v.id("accounts"), slotId: v.id("autopilotSlots") },
@@ -143,28 +111,21 @@ export const approveSlot = mutation({
   },
 });
 
-/** The owner refuses a produced post; the reason is required and teaches the autopilot. */
-export const rejectSlot = mutation({
-  args: { accountId: v.id("accounts"), slotId: v.id("autopilotSlots"), reason: v.string() },
-  handler: async (ctx, { accountId, slotId, reason }) => {
+/** Produce the post now: the first version ahead of the 24h mark, or a new one. */
+export const regenerateSlot = mutation({
+  args: { accountId: v.id("accounts"), slotId: v.id("autopilotSlots") },
+  handler: async (ctx, { accountId, slotId }) => {
     await requireOwnedAccount(ctx, accountId);
-
-    return applyReject(ctx, accountId, slotId, reason);
-  },
-});
-
-/** Retire a rule the autopilot learned from a rejection. */
-export const forgetRule = mutation({
-  args: { accountId: v.id("accounts"), feedbackId: v.id("autopilotFeedback") },
-  handler: async (ctx, { accountId, feedbackId }) => {
-    await requireOwnedAccount(ctx, accountId);
-    await applyForgetRule(ctx, accountId, feedbackId);
+    await applyRegenerate(ctx, accountId, slotId);
   },
 });
 
 /** Whether produced posts wait for approval: the autopilot.approval setting. */
 export const setApproval = mutation({
-  args: { accountId: v.id("accounts"), approval: v.union(v.literal("required"), v.literal("auto")) },
+  args: {
+    accountId: v.id("accounts"),
+    approval: v.union(v.literal("required"), v.literal("auto")),
+  },
   handler: async (ctx, { accountId, approval }): Promise<void> => {
     await requireActiveAccount(ctx, accountId);
     await writeSetting(

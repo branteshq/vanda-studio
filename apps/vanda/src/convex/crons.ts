@@ -10,7 +10,7 @@ crons.interval("expire stalled Vanda turns", { minutes: 1 }, internal.chat.expir
 crons.weekly(
   "plan autopilot weeks",
   { dayOfWeek: "sunday", hourUTC: 13, minuteUTC: 0 },
-  internal.autopilotNode.planAllAccounts,
+  internal.autopilotData.planAllAccounts,
 );
 
 // Autopilot: produce posts ~24h before they publish and collect their results.

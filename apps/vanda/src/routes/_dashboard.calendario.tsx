@@ -137,7 +137,7 @@ function CalendarioPage() {
             </div>
             <h2 className="mt-4 text-base font-semibold text-text">Nada agendado neste mês</h2>
             <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-text-4">
-              Os posts agendados na conversa e os do Piloto automático aparecem aqui.
+              Os posts agendados na conversa e os do Caetano aparecem aqui.
             </p>
           </div>
         ) : (
@@ -154,7 +154,7 @@ function CalendarioPage() {
               {days.map(({ date, key }) => (
                 <div
                   key={key}
-                  className={cn("min-h-24 bg-app p-1.5", date === null && "bg-inset/50")}
+                  className={cn("min-h-24 min-w-0 bg-app p-1.5", date === null && "bg-inset/50")}
                 >
                   {date ? (
                     <>
@@ -177,7 +177,7 @@ function CalendarioPage() {
                               disabled={!item.autopilot}
                               onClick={() => setOpenSlot(item.autopilot?.slotId ?? null)}
                               className={cn(
-                                "flex w-full items-center gap-1.5 rounded-md border border-border bg-surface p-1 text-left",
+                                "flex w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-md border border-border bg-surface p-1 text-left",
                                 item.autopilot && "hover:border-border-strong",
                                 item.status === "skipped" && "opacity-60",
                               )}
@@ -202,12 +202,21 @@ function CalendarioPage() {
                                   })}
                                   {item.slideCount > 1 ? ` · ${item.slideCount} slides` : ""}
                                 </span>
-                                <span className="mt-0.5 flex flex-wrap items-center gap-1">
-                                  <StatusPill tone={status.tone}>{status.label}</StatusPill>
+                                <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1">
+                                  <StatusPill tone={status.tone} className="max-w-full min-w-0">
+                                    <span className="truncate">{status.label}</span>
+                                  </StatusPill>
                                   {item.autopilot ? (
-                                    <Tag tone="brand" title="Piloto automático">
-                                      <CalendarClock className="size-3" aria-hidden="true" />
-                                      Piloto
+                                    <Tag
+                                      tone="brand"
+                                      title="Post do Caetano"
+                                      className="max-w-full min-w-0"
+                                    >
+                                      <CalendarClock
+                                        className="size-3 shrink-0"
+                                        aria-hidden="true"
+                                      />
+                                      <span className="truncate">Caetano</span>
                                     </Tag>
                                   ) : null}
                                 </span>

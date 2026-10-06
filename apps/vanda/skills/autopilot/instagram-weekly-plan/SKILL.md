@@ -1,7 +1,7 @@
 ---
 name: instagram-weekly-plan
-description: Planeja a semana de posts de feed (imagem e carrossel) — quantos, em que dias e horários, quantos slides, propósito, tema, ângulo e gancho de cada um. Use para "planeje minha semana", "o que postar", "cronograma", "programação" ou piloto automático.
-allowed-tools: list read write read_instagram_metrics autopilot_read autopilot_update_slot settings_set
+description: Planeja a semana de posts de feed (imagem e carrossel) — quantos, em que dias e horários, quantos slides, propósito, tema, ângulo e gancho de cada um. Use para "planeje minha semana", "o que postar", "cronograma", "programação" ou posts automáticos.
+allowed-tools: list read write read_instagram_metrics autopilot_read autopilot_update_slot autopilot_save_plan settings_set
 ---
 
 # Plano semanal de feed
@@ -10,10 +10,10 @@ O plano decide o que é produzido. Ele parte do diagnóstico da conta (`instagra
 
 ## Entradas
 
-1. `/brand/memory.md`: o que a marca vende, para quem, tom e o que é proibido.
+1. `/brand/marca.md`: o que a marca vende, para quem, tom e o que é proibido.
 2. Diagnóstico mais recente: o que funciona (PARE / FAÇA MAIS), melhores horários com evidência.
 3. As duas últimas semanas planejadas: não repita tema nem ângulo.
-4. Resultados dos posts do piloto da semana anterior: reforce o que superou a mediana e corte o que ficou abaixo.
+4. Resultados dos posts automáticos da semana anterior: reforce o que superou a mediana e corte o que ficou abaixo.
 
 ## Cadência
 
@@ -65,3 +65,5 @@ SÁB 12h  CARROSSEL 3  BASTIDORES   "Como sai uma encomenda" — da massa à ent
 ```
 
 Explique em uma frase por que essa cadência e essa mistura. Na conversa, mostre o plano com `autopilot_read` e altere só quando o dono pedir: a cadência com `settings_set` (`autopilot.cadence`), um post com `autopilot_update_slot`.
+
+Num trabalho dos posts automáticos: `autopilot_read` traz a cadência por índice (com os posts fixados pelo dono), o diagnóstico e os temas recentes; grave com `autopilot_save_plan`, um item por índice, com roteiro de uma linha por slide e a estratégia da semana em uma frase.

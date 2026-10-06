@@ -13,7 +13,6 @@ export const autopilotPostTypes = ["image", "carousel"] as const;
 export type AutopilotPostType = (typeof autopilotPostTypes)[number];
 
 /** 0 = Sunday … 6 = Saturday, as Date#getDay. */
-export const weekdays = [0, 1, 2, 3, 4, 5, 6] as const;
 
 export const weekdayNames = [
   "Domingo",
@@ -58,11 +57,26 @@ export type ApprovalMode = (typeof approvalModes)[number];
 export const feedbackDecisions = ["approved", "rejected"] as const;
 
 /** Where a rejection reason applies: every future post ("geral") or only that post. */
-export const feedbackScopes = ["pending", "geral", "post"] as const;
+export const feedbackScopes = ["geral", "post"] as const;
+
+export type FeedbackScope = (typeof feedbackScopes)[number];
+
+/**
+ * Work Caetano does for the posts automáticos, queued in his own thread like any
+ * owner message: the account diagnosis, a week's plan, or one post.
+ */
+export const autopilotJobKinds = ["audit", "plan", "post"] as const;
+
+export const autopilotJobValidator = v.object({
+  kind: v.union(...autopilotJobKinds.map((kind) => v.literal(kind))),
+  accountId: v.id("accounts"),
+  weekStart: v.optional(v.number()),
+  slotId: v.optional(v.id("autopilotSlots")),
+});
+
+export type AutopilotJob = Infer<typeof autopilotJobValidator>;
 
 export const MIN_REJECTION_REASON = 8;
-
-export const MIN_WEEKLY_POSTS = 1;
 
 export const MAX_WEEKLY_POSTS = 7;
 
@@ -70,6 +84,12 @@ export const MAX_AUTOPILOT_SLIDES = 10;
 
 /** Slots are produced this long before they publish (just-in-time). */
 export const PRODUCE_AHEAD_MS = 24 * 60 * 60 * 1000;
+
+/** How far back the approval rate looks. */
+export const FEEDBACK_WINDOW_DAYS = 30;
+
+/** The same window in words, for copy shown to the owner and the agents. */
+export const PRODUCE_AHEAD_LABEL = `${PRODUCE_AHEAD_MS / 3_600_000} horas`;
 
 export const cadenceEntryValidator = v.object({
   weekday: v.number(),
@@ -151,4 +171,6 @@ export const rubricItemValidator = v.object({
   score: v.number(),
   max: v.number(),
   fix: v.optional(v.string()),
+  // False when the reading could not see it (bio, highlights…): shown apart, never scored.
+  observed: v.optional(v.boolean()),
 });

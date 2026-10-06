@@ -2,6 +2,7 @@ import type { ToolCtx } from "@convex-dev/agent";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import type { AgentActivityId } from "./agentActivity";
+import type { AutopilotJob } from "./autopilotModel";
 
 export type AgentCtx = {
   accountId?: Id<"accounts">;
@@ -13,6 +14,8 @@ export type AgentCtx = {
   };
   activityId?: AgentActivityId | undefined;
   caetanoThreadId?: string | undefined;
+  // Set on Caetano's posts automáticos work turns: what the turn must produce.
+  autopilotJob?: AutopilotJob | undefined;
 };
 
 export const agentOwner = async (ctx: ToolCtx & AgentCtx): Promise<Id<"users">> => {

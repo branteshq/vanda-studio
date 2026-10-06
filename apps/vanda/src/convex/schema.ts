@@ -21,6 +21,7 @@ import {
   cadenceSourceValidator,
   postOriginValidator,
   rubricItemValidator,
+  autopilotJobValidator,
   slotBriefFields,
   slotResultsValidator,
 } from "./autopilotModel";
@@ -63,6 +64,8 @@ export default defineSchema({
     channel: v.union(v.literal("web"), v.literal("whatsapp")),
     connectionId: v.optional(v.id("whatsappConnections")),
     externalMessageId: v.optional(v.string()),
+    // Posts automáticos work (diagnosis, plan, a post) rather than an owner message.
+    autopilotJob: v.optional(autopilotJobValidator),
     status: v.union(
       v.literal("queued"),
       v.literal("running"),
@@ -130,9 +133,6 @@ export default defineSchema({
     email: v.string(),
     clerkId: v.string(),
     imageUrl: v.optional(v.string()),
-    // UI theme preference ("system" | "light" | "dark") already present on dev data;
-    // nothing reads it yet, it is declared so existing rows validate.
-    theme: v.optional(v.string()),
     activeAccountId: v.optional(v.id("accounts")),
     // Billing snapshot cached from Autumn so usage enforcement never leaves
     // Convex: the active plan, its usage allowance, and the current period.
@@ -878,12 +878,14 @@ export default defineSchema({
     platform: v.string(),
     status: v.union(...postStatuses.map((status) => v.literal(status))),
     opportunityId: v.optional(v.id("opportunities")),
-    // "autopilot" posts live in the Piloto automático view, not the rail or Calendário.
+    // "autopilot" posts are Caetano's automatic posts (Posts automáticos), marked everywhere.
     // Unset means manual (legacy rows).
     origin: v.optional(postOriginValidator),
     autopilotSlotId: v.optional(v.id("autopilotSlots")),
     createdAt: v.number(),
-  }).index("by_account", ["accountId"]),
+  })
+    .index("by_account", ["accountId"])
+    .index("by_autopilot_slot", ["autopilotSlotId"]),
 
   // Data migrations that completed in this deployment (see migrations.ts).
   migrationRuns: defineTable({
@@ -926,9 +928,8 @@ export default defineSchema({
     .index("by_account", ["accountId"])
     .index("by_enabled", ["enabled"]),
 
-  // The owner's approvals and rejections. A rejection's reason is classified:
-  // "geral" turns it into a rule every future plan and post follows; "post"
-  // only redoes that post. This is how the autopilot learns the owner.
+  // The owner's approvals and rejections: the approval rate, and each refusal's
+  // reason and scope ("geral" also goes to the brand file, written by Caetano).
   autopilotFeedback: defineTable({
     accountId: v.id("accounts"),
     slotId: v.id("autopilotSlots"),
@@ -936,10 +937,6 @@ export default defineSchema({
     decision: v.union(...feedbackDecisions.map((decision) => v.literal(decision))),
     reason: v.optional(v.string()),
     scope: v.optional(v.union(...feedbackScopes.map((scope) => v.literal(scope)))),
-    // For "geral": the reason distilled into one imperative rule.
-    rule: v.optional(v.string()),
-    // Owner can retire a learned rule; inactive rules stop shaping new posts.
-    active: v.optional(v.boolean()),
     createdAt: v.number(),
   })
     .index("by_account_created", ["accountId", "createdAt"])
@@ -991,6 +988,8 @@ export default defineSchema({
     // Owner (UI or an agent on the owner's request) changed this slot; replans keep it.
     ownerEdited: v.boolean(),
     postId: v.optional(v.id("posts")),
+    // When Caetano was last asked to make this post (its work turn).
+    productionStartedAt: v.optional(v.number()),
     attempts: v.number(),
     lastError: v.optional(v.string()),
     results: v.optional(slotResultsValidator),

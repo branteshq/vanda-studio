@@ -20,8 +20,16 @@ const loadPosts = async (ctx: QueryCtx, accountId: Id<"accounts">) =>
     .order("desc")
     .take(LISTING_CAP);
 
-const originOf = (post: Doc<"posts">): string =>
-  post.origin === "autopilot" ? " · piloto automático" : "";
+/** A posts automáticos draft is the slot's current post, or a version it replaced. */
+const originOf = async (ctx: QueryCtx, post: Doc<"posts">): Promise<string> => {
+  if (post.origin !== "autopilot") return "";
+
+  const slot = post.autopilotSlotId ? await ctx.db.get(post.autopilotSlotId) : null;
+
+  return slot?.postId === post._id
+    ? " · post automático do Caetano"
+    : " · versão descartada de um post automático (não use; o post vale só se for refeito)";
+};
 
 const scheduledOf = (ctx: QueryCtx, postId: Id<"posts">) =>
   ctx.db
@@ -44,7 +52,8 @@ const captionHead = (caption: string): string => caption.replaceAll("\n", " ").s
  * schedule_post — never by writing files. */
 export const postsMount: WorkspaceMount = {
   root: "posts",
-  summary: "calendário de posts: rascunhos, agendados e publicados, inclusive os do piloto automático",
+  summary:
+    "calendário de posts: rascunhos, agendados e publicados, inclusive os posts automáticos do Caetano",
   writeHint: "estado dos posts — somente leitura; crie com create_post e agende com schedule_post.",
   list: async (ctx, accountId, segments): Promise<WorkspaceEntry[] | null> => {
     if (segments.length !== 0) return null;
@@ -63,7 +72,7 @@ export const postsMount: WorkspaceMount = {
             `${scheduled ? ` · ${formatDate(scheduled.scheduledFor)}` : ""}` +
             ` · ${currentPostType(post.type, post.imageIds.length)}${post.format ? ` · ${post.format}` : ""} · ${purposeOf(post)}` +
             ` · ${post.imageIds.length} imagem(ns)` +
-            originOf(post) +
+            (await originOf(ctx, post)) +
             ` · ${captionHead(post.caption)}`,
         };
       }),

@@ -1,25 +1,12 @@
 import { useState } from "react";
 import type { UIMessage } from "@convex-dev/agent/react";
-import { Link } from "@tanstack/react-router";
 import { useQuery } from "convex-helpers/react/cache";
-import {
-  CalendarClock,
-  Check,
-  Clock3,
-  ExternalLink,
-  FileText,
-  LoaderCircle,
-  X,
-} from "lucide-react";
-import { Button } from "@vanda-studio/ui/components/button";
-import { Tag } from "@vanda-studio/ui/components/tag";
+import { Check, Clock3, ExternalLink, FileText, LoaderCircle, X } from "lucide-react";
 import { Markdown } from "@vanda-studio/ui/components/markdown";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import { dedupeResources, resourceKey, type ThreadResource } from "../convex/resourceRefs";
-import { SlotEditor } from "./autopilot/slot-editor";
-import { WeekStrip } from "./autopilot/week-strip";
 import { ThreadImage, ThreadImageLightbox } from "./thread-images";
 
 type ImageResourceRef = Extract<ThreadResource, { kind: "image" }>;
@@ -123,63 +110,9 @@ function ThreadResourceView({
     case "operation":
       return <OperationResource resource={resource} />;
     case "autopilotWeek":
-      return <AutopilotWeekResource resource={resource} />;
+      // Older turns stored the week as a card; the planning card on Posts automáticos replaced it.
+      return null;
   }
-}
-
-/** "Programação da semana": the autopilot week as day columns, editable in place. */
-function AutopilotWeekResource({
-  resource,
-}: {
-  resource: Extract<ThreadResource, { kind: "autopilotWeek" }>;
-}) {
-  const overview = useQuery(api.autopilot.overview, { accountId: resource.accountId });
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  if (overview === undefined) return <Skeleton className="h-40 w-full max-w-xl rounded-xl" />;
-
-  const week = overview.weeks.find((item) => item.weekStart === resource.weekStart);
-
-  if (!week) {
-    return (
-      <ResourceNotice icon={<CalendarClock />} title="Programação da semana">
-        Essa semana já passou. Veja as semanas atuais na página Piloto automático.
-      </ResourceNotice>
-    );
-  }
-
-  const selected = week.slots.find((slot) => slot.slotId === selectedId) ?? null;
-
-  return (
-    <article className="grid w-full max-w-xl gap-3 rounded-xl border border-border bg-surface p-3">
-      <header className="flex flex-wrap items-center gap-2">
-        <CalendarClock className="size-4 text-text-4" aria-hidden="true" />
-        <h3 className="mr-auto text-sm font-semibold text-text">
-          Programação da semana · {week.label}
-        </h3>
-        <Tag tone={overview.cadenceSource === "owner" ? "neutral" : "brand"}>
-          {overview.cadenceSource === "owner" ? "editada por você" : "sugerida pela Vanda"}
-        </Tag>
-      </header>
-      <WeekStrip
-        week={week}
-        selectedSlotId={selectedId}
-        onSelectSlot={(slot) => setSelectedId(slot.slotId)}
-      />
-      <footer className="flex flex-wrap items-center gap-2">
-        <span className="mr-auto font-mono text-note text-text-3">{overview.cadenceSummary}</span>
-        <Button size="sm" render={<Link to="/piloto" />}>
-          Ver programação
-        </Button>
-      </footer>
-      <SlotEditor
-        key={selected?.slotId ?? "none"}
-        accountId={resource.accountId}
-        slot={selected}
-        onClose={() => setSelectedId(null)}
-      />
-    </article>
-  );
 }
 
 const POST_STATUS = {

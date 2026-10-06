@@ -7,7 +7,7 @@ import { purposeLabels } from "./pipeline/autopilot";
 
 /**
  * The account's publication calendar: every scheduled/published post inside
- * [start, end), plus the Piloto automático's posts that are planned but not
+ * [start, end), plus Caetano's automatic posts that are planned but not
  * produced yet, with enough of each to render a compact calendar item.
  */
 
@@ -24,14 +24,16 @@ export interface CalendarItem {
   slideCount: number;
   coverUrl: string | null;
   scheduledPostId: Id<"scheduledPosts"> | null;
-  /** Set for Piloto automático posts: the slot the editor opens. */
+  /** Set for Caetano's automatic posts: the slot the editor opens. */
   autopilot: { slotId: Id<"autopilotSlots">; hook: string; purposeLabel: string } | null;
 }
 
 const coverOf = async (ctx: QueryCtx, post: Doc<"posts"> | null): Promise<string | null> => {
   const image = post?.imageIds[0] ? await ctx.db.get(post.imageIds[0]) : null;
 
-  return image?.externalUrl ?? (image?.storageId ? await ctx.storage.getUrl(image.storageId) : null);
+  return (
+    image?.externalUrl ?? (image?.storageId ? await ctx.storage.getUrl(image.storageId) : null)
+  );
 };
 
 const autopilotOf = (slot: Doc<"autopilotSlots"> | null): CalendarItem["autopilot"] =>

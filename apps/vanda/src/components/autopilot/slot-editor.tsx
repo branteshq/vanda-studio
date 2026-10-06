@@ -1,68 +1,50 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
-import { Check, ExternalLink, RefreshCw, SkipForward, Undo2, X } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  ImageOff,
+  MessageCircle,
+  RefreshCw,
+  SkipForward,
+  Undo2,
+} from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@vanda-studio/ui/components/dialog";
-import { Input } from "@vanda-studio/ui/components/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@vanda-studio/ui/components/select";
+import { Dialog, DialogContent, DialogTitle } from "@vanda-studio/ui/components/dialog";
+import { Spinner } from "@vanda-studio/ui/components/spinner";
 import { StatusPill } from "@vanda-studio/ui/components/status-pill";
+import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { AutopilotSlotView } from "../../convex/autopilotData";
-import { purposeLabels } from "../../convex/pipeline/autopilot";
-import { MIN_REJECTION_REASON } from "../../convex/autopilotModel";
-import { postPurposes, type PostPurpose } from "../../convex/postPurposes";
+import { PRODUCE_AHEAD_LABEL, PRODUCE_AHEAD_MS } from "../../convex/autopilotModel";
+import type { PostFocus } from "../caetano/caetano-chat";
 import { showErrorToast } from "../error-feedback";
-import { SLOT_STATUS, WEEKDAY_NAMES, hourLabel, slidesLabel } from "./week-strip";
+import { SlidePips, purposeGroupOf } from "./visuals";
+import { SLOT_STATUS, WEEKDAY_NAMES, hourLabel } from "./week-strip";
 
 /**
- * Edit one autopilot post: when, what and how it looks, or veto it. The same
- * mutations back Vanda and Caetano's autopilot tools.
+ * A post Caetano made, as a viewer: every slide, the caption and the plan
+ * behind it. Changes are a conversation — "Falar com o Caetano" hands the post
+ * (or one slide) to his chat, which stays on it. Only one-tap actions act
+ * here: approve, skip, restore, and generate (now, or again).
  */
 
-const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0] as const;
-
-interface Draft {
-  weekday: number;
-  time: string;
-  type: "image" | "carousel";
-  slideCount: number;
-  purpose: PostPurpose;
-  theme: string;
-  angle: string;
-  hook: string;
-  captionBrief: string;
-}
-
-const draftOf = (slot: AutopilotSlotView): Draft => ({
-  weekday: slot.weekday,
-  time: slot.time,
-  type: slot.type,
-  slideCount: slot.slideCount,
-  purpose: slot.purpose,
-  theme: slot.theme,
-  angle: slot.angle,
-  hook: slot.hook,
-  captionBrief: slot.captionBrief,
+export const focusFor = (slot: AutopilotSlotView, slide?: number): PostFocus => ({
+  slotId: slot.slotId,
+  label: `${WEEKDAY_NAMES[slot.weekday]} ${hourLabel(slot.time)} · “${slot.hook}”`,
+  slide,
+  slideCount: Math.max(slot.imageUrls.length, slot.slideCount),
+  imageUrl: slot.imageUrls[(slide ?? 1) - 1] ?? slot.coverUrl,
 });
 
 const publishLabel = (scheduledFor: number) =>
   new Date(scheduledFor).toLocaleString("pt-BR", {
-    weekday: "long",
+    weekday: "short",
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",
@@ -70,49 +52,83 @@ const publishLabel = (scheduledFor: number) =>
     timeZone: "America/Sao_Paulo",
   });
 
-/** Only the fields the owner actually changed, so the server can tell a re-time from a re-brief. */
-const changed = (slot: AutopilotSlotView, draft: Draft): Partial<Draft> => {
-  const original = draftOf(slot);
-  const result: Partial<Draft> = {};
-
-  if (draft.weekday !== original.weekday) result.weekday = draft.weekday;
-
-  if (draft.time !== original.time) result.time = draft.time;
-
-  if (draft.type !== original.type) result.type = draft.type;
-
-  if (draft.slideCount !== original.slideCount) result.slideCount = draft.slideCount;
-
-  if (draft.purpose !== original.purpose) result.purpose = draft.purpose;
-
-  if (draft.theme !== original.theme) result.theme = draft.theme;
-
-  if (draft.angle !== original.angle) result.angle = draft.angle;
-
-  if (draft.hook !== original.hook) result.hook = draft.hook;
-
-  if (draft.captionBrief !== original.captionBrief) result.captionBrief = draft.captionBrief;
-
-  return result;
+const run = (action: () => Promise<void>, after: () => void) => {
+  action().then(after, showErrorToast);
 };
 
-const descriptionOf = (slot: AutopilotSlotView): string => {
-  if (slot.status === "published") return "Publicado. O resultado aparece aqui depois de 48 horas.";
+/** Big slide with arrows, thumbnails below; a carousel reads like on Instagram. */
+function Gallery({
+  urls,
+  index,
+  onIndex,
+  empty,
+}: {
+  urls: readonly string[];
+  index: number;
+  onIndex: (index: number) => void;
+  /** Shown in place of the slides before they exist. */
+  empty: ReactNode;
+}) {
+  const url = urls[index];
 
-  if (slot.status === "skipped") return "Pulado: este post não será publicado.";
-
-  return `Publica automaticamente ${publishLabel(slot.scheduledFor)}. Edite ou pule até lá.`;
-};
-
-const purposeOf = (value: string | null): PostPurpose | undefined =>
-  postPurposes.find((purpose) => purpose === value);
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="grid gap-1">
-      <span className="text-caption font-medium text-text-3">{label}</span>
-      {children}
-    </label>
+    <div className="grid content-start gap-2">
+      <div className="relative overflow-hidden rounded-lg bg-inset">
+        {url ? (
+          <img src={url} alt={`Imagem ${index + 1}`} className="aspect-4/5 w-full object-cover" />
+        ) : (
+          <div className="flex aspect-4/5 w-full flex-col items-center justify-center gap-2 p-6 text-center">
+            {empty}
+          </div>
+        )}
+        {urls.length > 1 ? (
+          <>
+            <Button
+              size="icon-sm"
+              variant="secondary"
+              aria-label="Imagem anterior"
+              className="absolute top-1/2 left-2 -translate-y-1/2"
+              disabled={index === 0}
+              onClick={() => onIndex(index - 1)}
+            >
+              <ChevronLeft />
+            </Button>
+            <Button
+              size="icon-sm"
+              variant="secondary"
+              aria-label="Próxima imagem"
+              className="absolute top-1/2 right-2 -translate-y-1/2"
+              disabled={index === urls.length - 1}
+              onClick={() => onIndex(index + 1)}
+            >
+              <ChevronRight />
+            </Button>
+            <span className="absolute top-2 right-2 rounded-full bg-black/55 px-2 py-0.5 text-micro text-white">
+              {index + 1}/{urls.length}
+            </span>
+          </>
+        ) : null}
+      </div>
+      {urls.length > 1 ? (
+        <div className="flex gap-1.5 overflow-x-auto">
+          {urls.map((thumb, thumbIndex) => (
+            <button
+              key={thumb}
+              type="button"
+              aria-label={`Ver imagem ${thumbIndex + 1}`}
+              aria-current={thumbIndex === index}
+              onClick={() => onIndex(thumbIndex)}
+              className={cn(
+                "w-12 shrink-0 overflow-hidden rounded-sm border-2",
+                thumbIndex === index ? "border-brand-accent" : "border-transparent opacity-70",
+              )}
+            >
+              <img src={thumb} alt="" className="aspect-4/5 w-full object-cover" />
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -120,335 +136,208 @@ export function SlotEditor({
   accountId,
   slot,
   onClose,
+  onTalk,
 }: {
   accountId: Id<"accounts">;
   slot: AutopilotSlotView | null;
   onClose: () => void;
+  /** Hand the post to Caetano's chat; without it, open Posts automáticos focused on it. */
+  onTalk?: ((focus: PostFocus) => void) | undefined;
 }) {
-  const updateSlot = useMutation(api.autopilot.updateSlot);
+  const navigate = useNavigate();
+  const approveSlot = useMutation(api.autopilot.approveSlot);
   const skipSlot = useMutation(api.autopilot.skipSlot);
   const restoreSlot = useMutation(api.autopilot.restoreSlot);
   const regenerateSlot = useMutation(api.autopilot.regenerateSlot);
-  const approveSlot = useMutation(api.autopilot.approveSlot);
-  const rejectSlot = useMutation(api.autopilot.rejectSlot);
-  const [rejecting, setRejecting] = useState(false);
-  const [reason, setReason] = useState("");
-  // The page remounts the editor per slot (key), so the draft starts from the slot.
-  const [draft, setDraft] = useState<Draft | null>(slot ? draftOf(slot) : null);
-  const [busy, setBusy] = useState(false);
+  const [index, setIndex] = useState(0);
 
-  if (!slot || !draft) return null;
+  if (!slot) return null;
 
-  const locked = slot.status === "published" || slot.status === "generating";
   const status = SLOT_STATUS[slot.status];
-  const pending = changed(slot, draft);
-  const dirty = Object.keys(pending).length > 0;
+  const group = purposeGroupOf(slot.purpose);
+  const GroupIcon = group.icon;
+  const urls = slot.imageUrls.length > 0 ? slot.imageUrls : slot.coverUrl ? [slot.coverUrl] : [];
+  const current = Math.min(index, Math.max(0, urls.length - 1));
+  const open = slot.status !== "published";
+  const generating = slot.status === "generating";
+  const canGenerate = open && !generating && slot.status !== "skipped";
 
-  const run = async (action: () => Promise<void>, close = true) => {
-    setBusy(true);
+  const generate = () =>
+    run(
+      async () => {
+        await regenerateSlot({ accountId, slotId: slot.slotId });
+      },
+      () => undefined,
+    );
 
-    try {
-      await action();
+  const empty = generating ? (
+    <>
+      <Spinner />
+      <span className="text-note text-text-3">Criando as imagens…</span>
+    </>
+  ) : (
+    <>
+      <ImageOff className="size-6 text-text-5" aria-hidden="true" />
+      <span className="text-note text-text-3">
+        {slot.status === "failed" ? "Não deu para criar" : "Ainda sem imagens"}
+      </span>
+      <span className="text-micro text-text-5">
+        Criadas cerca de {PRODUCE_AHEAD_LABEL} antes ·{" "}
+        {publishLabel(slot.scheduledFor - PRODUCE_AHEAD_MS)}
+      </span>
+      {canGenerate ? (
+        <Button size="sm" onClick={generate}>
+          <RefreshCw /> Gerar agora
+        </Button>
+      ) : null}
+    </>
+  );
 
-      if (close) onClose();
-    } catch (error) {
-      showErrorToast(error);
-    } finally {
-      setBusy(false);
+  const talk = (focus: PostFocus) => {
+    onClose();
+
+    if (onTalk) {
+      onTalk(focus);
+
+      return;
     }
+
+    void navigate({
+      to: "/posts-automaticos",
+      search: focus.slide ? { foco: focus.slotId, slide: focus.slide } : { foco: focus.slotId },
+    });
   };
 
-  const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
-    setDraft((current) => (current ? { ...current, [key]: value } : current));
-
   return (
-    <Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
-      <DialogContent className="max-h-dvh max-w-lg overflow-y-auto">
-        <DialogHeader>
-          <div className="flex flex-wrap items-center gap-2 pr-6">
-            <DialogTitle>
-              {WEEKDAY_NAMES[slot.weekday]} {hourLabel(slot.time)} · {slidesLabel(slot.slideCount)}
-            </DialogTitle>
-            <StatusPill tone={status.tone}>{status.label}</StatusPill>
-          </div>
-          <DialogDescription>{descriptionOf(slot)}</DialogDescription>
-        </DialogHeader>
+    <Dialog open onOpenChange={(next) => (next ? undefined : onClose())}>
+      <DialogContent className="max-h-dvh max-w-3xl overflow-y-auto">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Gallery urls={urls} index={current} onIndex={setIndex} empty={empty} />
 
-        {slot.coverUrl ? (
-          <div className="flex gap-3">
-            <img
-              src={slot.coverUrl}
-              alt="Capa do post"
-              className="aspect-4/5 w-24 shrink-0 rounded-md bg-inset object-cover"
-            />
-            <p className="line-clamp-6 text-note whitespace-pre-line text-text-3">{slot.caption}</p>
-          </div>
-        ) : null}
+          <div className="grid content-start gap-4">
+            <div className="grid gap-1.5 pr-6">
+              <div className="flex flex-wrap items-center gap-2">
+                <DialogTitle>
+                  {WEEKDAY_NAMES[slot.weekday]} {hourLabel(slot.time)}
+                </DialogTitle>
+                <StatusPill tone={status.tone}>{status.label}</StatusPill>
+              </div>
+              <span className="text-micro text-text-4">{publishLabel(slot.scheduledFor)}</span>
+            </div>
 
-        {slot.status === "awaiting_approval" || slot.status === "scheduled" ? (
-          <div className="grid gap-2 rounded-md border border-border bg-inset p-3">
-            <p className="text-note text-text-2">
-              {slot.status === "awaiting_approval"
-                ? "Este post espera o seu aceite. Sem aceite até o horário, ele não é publicado."
-                : "Já agendado. Se não gostou, recuse com o motivo: a Vanda refaz e aprende."}
-            </p>
-            {rejecting ? (
-              <>
-                <textarea
-                  rows={3}
-                  value={reason}
-                  autoFocus
-                  placeholder="O que não ficou bom? Ex.: não use emoji em post de banco; o número está errado."
-                  onChange={(event) => setReason(event.target.value)}
-                  className="w-full resize-y rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                />
-                <p className="text-micro text-text-4">
-                  O motivo é obrigatório. A Vanda decide se ele vale para todos os próximos posts ou só
-                  para este, e refaz o post.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    disabled={busy || reason.trim().length < MIN_REJECTION_REASON}
-                    onClick={() =>
-                      void run(async () => {
-                        await rejectSlot({ accountId, slotId: slot.slotId, reason });
-                      })
-                    }
-                  >
-                    Enviar recusa
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setRejecting(false)}>
-                    Cancelar
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-3 text-note text-text-3">
+              <span className="inline-flex items-center gap-1.5">
+                <GroupIcon className="size-3.5" aria-hidden="true" />
+                {slot.purposeLabel}
+              </span>
+              <SlidePips count={slot.slideCount} type={slot.type} />
+            </div>
+
+            <p className="text-body font-medium text-text">“{slot.hook}”</p>
+
+            {slot.caption ? (
+              <p className="max-h-40 overflow-y-auto text-note whitespace-pre-line text-text-3">
+                {slot.caption}
+              </p>
+            ) : null}
+
+            {slot.revisionNote && (slot.status === "planned" || slot.status === "generating") ? (
+              <p className="rounded-md bg-inset px-3 py-2 text-micro text-text-3">
+                Refazendo: “{slot.revisionNote}”
+              </p>
+            ) : null}
+
+            {slot.lastError && slot.status !== "published" ? (
+              <p className="rounded-md border border-needs-border bg-needs-bg px-3 py-2 text-micro text-text-2">
+                {slot.lastError}
+              </p>
+            ) : null}
+
+            <div className="grid gap-2">
+              <Button onClick={() => talk(focusFor(slot))}>
+                <MessageCircle /> Falar com o Caetano sobre este post
+              </Button>
+              {urls.length > 1 ? (
+                <Button variant="outline" onClick={() => talk(focusFor(slot, current + 1))}>
+                  <MessageCircle /> Sobre a imagem {current + 1}
+                </Button>
+              ) : null}
+            </div>
+
+            {open ? (
+              <div className="flex flex-wrap gap-2 border-t border-border pt-3">
                 {slot.status === "awaiting_approval" ? (
                   <Button
                     size="sm"
-                    disabled={busy}
+                    variant="secondary"
                     onClick={() =>
-                      void run(async () => {
+                      run(async () => {
                         await approveSlot({ accountId, slotId: slot.slotId });
-                      })
+                      }, onClose)
                     }
                   >
                     <Check /> Aprovar
                   </Button>
                 ) : null}
-                <Button size="sm" variant="outline" disabled={busy} onClick={() => setRejecting(true)}>
-                  <X /> Recusar
-                </Button>
+                {canGenerate && urls.length > 0 ? (
+                  <Button size="sm" variant="ghost" onClick={generate}>
+                    <RefreshCw /> Gerar de novo
+                  </Button>
+                ) : null}
+                {slot.status === "skipped" ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      run(async () => {
+                        await restoreSlot({ accountId, slotId: slot.slotId });
+                      }, onClose)
+                    }
+                  >
+                    <Undo2 /> Reativar
+                  </Button>
+                ) : null}
+                {slot.status !== "skipped" && slot.status !== "generating" ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      run(async () => {
+                        await skipSlot({ accountId, slotId: slot.slotId });
+                      }, onClose)
+                    }
+                  >
+                    <SkipForward /> Pular
+                  </Button>
+                ) : null}
               </div>
-            )}
-          </div>
-        ) : null}
-
-        {slot.revisionNote && (slot.status === "planned" || slot.status === "generating") ? (
-          <p className="rounded-md border border-border bg-inset px-3 py-2 text-note text-text-3">
-            Refazendo com o seu motivo: “{slot.revisionNote}”
-          </p>
-        ) : null}
-
-        {slot.lastError && slot.status !== "published" ? (
-          <p className="rounded-md border border-needs-border bg-needs-bg px-3 py-2 text-note text-text-2">
-            {slot.lastError}
-          </p>
-        ) : null}
-
-        <fieldset disabled={locked || busy} className="grid gap-3">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Dia">
-              <Select
-                value={String(draft.weekday)}
-                onValueChange={(value) => set("weekday", Number(value))}
-              >
-                <SelectTrigger aria-label="Dia">
-                  <SelectValue>{(value) => WEEKDAY_NAMES[Number(value)]}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {MONDAY_FIRST.map((weekday) => (
-                    <SelectItem key={weekday} value={String(weekday)}>
-                      {WEEKDAY_NAMES[weekday]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Horário">
-              <Input
-                type="time"
-                value={draft.time}
-                onChange={(event) => set("time", event.target.value)}
-              />
-            </Field>
-            <Field label="Formato">
-              <Select
-                value={draft.type}
-                onValueChange={(value) => {
-                  const type = value === "carousel" ? "carousel" : "image";
-
-                  set("type", type);
-                  set("slideCount", type === "image" ? 1 : Math.max(2, draft.slideCount));
-                }}
-              >
-                <SelectTrigger aria-label="Formato">
-                  <SelectValue>
-                    {(value) => (value === "carousel" ? "Carrossel" : "Imagem")}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="image">Imagem</SelectItem>
-                  <SelectItem value="carousel">Carrossel</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Slides">
-              <Input
-                type="number"
-                min={draft.type === "image" ? 1 : 2}
-                max={draft.type === "image" ? 1 : 10}
-                value={draft.slideCount}
-                disabled={draft.type === "image"}
-                onChange={(event) =>
-                  set("slideCount", Math.min(10, Math.max(2, Number(event.target.value) || 2)))
-                }
-              />
-            </Field>
-          </div>
-          <Field label="Propósito">
-            <Select
-              value={draft.purpose}
-              onValueChange={(value) => {
-                const purpose = purposeOf(value);
-
-                if (purpose) set("purpose", purpose);
-              }}
-            >
-              <SelectTrigger aria-label="Propósito">
-                <SelectValue>
-                  {(value: string | null) => {
-                    const purpose = purposeOf(value);
-
-                    return purpose ? purposeLabels[purpose] : null;
-                  }}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {postPurposes.map((purpose) => (
-                  <SelectItem key={purpose} value={purpose}>
-                    {purposeLabels[purpose]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Gancho da capa">
-            <Input value={draft.hook} onChange={(event) => set("hook", event.target.value)} />
-          </Field>
-          <Field label="Tema">
-            <Input value={draft.theme} onChange={(event) => set("theme", event.target.value)} />
-          </Field>
-          <Field label="Ângulo">
-            <Input value={draft.angle} onChange={(event) => set("angle", event.target.value)} />
-          </Field>
-          <Field label="O que a legenda deve dizer">
-            <textarea
-              rows={3}
-              value={draft.captionBrief}
-              onChange={(event) => set("captionBrief", event.target.value)}
-              className="w-full resize-y rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
-          </Field>
-          {slot.postId && dirty ? (
-            <p className="text-note text-text-4">
-              Mudar o conteúdo gera o post de novo. Mudar só o horário mantém o post pronto.
-            </p>
-          ) : null}
-        </fieldset>
-
-        <DialogFooter>
-          <div className="mr-auto flex flex-wrap gap-2">
-            {slot.status === "skipped" ? (
+            ) : slot.permalink ? (
               <Button
-                variant="outline"
                 size="sm"
-                disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    await restoreSlot({ accountId, slotId: slot.slotId });
-                  })
-                }
-              >
-                <Undo2 /> Reativar
-              </Button>
-            ) : !locked ? (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    await skipSlot({ accountId, slotId: slot.slotId });
-                  })
-                }
-              >
-                <SkipForward /> Pular
-              </Button>
-            ) : null}
-            {!locked && slot.status !== "skipped" ? (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    await regenerateSlot({ accountId, slotId: slot.slotId });
-                  })
-                }
-              >
-                <RefreshCw /> Gerar agora
-              </Button>
-            ) : null}
-            {slot.permalink ? (
-              <Button
                 variant="ghost"
-                size="sm"
                 onClick={() => window.open(slot.permalink!, "_blank", "noopener,noreferrer")}
               >
                 <ExternalLink /> Ver no Instagram
               </Button>
             ) : null}
           </div>
-          <Button
-            size="sm"
-            disabled={!dirty || locked || busy}
-            onClick={() =>
-              void run(async () => {
-                await updateSlot({ accountId, slotId: slot.slotId, change: pending });
-              })
-            }
-          >
-            Salvar
-          </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-/** The editor for a slot known only by id (Calendário, rail): loads it, then edits it. */
+/** The viewer for a slot known only by id (Calendário, rail, the planning card). */
 export function SlotEditorById({
   accountId,
   slotId,
   onClose,
+  onTalk,
 }: {
   accountId: Id<"accounts">;
   slotId: Id<"autopilotSlots"> | null;
   onClose: () => void;
+  onTalk?: ((focus: PostFocus) => void) | undefined;
 }) {
   const slot = useQuery(api.autopilot.slot, slotId ? { accountId, slotId } : "skip");
 
@@ -458,6 +347,7 @@ export function SlotEditorById({
       accountId={accountId}
       slot={slotId ? (slot ?? null) : null}
       onClose={onClose}
+      onTalk={onTalk}
     />
   );
 }

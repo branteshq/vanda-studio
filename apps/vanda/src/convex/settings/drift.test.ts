@@ -5,14 +5,16 @@ import { PRODUCT_DOC_SOURCES } from "../productDocs/generated";
 import { NON_SETTING_UI_FUNCTIONS, SETTINGS } from "./catalog";
 
 // The settings UIs: the Perfil page, the cards it renders from other files, and
-// the Piloto automático view with its shared components.
+// the Posts automáticos view with its shared components.
 const PERFIL_SOURCES = [
   "../../routes/_dashboard.perfil.tsx",
   "../../components/profile/runtime.tsx",
   "../../components/whatsapp-settings.tsx",
-  "../../routes/_dashboard.piloto.tsx",
+  "../../routes/_dashboard.posts-automaticos.tsx",
   "../../components/autopilot/slot-editor.tsx",
-  "../../components/autopilot/cadence-editor.tsx",
+  "../../components/caetano/caetano-chat.tsx",
+  "../../components/caetano/autopilot-panel.tsx",
+  "../../components/caetano/details-sheet.tsx",
 ];
 
 const perfilCalls = (): Set<string> => {

@@ -1,8 +1,11 @@
 // @vitest-environment edge-runtime
+import agentComponent from "@convex-dev/agent/test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, internal } from "./_generated/api";
+import { api, components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { saveBrandFile } from "./brandFile";
+import { listPath } from "./workspace";
 import schema from "./schema";
 import { DEFAULT_CADENCE, slotTimestamp, weekStartOf } from "./pipeline/autopilot";
 
@@ -33,6 +36,8 @@ const brief = (hook: string) => ({
 
 const setup = async () => {
   const t = convexTest(schema, modules);
+
+  agentComponent.register(t);
 
   const ids = await t.run(async (ctx) => {
     const userId = await ctx.db.insert("users", { name: "Me", email: "me@e.com", clerkId: "me" });
@@ -88,11 +93,15 @@ const setup = async () => {
         .collect(),
     );
 
-  /** Runs claim → post → finishProduction for a slot, as the producer does. */
+  /**
+   * Runs a post's work as Caetano's turn would: the job is queued, create_post
+   * links the post to the slot, and the finished turn settles the job.
+   */
   const produce = async (slotId: Id<"autopilotSlots">) => {
-    const claimed = await t.mutation(internal.autopilotData.claimSlot, { slotId });
+    await t.mutation(internal.autopilotData.startProduction, { slotId });
+    const claimed = await t.run((ctx) => ctx.db.get(slotId));
 
-    expect(claimed).not.toBeNull();
+    expect(claimed?.status).toBe("generating");
 
     const postId = await t.mutation(internal.posts.createPostInternal, {
       accountId: ids.accountId,
@@ -104,7 +113,11 @@ const setup = async () => {
       autopilotSlotId: slotId,
     });
 
-    const status = await t.mutation(internal.autopilotData.finishProduction, { slotId, postId });
+    await t.mutation(internal.autopilotData.completeJob, {
+      job: { kind: "post", accountId: ids.accountId, slotId },
+    });
+
+    const status = (await t.run((ctx) => ctx.db.get(slotId)))?.status;
 
     return { postId, status };
   };
@@ -248,7 +261,7 @@ describe("autopilot production and veto", () => {
     const tuesday = (await slots()).toSorted((a, b) => a.scheduledFor - b.scheduledFor)[0]!;
 
     vi.setSystemTime(tuesday.scheduledFor - 20 * 3_600_000);
-    await t.mutation(internal.autopilotData.claimSlot, { slotId: tuesday._id });
+    await t.mutation(internal.autopilotData.startProduction, { slotId: tuesday._id });
     await t.mutation(internal.autopilotData.skipSlotInternal, { accountId, slotId: tuesday._id });
 
     const { imageIds } = await t.run(async (ctx) => ({
@@ -264,12 +277,11 @@ describe("autopilot production and veto", () => {
       autopilotSlotId: tuesday._id,
     });
 
-    const status = await t.mutation(internal.autopilotData.finishProduction, {
-      slotId: tuesday._id,
-      postId,
+    await t.mutation(internal.autopilotData.completeJob, {
+      job: { kind: "post", accountId, slotId: tuesday._id },
     });
 
-    expect(status).toBe("skipped");
+    expect((await t.run((ctx) => ctx.db.get(tuesday._id)))?.status).toBe("skipped");
     expect((await t.run((ctx) => ctx.db.get(tuesday._id)))?.postId).toBe(postId);
     expect((await t.run((ctx) => ctx.db.get(postId)))?.status).toBe("draft");
   });
@@ -309,7 +321,8 @@ describe("autopilot production and veto", () => {
     const reset = await t.run((ctx) => ctx.db.get(tuesday._id));
 
     expect(reset?.postId).toBeUndefined();
-    expect(reset?.slideOutline).toHaveLength(3);
+    // A new hook makes the old outline stale: Caetano writes the slides again.
+    expect(reset?.slideOutline).toEqual([]);
     expect(reset?.ownerEdited).toBe(true);
   });
 
@@ -361,7 +374,7 @@ describe("autopilot production and veto", () => {
 });
 
 describe("autopilot in the rest of the product", () => {
-  it("shows autopilot posts in the rail, the calendar and /posts, marked as Piloto", async () => {
+  it("shows autopilot posts in the rail, the calendar and /posts, marked as Caetano's", async () => {
     const { t, accountId, imageIds, plan, slots, produce } = await setup();
 
     await plan(NEXT_WEEK);
@@ -412,7 +425,7 @@ describe("autopilot in the rest of the product", () => {
       path: "/autopilot/plan.md",
     });
 
-    expect(JSON.stringify(listing)).toContain("piloto automático");
+    expect(JSON.stringify(listing)).toContain("post automático do Caetano");
     expect(JSON.stringify(planFile)).toContain(tuesday!._id);
   });
 });
@@ -454,7 +467,7 @@ describe("autopilot approval and learning", () => {
     expect(feedback.map((row) => row.decision)).toEqual(["approved"]);
   });
 
-  it("requires a reason to reject, redoes the post with it and learns general rules", async () => {
+  it("requires a reason to reject, redoes the post with it and records the owner's scope", async () => {
     const { t, accountId, plan, slots, produce } = await setup();
 
     await requireApproval(t, accountId);
@@ -464,16 +477,20 @@ describe("autopilot approval and learning", () => {
     vi.setSystemTime(tuesday.scheduledFor - 20 * 3_600_000);
     await produce(tuesday._id);
 
-    const owner = t.withIdentity({ subject: "me" });
-
     await expect(
-      owner.mutation(api.autopilot.rejectSlot, { accountId, slotId: tuesday._id, reason: "não" }),
+      t.mutation(internal.autopilotData.rejectSlotInternal, {
+        accountId,
+        slotId: tuesday._id,
+        reason: "não",
+        scope: "post",
+      }),
     ).rejects.toThrow();
 
-    const status = await owner.mutation(api.autopilot.rejectSlot, {
+    const status = await t.mutation(internal.autopilotData.rejectSlotInternal, {
       accountId,
       slotId: tuesday._id,
       reason: "Não use emoji em post de banco",
+      scope: "geral",
     });
 
     expect(status).toBe("planned");
@@ -483,36 +500,34 @@ describe("autopilot approval and learning", () => {
     expect(slot?.revisionNote).toBe("Não use emoji em post de banco");
     expect(slot?.postId).toBeUndefined();
 
-    const jobs = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
-
-    expect(jobs.map((job) => job.name)).toEqual(
-      expect.arrayContaining(["autopilotNode:classifyFeedback", "autopilotNode:produceSlot"]),
-    );
-
     const [feedback] = await t.run((ctx) => ctx.db.query("autopilotFeedback").collect());
 
-    expect(feedback).toMatchObject({ decision: "rejected", scope: "pending" });
+    expect(feedback).toMatchObject({ decision: "rejected", scope: "geral" });
 
-    await t.mutation(internal.autopilotData.setFeedbackScope, {
-      feedbackId: feedback!._id,
-      scope: "geral",
-      rule: "Não usar emojis nas legendas",
-    });
+    const jobs = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
 
-    const inputs = await t.query(internal.autopilotData.planInputs, {
-      accountId,
-      weekStart: NEXT_WEEK,
-    });
+    expect(jobs.map((job) => job.name)).toContain("autopilotData:startProduction");
+  });
 
-    expect(inputs.rules).toEqual(["Não usar emojis nas legendas"]);
+  it("shows what the owner taught from the brand file", async () => {
+    const { t, accountId } = await setup();
+    const owner = t.withIdentity({ subject: "me" });
+
+    await t.run((ctx) =>
+      saveBrandFile(
+        ctx,
+        accountId,
+        "# Marca\n\n## Preferências\n\n- Legendas curtas (dono)\n\n## Nunca fazer\n\n- Não usar emojis nas legendas (dono)\n",
+        "owner",
+      ),
+    );
 
     const overview = await owner.query(api.autopilot.overview, { accountId });
 
-    expect(overview.rules.map((rule) => rule.rule)).toEqual(["Não usar emojis nas legendas"]);
-
-    await owner.mutation(api.autopilot.forgetRule, { accountId, feedbackId: feedback!._id });
-
-    expect((await owner.query(api.autopilot.overview, { accountId })).rules).toEqual([]);
+    expect(overview.learned).toEqual([
+      { section: "Preferências", text: "Legendas curtas (dono)" },
+      { section: "Nunca fazer", text: "Não usar emojis nas legendas (dono)" },
+    ]);
   });
 
   it("does not publish a post left without approval", async () => {
@@ -590,5 +605,180 @@ describe("autopilot access", () => {
     await expect(
       t.withIdentity({ subject: "other" }).query(api.autopilot.overview, { accountId }),
     ).rejects.toThrow();
+  });
+});
+
+describe("autopilot work in Caetano's thread", () => {
+  const inbox = (t: Awaited<ReturnType<typeof setup>>["t"]) =>
+    t.run((ctx) => ctx.db.query("caetanoInbox").collect());
+
+  it("asks Caetano for each post as a queued turn of his own thread", async () => {
+    const { t, plan, slots } = await setup();
+
+    await plan(NEXT_WEEK);
+    const tuesday = (await slots()).toSorted((a, b) => a.scheduledFor - b.scheduledFor)[0]!;
+
+    vi.setSystemTime(tuesday.scheduledFor - 20 * 3_600_000);
+    await t.mutation(internal.autopilotData.startProduction, { slotId: tuesday._id });
+
+    const [row] = await inbox(t);
+
+    expect(row).toMatchObject({
+      channel: "web",
+      status: "queued",
+      autopilotJob: { kind: "post", slotId: tuesday._id },
+    });
+
+    const [prompt] = await t.run((ctx) =>
+      ctx.runQuery(components.agent.messages.getMessagesByIds, {
+        messageIds: [row!.promptMessageId],
+      }),
+    );
+
+    expect(prompt?.message?.content).toEqual(expect.stringContaining("Gancho da capa: gancho 0"));
+    expect(prompt?.message?.content).toEqual(expect.stringContaining(`autopilot tarefa=post`));
+  });
+
+  it("shows a regenerated post's old draft as discarded in /posts", async () => {
+    const { t, accountId, plan, slots, produce } = await setup();
+
+    await plan(NEXT_WEEK);
+    const tuesday = (await slots()).toSorted((a, b) => a.scheduledFor - b.scheduledFor)[0]!;
+
+    vi.setSystemTime(tuesday.scheduledFor - 20 * 3_600_000);
+    await produce(tuesday._id);
+
+    const listing = () =>
+      t.run(async (ctx) => {
+        const result = await listPath(ctx, accountId, "/posts");
+
+        return result.ok ? result.entries.map((entry) => entry.summary ?? "") : [];
+      });
+
+    expect(await listing()).toEqual([expect.stringContaining("post automático do Caetano")]);
+
+    await t.mutation(internal.autopilotData.regenerateSlotInternal, {
+      accountId,
+      slotId: tuesday._id,
+    });
+
+    expect(await listing()).toEqual([expect.stringContaining("versão descartada")]);
+  });
+
+  it("fails the post when the turn ends without create_post", async () => {
+    const { t, accountId, plan, slots } = await setup();
+
+    await plan(NEXT_WEEK);
+    const tuesday = (await slots()).toSorted((a, b) => a.scheduledFor - b.scheduledFor)[0]!;
+
+    vi.setSystemTime(tuesday.scheduledFor - 20 * 3_600_000);
+    await t.mutation(internal.autopilotData.startProduction, { slotId: tuesday._id });
+    await t.mutation(internal.autopilotData.completeJob, {
+      job: { kind: "post", accountId, slotId: tuesday._id },
+    });
+
+    const slot = await t.run((ctx) => ctx.db.get(tuesday._id));
+
+    expect(slot?.status).toBe("failed");
+    expect(slot?.lastError).toBe("O Caetano não concluiu o post.");
+  });
+
+  it("queues the diagnosis and both weeks' plans, and settles what was not saved", async () => {
+    const { t, accountId } = await setup();
+
+    await t.mutation(internal.autopilotData.reanalyzeInternal, { accountId });
+
+    expect((await inbox(t)).map((row) => row.autopilotJob?.kind)).toEqual([
+      "audit",
+      "plan",
+      "plan",
+    ]);
+
+    const weeks = await t.run((ctx) => ctx.db.query("autopilotWeeks").collect());
+
+    expect(weeks.map((week) => week.status)).toEqual(["planning", "planning"]);
+
+    await t.mutation(internal.autopilotData.completeJob, { job: { kind: "audit", accountId } });
+    await t.mutation(internal.autopilotData.completeJob, {
+      job: { kind: "plan", accountId, weekStart: NEXT_WEEK },
+    });
+
+    const audit = await t.run((ctx) => ctx.db.query("accountAudits").first());
+
+    expect(audit?.status).toBe("failed");
+    expect(
+      (await t.run((ctx) => ctx.db.query("autopilotWeeks").collect())).find(
+        (week) => week.weekStart === NEXT_WEEK,
+      )?.status,
+    ).toBe("failed");
+  });
+
+  it("saves Caetano's plan over the cadence and keeps what the owner fixed", async () => {
+    const { t, accountId } = await setup();
+
+    const slots = [0, 1, 2].map((index) => ({ index, ...brief(`gancho ${index}`) }));
+
+    await expect(
+      t.mutation(internal.autopilotData.savePlanFromJob, {
+        accountId,
+        weekStart: NEXT_WEEK,
+        strategy: "ensinar",
+        slots: slots.slice(0, 2),
+      }),
+    ).rejects.toThrow(/faltam os slots 2/);
+
+    const created = await t.mutation(internal.autopilotData.savePlanFromJob, {
+      accountId,
+      weekStart: NEXT_WEEK,
+      strategy: "ensinar",
+      slots: slots.map((slot) => ({ ...slot, slideOutline: ["só uma linha"] })),
+    });
+
+    expect(created).toBe(3);
+
+    const saved = await t.run((ctx) => ctx.db.query("autopilotSlots").collect());
+
+    expect(saved.every((slot) => slot.slideOutline.length === slot.slideCount)).toBe(true);
+  });
+
+  it("completes a measured diagnosis with Caetano's judgement", async () => {
+    const { t, accountId } = await setup();
+
+    await t.mutation(internal.autopilotData.reanalyzeInternal, { accountId });
+
+    const judgement = {
+      accountId,
+      rubric: [
+        { item: "nome", score: 6, max: 12 },
+        { item: "atividade", score: 10, max: 10 },
+      ],
+      postNotes: [{ postId: "p1", why: "Capa com número" }],
+      findings: [{ claim: "Carrossel rende mais", evidence: "3× contra 1×", n: 3 }],
+      stop: [],
+      doMore: ["Passo a passo"],
+      needs: ["Constância"],
+      summary: "Conta ativa, carrosséis vão melhor.",
+      recommendedCadence: [{ weekday: 2, time: "18:00", type: "carousel" as const, slideCount: 3 }],
+      cadenceRationale: "Terça à noite.",
+    };
+
+    await expect(t.mutation(internal.autopilotData.saveAuditJudgement, judgement)).rejects.toThrow(
+      /autopilot_measure_account/,
+    );
+
+    await t.mutation(internal.autopilotData.saveMeasurement, {
+      accountId,
+      confidence: "baixa",
+      metrics: { sampleSize: 2, byFormat: [], byHour: [] },
+      top: [{ externalPostId: "p1", caption: "c", format: "carousel", outlier: 2 }],
+      bottom: [],
+    });
+
+    expect(await t.mutation(internal.autopilotData.saveAuditJudgement, judgement)).toBe(73);
+
+    const audit = await t.run((ctx) => ctx.db.query("accountAudits").first());
+
+    expect(audit).toMatchObject({ status: "ready", profileScore: 73 });
+    expect(audit?.top?.[0]?.why).toBe("Capa com número");
   });
 });

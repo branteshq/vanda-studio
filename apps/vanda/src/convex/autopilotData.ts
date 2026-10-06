@@ -18,14 +18,22 @@ import {
   rubricItemValidator,
   slotBriefFields,
   slotResultsValidator,
+  FEEDBACK_WINDOW_DAYS,
   MIN_REJECTION_REASON,
+  autopilotJobValidator,
+  feedbackScopes,
+  weekdayNames,
+  type AutopilotJob,
+  type FeedbackScope,
   type ApprovalMode,
   type AutopilotSlotStatus,
   type CadenceEntry,
 } from "./autopilotModel";
+import { brandFileContent, brandFileFacts } from "./brandFile";
 import {
   DEFAULT_CADENCE,
   cadenceSummary,
+  formatHour,
   isValidTime,
   localSlot,
   nextWeekStart,
@@ -34,12 +42,13 @@ import {
   slotTimestamp,
   weekStartOf,
 } from "./pipeline/autopilot";
+import { fitOutline } from "./pipeline/autopilotAgent";
 import { cancelScheduleIn, schedulePostIn } from "./posts";
 import { postPurposeValidator } from "./postPurposes";
 
 /**
  * Autopilot state: the slot lifecycle, plan persistence and the overview the
- * Piloto automático view, the chat card and the agents all read. Every change
+ * Posts automáticos view, the chat card and the agents all read. Every change
  * the owner can make goes through `applySlotChange` / `applyCadence` here, so
  * the UI and Vanda/Caetano's tools can never disagree.
  *
@@ -53,7 +62,8 @@ const MINUTE = 60 * 1000;
 const PRODUCE_MIN_LEAD_MS = 15 * MINUTE;
 
 /** A generating slot older than this crashed mid-production. */
-const GENERATING_TIMEOUT_MS = 30 * MINUTE;
+/** A work turn (diagnosis, plan, post) is given up after this; matches caetano.ts. */
+const JOB_TIMEOUT_MS = 30 * MINUTE;
 
 export const MAX_ATTEMPTS = 2;
 
@@ -82,15 +92,14 @@ export const ensureConfig = async (
     enabled: false,
     cadence: [...DEFAULT_CADENCE],
     cadenceSource: "agent",
-    cadenceRationale:
-      "Ponto de partida: terça e quinta à noite e sábado ao meio-dia. O diagnóstico da conta ajusta a cadência.",
+    cadenceRationale: `Ponto de partida: ${cadenceSummary(DEFAULT_CADENCE)}. O diagnóstico da conta ajusta a cadência.`,
     createdAt: now,
     updatedAt: now,
   });
 
   const created = await ctx.db.get(id);
 
-  if (!created) throw new Error("configuração do piloto não foi criada");
+  if (!created) throw new Error("configuração dos posts automáticos não foi criada");
 
   return created;
 };
@@ -136,6 +145,23 @@ const coverUrlOf = async (ctx: QueryCtx, post: Doc<"posts"> | null): Promise<str
   return image.externalUrl ?? (image.storageId ? await ctx.storage.getUrl(image.storageId) : null);
 };
 
+export /** Every slide of the produced post, in order, for the post viewer. */
+const imageUrlsOf = async (ctx: QueryCtx, post: Doc<"posts">): Promise<string[]> => {
+  const urls = await Promise.all(
+    post.imageIds.map(async (imageId) => {
+      const image = await ctx.db.get(imageId);
+
+      if (!image) return null;
+
+      return (
+        image.externalUrl ?? (image.storageId ? await ctx.storage.getUrl(image.storageId) : null)
+      );
+    }),
+  );
+
+  return urls.filter((url): url is string => url !== null);
+};
+
 export const slotView = async (ctx: QueryCtx, slot: Doc<"autopilotSlots">) => {
   const post = slot.postId ? await ctx.db.get(slot.postId) : null;
 
@@ -167,6 +193,7 @@ export const slotView = async (ctx: QueryCtx, slot: Doc<"autopilotSlots">) => {
     postId: slot.postId ?? null,
     caption: post?.caption ?? null,
     coverUrl: await coverUrlOf(ctx, post),
+    imageUrls: post ? await imageUrlsOf(ctx, post) : [],
     permalink: scheduled?.permalink ?? null,
     lastError: slot.lastError ?? null,
     revisionNote: slot.revisionNote ?? null,
@@ -238,12 +265,14 @@ export const overviewOf = async (ctx: QueryCtx, accountId: Id<"accounts">, now: 
     cadenceRationale: config?.cadenceRationale ?? null,
     cadenceSummary: cadenceSummary(cadence),
     approval: config?.approval ?? "required",
-    rules: (await activeRules(ctx, accountId)).map((row) => ({
-      feedbackId: row._id,
-      rule: row.rule!,
-      reason: row.reason ?? "",
-      createdAt: row.createdAt,
-    })),
+    feedbackStats: {
+      ...(await feedbackStatsOf(ctx, accountId, now)),
+      windowDays: FEEDBACK_WINDOW_DAYS,
+    },
+    // What the owner taught lives in the brand file, the business's only memory.
+    learned: brandFileFacts(await brandFileContent(ctx, accountId))
+      .filter((fact) => LEARNED_SECTIONS.has(fact.kind))
+      .map((fact) => ({ section: fact.kind, text: fact.text })),
     auditRunning: latest?.status === "running",
     audit: auditView(ready),
     weeks: [
@@ -282,7 +311,7 @@ const assertOwnedSlot = async (
 ): Promise<Doc<"autopilotSlots">> => {
   const slot = await ctx.db.get(slotId);
 
-  if (!slot || slot.accountId !== accountId) throw new Error("post do piloto não encontrado");
+  if (!slot || slot.accountId !== accountId) throw new Error("post automático não encontrado");
 
   return slot;
 };
@@ -303,8 +332,21 @@ const produceIfDue = async (
   const now = Date.now();
 
   if (scheduledFor - now <= PRODUCE_AHEAD_MS && scheduledFor - now > PRODUCE_MIN_LEAD_MS) {
-    await ctx.scheduler.runAfter(0, internal.autopilotNode.produceSlot, { slotId });
+    await ctx.scheduler.runAfter(0, internal.autopilotData.startProduction, { slotId });
   }
+};
+
+/**
+ * The owner just discarded a produced version (refused it or changed its brief):
+ * they are waiting for the new one, so it is produced now, not at the 24h mark.
+ */
+const produceAgainNow = async (
+  ctx: MutationCtx,
+  slotId: Id<"autopilotSlots">,
+  scheduledFor: number,
+) => {
+  if (scheduledFor - Date.now() > PRODUCE_MIN_LEAD_MS)
+    await ctx.scheduler.runAfter(0, internal.autopilotData.startProduction, { slotId });
 };
 
 export const slotChangeValidator = v.object({
@@ -379,9 +421,15 @@ export const applySlotChange = async (
         JSON.stringify(change[field]) !== JSON.stringify(slot[field]),
     ) || slideCount !== slot.slideCount;
 
-  const outline = (change.slideOutline ?? slot.slideOutline).slice(0, slideCount);
+  // A new subject without a new outline leaves the slides to Caetano (the old outline is stale).
+  const subjectChanged = (["purpose", "theme", "angle", "hook"] as const).some(
+    (field) => change[field] !== undefined && change[field] !== slot[field],
+  );
 
-  while (outline.length < slideCount) outline.push(change.hook ?? slot.hook);
+  const outline = (change.slideOutline ?? (subjectChanged ? [] : slot.slideOutline)).slice(
+    0,
+    slideCount,
+  );
 
   await ctx.db.patch(slotId, {
     scheduledFor,
@@ -400,10 +448,16 @@ export const applySlotChange = async (
   let status = slot.status;
 
   if (contentChanged && slot.postId) {
-    // The produced post no longer matches the brief: keep it as a hidden draft, produce again.
+    // The produced post no longer matches the brief: keep it as a hidden draft, produce again now.
     await disarm(ctx, slot);
     status = slot.status === "skipped" ? "skipped" : "planned";
     await ctx.db.patch(slotId, { status, postId: undefined, attempts: 0, lastError: undefined });
+
+    if (status === "planned") {
+      await produceAgainNow(ctx, slotId, scheduledFor);
+
+      return status;
+    }
   } else if (scheduledFor !== slot.scheduledFor && slot.postId && slot.status === "scheduled") {
     await schedulePostIn(ctx, { accountId, postId: slot.postId, scheduledFor });
   } else if (slot.status === "failed") {
@@ -467,6 +521,9 @@ export const applyRegenerate = async (
 
   if (slot.status === "generating") throw new Error("esse post já está sendo gerado");
 
+  if (!(await getConfig(ctx, accountId))?.enabled)
+    throw new Error("os posts automáticos estão pausados; ligue para gerar");
+
   if (slot.scheduledFor <= Date.now() + PRODUCE_MIN_LEAD_MS)
     throw new Error("não há tempo para gerar de novo antes do horário");
 
@@ -478,7 +535,7 @@ export const applyRegenerate = async (
     lastError: undefined,
     updatedAt: Date.now(),
   });
-  await ctx.scheduler.runAfter(0, internal.autopilotNode.produceSlot, { slotId });
+  await ctx.scheduler.runAfter(0, internal.autopilotData.startProduction, { slotId });
 };
 
 /** Replans the current and next week; `audit` refreshes the diagnosis first. */
@@ -489,12 +546,32 @@ export const requestRefresh = async (
 ): Promise<void> => {
   const now = Date.now();
 
-  await ctx.scheduler.runAfter(0, internal.autopilotNode.refresh, {
-    accountId,
-    weekStarts: [weekStartOf(now), nextWeekStart(now)],
-    audit,
-  });
+  if (audit) await requestAudit(ctx, accountId);
+
+  // A paused autopilot can be diagnosed, but nothing gets planned for it.
+  if (!(await getConfig(ctx, accountId))?.enabled) return;
+
+  for (const weekStart of [weekStartOf(now), nextWeekStart(now)])
+    await requestPlan(ctx, accountId, weekStart);
 };
+
+/** Sunday cron: a fresh diagnosis and next week's plan for every enabled account. */
+export const planAllAccounts = internalMutation({
+  args: {},
+  handler: async (ctx): Promise<void> => {
+    const configs = await ctx.db
+      .query("autopilotConfigs")
+      .withIndex("by_enabled", (q) => q.eq("enabled", true))
+      .collect();
+
+    const weekStart = nextWeekStart(Date.now());
+
+    for (const config of configs) {
+      await requestAudit(ctx, config.accountId);
+      await requestPlan(ctx, config.accountId, weekStart);
+    }
+  },
+});
 
 export const applyCadence = async (
   ctx: MutationCtx,
@@ -552,6 +629,7 @@ export const applyEnabled = async (
   await ctx.db.patch(config._id, { enabled, updatedAt: Date.now() });
 
   if (enabled) {
+    await restorePaused(ctx, accountId);
     await requestRefresh(ctx, accountId, true);
 
     return;
@@ -566,15 +644,43 @@ export const applyEnabled = async (
     .collect();
 
   for (const slot of pending) {
-    if (slot.status !== "scheduled" && slot.status !== "planned" && slot.status !== "failed")
-      continue;
+    if (!PAUSABLE.has(slot.status)) continue;
 
     await disarm(ctx, slot);
-    await ctx.db.patch(slot._id, {
-      status: "skipped",
-      lastError: "piloto automático desligado",
-      updatedAt: Date.now(),
-    });
+    await ctx.db.patch(slot._id, { status: "skipped", lastError: PAUSED, updatedAt: Date.now() });
+  }
+};
+
+const PAUSED = "posts automáticos pausados";
+
+const PAUSABLE: ReadonlySet<AutopilotSlotStatus> = new Set([
+  "scheduled",
+  "planned",
+  "failed",
+  "awaiting_approval",
+]);
+
+/** Turning back on brings back what the pause skipped, so the week is not left empty. */
+const restorePaused = async (ctx: MutationCtx, accountId: Id<"accounts">): Promise<void> => {
+  const now = Date.now();
+
+  const paused = (
+    await ctx.db
+      .query("autopilotSlots")
+      .withIndex("by_account_scheduledFor", (q) =>
+        q.eq("accountId", accountId).gte("scheduledFor", now + PRODUCE_MIN_LEAD_MS),
+      )
+      .collect()
+  ).filter((slot) => slot.status === "skipped" && slot.lastError === PAUSED);
+
+  for (const slot of paused) {
+    if (slot.postId) {
+      await ctx.db.patch(slot._id, { status: "generating", lastError: undefined, updatedAt: now });
+      await finishProduction(ctx, slot._id, slot.postId);
+    } else {
+      await ctx.db.patch(slot._id, { status: "planned", lastError: undefined, updatedAt: now });
+      await produceIfDue(ctx, slot._id, slot.scheduledFor);
+    }
   }
 };
 
@@ -630,15 +736,22 @@ export const applyApprovalMode = async (
   await ctx.db.patch(config._id, { approval, updatedAt: Date.now() });
 };
 
-/** The rules the owner taught by rejecting posts; every plan and production follows them. */
-export const activeRules = async (ctx: QueryCtx, accountId: Id<"accounts">) => {
+/** Brand file sections where the owner's taste is written (marca.md). */
+const LEARNED_SECTIONS = new Set(["Preferências", "Nunca fazer"]);
+
+/** Approvals vs rejections over the last 30 days: how close Caetano is to the owner's taste. */
+const feedbackStatsOf = async (ctx: QueryCtx, accountId: Id<"accounts">, now: number) => {
   const rows = await ctx.db
     .query("autopilotFeedback")
-    .withIndex("by_account_created", (q) => q.eq("accountId", accountId))
-    .order("desc")
+    .withIndex("by_account_created", (q) =>
+      q.eq("accountId", accountId).gte("createdAt", now - FEEDBACK_WINDOW_DAYS * 24 * 60 * MINUTE),
+    )
     .collect();
 
-  return rows.filter((row) => row.scope === "geral" && row.rule && row.active !== false);
+  return {
+    approved: rows.filter((row) => row.decision === "approved").length,
+    rejected: rows.filter((row) => row.decision === "rejected").length,
+  };
 };
 
 /** The owner accepts the produced post: it is armed for its time. */
@@ -666,21 +779,23 @@ export const applyApprove = async (
 };
 
 /**
- * The owner refuses the produced post and says why. The reason is recorded
- * and classified (general rule or this post only), and the post is produced
- * again with the reason as its revision note while there is time.
+ * The owner refuses the produced post and says why, and whether it holds for
+ * every post or only this one. The decision is recorded; a general one is
+ * written to the brand file by the agent. The post is produced again with the
+ * reason as its revision note while there is time.
  */
 export const applyReject = async (
   ctx: MutationCtx,
   accountId: Id<"accounts">,
   slotId: Id<"autopilotSlots">,
   reason: string,
+  scope: FeedbackScope,
 ): Promise<AutopilotSlotStatus> => {
   const slot = await assertOwnedSlot(ctx, accountId, slotId);
   const why = reason.trim();
 
   if (why.length < MIN_REJECTION_REASON)
-    throw new Error("diga o motivo da recusa: é ele que ensina o piloto");
+    throw new Error("diga o motivo da recusa: é ele que ensina o Caetano");
 
   if (slot.status !== "awaiting_approval" && slot.status !== "scheduled")
     throw new Error("só dá para recusar um post já gerado e ainda não publicado");
@@ -692,13 +807,11 @@ export const applyReject = async (
     slotId,
     decision: "rejected",
     reason: why,
-    scope: "pending",
+    scope,
     createdAt: Date.now(),
   });
 
   if (slot.postId) await ctx.db.patch(feedbackId, { postId: slot.postId });
-
-  await ctx.scheduler.runAfter(0, internal.autopilotNode.classifyFeedback, { feedbackId });
 
   const time = slot.scheduledFor > Date.now() + PRODUCE_MIN_LEAD_MS;
   const status: AutopilotSlotStatus = time ? "planned" : "skipped";
@@ -712,21 +825,9 @@ export const applyReject = async (
     updatedAt: Date.now(),
   });
 
-  if (time) await produceIfDue(ctx, slotId, slot.scheduledFor);
+  if (time) await produceAgainNow(ctx, slotId, slot.scheduledFor);
 
   return status;
-};
-
-export const applyForgetRule = async (
-  ctx: MutationCtx,
-  accountId: Id<"accounts">,
-  feedbackId: Id<"autopilotFeedback">,
-): Promise<void> => {
-  const feedback = await ctx.db.get(feedbackId);
-
-  if (!feedback || feedback.accountId !== accountId) throw new Error("regra não encontrada");
-
-  await ctx.db.patch(feedbackId, { active: false });
 };
 
 export const approveSlotInternal = internalMutation({
@@ -735,76 +836,17 @@ export const approveSlotInternal = internalMutation({
 });
 
 export const rejectSlotInternal = internalMutation({
-  args: { accountId: v.id("accounts"), slotId: v.id("autopilotSlots"), reason: v.string() },
-  handler: (ctx, { accountId, slotId, reason }) => applyReject(ctx, accountId, slotId, reason),
-});
-
-export const forgetRuleInternal = internalMutation({
-  args: { accountId: v.id("accounts"), feedbackId: v.id("autopilotFeedback") },
-  handler: (ctx, { accountId, feedbackId }) => applyForgetRule(ctx, accountId, feedbackId),
-});
-
-export const feedbackInputs = internalQuery({
-  args: { feedbackId: v.id("autopilotFeedback") },
-  handler: async (ctx, { feedbackId }) => {
-    const feedback = await ctx.db.get(feedbackId);
-    const slot = feedback ? await ctx.db.get(feedback.slotId) : null;
-    const post = feedback?.postId ? await ctx.db.get(feedback.postId) : null;
-
-    if (!feedback || !slot || feedback.decision !== "rejected" || !feedback.reason) return null;
-
-    return {
-      accountId: feedback.accountId,
-      reason: feedback.reason,
-      slot: {
-        type: slot.type,
-        slideCount: slot.slideCount,
-        purpose: slot.purpose,
-        theme: slot.theme,
-        angle: slot.angle,
-        hook: slot.hook,
-      },
-      caption: post?.caption ?? null,
-      rules: (await activeRules(ctx, feedback.accountId)).map((row) => row.rule!),
-    };
-  },
-});
-
-export const setFeedbackScope = internalMutation({
   args: {
-    feedbackId: v.id("autopilotFeedback"),
-    scope: v.union(v.literal("geral"), v.literal("post")),
-    // Empty for "post": only a general reason becomes a rule.
-    rule: v.string(),
+    accountId: v.id("accounts"),
+    slotId: v.id("autopilotSlots"),
+    reason: v.string(),
+    scope: v.union(...feedbackScopes.map((scope) => v.literal(scope))),
   },
-  handler: async (ctx, { feedbackId, scope, rule }) => {
-    const general = scope === "geral" && rule.trim() !== "";
-
-    await ctx.db.patch(feedbackId, {
-      scope: general ? "geral" : "post",
-      rule: general ? rule.trim() : undefined,
-      active: general ? true : undefined,
-    });
-  },
+  handler: (ctx, { accountId, slotId, reason, scope }) =>
+    applyReject(ctx, accountId, slotId, reason, scope),
 });
 
 // ---------------------------------------------------------------------- audit
-
-export const startAudit = internalMutation({
-  args: { accountId: v.id("accounts") },
-  handler: async (ctx, { accountId }): Promise<Id<"accountAudits"> | null> => {
-    const latest = await latestAudit(ctx, accountId);
-
-    // One audit at a time; a crashed one stops blocking after 10 minutes.
-    if (latest?.status === "running" && Date.now() - latest.createdAt < 10 * MINUTE) return null;
-
-    return ctx.db.insert("accountAudits", {
-      accountId,
-      status: "running",
-      createdAt: Date.now(),
-    });
-  },
-});
 
 export const auditInputs = internalQuery({
   args: { accountId: v.id("accounts"), now: v.number() },
@@ -843,53 +885,25 @@ export const auditInputs = internalQuery({
   },
 });
 
-export const finishAudit = internalMutation({
-  args: {
-    auditId: v.id("accountAudits"),
-    confidence: v.union(...auditConfidences.map((c) => v.literal(c))),
-    metrics: auditMetricsValidator,
-    profileScore: v.number(),
-    rubric: v.array(rubricItemValidator),
-    top: v.array(auditPostRefValidator),
-    bottom: v.array(auditPostRefValidator),
-    findings: v.array(auditFindingValidator),
-    stop: v.array(v.string()),
-    doMore: v.array(v.string()),
-    needs: v.array(v.string()),
-    summary: v.string(),
-    recommendedCadence: v.array(cadenceEntryValidator),
-    cadenceRationale: v.string(),
-  },
-  handler: async (ctx, { auditId, ...fields }) => {
-    const audit = await ctx.db.get(auditId);
+/** A diagnosis is ready; an agent-owned cadence follows it. */
+const finishAudit = async (
+  ctx: MutationCtx,
+  audit: Doc<"accountAudits">,
+  fields: Omit<Partial<Doc<"accountAudits">>, "_id" | "_creationTime" | "accountId">,
+): Promise<void> => {
+  await ctx.db.patch(audit._id, { ...fields, status: "ready", completedAt: Date.now() });
 
-    if (!audit) return;
+  const config = await getConfig(ctx, audit.accountId);
+  const cadence = fields.recommendedCadence ?? [];
 
-    await ctx.db.patch(auditId, { ...fields, status: "ready", completedAt: Date.now() });
-
-    // An agent-owned cadence follows the newest diagnosis.
-    const config = await getConfig(ctx, audit.accountId);
-
-    if (config?.cadenceSource === "agent" && fields.recommendedCadence.length > 0) {
-      await ctx.db.patch(config._id, {
-        cadence: normalizeCadence(fields.recommendedCadence),
-        cadenceRationale: fields.cadenceRationale,
-        updatedAt: Date.now(),
-      });
-    }
-  },
-});
-
-export const failAudit = internalMutation({
-  args: { auditId: v.id("accountAudits"), error: v.string() },
-  handler: async (ctx, { auditId, error }) => {
-    await ctx.db.patch(auditId, {
-      status: "failed",
-      lastError: error.slice(0, 500),
-      completedAt: Date.now(),
+  if (config?.cadenceSource === "agent" && cadence.length > 0) {
+    await ctx.db.patch(config._id, {
+      cadence: normalizeCadence(cadence),
+      cadenceRationale: fields.cadenceRationale,
+      updatedAt: Date.now(),
     });
-  },
-});
+  }
+};
 
 // ----------------------------------------------------------------------- plan
 
@@ -913,59 +927,69 @@ const sameSlot = (slot: Doc<"autopilotSlots">, entry: CadenceEntry): boolean => 
 
 export const planInputs = internalQuery({
   args: { accountId: v.id("accounts"), weekStart: v.number() },
-  handler: async (ctx, { accountId, weekStart }) => {
-    const config = await getConfig(ctx, accountId);
-    const audit = await latestReadyAudit(ctx, accountId);
-    const week = await weekFor(ctx, accountId, weekStart);
-    const slots = week ? await slotsOf(ctx, week._id) : [];
+  handler: (ctx, { accountId, weekStart }) => planInputsOf(ctx, accountId, weekStart),
+});
 
-    const recent = await ctx.db
-      .query("autopilotSlots")
-      .withIndex("by_account_scheduledFor", (q) =>
-        q
-          .eq("accountId", accountId)
-          .gte("scheduledFor", weekStart - 14 * 24 * 60 * MINUTE)
-          .lt("scheduledFor", weekStart),
-      )
-      .collect();
+/** What a week's plan starts from: cadence, owner-fixed briefs, diagnosis, recent themes. */
+const planInputsOf = async (ctx: QueryCtx, accountId: Id<"accounts">, weekStart: number) => {
+  const config = await getConfig(ctx, accountId);
+  const audit = await latestReadyAudit(ctx, accountId);
+  const week = await weekFor(ctx, accountId, weekStart);
+  const slots = week ? await slotsOf(ctx, week._id) : [];
 
-    const cadence = config?.cadence ?? [...DEFAULT_CADENCE];
+  const recent = await ctx.db
+    .query("autopilotSlots")
+    .withIndex("by_account_scheduledFor", (q) =>
+      q
+        .eq("accountId", accountId)
+        .gte("scheduledFor", weekStart - 14 * 24 * 60 * MINUTE)
+        .lt("scheduledFor", weekStart),
+    )
+    .collect();
 
-    return {
-      enabled: config?.enabled ?? false,
-      cadence,
-      auditId: audit?._id ?? null,
-      audit: audit && {
-        summary: audit.summary,
-        profileScore: audit.profileScore,
-        findings: audit.findings,
-        stop: audit.stop,
-        doMore: audit.doMore,
-        needs: audit.needs,
-      },
-      fixed: cadence.flatMap((entry, index) => {
-        const kept = slots.find((slot) => isKept(slot) && sameSlot(slot, entry));
+  const cadence = config?.cadence ?? [...DEFAULT_CADENCE];
 
-        return kept
-          ? [
-              {
-                index,
-                brief: {
-                  purpose: kept.purpose,
-                  theme: kept.theme,
-                  angle: kept.angle,
-                  hook: kept.hook,
-                  slideOutline: kept.slideOutline,
-                  captionBrief: kept.captionBrief,
-                },
+  return {
+    enabled: config?.enabled ?? false,
+    cadence,
+    auditId: audit?._id ?? null,
+    audit: audit && {
+      summary: audit.summary,
+      profileScore: audit.profileScore,
+      findings: audit.findings,
+      stop: audit.stop,
+      doMore: audit.doMore,
+      needs: audit.needs,
+    },
+    fixed: cadence.flatMap((entry, index) => {
+      const kept = slots.find((slot) => isKept(slot) && sameSlot(slot, entry));
+
+      return kept
+        ? [
+            {
+              index,
+              brief: {
+                purpose: kept.purpose,
+                theme: kept.theme,
+                angle: kept.angle,
+                hook: kept.hook,
+                slideOutline: kept.slideOutline,
+                captionBrief: kept.captionBrief,
               },
-            ]
-          : [];
-      }),
-      recentThemes: recent.map((slot) => `${slot.theme} — ${slot.angle}`),
-      rules: (await activeRules(ctx, accountId)).map((row) => row.rule!),
-    };
-  },
+            },
+          ]
+        : [];
+    }),
+    recentThemes: recent.map((slot) => `${slot.theme} — ${slot.angle}`),
+  };
+};
+
+const planEntryValidator = v.object({
+  weekday: v.number(),
+  time: v.string(),
+  type: v.union(...autopilotPostTypes.map((type) => v.literal(type))),
+  slideCount: v.number(),
+  ...slotBriefFields,
 });
 
 export const savePlan = internalMutation({
@@ -974,136 +998,123 @@ export const savePlan = internalMutation({
     weekStart: v.number(),
     auditId: v.union(v.id("accountAudits"), v.null()),
     strategy: v.string(),
-    entries: v.array(
-      v.object({
-        weekday: v.number(),
-        time: v.string(),
-        type: v.union(...autopilotPostTypes.map((type) => v.literal(type))),
-        slideCount: v.number(),
-        ...slotBriefFields,
-      }),
-    ),
+    entries: v.array(planEntryValidator),
   },
-  handler: async (ctx, { accountId, weekStart, auditId, strategy, entries }) => {
-    const now = Date.now();
-    let week = await weekFor(ctx, accountId, weekStart);
-
-    if (week) {
-      await ctx.db.patch(week._id, {
-        status: "planned",
-        strategy,
-        lastError: undefined,
-        updatedAt: now,
-      });
-    } else {
-      const weekId = await ctx.db.insert("autopilotWeeks", {
-        accountId,
-        weekStart,
-        status: "planned",
-        strategy,
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      week = await ctx.db.get(weekId);
-    }
-
-    if (week && auditId) await ctx.db.patch(week._id, { auditId });
-
-    if (!week) throw new Error("semana não foi criada");
-
-    const existing = await slotsOf(ctx, week._id);
-    const kept = existing.filter(isKept);
-
-    for (const slot of existing) {
-      if (!isKept(slot)) await ctx.db.delete(slot._id);
-    }
-
-    // A produced slot the new cadence no longer has would publish off-plan.
-    for (const slot of kept) {
-      if (slot.ownerEdited || slot.status !== "scheduled") continue;
-
-      if (entries.some((entry) => sameSlot(slot, entry))) continue;
-
-      await disarm(ctx, slot);
-      await ctx.db.patch(slot._id, {
-        status: "skipped",
-        lastError: "fora da nova cadência",
-        updatedAt: now,
-      });
-    }
-
-    let created = 0;
-
-    for (const entry of entries) {
-      if (kept.some((slot) => sameSlot(slot, entry))) continue;
-
-      const scheduledFor = slotTimestamp(weekStart, entry.weekday, entry.time);
-
-      if (scheduledFor <= now + PRODUCE_MIN_LEAD_MS) continue;
-
-      const slotId = await ctx.db.insert("autopilotSlots", {
-        accountId,
-        weekId: week._id,
-        scheduledFor,
-        type: entry.type,
-        slideCount: entry.slideCount,
-        purpose: entry.purpose,
-        theme: entry.theme,
-        angle: entry.angle,
-        hook: entry.hook,
-        slideOutline: entry.slideOutline,
-        captionBrief: entry.captionBrief,
-        status: "planned",
-        ownerEdited: false,
-        attempts: 0,
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      created += 1;
-      await produceIfDue(ctx, slotId, scheduledFor);
-    }
-
-    return { weekId: week._id, created };
-  },
+  handler: (ctx, args) => applyPlan(ctx, args),
 });
 
-export const failPlan = internalMutation({
-  args: { accountId: v.id("accounts"), weekStart: v.number(), error: v.string() },
-  handler: async (ctx, { accountId, weekStart, error }) => {
-    const week = await weekFor(ctx, accountId, weekStart);
-    const now = Date.now();
+const applyPlan = async (
+  ctx: MutationCtx,
+  {
+    accountId,
+    weekStart,
+    auditId,
+    strategy,
+    entries,
+  }: {
+    accountId: Id<"accounts">;
+    weekStart: number;
+    auditId: Id<"accountAudits"> | null;
+    strategy: string;
+    entries: Infer<typeof planEntryValidator>[];
+  },
+) => {
+  const now = Date.now();
+  let week = await weekFor(ctx, accountId, weekStart);
 
-    if (week) {
-      await ctx.db.patch(week._id, { lastError: error.slice(0, 500), updatedAt: now });
-
-      return;
-    }
-
-    await ctx.db.insert("autopilotWeeks", {
+  if (week) {
+    await ctx.db.patch(week._id, {
+      status: "planned",
+      strategy,
+      lastError: undefined,
+      updatedAt: now,
+    });
+  } else {
+    const weekId = await ctx.db.insert("autopilotWeeks", {
       accountId,
       weekStart,
-      status: "failed",
-      lastError: error.slice(0, 500),
+      status: "planned",
+      strategy,
       createdAt: now,
       updatedAt: now,
     });
-  },
-});
+
+    week = await ctx.db.get(weekId);
+  }
+
+  if (week && auditId) await ctx.db.patch(week._id, { auditId });
+
+  if (!week) throw new Error("semana não foi criada");
+
+  const existing = await slotsOf(ctx, week._id);
+  const kept = existing.filter(isKept);
+
+  for (const slot of existing) {
+    if (!isKept(slot)) await ctx.db.delete(slot._id);
+  }
+
+  // A produced slot the new cadence no longer has would publish off-plan.
+  for (const slot of kept) {
+    if (slot.ownerEdited || slot.status !== "scheduled") continue;
+
+    if (entries.some((entry) => sameSlot(slot, entry))) continue;
+
+    await disarm(ctx, slot);
+    await ctx.db.patch(slot._id, {
+      status: "skipped",
+      lastError: "fora da nova cadência",
+      updatedAt: now,
+    });
+  }
+
+  let created = 0;
+
+  for (const entry of entries) {
+    if (kept.some((slot) => sameSlot(slot, entry))) continue;
+
+    const scheduledFor = slotTimestamp(weekStart, entry.weekday, entry.time);
+
+    if (scheduledFor <= now + PRODUCE_MIN_LEAD_MS) continue;
+
+    const slotId = await ctx.db.insert("autopilotSlots", {
+      accountId,
+      weekId: week._id,
+      scheduledFor,
+      type: entry.type,
+      slideCount: entry.slideCount,
+      purpose: entry.purpose,
+      theme: entry.theme,
+      angle: entry.angle,
+      hook: entry.hook,
+      slideOutline: entry.slideOutline,
+      captionBrief: entry.captionBrief,
+      status: "planned",
+      ownerEdited: false,
+      attempts: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    created += 1;
+    await produceIfDue(ctx, slotId, scheduledFor);
+  }
+
+  return { weekId: week._id, created };
+};
 
 // ----------------------------------------------------------------- production
 
-export const claimSlot = internalMutation({
+/** Claims a due slot and asks Caetano to make its post, in his thread. */
+export const startProduction = internalMutation({
   args: { slotId: v.id("autopilotSlots") },
-  handler: async (ctx, { slotId }) => {
+  handler: async (ctx, { slotId }): Promise<void> => {
     const slot = await ctx.db.get(slotId);
 
-    if (!slot || (slot.status !== "planned" && slot.status !== "failed")) return null;
+    if (!slot || (slot.status !== "planned" && slot.status !== "failed")) return;
 
     const config = await getConfig(ctx, slot.accountId);
 
-    if (!config?.enabled) return null;
+    if (!config?.enabled) return;
 
     const account = await ctx.db.get(slot.accountId);
 
@@ -1111,141 +1122,463 @@ export const claimSlot = internalMutation({
       await ctx.db.patch(slotId, {
         status: "failed",
         attempts: MAX_ATTEMPTS,
-        lastError: "Conecte o Instagram em Perfil › Conexões para o piloto publicar.",
+        lastError: "Conecte o Instagram em Perfil › Conexões para o Caetano publicar.",
         updatedAt: Date.now(),
       });
 
-      return null;
+      return;
     }
 
     await ctx.db.patch(slotId, {
       status: "generating",
       attempts: slot.attempts + 1,
       lastError: undefined,
+      productionStartedAt: Date.now(),
       updatedAt: Date.now(),
     });
 
-    const { weekday, time } = localSlot(slot.scheduledFor);
-    const rules = (await activeRules(ctx, slot.accountId)).map((row) => row.rule!);
-
-    return { ...slot, weekday, time, rules };
+    await enqueueJob(
+      ctx,
+      {
+        kind: "post",
+        accountId: slot.accountId,
+        slotId,
+        weekStart: weekStartOf(slot.scheduledFor),
+      },
+      postJobPrompt(slot, account),
+    );
   },
 });
 
-export const referenceImages = internalQuery({
-  args: { accountId: v.id("accounts") },
-  handler: async (ctx, { accountId }) => {
-    const images = await ctx.db
-      .query("images")
-      .withIndex("by_account", (q) => q.eq("accountId", accountId))
-      .collect();
+/** The post exists: it waits for the owner's approval, or is armed for its time. */
+const finishProduction = async (
+  ctx: MutationCtx,
+  slotId: Id<"autopilotSlots">,
+  postId: Id<"posts">,
+): Promise<AutopilotSlotStatus | null> => {
+  const slot = await ctx.db.get(slotId);
 
-    // Faces depict the owner and need an explicit request; autopilot never uses them.
-    const roles = { product: "produto/logo", place: "lugar", style: "direção de arte" } as const;
+  if (!slot) return null;
 
-    return images
-      .flatMap((image) => {
-        if (image.purpose !== "reference" || image.safeForBrandUse === false) return [];
+  if (slot.status !== "generating") {
+    // Skipped mid-production: keep the draft so a restore can publish it.
+    if (slot.status === "skipped" && !slot.postId)
+      await ctx.db.patch(slotId, { postId, updatedAt: Date.now() });
 
-        if (!image.referenceKind || image.referenceKind === "face") return [];
+    return slot.status;
+  }
 
-        return [{ id: image._id, role: roles[image.referenceKind] }];
-      })
-      .slice(0, 3);
-  },
-});
-
-/** Schedules the produced post — unless the owner vetoed or moved on meanwhile. */
-export const finishProduction = internalMutation({
-  args: { slotId: v.id("autopilotSlots"), postId: v.id("posts") },
-  handler: async (ctx, { slotId, postId }): Promise<AutopilotSlotStatus | null> => {
-    const slot = await ctx.db.get(slotId);
-
-    if (!slot) return null;
-
-    if (slot.status !== "generating") {
-      // Skipped mid-production: keep the draft so a restore can publish it.
-      if (slot.status === "skipped" && !slot.postId)
-        await ctx.db.patch(slotId, { postId, updatedAt: Date.now() });
-
-      return slot.status;
-    }
-
-    if (slot.scheduledFor <= Date.now() + MINUTE) {
-      await ctx.db.patch(slotId, {
-        status: "failed",
-        postId,
-        lastError: "o post ficou pronto depois do horário; ele ficou salvo como rascunho",
-        updatedAt: Date.now(),
-      });
-      await ctx.scheduler.runAfter(0, internal.autopilotChat.notifyFailed, { slotId });
-
-      return "failed";
-    }
-
-    // The rejection reason did its job in this production; the post now waits for its verdict.
-    if (await approvalRequired(ctx, slot.accountId)) {
-      await ctx.db.patch(slotId, {
-        status: "awaiting_approval",
-        postId,
-        revisionNote: undefined,
-        updatedAt: Date.now(),
-      });
-      await ctx.scheduler.runAfter(0, internal.autopilotChat.notifyProduced, { slotId });
-
-      return "awaiting_approval";
-    }
-
-    await schedulePostIn(ctx, {
-      accountId: slot.accountId,
-      postId,
-      scheduledFor: slot.scheduledFor,
-    });
+  // Paused while it was being made: the post is kept for when it comes back on.
+  if (!(await getConfig(ctx, slot.accountId))?.enabled) {
     await ctx.db.patch(slotId, {
-      status: "scheduled",
+      status: "skipped",
+      postId,
+      lastError: PAUSED,
+      updatedAt: Date.now(),
+    });
+
+    return "skipped";
+  }
+
+  if (slot.scheduledFor <= Date.now() + MINUTE) {
+    await ctx.db.patch(slotId, {
+      status: "failed",
+      postId,
+      lastError: "o post ficou pronto depois do horário; ele ficou salvo como rascunho",
+      updatedAt: Date.now(),
+    });
+    await ctx.scheduler.runAfter(0, internal.autopilotChat.notifyFailed, { slotId });
+
+    return "failed";
+  }
+
+  // The rejection reason did its job in this production; the post now waits for its verdict.
+  if (await approvalRequired(ctx, slot.accountId)) {
+    await ctx.db.patch(slotId, {
+      status: "awaiting_approval",
       postId,
       revisionNote: undefined,
       updatedAt: Date.now(),
     });
     await ctx.scheduler.runAfter(0, internal.autopilotChat.notifyProduced, { slotId });
 
-    return "scheduled";
+    return "awaiting_approval";
+  }
+
+  await schedulePostIn(ctx, {
+    accountId: slot.accountId,
+    postId,
+    scheduledFor: slot.scheduledFor,
+  });
+  await ctx.db.patch(slotId, {
+    status: "scheduled",
+    postId,
+    revisionNote: undefined,
+    updatedAt: Date.now(),
+  });
+  await ctx.scheduler.runAfter(0, internal.autopilotChat.notifyProduced, { slotId });
+
+  return "scheduled";
+};
+
+const failProduction = async (ctx: MutationCtx, slotId: Id<"autopilotSlots">, error: string) => {
+  const slot = await ctx.db.get(slotId);
+
+  if (!slot || slot.status !== "generating") return;
+
+  await ctx.db.patch(slotId, {
+    status: "failed",
+    lastError: error.slice(0, 500),
+    updatedAt: Date.now(),
+  });
+
+  // The hourly tick retries once; only the final failure reaches the owner.
+  const noRetry =
+    slot.attempts >= MAX_ATTEMPTS || slot.scheduledFor <= Date.now() + PRODUCE_MIN_LEAD_MS;
+
+  if (noRetry) await ctx.scheduler.runAfter(0, internal.autopilotChat.notifyFailed, { slotId });
+};
+
+// ----------------------------------------------------------------------- jobs
+
+/** autopilot_measure_account: the numbers land on the running diagnosis. */
+export const saveMeasurement = internalMutation({
+  args: {
+    accountId: v.id("accounts"),
+    confidence: v.union(...auditConfidences.map((c) => v.literal(c))),
+    metrics: auditMetricsValidator,
+    top: v.array(auditPostRefValidator),
+    bottom: v.array(auditPostRefValidator),
+  },
+  handler: async (ctx, { accountId, ...measured }): Promise<void> => {
+    const audit = await latestAudit(ctx, accountId);
+
+    if (audit?.status !== "running")
+      throw new Error("não há diagnóstico em andamento; peça um com autopilot_reanalyze");
+
+    await ctx.db.patch(audit._id, measured);
   },
 });
 
-export const failProduction = internalMutation({
-  args: { slotId: v.id("autopilotSlots"), error: v.string() },
-  handler: async (ctx, { slotId, error }) => {
-    const slot = await ctx.db.get(slotId);
+/**
+ * autopilot_save_audit: Caetano's judgement completes the measured diagnosis.
+ * The profile score comes from his rubric; the numbers stay the measured ones.
+ */
+export const saveAuditJudgement = internalMutation({
+  args: {
+    accountId: v.id("accounts"),
+    rubric: v.array(rubricItemValidator),
+    postNotes: v.array(v.object({ postId: v.string(), why: v.string() })),
+    findings: v.array(auditFindingValidator),
+    stop: v.array(v.string()),
+    doMore: v.array(v.string()),
+    needs: v.array(v.string()),
+    summary: v.string(),
+    recommendedCadence: v.array(cadenceEntryValidator),
+    cadenceRationale: v.string(),
+  },
+  handler: async (ctx, { accountId, rubric, postNotes, ...judgement }): Promise<number> => {
+    const audit = await latestAudit(ctx, accountId);
 
-    if (!slot || slot.status !== "generating") return;
+    if (audit?.status !== "running")
+      throw new Error("não há diagnóstico em andamento; peça um com autopilot_reanalyze");
 
-    await ctx.db.patch(slotId, {
-      status: "failed",
-      lastError: error.slice(0, 500),
-      updatedAt: Date.now(),
+    if (!audit.metrics || !audit.confidence)
+      throw new Error("meça a conta antes com autopilot_measure_account");
+
+    // Only what was actually seen counts: missing data is not a low score.
+    const scored = rubric.filter((item) => item.max > 0 && item.observed !== false);
+    const max = scored.reduce((sum, item) => sum + item.max, 0);
+    const got = scored.reduce((sum, item) => sum + Math.min(item.max, Math.max(0, item.score)), 0);
+    const profileScore = max > 0 ? Math.round((got / max) * 100) : 0;
+    const notes = new Map(postNotes.map((note) => [note.postId, note.why]));
+
+    const withWhy = (refs: Doc<"accountAudits">["top"]) =>
+      (refs ?? []).map((ref) => {
+        const why = notes.get(ref.externalPostId);
+
+        return why ? { ...ref, why } : ref;
+      });
+
+    await finishAudit(ctx, audit, {
+      profileScore,
+      rubric,
+      top: withWhy(audit.top),
+      bottom: withWhy(audit.bottom),
+      ...judgement,
+      recommendedCadence: normalizeCadence(judgement.recommendedCadence),
     });
 
-    // The hourly tick retries once; only the final failure reaches the owner.
-    const noRetry =
-      slot.attempts >= MAX_ATTEMPTS || slot.scheduledFor <= Date.now() + PRODUCE_MIN_LEAD_MS;
-
-    if (noRetry) await ctx.scheduler.runAfter(0, internal.autopilotChat.notifyFailed, { slotId });
+    return profileScore;
   },
 });
 
-// ----------------------------------------------------------------------- tick
+/**
+ * autopilot_save_plan: Caetano's briefs, one per cadence slot of the job's
+ * week. Owner-fixed slots keep their brief whatever he sends.
+ */
+export const savePlanFromJob = internalMutation({
+  args: {
+    accountId: v.id("accounts"),
+    weekStart: v.number(),
+    strategy: v.string(),
+    slots: v.array(
+      v.object({
+        index: v.number(),
+        purpose: postPurposeValidator,
+        theme: v.string(),
+        angle: v.string(),
+        hook: v.string(),
+        slideOutline: v.array(v.string()),
+        captionBrief: v.string(),
+      }),
+    ),
+  },
+  handler: async (ctx, { accountId, weekStart, strategy, slots }): Promise<number> => {
+    const inputs = await planInputsOf(ctx, accountId, weekStart);
+    const fixed = new Map(inputs.fixed.map((item) => [item.index, item.brief]));
+    const byIndex = new Map(slots.map((slot) => [slot.index, slot]));
 
-export const enabledAccounts = internalQuery({
-  args: {},
-  handler: async (ctx): Promise<Id<"accounts">[]> =>
-    (
-      await ctx.db
-        .query("autopilotConfigs")
-        .withIndex("by_enabled", (q) => q.eq("enabled", true))
-        .collect()
-    ).map((config) => config.accountId),
+    const missing = inputs.cadence
+      .map((_, index) => index)
+      .filter((index) => !fixed.has(index) && !byIndex.has(index));
+
+    if (missing.length > 0)
+      throw new Error(
+        `faltam os slots ${missing.join(", ")} da cadência (${cadenceSummary(inputs.cadence)})`,
+      );
+
+    const entries = inputs.cadence.map((entry, index) => {
+      const fixedBrief = fixed.get(index);
+      const sent = byIndex.get(index)!;
+      const brief = fixedBrief ?? sent;
+
+      return {
+        ...entry,
+        purpose: brief.purpose,
+        theme: brief.theme,
+        angle: brief.angle,
+        hook: brief.hook,
+        captionBrief: brief.captionBrief,
+        slideOutline: fitOutline(brief.slideOutline, entry.slideCount, brief.hook),
+      };
+    });
+
+    const saved = await applyPlan(ctx, {
+      accountId,
+      weekStart,
+      auditId: inputs.auditId,
+      strategy,
+      entries,
+    });
+
+    if (saved.created > 0)
+      await ctx.scheduler.runAfter(0, internal.autopilotChat.announcePlan, {
+        accountId,
+        weekStart,
+      });
+
+    return saved.created;
+  },
 });
+
+/** Whether this slot's post is still queued or running in Caetano's thread. */
+const jobPending = async (ctx: QueryCtx, slot: Doc<"autopilotSlots">): Promise<boolean> => {
+  const account = await ctx.db.get(slot.accountId);
+
+  if (!account?.ownerUserId) return false;
+
+  const ownerId = account.ownerUserId;
+
+  for (const status of ["queued", "running"] as const) {
+    const rows = await ctx.db
+      .query("caetanoInbox")
+      .withIndex("by_user_status", (q) => q.eq("userId", ownerId).eq("status", status))
+      .collect();
+
+    if (rows.some((row) => row.autopilotJob?.slotId === slot._id)) return true;
+  }
+
+  return false;
+};
+
+/** Caetano works on the posts automáticos in the owner's thread, like any turn. */
+const enqueueJob = async (ctx: MutationCtx, job: AutopilotJob, prompt: string) => {
+  const account = await ctx.db.get(job.accountId);
+
+  if (!account?.ownerUserId) {
+    await settleJob(ctx, job, "Este negócio não tem dono para o Caetano trabalhar.");
+
+    return;
+  }
+
+  await ctx.runMutation(internal.caetano.submitJob, {
+    userId: account.ownerUserId,
+    job,
+    prompt,
+  });
+};
+
+const JOB_LABELS = { audit: "Diagnóstico", plan: "Plano da semana", post: "Post" } as const;
+
+/** Hidden marker the chat groups by week (see components/caetano/work-group.tsx). */
+const jobRef = (job: AutopilotJob, label: string = JOB_LABELS[job.kind]): string =>
+  `<caetano_ref>autopilot tarefa=${job.kind}${
+    job.weekStart === undefined ? "" : ` semana=${weekLabel(job.weekStart)}`
+  }${job.slotId ? ` slotId=${job.slotId}` : ""} rótulo="${label}"</caetano_ref>`;
+
+const accountName = (account: Doc<"accounts"> | null): string =>
+  account?.handle ? `@${account.handle}` : (account?.name ?? "o negócio");
+
+const auditJobPrompt = (job: AutopilotJob, account: Doc<"accounts"> | null): string =>
+  [
+    `Faça o diagnóstico da conta ${accountName(account)} para os posts automáticos.`,
+    "Meça com autopilot_measure_account, siga a habilidade instagram-account-audit e grave com autopilot_save_audit.",
+    jobRef(job),
+  ].join("\n");
+
+const planJobPrompt = (
+  job: AutopilotJob,
+  weekStart: number,
+  account: Doc<"accounts"> | null,
+): string =>
+  [
+    `Planeje os posts automáticos da semana de ${weekLabel(weekStart)} (${accountName(account)}).`,
+    "Veja a cadência, os posts fixados pelo dono, o diagnóstico e os temas recentes com autopilot_read, siga a habilidade instagram-weekly-plan e grave com autopilot_save_plan.",
+    jobRef(job),
+  ].join("\n");
+
+const postJobPrompt = (slot: Doc<"autopilotSlots">, account: Doc<"accounts"> | null): string => {
+  const { weekday, time } = localSlot(slot.scheduledFor);
+  const outline = slot.slideOutline.filter((line) => line.trim() !== "");
+
+  return [
+    `Crie o post automático de ${weekdayNames[weekday]} ${formatHour(time)} (${accountName(account)}).`,
+    "É uma versão nova: pinte cada slide com paint e termine com create_post neste turno. Rascunhos anteriores deste post foram descartados e não contam.",
+    `- Formato: ${slot.type === "carousel" ? `carrossel de ${slot.slideCount} slides` : "imagem única"}, 4:5`,
+    `- Propósito: ${slot.purpose} (${purposeLabels[slot.purpose]})`,
+    `- Tema: ${slot.theme}`,
+    `- Ângulo: ${slot.angle}`,
+    `- Gancho da capa: ${slot.hook}`,
+    outline.length > 0
+      ? `- Roteiro sugerido (se divergir do tema e do ângulo, siga o tema):\n${outline.map((line, index) => `  ${index + 1}. ${line}`).join("\n")}`
+      : "- Roteiro: livre, decida pelas habilidades a partir do tema e do ângulo.",
+    `- Legenda: ${slot.captionBrief}`,
+    ...(slot.revisionNote
+      ? [`- O dono recusou a versão anterior: "${slot.revisionNote}". Resolva exatamente isso.`]
+      : []),
+    jobRef(
+      {
+        kind: "post",
+        accountId: slot.accountId,
+        slotId: slot._id,
+        weekStart: weekStartOf(slot.scheduledFor),
+      },
+      `${weekdayNames[weekday]} ${formatHour(time)}`,
+    ),
+  ].join("\n");
+};
+
+/** Asks Caetano for a fresh diagnosis; one at a time per account. */
+const requestAudit = async (ctx: MutationCtx, accountId: Id<"accounts">): Promise<void> => {
+  const latest = await latestAudit(ctx, accountId);
+
+  // One at a time; a crashed one stops blocking once its turn would have expired.
+  if (latest?.status === "running" && Date.now() - latest.createdAt < JOB_TIMEOUT_MS) return;
+
+  await ctx.db.insert("accountAudits", { accountId, status: "running", createdAt: Date.now() });
+
+  const job: AutopilotJob = { kind: "audit", accountId };
+
+  await enqueueJob(ctx, job, auditJobPrompt(job, await ctx.db.get(accountId)));
+};
+
+/** Asks Caetano to plan a week; the week shows "planning" until he saves it. */
+const requestPlan = async (
+  ctx: MutationCtx,
+  accountId: Id<"accounts">,
+  weekStart: number,
+): Promise<void> => {
+  const now = Date.now();
+  const week = await weekFor(ctx, accountId, weekStart);
+
+  // Already asked and still within its turn: one plan per week at a time.
+  if (week?.status === "planning" && now - week.updatedAt < JOB_TIMEOUT_MS) return;
+
+  if (week) await ctx.db.patch(week._id, { status: "planning", updatedAt: now });
+  else
+    await ctx.db.insert("autopilotWeeks", {
+      accountId,
+      weekStart,
+      status: "planning",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+  const job: AutopilotJob = { kind: "plan", accountId, weekStart };
+
+  await enqueueJob(ctx, job, planJobPrompt(job, weekStart, await ctx.db.get(accountId)));
+};
+
+/**
+ * The work turn ended (done, stopped or expired). Whatever Caetano did not
+ * save is settled here, so nothing stays "generating" or "planning".
+ */
+export const completeJob = internalMutation({
+  args: { job: autopilotJobValidator, error: v.optional(v.string()) },
+  handler: (ctx, { job, error }) => settleJob(ctx, job, error),
+});
+
+const settleJob = async (ctx: MutationCtx, job: AutopilotJob, error?: string): Promise<void> => {
+  const now = Date.now();
+
+  if (job.kind === "audit") {
+    const latest = await latestAudit(ctx, job.accountId);
+
+    if (latest?.status === "running")
+      await ctx.db.patch(latest._id, {
+        status: "failed",
+        lastError: error ?? "O Caetano não concluiu o diagnóstico.",
+        completedAt: now,
+      });
+
+    return;
+  }
+
+  if (job.kind === "plan") {
+    const week =
+      job.weekStart === undefined ? null : await weekFor(ctx, job.accountId, job.weekStart);
+
+    if (week?.status === "planning") {
+      const planned = (await slotsOf(ctx, week._id)).length > 0;
+
+      await ctx.db.patch(week._id, {
+        status: planned ? "planned" : "failed",
+        lastError: error ?? "O Caetano não concluiu o plano da semana.",
+        updatedAt: now,
+      });
+    }
+
+    return;
+  }
+
+  const slot = job.slotId ? await ctx.db.get(job.slotId) : null;
+
+  if (!slot) return;
+
+  // The post Caetano made in this turn (create_post links it to the slot).
+  const post = await ctx.db
+    .query("posts")
+    .withIndex("by_autopilot_slot", (q) => q.eq("autopilotSlotId", slot._id))
+    .order("desc")
+    .first();
+
+  if (post && post._creationTime >= (slot.productionStartedAt ?? Infinity))
+    await finishProduction(ctx, slot._id, post._id);
+  else await failProduction(ctx, slot._id, error ?? "O Caetano não concluiu o post.");
+};
+
+// ----------------------------------------------------------------------- tick
 
 /** Slots inside the production window, plus one retry of failed ones. */
 export const dueSlots = internalQuery({
@@ -1322,7 +1655,10 @@ export const expireStale = internalMutation({
       .collect();
 
     for (const slot of generating) {
-      if (now - slot.updatedAt < GENERATING_TIMEOUT_MS) continue;
+      // Still waiting in Caetano's queue, or within its turn: leave it.
+      if (now - (slot.productionStartedAt ?? slot.updatedAt) < JOB_TIMEOUT_MS) continue;
+
+      if (await jobPending(ctx, slot)) continue;
 
       await ctx.db.patch(slot._id, {
         status: "failed",

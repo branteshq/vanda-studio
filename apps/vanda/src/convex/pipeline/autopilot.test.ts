@@ -12,7 +12,6 @@ import {
   slotTimestamp,
   weekStartOf,
 } from "./autopilot";
-import { lintCaption } from "./captionLint";
 
 // Wednesday 2026-10-07 15:00 São Paulo = 18:00 UTC.
 const WEDNESDAY = Date.UTC(2026, 9, 7, 18, 0);
@@ -75,7 +74,7 @@ describe("parseCadenceText", () => {
     ]);
   });
 
-  it("accepts the JSON the Piloto automático view sends and rejects what it can't read", () => {
+  it("accepts the JSON the Posts automáticos view sends and rejects what it can't read", () => {
     expect(parseCadenceText(JSON.stringify(DEFAULT_CADENCE))).toEqual(DEFAULT_CADENCE);
     expect(() => parseCadenceText("toda hora")).toThrow(/não entendi/);
   });
@@ -158,36 +157,5 @@ describe("computeAccountMetrics", () => {
     expect(confidenceFor(6)).toBe("baixa");
     expect(confidenceFor(12)).toBe("media");
     expect(confidenceFor(30)).toBe("alta");
-  });
-});
-
-describe("lintCaption", () => {
-  it("passes a feed caption with one ask and few specific tags", () => {
-    const lint = lintCaption(
-      "3 erros que encarecem seu orçamento em 40%\n\nO primeiro é não medir a parede antes.\n\nSalve esse post para a próxima obra.\n\n#reforma #santos",
-      { keywords: ["orçamento"] },
-    );
-
-    expect(lint.verdict).toBe("READY");
-  });
-
-  it("fails on links, too many hashtags and a hashtag opening", () => {
-    const lint = lintCaption("#promo confira www.loja.com/x #a #b #c #d #e #f");
-    expect(lint.verdict).toBe("FIX");
-
-    const failing = lint.checks
-      .filter((check) => check.status === "FAIL")
-      .map((check) => check.check);
-
-    expect(failing).toEqual(["PRIMEIRA LINHA", "HASHTAGS", "LINKS"]);
-  });
-
-  it("warns on generic tags and double asks", () => {
-    const lint = lintCaption(
-      "Nova coleção chegou em Santos\n\nSalve esse post e link na bio.\n\n#viral",
-    );
-
-    expect(lint.verdict).toBe("REVIEW");
-    expect(lint.asks).toEqual(["salvar", "link na bio"]);
   });
 });

@@ -4,25 +4,32 @@ import { components } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, type MutationCtx } from "./_generated/server";
 import { overviewOf } from "./autopilotData";
-import { weekdayNames } from "./autopilotModel";
-import { formatHour, formatScheduleText, localSlot, purposeLabels, slidesLabel } from "./pipeline/autopilot";
+import { PRODUCE_AHEAD_LABEL, weekdayNames } from "./autopilotModel";
+import {
+  formatHour,
+  formatScheduleText,
+  localSlot,
+  purposeLabels,
+  slidesLabel,
+} from "./pipeline/autopilot";
 import type { ThreadResource } from "./resourceRefs";
 import { upsertManifest } from "./threadResources";
 import { activeConnection, notifyOwner } from "./whatsappData";
 
 /**
- * The autopilot speaks through the same channels as everything else: the
- * account's latest Vanda conversation shows the week card, and Caetano tells
- * the owner on WhatsApp — saving the same words in his own thread, so a reply
- * like "pula esse" lands with context and he can act with the autopilot tools.
+ * Posts automáticos news reach the owner where they already talk: a short note
+ * in the account's latest Vanda conversation, and Caetano's own thread (plus
+ * WhatsApp when linked), so a reply like "pula esse" lands with context and he
+ * acts with the autopilot tools.
  */
 
 const accountLabel = (account: { name?: string; handle?: string } | null): string =>
   account?.name ?? (account?.handle ? `@${account.handle}` : "seu negócio");
 
 /**
- * Caetano: WhatsApp message plus the same text in his thread, when the owner is
- * linked. `context` is appended only in the thread (ids the tools need).
+ * Caetano: the text in his thread (seen on the Posts automáticos page) and, when
+ * the owner linked WhatsApp, there too. `context` is appended only in the
+ * thread (ids the tools need).
  */
 const tellCaetano = async (
   ctx: MutationCtx,
@@ -35,7 +42,7 @@ const tellCaetano = async (
   const account = await ctx.db.get(accountId);
   const owner = account?.ownerUserId ? await ctx.db.get(account.ownerUserId) : null;
 
-  if (!owner || !(await activeConnection(ctx, owner._id))) return;
+  if (!owner) return;
 
   const threadId = owner.caetanoThreadId;
 
@@ -59,7 +66,7 @@ const tellCaetano = async (
     });
   }
 
-  await notifyOwner(ctx, owner._id, text);
+  if (await activeConnection(ctx, owner._id)) await notifyOwner(ctx, owner._id, text);
 };
 
 /** The account's most recent Vanda conversation, where in-app notices land. */
@@ -95,7 +102,7 @@ const tellVanda = async (
   });
 };
 
-/** A new week is planned: the card in the latest conversation, the text on WhatsApp. */
+/** A new week is planned: a line to Vanda, the week as text to Caetano; the page shows the plan. */
 export const announcePlan = internalMutation({
   args: { accountId: v.id("accounts"), weekStart: v.number() },
   handler: async (ctx, { accountId, weekStart }): Promise<void> => {
@@ -104,8 +111,7 @@ export const announcePlan = internalMutation({
 
     if (!week || week.slots.length === 0) return;
 
-    const resource: ThreadResource = { kind: "autopilotWeek", accountId, weekStart };
-    const intro = `Planejei a semana de ${week.label} no piloto automático: ${overview.cadenceSummary}.`;
+    const intro = `O Caetano planejou os posts automáticos da semana de ${week.label}: ${overview.cadenceSummary}.`;
 
     const approval = overview.approval === "required";
 
@@ -113,8 +119,8 @@ export const announcePlan = internalMutation({
       ctx,
       accountId,
       `autopilot:${accountId}:${weekStart}`,
-      `${intro} Cada post é gerado cerca de 24 horas antes${approval ? " e espera o seu aceite para publicar" : " e publica sozinho; você pode editar ou pular até lá"}.`,
-      [resource],
+      `${intro} Cada post é gerado cerca de ${PRODUCE_AHEAD_LABEL} antes${approval ? " e espera o seu aceite para publicar" : " e publica sozinho; você pode editar ou pular até lá"}. Veja em Posts automáticos.`,
+      [],
     );
 
     const account = await ctx.db.get(accountId);
@@ -123,8 +129,8 @@ export const announcePlan = internalMutation({
       ctx,
       accountId,
       `autopilot:${accountId}:${weekStart}`,
-      `${formatScheduleText(week.slots, `Piloto automático (${accountLabel(account)}) — semana de ${week.label}`)}\n\nMe diga se quer mudar algum post.`,
-      [resource],
+      `${formatScheduleText(week.slots, `Planejei seus posts da semana de ${week.label} (${accountLabel(account)})`)}\n\nMe diga se quer mudar algum post.`,
+      [],
     );
   },
 });
@@ -155,12 +161,16 @@ export const notifyProduced = internalMutation({
     const post: ThreadResource = { kind: "post", accountId: slot.accountId, postId: slot.postId };
 
     const text = waiting
-      ? `Post do piloto automático pronto para o seu aceite (${accountLabel(account)}): ${slotLine(slot)}.\nResponda "aprovo" para publicar no horário, ou diga o que não gostou: o motivo é obrigatório e me ensina para os próximos posts. Sem aceite até o horário, ele não é publicado.`
-      : `Post do piloto automático pronto (${accountLabel(account)}): ${slotLine(slot)}.\nPublica sozinho no horário. Se quiser mudar, refazer ou pular, me diga.`;
+      ? `Preparei um post para o seu aceite (${accountLabel(account)}): ${slotLine(slot)}.\nResponda "aprovo" que eu publico no horário, ou diga o que não gostou: o motivo é obrigatório e me ensina para os próximos posts. Sem o seu aceite até o horário, eu não publico.`
+      : `Preparei um post (${accountLabel(account)}): ${slotLine(slot)}.\nPublico sozinho no horário. Se quiser mudar, refazer ou pular, me diga.`;
 
-    const context = `Piloto automático — slotId: ${slotId}. Aceite: autopilot_approve_slot. Recusa: autopilot_reject_slot com o motivo do dono (pergunte o motivo se ele não disser).`;
+    const context = `Post automático — slotId: ${slotId}. Aceite: autopilot_approve_slot. Recusa: autopilot_reject_slot com o motivo do dono (pergunte o motivo se ele não disser).`;
 
-    await tellVanda(ctx, slot.accountId, `autopilot:produced:${slotId}`, text, [post]);
+    const forChat = waiting
+      ? `O Caetano preparou um post para o seu aceite: ${slotLine(slot)}. Aprove ou recuse dizendo o motivo — sem aceite até o horário, ele não publica.`
+      : `O Caetano preparou um post: ${slotLine(slot)}. Ele publica no horário; dá para recusar ou pular até lá.`;
+
+    await tellVanda(ctx, slot.accountId, `autopilot:produced:${slotId}`, forChat, [post]);
     await tellCaetano(ctx, slot.accountId, `autopilot:produced:${slotId}`, text, [post], context);
   },
 });
@@ -179,7 +189,7 @@ export const notifyFailed = internalMutation({
       ctx,
       slot.accountId,
       `autopilot:failed:${slotId}`,
-      `Não consegui preparar um post do piloto automático (${accountLabel(account)}): ${slotLine(slot)}.${slot.lastError ? `\nMotivo: ${slot.lastError}` : ""}\nQuer que eu tente de novo ou pule esse?`,
+      `Não consegui preparar um post automático (${accountLabel(account)}): ${slotLine(slot)}.${slot.lastError ? `\nMotivo: ${slot.lastError}` : ""}\nQuer que eu tente de novo ou pule esse?`,
       [],
     );
   },

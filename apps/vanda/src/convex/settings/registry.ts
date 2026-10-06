@@ -150,7 +150,7 @@ const readers = {
 
     return {
       summary: cadenceSummary(cadence),
-      source: config?.cadenceSource === "owner" ? "definida pelo dono" : "sugerida pela Vanda",
+      source: config?.cadenceSource === "owner" ? "definida pelo dono" : "sugerida pelo Caetano",
       entries: cadence.map((entry) => ({ ...entry })),
     };
   },
@@ -166,7 +166,14 @@ const ON_VALUES = new Set(["ligado", "true", "on", "sim", "ligar"]);
 
 const OFF_VALUES = new Set(["desligado", "false", "off", "não", "nao", "desligar"]);
 
-const AGENT_CADENCE_VALUES = new Set(["vanda", "sugestão", "sugestao", "sugerida", "agente"]);
+const AGENT_CADENCE_VALUES = new Set([
+  "caetano",
+  "vanda",
+  "sugestão",
+  "sugestao",
+  "sugerida",
+  "agente",
+]);
 
 const writers: Partial<Record<SettingId, Writer>> = {
   "appearance.theme": async (ctx, user, value) => {
@@ -206,7 +213,7 @@ const writers: Partial<Record<SettingId, Writer>> = {
 
     if (!account) throw new Error("nenhum negócio ativo");
 
-    // "Vanda" hands the cadence back to the diagnosis.
+    // "caetano" (or "sugerida") hands the cadence back to the diagnosis.
     if (AGENT_CADENCE_VALUES.has(value.trim().toLowerCase())) {
       await applyResetCadence(ctx, account._id);
 

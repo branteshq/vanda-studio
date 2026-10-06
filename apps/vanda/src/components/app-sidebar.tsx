@@ -643,7 +643,7 @@ function CaetanoNav() {
   );
 }
 
-/** Every publication of the business, from the conversation and from the autopilot. */
+/** Every publication of the business, from the conversation and from Caetano. */
 function CalendarNavItem() {
   const navigate = useNavigate();
   const { setOpenMobile } = useSidebar();
@@ -668,15 +668,15 @@ function CalendarNavItem() {
   );
 }
 
-/** The automatic feed posts: planned, produced and published by the Piloto automático. */
+/** The automatic feed posts Caetano plans, creates and publishes. */
 function AutopilotNavItem() {
   const navigate = useNavigate();
   const { setOpenMobile } = useSidebar();
   const { activeAccount } = useActiveAccount();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
 
-  const overview = useQuery(
-    api.autopilot.overview,
+  const enabled = useQuery(
+    api.autopilot.enabled,
     activeAccount ? { accountId: activeAccount.id } : "skip",
   );
 
@@ -686,20 +686,20 @@ function AutopilotNavItem() {
     <SidebarMenuItem>
       <SidebarMenuButton
         size="navigation"
-        tooltip="Piloto automático"
-        isActive={pathname === "/piloto"}
+        tooltip="Posts automáticos"
+        isActive={pathname === "/posts-automaticos"}
         onClick={() => {
           setOpenMobile(false);
-          void navigate({ to: "/piloto" });
+          void navigate({ to: "/posts-automaticos" });
         }}
         className="h-10"
       >
         <CalendarClock aria-hidden="true" />
-        <span className="flex-1 group-data-[collapsible=icon]:hidden">Piloto automático</span>
-        {overview?.enabled ? (
+        <span className="flex-1 group-data-[collapsible=icon]:hidden">Posts automáticos</span>
+        {enabled ? (
           <span
             className="size-1.5 rounded-full bg-green group-data-[collapsible=icon]:hidden"
-            aria-label="ligado"
+            aria-label="Caetano no controle"
           />
         ) : null}
       </SidebarMenuButton>
