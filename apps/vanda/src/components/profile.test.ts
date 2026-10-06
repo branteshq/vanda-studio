@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { ProfilePage } from "../routes/_dashboard.perfil";
+import { brandFileReading } from "./profile/brand";
 
 // SAFETY: test IDs model opaque identifiers without pretending to be account records.
 const businessA = "business-a" as Id<"accounts">;
@@ -77,7 +78,6 @@ const runtime = {
   useWorkspaceFile: (accountId: string, path: string) =>
     mocks.query(api.workspacePublic.file, { accountId, path }),
   WhatsAppSettings: () => createElement("p", null, "Caetano no WhatsApp"),
-  InstagramDiagnosis: () => createElement("p", null, "Nota do perfil"),
 };
 
 let root: Root;
@@ -250,14 +250,12 @@ it("opens a business's brand file and the onboarding for unfinished ones", async
 it("reads and edits the brand file, then hands off to the conversation", async () => {
   await act(async () => root.render(createElement(ProfilePage, { runtime, marca: "business-a" })));
   expect(container.querySelector("h1")?.textContent).toBe("Business A");
-  // Laid out as a guide: the item under its section, its origin as a badge.
+  // Read as a document: the section and its item, the origin as a quiet note, no score cards.
   expect(container.textContent).toContain("Tom e voz");
-  expect(container.textContent).toContain("Sem gírias");
+  expect(container.textContent).toContain("Sem gírias · dono");
   expect(container.textContent).not.toContain("(dono)");
-  expect(container.querySelector('[aria-label="Dono"]')).not.toBeNull();
   expect(container.textContent).toContain("Atualizado por você");
-  expect(container.textContent).toContain("Diagnóstico do Instagram");
-  expect(container.textContent).toContain("Nota do perfil");
+  expect(container.textContent).not.toContain("Diagnóstico do Instagram");
 
   await click("Editar");
   const editor = container.querySelector<HTMLTextAreaElement>('[aria-label="Arquivo da marca"]');
@@ -313,4 +311,17 @@ it("does not claim zero usage or a trial plan while the summary is loading", asy
   await act(async () => root.render(createElement(ProfilePage, { runtime })));
   expect(container.querySelector('[role="progressbar"]')).toBeNull();
   expect(container.textContent).not.toContain("Teste grátis");
+});
+
+it("reads the brand file without its title, legend or empty sections", () => {
+  const { markdown, empty } = brandFileReading(
+    "# Marca · Café\n\nA Vanda e o Caetano leem este arquivo.\n\n## O negócio\n\n- Cafeteria no Recife (dono)\n- Fecha às 18h (observado: perfil, 05/10)\n\n## Público\n\n## Nunca fazer\n\n- Falar de preço (Vanda)\n",
+  );
+
+  expect(markdown).not.toContain("# Marca");
+  expect(markdown).not.toContain("leem este arquivo");
+  expect(markdown).toContain("- Cafeteria no Recife *· dono*");
+  expect(markdown).toContain("- Fecha às 18h *· observado: perfil, 05/10*");
+  expect(markdown).not.toContain("## Público");
+  expect(empty).toEqual(["Público"]);
 });

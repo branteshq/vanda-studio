@@ -6,7 +6,6 @@ import { useQuery } from "convex-helpers/react/cache";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { useActiveAccount } from "../active-account";
-import { InstagramDiagnosis } from "../caetano/details-sheet";
 import { WhatsAppSettings } from "../whatsapp-settings";
 
 /**
@@ -92,8 +91,6 @@ export type ProfileRuntime = typeof profileHooks & {
     selectAccount: (accountId: Id<"accounts">) => void;
   };
   WhatsAppSettings: ComponentType;
-  /** Caetano's live diagnosis of the business's Instagram (posts automáticos). */
-  InstagramDiagnosis: ComponentType<{ accountId: Id<"accounts"> }>;
 };
 
 export const defaultProfileRuntime: ProfileRuntime = {
@@ -103,7 +100,6 @@ export const defaultProfileRuntime: ProfileRuntime = {
   useProfileNavigate: useNavigate,
   useProfileAccounts: useActiveAccount,
   WhatsAppSettings,
-  InstagramDiagnosis,
 };
 
 export const ProfileRuntimeContext = createContext(defaultProfileRuntime);

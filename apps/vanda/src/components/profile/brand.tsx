@@ -2,14 +2,7 @@ import { useState, type CSSProperties, type ReactNode } from "react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Markdown } from "@vanda-studio/ui/components/markdown";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
-import { cn } from "@vanda-studio/ui/lib/utils";
 import type { Id } from "../../convex/_generated/dataModel";
-import {
-  BRAND_FILE_SECTIONS,
-  brandFileFacts,
-  factOrigin,
-  type BrandFactOrigin,
-} from "../../convex/brandFileText";
 import { parseBrandKit } from "../../convex/workspace/brandKit";
 import { errorMessage } from "../../errors";
 import { useProfileRuntime } from "./runtime";
@@ -46,131 +39,38 @@ const formatUpdated = (updatedAt: number | null, updatedBy: string | null): stri
   return `Atualizado por ${who} em ${new Date(updatedAt).toLocaleDateString("pt-BR")}.`;
 };
 
-const ORIGINS = {
-  dono: { label: "Dono", dot: "bg-brand-accent", hint: "você disse ou confirmou" },
-  observado: { label: "Observado", dot: "bg-green", hint: "aprendido com resultados" },
-  vanda: { label: "Vanda", dot: "bg-border-strong", hint: "sugestão, muda quando quiser" },
-} as const satisfies Record<
-  NonNullable<BrandFactOrigin>,
-  { label: string; dot: string; hint: string }
->;
-
-const ORIGIN_ORDER = ["dono", "observado", "vanda"] as const;
-
-const LEGACY_HEADING = "## Notas anteriores";
-
-// Sections made only of short items (tone words, audiences) read better as chips.
-const CHIP_MAX = 32;
-
-type GuideItem = ReturnType<typeof brandFileFacts>[number] & ReturnType<typeof factOrigin>;
-
-function OriginDot({ item }: { item: GuideItem }) {
-  if (!item.origin) return null;
-
-  const origin = ORIGINS[item.origin];
-
-  return (
-    <span
-      className={cn("mt-1.5 size-1.5 shrink-0 rounded-full", origin.dot)}
-      role="img"
-      aria-label={item.detail ? `${origin.label}: ${item.detail}` : origin.label}
-      title={item.detail ? `${origin.label}: ${item.detail}` : origin.label}
-    />
-  );
-}
-
-function GuideSection({ title, items }: { title: string; items: readonly GuideItem[] }) {
-  const chips = items.length > 0 && items.every((item) => item.text.length <= CHIP_MAX);
-
-  return (
-    <section className="rounded-lg border border-border bg-app p-4">
-      <h3 className="text-body-sm font-semibold text-text">{title}</h3>
-      {items.length === 0 ? <p className="mt-2 text-note text-text-5">Nada ainda.</p> : null}
-      {chips ? (
-        <ul className="mt-3 flex flex-wrap gap-1.5">
-          {items.map((item) => (
-            <li
-              key={item.id}
-              className="inline-flex items-start gap-1.5 rounded-full border border-border bg-surface px-2.5 py-1 text-note text-text-2"
-            >
-              <OriginDot item={item} />
-              {item.text}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {items.length > 0 && !chips ? (
-        <ul className="mt-3 space-y-2">
-          {items.map((item) => (
-            <li key={item.id} className="flex gap-2 text-body-sm leading-snug text-text-2">
-              <OriginDot item={item} />
-              <span>{item.text}</span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </section>
-  );
-}
+// "(dono)", "(Vanda)" or "(observado: evidência, data)" closing an item.
+const ORIGIN = /\s*\((dono|Vanda|observado:[^)]*)\)\s*$/;
 
 /**
- * The brand file laid out as a guide: one card per section, each item marked
- * with where it came from (a dot keyed in the legend) instead of the raw
- * "(dono)" suffix. Notes carried over from the old memory stay apart, folded.
+ * The file as a page to read: no repeated title or legend (the page says it),
+ * the origin of each item as a quiet italic note, and empty sections named
+ * once instead of shown as empty headings. Editing still sees the whole file.
  */
-function BrandGuide({ content }: { content: string }) {
-  const legacyAt = content.indexOf(`\n${LEGACY_HEADING}`);
+export interface BrandFileView {
+  readonly markdown: string;
+  /** Sections with nothing in them yet, by title. */
+  readonly empty: string[];
+}
 
-  const items: GuideItem[] = brandFileFacts(
-    legacyAt === -1 ? content : content.slice(0, legacyAt),
-  ).map((fact) => Object.assign(fact, factOrigin(fact.text)));
+export function brandFileReading(content: string): BrandFileView {
+  const lines = content.split("\n");
+  const firstSection = lines.findIndex((line) => line.startsWith("## "));
+  const sections: { title: string; body: string[] }[] = [];
 
-  const known = BRAND_FILE_SECTIONS.map((section) => section.title);
+  for (const line of firstSection === -1 ? [] : lines.slice(firstSection)) {
+    if (line.startsWith("## ")) sections.push({ title: line.slice(3).trim(), body: [] });
+    else sections.at(-1)?.body.push(line.replace(ORIGIN, (_, origin: string) => ` *· ${origin}*`));
+  }
 
-  const extra = [...new Set(items.map((item) => item.kind))].filter(
-    (kind) => !known.includes(kind),
-  );
+  const filled = sections.filter((section) => section.body.some((line) => line.trim()));
 
-  const origins = ORIGIN_ORDER.filter((origin) => items.some((item) => item.origin === origin));
-
-  return (
-    <div className="space-y-4">
-      {origins.length > 0 ? (
-        <p className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-note text-text-4">
-          {origins.map((origin) => (
-            <span key={origin} className="inline-flex items-center gap-1.5">
-              <span className={cn("size-1.5 rounded-full", ORIGINS[origin].dot)} aria-hidden />
-              <span className="font-medium text-text-3">{ORIGINS[origin].label}</span>
-              {ORIGINS[origin].hint}
-            </span>
-          ))}
-        </p>
-      ) : null}
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        {[...known, ...extra].map((title) => (
-          <GuideSection
-            key={title}
-            title={title}
-            items={items.filter((item) => item.kind === title)}
-          />
-        ))}
-      </div>
-
-      {legacyAt === -1 ? null : (
-        <details className="rounded-lg border border-border px-4 py-3">
-          <summary className="cursor-pointer text-body-sm font-medium text-text-3">
-            Notas anteriores
-          </summary>
-          <div className="mt-3">
-            <Markdown variant="reading">
-              {content.slice(legacyAt + LEGACY_HEADING.length + 1)}
-            </Markdown>
-          </div>
-        </details>
-      )}
-    </div>
-  );
+  return {
+    markdown: filled
+      .map((section) => [`## ${section.title}`, ...section.body].join("\n").trim())
+      .join("\n\n"),
+    empty: sections.flatMap((section) => (filled.includes(section) ? [] : [section.title])),
+  };
 }
 
 /**
@@ -229,7 +129,7 @@ export function BrandFileCard({ accountId }: { accountId: Id<"accounts"> }) {
           <Skeleton className="h-3.5 w-2/5" />
         </div>
       ) : draft === null ? (
-        <BrandGuide content={file.content} />
+        <BrandFileReading content={file.content} />
       ) : (
         <>
           <textarea
@@ -342,5 +242,28 @@ export function BrandKitCard({ accountId }: { accountId: Id<"accounts"> }) {
         </div>
       )}
     </SectionCard>
+  );
+}
+
+function BrandFileReading({ content }: { content: string }) {
+  const { markdown, empty } = brandFileReading(content);
+
+  return (
+    <>
+      {markdown ? (
+        <Markdown variant="reading">{markdown}</Markdown>
+      ) : (
+        <p className="text-body-sm text-text-3">
+          Nada anotado ainda. Conte sobre o negócio na conversa e a Vanda escreve aqui.
+        </p>
+      )}
+      {empty.length > 0 ? (
+        <p className="mt-5 text-note text-text-4">Ainda vazio: {empty.join(", ")}.</p>
+      ) : null}
+      <p className="mt-2 text-note text-text-4">
+        <em>dono</em>: você disse ou confirmou, só muda se você pedir · <em>observado</em>:
+        aprendido com resultados · <em>Vanda</em>: sugestão dela, mude quando quiser.
+      </p>
+    </>
   );
 }
