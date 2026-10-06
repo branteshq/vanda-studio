@@ -157,10 +157,10 @@ function Strip({
               ·{" "}
               <button
                 type="button"
-                className={linkClass}
+                className="outline-none"
                 onClick={() => enabled.apply({ enabled: false })}
               >
-                pausar
+                <span className={linkClass}>pausar</span>
               </button>
             </>
           ) : null}
@@ -202,7 +202,19 @@ function Zzz() {
   );
 }
 
-const linkClass = "text-text-3 underline decoration-dotted underline-offset-2 hover:text-text";
+const linkClass = "inline-action text-text-2 outline-none";
+
+/** Whether a value changed after the first render: animate switches, not page loads. */
+function useChangedSinceMount<Value>(value: Value): boolean {
+  const first = useRef(value);
+  const [changed, setChanged] = useState(false);
+
+  useEffect(() => {
+    if (value !== first.current) setChanged(true);
+  }, [value]);
+
+  return changed;
+}
 
 function StatusLine({
   overview,
@@ -219,12 +231,14 @@ function StatusLine({
   onApproval: () => void;
   onPause: () => void;
 }) {
+  const approvalSwitched = useChangedSinceMount(overview.approval);
+
   if (!overview.connected)
     return (
       <>
         O Caetano cuida dos seus posts toda semana.{" "}
-        <Link to="/perfil" className={linkClass}>
-          Conectar o Instagram
+        <Link to="/perfil" className="outline-none">
+          <span className={linkClass}>Conectar o Instagram</span>
         </Link>
       </>
     );
@@ -244,8 +258,8 @@ function StatusLine({
     <>
       {" "}
       ·{" "}
-      <button type="button" className={linkClass} onClick={onPause}>
-        pausar
+      <button type="button" className="outline-none" onClick={onPause}>
+        <span className={linkClass}>pausar</span>
       </button>
     </>
   );
@@ -267,7 +281,7 @@ function StatusLine({
       {overview.cadenceSummary} ·{" "}
       <button
         type="button"
-        className={linkClass}
+        className="outline-none"
         disabled={approvalBusy}
         onClick={onApproval}
         title={
@@ -276,11 +290,17 @@ function StatusLine({
             : "Toque para pedir sua aprovação antes de publicar"
         }
       >
-        {overview.approval === "required" ? "com aprovação" : "sem aprovação"}
+        {/* Keyed by the value: after a switch, the new words sharpen in, so it is felt. */}
+        <span
+          key={overview.approval}
+          className={cn(linkClass, approvalSwitched && "animate-title-in")}
+        >
+          {overview.approval === "required" ? "com aprovação" : "sem aprovação"}
+        </span>
       </button>{" "}
       ·{" "}
-      <Link to="/conversa" search={{ rascunho: CADENCE_DRAFT }} className={linkClass}>
-        mudar
+      <Link to="/conversa" search={{ rascunho: CADENCE_DRAFT }} className="outline-none">
+        <span className={linkClass}>mudar</span>
       </Link>
       {pause}
     </>

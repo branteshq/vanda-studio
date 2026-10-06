@@ -547,6 +547,33 @@
   animation: caetano-wobble 0.8s ease-in-out infinite;
 }
 
+/* Inline actions inside a sentence (Posts automáticos: com aprovação · mudar ·
+ * pausar). A hairline rests under the word; on hover or focus a brand line
+ * sweeps over it from the left and the word brightens. Nothing moves the text. */
+.inline-action {
+  background-image:
+    linear-gradient(var(--color-brand-accent), var(--color-brand-accent)),
+    linear-gradient(var(--color-border-strong), var(--color-border-strong));
+  background-position:
+    0 100%,
+    0 100%;
+  background-repeat: no-repeat;
+  background-size:
+    0% 1px,
+    100% 1px;
+  padding-bottom: 1px;
+  transition:
+    background-size 320ms var(--ease-out),
+    color 150ms var(--ease-out);
+}
+.inline-action:hover,
+.inline-action:focus-visible {
+  background-size:
+    100% 1px,
+    100% 1px;
+  color: var(--color-text);
+}
+
 /* Three dots after "trabalhando": each fades in turn. */
 @keyframes caetano-dot {
   0%,
@@ -589,6 +616,9 @@
   .animate-caetano-zzz,
   .hover-caetano-wobble:hover {
     animation: none;
+  }
+  .inline-action {
+    transition: none;
   }
   /* Keep the crossfade for comprehension; drop the movement. */
   .animate-mode-in {
