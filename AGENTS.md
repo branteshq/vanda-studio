@@ -20,6 +20,7 @@ Vanda and Caetano know and change the platform through one registry, and explain
 - **Settings.** Anything the owner can see or change in Perfil is declared once in `apps/vanda/src/convex/settings/catalog.ts`, with its read and write in `settings/registry.ts`. UI mutations call `writeSetting`; the agents use the generic `settings_get` / `settings_set`. Do not add per-setting agent tools.
 - **What agents may change.** Payments, plan changes and connections (Instagram, OpenAI, WhatsApp) stay `access: "read"` with a `change` explanation that points the owner to the UI.
 - **Docs.** Product docs are `apps/vanda/product-docs/*.md`, served at `/docs` in the app and read by the agents through `product_help` and `/docs` in the workspace. When user-visible behavior changes, update the relevant page and run `pnpm docs:build` in `apps/vanda`. The settings reference page is generated from the registry; do not write it by hand.
+- **Usage.** Every real cost an owner causes is charged through `usage.chargeUsage` and shown in Perfil by category (`usageCategories.ts`). When you add a paid call, follow `docs/usage-metering.md` (it also lists what is deliberately not charged, like WhatsApp messages).
 - **Guard.** `src/convex/settings/drift.test.ts` fails when Perfil calls a backend function no setting claims, or when a setting's docs page does not mention where the UI shows it.
 
 ## Data Migrations and Deploys

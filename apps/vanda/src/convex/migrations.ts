@@ -1,3 +1,4 @@
+import { categoryOfKind } from "./usageCategories";
 import { v } from "convex/values";
 import type { FunctionReference } from "convex/server";
 import { internal } from "./_generated/api";
@@ -21,6 +22,9 @@ const BATCH = 100;
 // Composing reads each account's facts and notes, so fewer per page.
 const BRAND_FILE_BATCH = 25;
 
+// Each period re-reads its events, so few per page.
+const USAGE_BATCH = 10;
+
 type MigrationPage = FunctionReference<
   "mutation",
   "internal",
@@ -31,6 +35,7 @@ type MigrationPage = FunctionReference<
 const MIGRATIONS: ReadonlyArray<{ name: string; page: MigrationPage }> = [
   { name: "feedToCarousel", page: internal.migrations.feedToCarousel },
   { name: "brandFiles", page: internal.migrations.brandFiles },
+  { name: "usageCategories", page: internal.migrations.usageCategories },
 ];
 
 /** Legacy `feed` meant carousel: rewrite it to `carousel` (2+ images) or `image` (1 image). */
@@ -55,6 +60,38 @@ export const feedToCarousel = internalMutation({
  * facts and legacy notes. Reads already compose it on the fly; this makes it a
  * document the owner and the agents edit.
  */
+/** Spend per category on existing periods, summed from their events (usageCategories.ts). */
+export const usageCategories = internalMutation({
+  args: { cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, { cursor }): Promise<{ migrated: number; cursor: string | null }> => {
+    const page = await ctx.db.query("usagePeriods").paginate({ cursor, numItems: USAGE_BATCH });
+    let migrated = 0;
+
+    for (const period of page.page) {
+      if (period.byCategory) continue;
+
+      const events = await ctx.db
+        .query("usageEvents")
+        .withIndex("by_user_period", (q) =>
+          q.eq("userId", period.userId).eq("periodKey", period.periodKey),
+        )
+        .collect();
+
+      const byCategory: Record<string, number> = {};
+
+      for (const event of events) {
+        const category = categoryOfKind(event.kind);
+        byCategory[category] = (byCategory[category] ?? 0) + event.microUsd;
+      }
+
+      await ctx.db.patch(period._id, { byCategory });
+      migrated++;
+    }
+
+    return { migrated, cursor: page.isDone ? null : page.continueCursor };
+  },
+});
+
 export const brandFiles = internalMutation({
   args: { cursor: v.union(v.string(), v.null()) },
   handler: async (ctx, { cursor }): Promise<{ migrated: number; cursor: string | null }> => {

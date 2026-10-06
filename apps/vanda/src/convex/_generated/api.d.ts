@@ -113,6 +113,7 @@ import type * as tools_previousWork from "../tools/previousWork.js";
 import type * as tools_product from "../tools/product.js";
 import type * as tools_web from "../tools/web.js";
 import type * as usage from "../usage.js";
+import type * as usageCategories from "../usageCategories.js";
 import type * as usageDetails from "../usageDetails.js";
 import type * as users from "../users.js";
 import type * as vanda from "../vanda.js";
@@ -253,6 +254,7 @@ declare const fullApi: ApiFromModules<{
   "tools/product": typeof tools_product;
   "tools/web": typeof tools_web;
   usage: typeof usage;
+  usageCategories: typeof usageCategories;
   usageDetails: typeof usageDetails;
   users: typeof users;
   vanda: typeof vanda;

@@ -9,6 +9,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { requireUser } from "./authz";
+import { chargeUsage } from "./usage";
 import { isStop, replyParts, serviceWindowOpen, templateParam } from "./whatsapp/protocol";
 
 export const storeLink = internalMutation({
@@ -510,10 +511,22 @@ export const submitMediaTurn = internalMutation({
     uploads: v.array(v.object({ storageId: v.id("_storage"), mimeType: v.string() })),
     notes: v.array(v.string()),
     externalMessageId: v.string(),
+    // What transcribing this turn's voice notes cost (OpenRouter), charged to the owner.
+    transcriptionUsd: v.optional(v.number()),
   },
-  handler: async (ctx, { connectionId, text, uploads, notes, externalMessageId }) => {
+  handler: async (
+    ctx,
+    { connectionId, text, uploads, notes, externalMessageId, transcriptionUsd },
+  ) => {
     const connection = await ctx.db.get(connectionId);
     const user = connection?.active ? await ctx.db.get(connection.userId) : null;
+
+    if (connection && transcriptionUsd)
+      await chargeUsage(ctx, {
+        userId: connection.userId,
+        kind: "transcription",
+        usd: transcriptionUsd,
+      });
 
     const discard = () =>
       Promise.all(uploads.map((upload) => ctx.storage.delete(upload.storageId)));

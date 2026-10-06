@@ -326,6 +326,59 @@ describe("usage metering", () => {
     expect(await owner.query(api.usage.summary, {})).toMatchObject({ chatLimited: true });
   });
 
+  it("breaks the plan down by category, with ChatGPT work shown as covered", async () => {
+    const { t, accountId, userId } = await setup();
+    const owner = t.withIdentity({ subject: "ana" });
+    const tenth = TRIAL_ALLOWANCE_MICRO_USD / 1_000_000 / 10;
+
+    await t.mutation(internal.usage.charge, { accountId, kind: "instagram_apify", usd: tenth * 2 });
+    await t.mutation(internal.usage.charge, { accountId, kind: "web_parallel_search", usd: tenth });
+    await t.mutation(internal.usage.charge, { accountId, kind: "scan", usd: tenth });
+
+    const pct = async () =>
+      Object.fromEntries(
+        (await owner.query(api.usage.summary, {}))!.breakdown.categories.map((category) => [
+          category.id,
+          category.viaChatGpt ? "chatgpt" : category.pct,
+        ]),
+      );
+
+    expect(await pct()).toEqual({ conversas: 0, imagens: 0, instagram: 20, radar: 10, web: 10 });
+
+    const summary = (await owner.query(api.usage.summary, {}))!;
+    // The two biggest paid categories lead "ainda dá para…".
+    expect(summary.breakdown.remaining.map((item) => item.label)).toEqual([
+      "pesquisas de perfil",
+      "varreduras do radar",
+    ]);
+
+    // On a connected ChatGPT plan, conversations and images show as covered.
+    await t.run((ctx) =>
+      ctx.db.patch(userId, { planId: "conectado", openaiAccessCiphertext: "encrypted" }),
+    );
+    expect(await pct()).toMatchObject({ conversas: "chatgpt", imagens: "chatgpt" });
+  });
+
+  it("backfills the categories of periods recorded before them", async () => {
+    const { t, accountId, userId } = await setup();
+
+    await t.mutation(internal.usage.charge, { accountId, kind: "paint", usd: 0.1 });
+    await t.mutation(internal.usage.charge, { accountId, kind: "instagram_apify", usd: 0.05 });
+    await t.run(async (ctx) => {
+      const period = await ctx.db
+        .query("usagePeriods")
+        .withIndex("by_user_period", (q) => q.eq("userId", userId))
+        .unique();
+
+      await ctx.db.patch(period!._id, { byCategory: undefined });
+    });
+
+    await t.mutation(internal.migrations.usageCategories, { cursor: null });
+
+    const period = await t.run((ctx) => ctx.db.query("usagePeriods").unique());
+    expect(period?.byCategory).toEqual({ imagens: 100_000, instagram: 50_000 });
+  });
+
   it("keeps the Básico R$40 cost share across paid tiers", () => {
     expect(PLAN_COST_SHARE).toBeCloseTo(40 / 96);
     expect(TIER_ALLOWANCE_BRL.basico).toBe(40);

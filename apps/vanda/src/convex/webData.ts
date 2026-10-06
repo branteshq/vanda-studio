@@ -1,3 +1,4 @@
+import { WEB_DAILY_LIMIT } from "./usageCategories";
 import { v } from "convex/values";
 import { internalMutation } from "./_generated/server";
 import { agentActivityIdValidator, requireOwnedAgentActivity } from "./agentActivity";
@@ -42,7 +43,7 @@ export const begin = internalMutation({
 
     // Failed attempts count, so provider failures cannot cause an unbounded retry loop.
     if (
-      recent.length >= 100 ||
+      recent.length >= WEB_DAILY_LIMIT ||
       recent.filter((row) => row.requestId === requestId && row.threadId === threadId).length >= 8
     ) {
       throw publicError("WEB_LIMIT");

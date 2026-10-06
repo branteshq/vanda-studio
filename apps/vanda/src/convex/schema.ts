@@ -199,6 +199,8 @@ export default defineSchema({
     userId: v.id("users"),
     periodKey: v.string(),
     spentMicroUsd: v.number(),
+    // Spend per usage category (usageCategories.ts), for the owner's breakdown.
+    byCategory: v.optional(v.record(v.string(), v.number())),
     updatedAt: v.number(),
   }).index("by_user_period", ["userId", "periodKey"]),
 

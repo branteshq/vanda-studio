@@ -17,7 +17,7 @@ import {
   resolveConnectedImageModel,
 } from "../imageModels";
 import { isConnectedSubscriber } from "../openaiSub";
-import { budgetOf } from "../usage";
+import { breakdownOf, budgetOf } from "../usage";
 import { activeConnection } from "../whatsappData";
 import { DEFAULT_THEME, isTheme } from "../../themes";
 import {
@@ -37,7 +37,23 @@ type Reader = (ctx: QueryCtx, user: Doc<"users">) => Promise<SettingValue>;
 
 type Writer = (ctx: MutationCtx, user: Doc<"users">, value: string) => Promise<void>;
 
+const usageForAgents = async (ctx: QueryCtx, user: Doc<"users">) => {
+  const breakdown = await breakdownOf(ctx, user);
+
+  return {
+    byCategory: breakdown.categories.map((category) => ({
+      category: category.label,
+      usage: category.viaChatGpt
+        ? "pela assinatura do ChatGPT (não usa o plano)"
+        : `${category.pct}% do plano`,
+    })),
+    stillAvailable: breakdown.remaining.map((item) => `~${item.count} ${item.label}`),
+    webSearchesToday: `${breakdown.web.used} de ${breakdown.web.limit}`,
+  };
+};
+
 /** Resolved model ids, exactly what the next turn runs on. */
+
 export const modelPreferencesOf = (user: Doc<"users">) => {
   const conectado = isConnectedSubscriber(user);
 
@@ -104,6 +120,8 @@ const readers = {
       limited: !budget.ok,
       renewsAt: user.billingPeriodEnd ? new Date(user.billingPeriodEnd).toISOString() : null,
       scheduledPlan: user.scheduledPlanId ? planLabel(user.scheduledPlanId) : null,
+      // Where the plan went, in the owner's words; categories on the ChatGPT subscription cost the plan nothing.
+      ...(await usageForAgents(ctx, user)),
     };
   },
   "connections.instagram": async (ctx, user) => {

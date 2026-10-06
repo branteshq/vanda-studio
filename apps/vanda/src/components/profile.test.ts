@@ -296,6 +296,55 @@ it("warns when the ChatGPT plan runs without a connected OpenAI account", async 
   expect(container.textContent).toContain("Conta OpenAI");
 });
 
+it("shows where the plan went, with ChatGPT work as covered", async () => {
+  mocks.query.mockImplementation((ref) => {
+    const name = getFunctionName(ref);
+
+    if (name === "usage:summary")
+      return {
+        plan: "conectado",
+        usedPct: 31,
+        limited: false,
+        renewsAt: Date.UTC(2026, 10, 12),
+        breakdown: {
+          categories: [
+            {
+              id: "conversas",
+              label: "Conversas com a Vanda e o Caetano",
+              pct: 0,
+              viaChatGpt: true,
+            },
+            { id: "imagens", label: "Criação de imagens", pct: 0, viaChatGpt: true },
+            { id: "instagram", label: "Pesquisa no Instagram", pct: 21, viaChatGpt: false },
+            { id: "radar", label: "Radar de mercado e análises", pct: 10, viaChatGpt: false },
+            { id: "web", label: "Pesquisa na web", pct: 0, viaChatGpt: false },
+          ],
+          remaining: [
+            { count: 140, label: "pesquisas de perfil" },
+            { count: 6, label: "varreduras do radar" },
+          ],
+          web: { used: 12, limit: 100 },
+        },
+      };
+
+    if (name === "openaiSub:connectionStatus") return { connected: true };
+
+    return undefined;
+  });
+  await act(async () => root.render(createElement(ProfilePage, { runtime })));
+
+  expect(container.textContent).toContain("31%do plano usado");
+  expect(container.textContent).toContain("Pesquisa no Instagram21%");
+  // Unused paid categories stay out; ChatGPT-covered ones say so.
+  expect(container.textContent).not.toContain("Pesquisa na web0%");
+  expect(container.textContent).toContain("Criação de imagenspela sua assinatura do ChatGPT");
+  expect(container.textContent).toContain(
+    "Ainda dá para ~140 pesquisas de perfil ou ~6 varreduras do radar.",
+  );
+  // The web cap appears only when it gets close.
+  expect(container.textContent).not.toContain("Pesquisa na web nas últimas 24 horas");
+});
+
 it("applies a theme at once and saves it to the account", async () => {
   document.documentElement.classList.add("dark");
   await click("Claro");

@@ -20,7 +20,12 @@ const mediaUrlSchema = z.object({ download_url: z.string().url() });
 
 const transcriptionSchema = z.object({
   choices: z.array(z.object({ message: z.object({ content: z.string().nullable() }) })).min(1),
+  // OpenRouter reports what the call cost when usage accounting is on.
+  usage: z.object({ cost: z.number().optional() }).optional(),
 });
+
+// When OpenRouter does not report a cost: a voice note of up to ~1 minute on Gemini Flash.
+const TRANSCRIPTION_FALLBACK_USD = 0.002;
 
 type Media = { kind: "image" | "audio"; id: string; mimeType?: string; url?: string };
 
@@ -102,7 +107,7 @@ function base64(bytes: Uint8Array): string {
 }
 
 /** Fallback when Kapso's automatic transcription is off or did not finish in time. */
-async function transcribe(audio: Blob): Promise<string> {
+async function transcribe(audio: Blob): Promise<{ text: string; costUsd: number }> {
   const key = process.env.OPENROUTER_API_KEY;
 
   if (!key) throw new Error("OPENROUTER_API_KEY missing");
@@ -114,6 +119,7 @@ async function transcribe(audio: Blob): Promise<string> {
     signal: AbortSignal.timeout(60_000),
     body: JSON.stringify({
       model: TRANSCRIPTION_MODEL,
+      usage: { include: true },
       messages: [
         {
           role: "user",
@@ -136,11 +142,12 @@ async function transcribe(audio: Blob): Promise<string> {
   });
 
   if (!response.ok) throw new Error(`transcription failed (${response.status})`);
-  const text = transcriptionSchema.parse(await response.json()).choices[0]!.message.content?.trim();
+  const parsed = transcriptionSchema.parse(await response.json());
+  const text = parsed.choices[0]!.message.content?.trim();
 
   if (!text) throw new Error("empty transcription");
 
-  return text;
+  return { text, costUsd: parsed.usage?.cost ?? TRANSCRIPTION_FALLBACK_USD };
 }
 
 /** Download a WhatsApp turn's images and voice notes, then submit it to Caetano. */
@@ -181,11 +188,13 @@ export const prepareTurn = internalAction({
       }
     }
 
+    let transcriptionUsd = 0;
+
     for (const audio of media.filter((item) => item.kind === "audio")) {
       try {
-        transcripts.push(
-          `[Áudio transcrito] ${await transcribe(await download(audio, MAX_AUDIO_BYTES))}`,
-        );
+        const transcript = await transcribe(await download(audio, MAX_AUDIO_BYTES));
+        transcriptionUsd += transcript.costUsd;
+        transcripts.push(`[Áudio transcrito] ${transcript.text}`);
       } catch (error) {
         console.error("WhatsApp audio transcription failed", { error });
         audioFailures++;
@@ -208,6 +217,7 @@ export const prepareTurn = internalAction({
       uploads,
       notes,
       externalMessageId,
+      transcriptionUsd,
     });
   },
 });

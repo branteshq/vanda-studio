@@ -463,6 +463,13 @@ export const qualifyOpportunity = internalAction({
     if (!source) throw new Error("opportunity source not found");
 
     if (source.opportunity.status === "rejected") return false;
+
+    // Over the plan's limit, opportunities wait instead of running the plan further over.
+    if (
+      !(await ctx.runQuery(internal.usage.budget, { accountId: source.opportunity.accountId })).ok
+    )
+      return false;
+
     await ctx.runMutation(internal.usage.charge, {
       accountId: source.opportunity.accountId,
       kind: "scan",
