@@ -2,8 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
-import { ImageOff } from "lucide-react";
-import { Button } from "@vanda-studio/ui/components/button";
 import { Toggle } from "@vanda-studio/ui/components/toggle";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../../convex/_generated/api";
@@ -79,16 +77,10 @@ function Strip({
     .toSorted((a, b) => a.scheduledFor - b.scheduledFor);
 
   return (
-    <section className="rounded-2xl border border-border bg-surface">
-      <div className="flex items-center gap-3 px-3 pt-4 pb-3 sm:pr-4">
-        {/* He stands out of his circle, a little taller than the strip, so he reads at a glance. */}
-        <span className="relative size-14 shrink-0">
-          <span className="absolute inset-x-0 bottom-0 h-12 rounded-full bg-brand-accent/15" />
-          <CaetanoFigure
-            mood={mood}
-            className="absolute -top-3 left-1/2 size-16 -translate-x-1/2"
-          />
-        </span>
+    <section className="flex items-end gap-4 border-b border-border pl-2">
+      {/* No box: Caetano leans over the calendar's top edge, which this border is. */}
+      <CaetanoFigure mood={mood} className="-mb-px size-24 sm:size-28" />
+      <div className="flex min-w-0 flex-1 flex-wrap items-end gap-x-6 gap-y-2 pb-3">
         <div className="min-w-0 flex-1" role="status" aria-live="polite">
           <p className="text-body font-semibold">Posts automáticos</p>
           <p
@@ -109,36 +101,7 @@ function Strip({
               </button>
             ) : null}
           </p>
-        </div>
-        {overview.enabled ? (
-          <label className="hidden items-center gap-2 border-r border-border pr-4 text-note text-text-3 sm:flex">
-            Pedir aprovação
-            <Toggle
-              checked={overview.approval === "required"}
-              disabled={approval.busy}
-              onCheckedChange={(checked) => approval.apply({ required: checked })}
-            />
-          </label>
-        ) : null}
-        {overview.connected ? (
-          <label className="flex items-center gap-2 pl-1 text-note text-text-3">
-            {overview.enabled ? "Ligado" : "Desligado"}
-            <Toggle
-              checked={overview.enabled}
-              disabled={enabled.busy}
-              onCheckedChange={(checked) => enabled.apply({ enabled: checked })}
-              aria-label="Posts automáticos"
-            />
-          </label>
-        ) : (
-          <Link to="/perfil" className="text-note font-medium underline">
-            Conectar Instagram
-          </Link>
-        )}
-      </div>
-      {waiting.length > 0 ? (
-        <ul className="border-t border-border px-3 py-1.5">
-          {waiting.map((slot) => (
+          {waiting.slice(0, 2).map((slot) => (
             <Waiting
               key={slot.slotId}
               accountId={accountId}
@@ -146,8 +109,40 @@ function Strip({
               onOpen={() => onOpen(slot.slotId)}
             />
           ))}
-        </ul>
-      ) : null}
+          {waiting.length > 2 ? (
+            <p className="text-note text-text-4">
+              e mais {waiting.length - 2} aguardando aprovação no calendário
+            </p>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-4">
+          {overview.enabled ? (
+            <label className="hidden items-center gap-2 text-note text-text-3 sm:flex">
+              Pedir aprovação
+              <Toggle
+                checked={overview.approval === "required"}
+                disabled={approval.busy}
+                onCheckedChange={(checked) => approval.apply({ required: checked })}
+              />
+            </label>
+          ) : null}
+          {overview.connected ? (
+            <label className="flex items-center gap-2 text-note text-text-3">
+              {overview.enabled ? "Ligado" : "Desligado"}
+              <Toggle
+                checked={overview.enabled}
+                disabled={enabled.busy}
+                onCheckedChange={(checked) => enabled.apply({ enabled: checked })}
+                aria-label="Posts automáticos"
+              />
+            </label>
+          ) : (
+            <Link to="/perfil" className="text-note font-medium underline">
+              Conectar Instagram
+            </Link>
+          )}
+        </div>
+      </div>
     </section>
   );
 }
@@ -203,6 +198,7 @@ function useStageWithDone(live: WorkStage | null): WorkStage | null {
   return live ?? (done ? { kind: "done" } : null);
 }
 
+/** A post waiting for the owner: one line under the status, Aprovar inline. */
 function Waiting({
   accountId,
   slot,
@@ -215,32 +211,24 @@ function Waiting({
   const approve = useSetting(useMutation(api.autopilot.approveSlot));
 
   return (
-    <li className="flex items-center gap-3 py-1.5">
+    <p className="mt-1 flex min-w-0 items-center gap-2 text-body-sm">
+      <span className="size-2 shrink-0 rounded-full bg-amber" aria-hidden />
       <button
         type="button"
         onClick={onOpen}
-        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        className="min-w-0 truncate text-left text-text-2 hover:text-text"
         aria-label={`Ver o post de ${slotWhen(slot)}`}
       >
-        <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-inset">
-          {slot.coverUrl ? (
-            <img src={slot.coverUrl} alt="" className="size-full object-cover" />
-          ) : (
-            <ImageOff className="size-3.5 text-text-5" aria-hidden="true" />
-          )}
-        </span>
-        <span className="min-w-0 flex-1 truncate text-note">
-          <span className="font-medium text-text">Aprovar · {slotWhen(slot)}</span>
-          <span className="text-text-3"> “{slot.hook}”</span>
-        </span>
+        <span className="font-medium text-text">{slotWhen(slot)}</span> “{slot.hook}”
       </button>
-      <Button
-        size="sm"
+      <button
+        type="button"
         disabled={approve.busy}
         onClick={() => approve.apply({ accountId, slotId: slot.slotId })}
+        className="shrink-0 font-medium text-brand-accent hover:underline"
       >
         Aprovar
-      </Button>
-    </li>
+      </button>
+    </p>
   );
 }

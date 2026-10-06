@@ -154,7 +154,9 @@ function CalendarioPage() {
             </ActionTooltip>
           </header>
 
-          <AutopilotPanel accountId={activeAccount.id} onOpen={setOpenSlot} />
+          <div className="mt-4">
+            <AutopilotPanel accountId={activeAccount.id} onOpen={setOpenSlot} />
+          </div>
 
           <Agenda
             days={days}
@@ -165,14 +167,15 @@ function CalendarioPage() {
             }
           />
 
-          <div className="mt-6 hidden grid-cols-7 md:grid">
+          <div className="hidden grid-cols-7 overflow-hidden rounded-b-xl border border-t-0 border-border md:grid">
             {WEEKDAYS.map((weekday) => (
-              <div key={weekday} className="px-2 pb-2 text-note text-text-4">
+              <div
+                key={weekday}
+                className="border-b border-border px-2.5 py-2 text-note text-text-4"
+              >
                 {weekday}
               </div>
             ))}
-          </div>
-          <div className="hidden grid-cols-7 overflow-hidden rounded-xl border border-border md:grid">
             {days.map(({ date, key }, index) => (
               <div
                 key={key}
