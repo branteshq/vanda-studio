@@ -218,6 +218,7 @@ const weekView = async (ctx: QueryCtx, accountId: Id<"accounts">, weekStart: num
     label: weekLabel(weekStart),
     status: week?.status ?? null,
     strategy: week?.strategy ?? null,
+    lastError: week?.status === "failed" ? (week.lastError ?? "o planejamento não terminou") : null,
     slots: await Promise.all(
       slots.toSorted((a, b) => a.scheduledFor - b.scheduledFor).map((slot) => slotView(ctx, slot)),
     ),
@@ -274,6 +275,9 @@ export const overviewOf = async (ctx: QueryCtx, accountId: Id<"accounts">, now: 
       .filter((fact) => LEARNED_SECTIONS.has(fact.kind))
       .map((fact) => ({ section: fact.kind, text: fact.text })),
     auditRunning: latest?.status === "running",
+    // The newest diagnosis failed: what the page shows next to "Tentar de novo".
+    auditError:
+      latest?.status === "failed" ? (latest.lastError ?? "a análise da conta não terminou") : null,
     audit: auditView(ready),
     weeks: [
       await weekView(ctx, accountId, current),

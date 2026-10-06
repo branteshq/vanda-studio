@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
@@ -9,6 +9,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { AutopilotOverview, AutopilotSlotView } from "../../convex/autopilotData";
 import { showErrorToast } from "../error-feedback";
+import { CaetanoAtWork, workStage, type WorkStage } from "./caetano-at-work";
 import { formatLabel, slotWhen } from "./format";
 
 /** What Vanda gets when the owner wants to change the days and times. */
@@ -96,15 +97,14 @@ function Enabled({
 }) {
   const enabled = useSetting(useMutation(api.autopilot.setEnabled));
   const approval = useSetting(useMutation(api.autopilot.setApproval));
+  const retry = useSetting(useMutation(api.autopilot.retry));
+  const stage = useStageWithDone(workStage(overview));
   const now = Date.now();
 
   const waiting = overview.weeks
     .flatMap((week) => week.slots)
     .filter((slot) => slot.status === "awaiting_approval" && slot.scheduledFor > now)
     .toSorted((a, b) => a.scheduledFor - b.scheduledFor);
-
-  const planning =
-    overview.auditRunning || overview.weeks.some((week) => week.status === "planning");
 
   return (
     <>
@@ -133,8 +133,14 @@ function Enabled({
         <Link to="/conversa" search={{ rascunho: CADENCE_DRAFT }} className="underline">
           Mudar dias e horários
         </Link>
-        {planning ? " · O Caetano está planejando a semana." : null}
       </p>
+      {stage ? (
+        <CaetanoAtWork
+          stage={stage}
+          retrying={retry.busy}
+          onRetry={() => retry.apply({ accountId })}
+        />
+      ) : null}
       {waiting.length > 0 ? (
         <div className="mt-4">
           <h3 className="text-note font-medium text-text-3">Precisa da sua aprovação</h3>
@@ -155,6 +161,30 @@ function Enabled({
       </p>
     </>
   );
+}
+
+const STARTING = new Set<WorkStage["kind"]>(["analyzing", "planning"]);
+
+/**
+ * The live stage, plus a short "done" when the owner watched the start finish:
+ * Caetano celebrates for a moment instead of silently disappearing.
+ */
+function useStageWithDone(live: WorkStage | null): WorkStage | null {
+  const previous = useRef(live?.kind);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    const finished = previous.current !== undefined && STARTING.has(previous.current) && !live;
+    previous.current = live?.kind;
+
+    if (!finished) return;
+    setDone(true);
+    const timer = setTimeout(() => setDone(false), 5000);
+
+    return () => clearTimeout(timer);
+  }, [live?.kind]);
+
+  return live ?? (done ? { kind: "done" } : null);
 }
 
 function Waiting({

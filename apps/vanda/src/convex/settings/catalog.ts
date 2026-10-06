@@ -54,6 +54,7 @@ export const NON_SETTING_UI_FUNCTIONS = [
   "calendar.range",
   // Autopilot posts are content, not settings: the agents change them with autopilot_* tools.
   "autopilot.slot",
+  "autopilot.retry",
   "autopilot.skipSlot",
   "autopilot.restoreSlot",
   "autopilot.approveSlot",

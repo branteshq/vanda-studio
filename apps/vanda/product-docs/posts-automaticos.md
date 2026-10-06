@@ -28,7 +28,7 @@ Os posts do Caetano aparecem no próprio calendário com a etiqueta **Caetano**,
 
 Peça na conversa ("cuida dos meus posts toda semana"), ao Caetano no WhatsApp, ou use o botão **Posts automáticos** no Calendário.
 
-Ao ligar, o Caetano analisa a conta e planeja o resto desta semana e a próxima; os posts aparecem no Calendário em alguns minutos. Ao pausar, as publicações pendentes ficam suspensas, inclusive as que esperam sua aprovação, e nada novo é planejado. Ao ligar de novo, os posts suspensos voltam e a semana é replanejada.
+Ao ligar, o Caetano analisa a conta e planeja o resto desta semana e a próxima; os posts aparecem no Calendário em alguns minutos. Enquanto isso, o painel mostra o Caetano trabalhando, passo a passo: analisando a conta, planejando a semana e, depois, criando cada post. Se algo der errado, ele diz o motivo e oferece **Tentar de novo**. Ao pausar, as publicações pendentes ficam suspensas, inclusive as que esperam sua aprovação, e nada novo é planejado. Ao ligar de novo, os posts suspensos voltam e a semana é replanejada.
 
 Os posts automáticos precisam do Instagram conectado. Veja [Conexões](/docs/conexoes).
 

@@ -445,12 +445,89 @@
   animation: vanda-title-in 0.5s var(--ease-out) both;
 }
 
+/* Caetano at work (Posts automáticos): he reads (a slow bob with a tilt),
+ * plans (a quicker nod), walks to make the post (a sway) and hops when done.
+ * Frames swap underneath by crossfade; these only move the figure. */
+@keyframes caetano-read {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-3px) rotate(2deg);
+  }
+}
+@keyframes caetano-nod {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-4px);
+  }
+  60% {
+    transform: translateY(1px);
+  }
+}
+@keyframes caetano-walk {
+  0%,
+  100% {
+    transform: translateX(-3px) rotate(-3deg);
+  }
+  50% {
+    transform: translateX(3px) rotate(3deg);
+  }
+}
+@keyframes caetano-hop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  35% {
+    transform: translateY(-10px) scale(1.04);
+  }
+  60% {
+    transform: translateY(0) scale(0.98, 1.02);
+  }
+}
+/* Three dots after "trabalhando": each fades in turn. */
+@keyframes caetano-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+.animate-caetano-read {
+  animation: caetano-read 2.4s ease-in-out infinite;
+}
+.animate-caetano-nod {
+  animation: caetano-nod 1.2s ease-in-out infinite;
+}
+.animate-caetano-walk {
+  animation: caetano-walk 0.9s ease-in-out infinite;
+}
+.animate-caetano-hop {
+  animation: caetano-hop 0.7s var(--ease-out) 2;
+}
+.animate-caetano-dot {
+  animation: caetano-dot 1.2s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-message-in,
   .animate-attachment-in,
   .animate-card-in,
   .animate-canvas-in,
-  .animate-title-in {
+  .animate-title-in,
+  .animate-caetano-read,
+  .animate-caetano-nod,
+  .animate-caetano-walk,
+  .animate-caetano-hop,
+  .animate-caetano-dot {
     animation: none;
   }
   /* Keep the crossfade for comprehension; drop the movement. */

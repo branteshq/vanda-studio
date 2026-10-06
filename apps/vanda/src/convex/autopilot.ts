@@ -7,6 +7,7 @@ import {
   applyRestore,
   applySkip,
   overviewOf,
+  requestRefresh,
   slotView,
   type AutopilotSlotView,
   type AutopilotOverview,
@@ -52,6 +53,15 @@ export const setApproval = mutation({
       "autopilot.approval",
       required ? "pedir aceite" : "publicar sem aceite",
     );
+  },
+});
+
+/** "Tentar de novo" after a failed start: a fresh diagnosis, then the weeks replanned. */
+export const retry = mutation({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }): Promise<void> => {
+    await requireOwnedAccount(ctx, accountId);
+    await requestRefresh(ctx, accountId, true);
   },
 });
 

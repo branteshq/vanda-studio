@@ -8,6 +8,7 @@ import { Tag } from "@vanda-studio/ui/components/tag";
 import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { useActiveAccount } from "../components/active-account";
+import { workStage } from "../components/autopilot/caetano-at-work";
 import { AutopilotPanel } from "../components/autopilot/panel";
 import { AutopilotPostDialogById } from "../components/autopilot/post-dialog";
 import { PostPreviewDialog } from "../components/post-preview";
@@ -51,6 +52,14 @@ function CalendarioPage() {
 
   const monthStart = cursor.getTime();
   const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1).getTime();
+
+  const overview = useQuery(
+    api.autopilot.overview,
+    activeAccount ? { accountId: activeAccount.id } : "skip",
+  );
+
+  const stage = overview ? workStage(overview)?.kind : undefined;
+  const starting = stage === "analyzing" || stage === "planning";
 
   const items = useQuery(
     api.calendar.range,
@@ -141,9 +150,13 @@ function CalendarioPage() {
             <div className="flex size-14 items-center justify-center rounded-2xl border border-border bg-surface text-text-4 shadow-sm">
               <CalendarDays className="size-5" />
             </div>
-            <h2 className="mt-4 text-base font-semibold text-text">Nada agendado neste mês</h2>
+            <h2 className="mt-4 text-base font-semibold text-text">
+              {starting ? "O Caetano está planejando seus posts" : "Nada agendado neste mês"}
+            </h2>
             <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-text-4">
-              Os posts agendados na conversa e os do Caetano aparecem aqui.
+              {starting
+                ? "Eles aparecem aqui em alguns minutos, assim que a semana estiver planejada."
+                : "Os posts agendados na conversa e os do Caetano aparecem aqui."}
             </p>
           </div>
         ) : (
