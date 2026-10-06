@@ -35,6 +35,8 @@ Cada item termina com a origem, e ela decide quem pode mudá-lo:
 
 Sem você precisar pedir, ela atualiza o arquivo quando você afirma uma preferência ou um fato do negócio, quando você corrige ou rejeita algo que ela fez, e quando os resultados confirmam ou contrariam algo. Conversas e tarefas pontuais não vão para o arquivo.
 
+Nos [posts automáticos](/docs/posts-automaticos), quando você recusa um post e diz que o motivo vale para todos, o Caetano anota em Preferências ou Nunca fazer com a origem (dono). O planejamento e a criação dos próximos posts seguem o arquivo.
+
 O arquivo tem um limite de tamanho para caber em toda conversa. Planos e documentos longos ficam em notas separadas, que a Vanda consulta quando precisa.
 
 ## Identidade visual
