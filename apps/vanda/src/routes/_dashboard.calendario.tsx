@@ -123,7 +123,7 @@ function CalendarioPage() {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <main className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-8">
         <div className="mx-auto w-full max-w-5xl">
-          <header className="mb-5 flex items-center gap-2">
+          <header className="mb-2 flex items-center gap-2">
             <h1 className="mr-auto text-xl font-semibold tracking-tight">{monthTitle(cursor)}</h1>
             <Button
               variant="ghost"
@@ -154,7 +154,7 @@ function CalendarioPage() {
             </ActionTooltip>
           </header>
 
-          <div className="mt-4">
+          <div className="mt-1">
             <AutopilotPanel accountId={activeAccount.id} onOpen={setOpenSlot} />
           </div>
 

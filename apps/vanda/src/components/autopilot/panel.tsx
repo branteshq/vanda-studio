@@ -79,8 +79,8 @@ function Strip({
   return (
     <section className="flex items-end gap-4 border-b border-border pl-2">
       {/* No box: Caetano leans over the calendar's top edge, which this border is. */}
-      <CaetanoFigure mood={mood} className="-mb-px size-24 sm:size-28" />
-      <div className="flex min-w-0 flex-1 flex-wrap items-end gap-x-6 gap-y-2 pb-3">
+      <CaetanoFigure mood={mood} className="-mb-px size-16 sm:size-18" />
+      <div className="flex min-w-0 flex-1 flex-wrap items-end gap-x-6 gap-y-2 pb-2.5">
         <div className="min-w-0 flex-1" role="status" aria-live="polite">
           <p className="text-body font-semibold">Posts automáticos</p>
           <p
