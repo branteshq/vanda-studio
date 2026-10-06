@@ -13,16 +13,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # The same revision is validated and deployed to dev first; production only after it succeeded.
-  staging:
-    name: Deploy to staging
-    uses: ./.github/workflows/deploy-staging.yml
-    with:
-      ref: ${{ github.sha }}
-    secrets: inherit
+  # Lint, typecheck, tests and build of this revision; production deploys only after they pass.
+  validate:
+    name: Validate
+    uses: ./.github/workflows/ci.yml
 
   deploy:
-    needs: staging
+    needs: validate
     # macOS, deliberately: the pinned nitro beta assigns react to server
     # chunks nondeterministically on linux, yielding two react copies and a
     # broken SSR bundle (null hook dispatcher). macOS builds have been

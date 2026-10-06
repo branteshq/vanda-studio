@@ -24,7 +24,8 @@ Vanda and Caetano know and change the platform through one registry, and explain
 
 ## Data Migrations and Deploys
 
-- A push to `main` validates and deploys the revision to dev (Convex dev, staging site) and only then to production.
+- A push to `main` validates the revision (lint, typecheck, tests, build) and then deploys it to production. There is no staging.
+- Develop against your own Convex dev deployment (`npx convex dev`, see `docs/development.md`). Never deploy local code to another person's deployment or with a shared key.
 - Data migrations live in `apps/vanda/src/convex/migrations.ts`: write an idempotent page mutation and append it to `MIGRATIONS`. Each deploy runs `migrations:runAll`, which runs every migration not yet recorded in `migrationRuns` for that deployment. Do not add per-migration CI steps.
 
 ## Version Control (Jujutsu)
@@ -52,7 +53,7 @@ jj log                       # view history
 
 ### Convex production access
 
-The normal `CONVEX_DEPLOY_KEY` targets development.
+Local commands use your personal dev deployment from `apps/vanda/.env.local` (`CONVEX_DEPLOYMENT=dev:…`); do not set `CONVEX_DEPLOY_KEY` locally.
 
 For read-only production diagnostics, run Convex commands with:
 
