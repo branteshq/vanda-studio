@@ -112,7 +112,13 @@ function Strip({
         type="button"
         onClick={poke}
         disabled={!overview.connected || enabled.busy}
-        title={asleep ? "Acordar o Caetano" : undefined}
+        title={
+          asleep
+            ? "Acordar o Caetano"
+            : overview.enabled
+              ? "Para desligar, toque em pausar"
+              : undefined
+        }
         aria-label={
           asleep ? "Acordar o Caetano e ligar os posts automáticos" : "Caetano, posts automáticos"
         }
@@ -144,6 +150,19 @@ function Strip({
             >
               Tentar de novo
             </button>
+          ) : null}
+          {stage?.kind === "failed" ? (
+            <>
+              {" "}
+              ·{" "}
+              <button
+                type="button"
+                className={linkClass}
+                onClick={() => enabled.apply({ enabled: false })}
+              >
+                pausar
+              </button>
+            </>
           ) : null}
         </p>
         {waiting.slice(0, 2).map((slot) => (
@@ -220,6 +239,17 @@ function StatusLine({
       </>
     );
 
+  // Whatever he is doing, he can always be put back to sleep.
+  const pause = (
+    <>
+      {" "}
+      ·{" "}
+      <button type="button" className={linkClass} onClick={onPause}>
+        pausar
+      </button>
+    </>
+  );
+
   if (stage) {
     const working = stage.kind !== "done" && stage.kind !== "failed";
 
@@ -227,6 +257,7 @@ function StatusLine({
       <>
         {stageLine(stage)}
         {working ? <Dots /> : null}
+        {stage.kind === "failed" ? null : pause}
       </>
     );
   }
@@ -250,11 +281,8 @@ function StatusLine({
       ·{" "}
       <Link to="/conversa" search={{ rascunho: CADENCE_DRAFT }} className={linkClass}>
         mudar
-      </Link>{" "}
-      ·{" "}
-      <button type="button" className={linkClass} onClick={onPause}>
-        pausar
-      </button>
+      </Link>
+      {pause}
     </>
   );
 }

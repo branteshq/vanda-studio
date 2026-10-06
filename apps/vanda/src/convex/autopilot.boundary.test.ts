@@ -682,6 +682,24 @@ describe("autopilot approval cannot be bypassed", () => {
   });
 });
 
+describe("autopilot paused mid-work", () => {
+  it("keeps a plan that lands after a pause paused, and restores it on resume", async () => {
+    const { t, accountId, plan, slots } = await setup();
+
+    await t.mutation(internal.autopilotData.setEnabledInternal, { accountId, enabled: false });
+    await plan(NEXT_WEEK);
+
+    const saved = await slots();
+
+    expect(saved.length).toBeGreaterThan(0);
+    expect(saved.every((slot) => slot.status === "skipped")).toBe(true);
+
+    await t.mutation(internal.autopilotData.setEnabledInternal, { accountId, enabled: true });
+
+    expect((await slots()).every((slot) => slot.status === "planned")).toBe(true);
+  });
+});
+
 describe("autopilot settings", () => {
   it("lets the agents turn it off and rewrite the cadence through settings_set", async () => {
     const { t, accountId } = await setup();

@@ -1138,6 +1138,9 @@ const applyPlan = async (
   }
 
   let created = 0;
+  // A plan that lands after the owner paused (the job was already running) waits paused too;
+  // turning posts automáticos back on restores it like any other paused post.
+  const paused = !(await getConfig(ctx, accountId))?.enabled;
 
   for (const entry of entries) {
     if (kept.some((slot) => sameSlot(slot, entry))) continue;
@@ -1158,7 +1161,7 @@ const applyPlan = async (
       hook: entry.hook,
       slideOutline: entry.slideOutline,
       captionBrief: entry.captionBrief,
-      status: "planned",
+      status: paused ? "skipped" : "planned",
       ownerEdited: false,
       attempts: 0,
       createdAt: now,
@@ -1166,7 +1169,9 @@ const applyPlan = async (
     });
 
     created += 1;
-    await produceIfDue(ctx, slotId, scheduledFor);
+
+    if (paused) await ctx.db.patch(slotId, { lastError: PAUSED });
+    else await produceIfDue(ctx, slotId, scheduledFor);
   }
 
   return { weekId: week._id, created };
