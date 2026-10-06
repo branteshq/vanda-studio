@@ -18,6 +18,17 @@ export type AgentCtx = {
   autopilotJob?: AutopilotJob | undefined;
 };
 
+/**
+ * Owner-only actions refuse inside Caetano's posts automáticos work turns: no
+ * owner asked for them there, and approval must stay the owner's decision.
+ */
+export const requireOwnerTurn = (ctx: AgentCtx): void => {
+  if (ctx.autopilotJob)
+    throw new Error(
+      "só o dono decide isso: num trabalho dos posts automáticos, crie o post e deixe agendar, aprovar e mudar configurações para o dono",
+    );
+};
+
 export const agentOwner = async (ctx: ToolCtx & AgentCtx): Promise<Id<"users">> => {
   if (ctx.ownerUserId) return ctx.ownerUserId;
 

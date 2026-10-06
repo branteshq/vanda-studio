@@ -200,12 +200,15 @@ export const schedulePostIn = async (
     scheduledFor,
     originThreadId,
     caetanoThreadId,
+    autopilot,
   }: {
     accountId: Id<"accounts">;
     postId: Id<"posts">;
     scheduledFor?: number | undefined;
     originThreadId?: string | undefined;
     caetanoThreadId?: string | undefined;
+    /** Only the posts automáticos lifecycle arms its own posts (after approval). */
+    autopilot?: true | undefined;
   },
 ): Promise<{
   scheduledPostId: Id<"scheduledPosts">;
@@ -215,6 +218,11 @@ export const schedulePostIn = async (
   const post = await ctx.db.get(postId);
 
   if (post === null || post.accountId !== accountId) throw new Error("post não encontrado");
+
+  if (post.autopilotSlotId && !autopilot)
+    throw new Error(
+      "esse post é dos posts automáticos: ele é agendado quando o dono aprova (autopilot_approve_slot) ou pela página Posts automáticos",
+    );
 
   if (post.type === "story") {
     throw new Error(
@@ -297,7 +305,11 @@ export const schedulePostInternal = internalMutation({
 /** Disarm a pending schedule — the safe direction, back to draft. */
 export const cancelScheduleIn = async (
   ctx: MutationCtx,
-  { accountId, postId }: { accountId: Id<"accounts">; postId: Id<"posts"> },
+  {
+    accountId,
+    postId,
+    autopilot,
+  }: { accountId: Id<"accounts">; postId: Id<"posts">; autopilot?: true | undefined },
 ): Promise<void> => {
   const post = await ctx.db.get(postId);
 
@@ -317,6 +329,29 @@ export const cancelScheduleIn = async (
   if (scheduled.scheduledJobId !== undefined) await ctx.scheduler.cancel(scheduled.scheduledJobId);
   await ctx.db.delete(scheduled._id);
   await ctx.db.patch(postId, { status: "draft" });
+
+  // Cancelled from outside the posts automáticos flow: it goes back to waiting for approval.
+  if (!autopilot) await syncAutopilotSlot(ctx, post, "awaiting_approval");
+};
+
+/** Keep an autopilot slot true to its post when generic post tools change the post. */
+const syncAutopilotSlot = async (
+  ctx: MutationCtx,
+  post: Doc<"posts">,
+  next: "awaiting_approval" | "skipped",
+): Promise<void> => {
+  const slot = post.autopilotSlotId ? await ctx.db.get(post.autopilotSlotId) : null;
+
+  if (!slot || slot.postId !== post._id || slot.status === "published") return;
+
+  if (next === "skipped")
+    await ctx.db.patch(slot._id, {
+      status: next,
+      postId: undefined,
+      ownerEdited: true,
+      updatedAt: Date.now(),
+    });
+  else await ctx.db.patch(slot._id, { status: next, updatedAt: Date.now() });
 };
 
 export const cancelScheduleInternal = internalMutation({
@@ -351,6 +386,7 @@ const deletePostForAccount = async (
     throw new Error("post publicado não pode ser apagado");
   }
 
+  await syncAutopilotSlot(ctx, post, "skipped");
   // The images stay in the gallery — only the post assembly goes away.
   await ctx.db.delete(postId);
 };

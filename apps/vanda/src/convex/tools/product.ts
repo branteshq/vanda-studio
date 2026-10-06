@@ -2,7 +2,7 @@ import { createTool, type ToolCtx } from "@convex-dev/agent";
 import { z } from "zod";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { agentIdentity, agentOwner, type AgentCtx } from "../agentContext";
+import { agentIdentity, agentOwner, requireOwnerTurn, type AgentCtx } from "../agentContext";
 import { recordCapabilityResult } from "../capabilityTools";
 import { capabilityResult, capabilityResultSchema, type ThreadResource } from "../resourceRefs";
 import { findSetting } from "../settings/catalog";
@@ -113,6 +113,8 @@ export const productTools = {
     inputSchema: z.object({ id: z.string(), value: z.string() }),
     outputSchema: capabilityResultSchema,
     execute: async (ctx: ProductCtx, { id, value }, options): Promise<CapabilityOutput> => {
+      requireOwnerTurn(ctx);
+
       const result = await ctx.runMutation(internal.settingsData.set, {
         userId: await agentOwner(ctx),
         id,

@@ -15,7 +15,7 @@ import { productTools } from "./tools/product";
 import { autopilotDiscovery, autopilotTools } from "./tools/autopilot";
 import * as WebToolFactory from "./tools/web";
 import { webResultSchema, type WebResult } from "./web";
-import { agentAccount, type AgentCtx } from "./agentContext";
+import { agentAccount, requireOwnerTurn, type AgentCtx } from "./agentContext";
 import type { AgentActivityId } from "./agentActivity";
 import { productHelp } from "./productHelp";
 import { compactInstagramHistory } from "./instagram/toolSummary";
@@ -568,6 +568,7 @@ const schedulePost = createTool({
     { postId, scheduledFor }: { postId: string; scheduledFor?: string | undefined },
     options,
   ): Promise<CapabilityOutput> => {
+    requireOwnerTurn(ctx);
     const accountId = await agentAccount(ctx);
     const at = scheduledFor ? Date.parse(scheduledFor) : undefined;
 
@@ -622,6 +623,7 @@ const cancelSchedule = createTool({
     { postId }: { postId: string },
     options,
   ): Promise<CapabilityOutput> => {
+    requireOwnerTurn(ctx);
     const accountId = await agentAccount(ctx);
     // SAFETY: postId came through the postId tool schema and is consumed only as a Convex post id.
     const typedPostId = postId as Id<"posts">;
@@ -662,6 +664,7 @@ const deletePost = createTool({
     { postId }: { postId: string },
     options,
   ): Promise<CapabilityOutput> => {
+    requireOwnerTurn(ctx);
     const accountId = await agentAccount(ctx);
     // SAFETY: postId came through the postId tool schema and is consumed only as a Convex post id.
     const typedPostId = postId as Id<"posts">;

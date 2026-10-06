@@ -4,6 +4,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { applyApprovalMode } from "./autopilotData";
 import { saveBrandFile } from "./brandFile";
 import { listPath } from "./workspace";
 import schema from "./schema";
@@ -542,6 +543,115 @@ describe("autopilot approval and learning", () => {
     await t.mutation(internal.autopilotData.expireStale, { now: tuesday.scheduledFor });
 
     expect((await t.run((ctx) => ctx.db.get(tuesday._id)))?.status).toBe("skipped");
+  });
+});
+
+describe("autopilot approval cannot be bypassed", () => {
+  const requireApproval = (t: Awaited<ReturnType<typeof setup>>["t"], accountId: Id<"accounts">) =>
+    t.run((ctx) => applyApprovalMode(ctx, accountId, "required"));
+
+  const awaiting = async () => {
+    const env = await setup();
+    await env.t.run(async (ctx) => {
+      const config = await ctx.db
+        .query("autopilotConfigs")
+        .withIndex("by_account", (q) => q.eq("accountId", env.accountId))
+        .unique();
+
+      await ctx.db.patch(config!._id, { approval: "required" });
+    });
+    await env.plan(NEXT_WEEK);
+    const tuesday = (await env.slots()).toSorted((a, b) => a.scheduledFor - b.scheduledFor)[0]!;
+
+    vi.setSystemTime(tuesday.scheduledFor - 20 * 3_600_000);
+    const { postId, status } = await env.produce(tuesday._id);
+
+    expect(status).toBe("awaiting_approval");
+
+    return { ...env, tuesday, postId };
+  };
+
+  it("restoring a skipped, unapproved post puts it back up for approval", async () => {
+    const { t, accountId, tuesday, postId } = await awaiting();
+    const owner = t.withIdentity({ subject: "me" });
+
+    await owner.mutation(api.autopilot.skipSlot, { accountId, slotId: tuesday._id });
+
+    const status = await owner.mutation(api.autopilot.restoreSlot, {
+      accountId,
+      slotId: tuesday._id,
+    });
+
+    expect(status).toBe("awaiting_approval");
+    expect((await t.run((ctx) => ctx.db.get(postId)))?.status).toBe("draft");
+  });
+
+  it("generic scheduling refuses an autopilot post", async () => {
+    const { t, accountId, postId } = await awaiting();
+
+    await expect(
+      t.mutation(internal.posts.schedulePostInternal, { accountId, postId }),
+    ).rejects.toThrow(/posts automáticos/);
+  });
+
+  it("the publisher holds an autopilot post whose slot is not armed", async () => {
+    const { t, accountId, tuesday, postId } = await awaiting();
+
+    // A schedule row that got there some other way, while the slot still waits for approval.
+    const scheduledPostId = await t.run(async (ctx) => {
+      await ctx.db.patch(postId, { status: "scheduled" });
+
+      return ctx.db.insert("scheduledPosts", {
+        accountId,
+        postId,
+        scheduledFor: tuesday.scheduledFor,
+        status: "scheduled",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+    });
+
+    expect(await t.mutation(internal.publishScheduled.holdUnapproved, { scheduledPostId })).toBe(
+      true,
+    );
+    expect(await t.run((ctx) => ctx.db.get(scheduledPostId))).toBeNull();
+    expect((await t.run((ctx) => ctx.db.get(postId)))?.status).toBe("draft");
+  });
+
+  it("deleting or cancelling through generic post tools keeps the slot true", async () => {
+    const { t, accountId, tuesday, postId } = await awaiting();
+
+    await t.withIdentity({ subject: "me" }).mutation(api.autopilot.approveSlot, {
+      accountId,
+      slotId: tuesday._id,
+    });
+    await t.mutation(internal.posts.cancelScheduleInternal, { accountId, postId });
+    expect((await t.run((ctx) => ctx.db.get(tuesday._id)))?.status).toBe("awaiting_approval");
+
+    await t.mutation(internal.posts.deletePostInternal, { accountId, postId });
+    const slot = await t.run((ctx) => ctx.db.get(tuesday._id));
+
+    expect(slot?.status).toBe("skipped");
+    expect(slot?.postId).toBeUndefined();
+    // Pausing afterwards no longer trips over the missing post.
+    await t.mutation(internal.autopilotData.setEnabledInternal, { accountId, enabled: false });
+  });
+
+  it("turning approval on holds posts that were armed without it", async () => {
+    const { t, accountId, plan, slots, produce } = await setup();
+
+    await plan(NEXT_WEEK);
+    const tuesday = (await slots()).toSorted((a, b) => a.scheduledFor - b.scheduledFor)[0]!;
+
+    vi.setSystemTime(tuesday.scheduledFor - 20 * 3_600_000);
+    const { postId, status } = await produce(tuesday._id);
+
+    expect(status).toBe("scheduled");
+
+    await requireApproval(t, accountId);
+
+    expect((await t.run((ctx) => ctx.db.get(tuesday._id)))?.status).toBe("awaiting_approval");
+    expect((await t.run((ctx) => ctx.db.get(postId)))?.status).toBe("draft");
   });
 });
 

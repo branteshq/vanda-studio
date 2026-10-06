@@ -316,11 +316,41 @@ const assertOwnedSlot = async (
   return slot;
 };
 
-/** Disarms a scheduled autopilot post; the draft stays linked to its slot. */
+/**
+ * Disarms a scheduled autopilot post; the draft stays linked to its slot. A
+ * schedule that is already gone (deleted or cancelled elsewhere) is fine; one
+ * already publishing cannot be stopped and says so.
+ */
 const disarm = async (ctx: MutationCtx, slot: Doc<"autopilotSlots">): Promise<void> => {
   if (!slot.postId || slot.status !== "scheduled") return;
 
-  await cancelScheduleIn(ctx, { accountId: slot.accountId, postId: slot.postId });
+  const post = await ctx.db.get(slot.postId);
+
+  const scheduled = post
+    ? await ctx.db
+        .query("scheduledPosts")
+        .withIndex("by_post", (q) => q.eq("postId", post._id))
+        .first()
+    : null;
+
+  if (!scheduled) return;
+
+  if (scheduled.status !== "scheduled")
+    throw new Error("esse post já está sendo publicado; não dá mais para segurar");
+
+  await cancelScheduleIn(ctx, { accountId: slot.accountId, postId: slot.postId, autopilot: true });
+};
+
+/** Whether the owner approved this slot's current post (approval mode on). */
+const ownerApproved = async (ctx: QueryCtx, slot: Doc<"autopilotSlots">): Promise<boolean> => {
+  const decisions = await ctx.db
+    .query("autopilotFeedback")
+    .withIndex("by_slot", (q) => q.eq("slotId", slot._id))
+    .collect();
+
+  return decisions.some(
+    (decision) => decision.decision === "approved" && decision.postId === slot.postId,
+  );
 };
 
 /** Starts production right away when the slot is already inside the 24h window. */
@@ -459,7 +489,7 @@ export const applySlotChange = async (
       return status;
     }
   } else if (scheduledFor !== slot.scheduledFor && slot.postId && slot.status === "scheduled") {
-    await schedulePostIn(ctx, { accountId, postId: slot.postId, scheduledFor });
+    await schedulePostIn(ctx, { accountId, postId: slot.postId, scheduledFor, autopilot: true });
   } else if (slot.status === "failed") {
     status = "planned";
     await ctx.db.patch(slotId, { status, attempts: 0, lastError: undefined });
@@ -497,7 +527,20 @@ export const applyRestore = async (
     throw new Error("o horário desse post já passou");
 
   if (slot.postId) {
-    await schedulePostIn(ctx, { accountId, postId: slot.postId, scheduledFor: slot.scheduledFor });
+    // Restoring is not approving: an unapproved post goes back to waiting for the owner.
+    if ((await approvalRequired(ctx, accountId)) && !(await ownerApproved(ctx, slot))) {
+      await ctx.db.patch(slotId, { status: "awaiting_approval", updatedAt: Date.now() });
+      await ctx.scheduler.runAfter(0, internal.autopilotChat.notifyProduced, { slotId });
+
+      return "awaiting_approval";
+    }
+
+    await schedulePostIn(ctx, {
+      accountId,
+      postId: slot.postId,
+      scheduledFor: slot.scheduledFor,
+      autopilot: true,
+    });
     await ctx.db.patch(slotId, { status: "scheduled", updatedAt: Date.now() });
 
     return "scheduled";
@@ -734,6 +777,24 @@ export const applyApprovalMode = async (
   const config = await ensureConfig(ctx, accountId);
 
   await ctx.db.patch(config._id, { approval, updatedAt: Date.now() });
+
+  if (approval !== "required") return;
+
+  // Turning approval on holds what was armed without it: those posts wait for the owner too.
+  const armed = await ctx.db
+    .query("autopilotSlots")
+    .withIndex("by_account_scheduledFor", (q) =>
+      q.eq("accountId", accountId).gt("scheduledFor", Date.now()),
+    )
+    .collect();
+
+  for (const slot of armed) {
+    if (slot.status !== "scheduled" || (await ownerApproved(ctx, slot))) continue;
+
+    await disarm(ctx, slot);
+    await ctx.db.patch(slot._id, { status: "awaiting_approval", updatedAt: Date.now() });
+    await ctx.scheduler.runAfter(0, internal.autopilotChat.notifyProduced, { slotId: slot._id });
+  }
 };
 
 /** Brand file sections where the owner's taste is written (marca.md). */
@@ -767,7 +828,12 @@ export const applyApprove = async (
 
   if (slot.scheduledFor <= Date.now() + MINUTE) throw new Error("o horário desse post já passou");
 
-  await schedulePostIn(ctx, { accountId, postId: slot.postId, scheduledFor: slot.scheduledFor });
+  await schedulePostIn(ctx, {
+    accountId,
+    postId: slot.postId,
+    scheduledFor: slot.scheduledFor,
+    autopilot: true,
+  });
   await ctx.db.patch(slotId, { status: "scheduled", lastError: undefined, updatedAt: Date.now() });
   await ctx.db.insert("autopilotFeedback", {
     accountId,
@@ -1209,6 +1275,7 @@ const finishProduction = async (
     accountId: slot.accountId,
     postId,
     scheduledFor: slot.scheduledFor,
+    autopilot: true,
   });
   await ctx.db.patch(slotId, {
     status: "scheduled",

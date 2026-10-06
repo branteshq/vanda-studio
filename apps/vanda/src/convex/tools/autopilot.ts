@@ -2,7 +2,7 @@ import { createTool, type ToolCtx } from "@convex-dev/agent";
 import { z } from "zod";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { agentAccount, type AgentCtx } from "../agentContext";
+import { agentAccount, requireOwnerTurn, type AgentCtx } from "../agentContext";
 import { MAX_WEEKLY_POSTS, autopilotPostTypes, type AutopilotJob } from "../autopilotModel";
 import { definedOnly, formatHour, purposeLabels, slidesLabel } from "../pipeline/autopilot";
 import { renderAuditSummary } from "../pipeline/autopilotAgent";
@@ -290,6 +290,7 @@ export const autopilotTools = {
       { slotId, ...change },
       options,
     ): Promise<CapabilityOutput> => {
+      requireOwnerTurn(ctx);
       const accountId = await agentAccount(ctx);
 
       const status = await ctx.runMutation(internal.autopilotData.updateSlotInternal, {
@@ -309,6 +310,7 @@ export const autopilotTools = {
     inputSchema: z.object({ slotId: slotIdInput, restore: z.boolean().optional() }),
     outputSchema: capabilityResultSchema,
     execute: async (ctx: AutopilotCtx, { slotId, restore }, options): Promise<CapabilityOutput> => {
+      requireOwnerTurn(ctx);
       const accountId = await agentAccount(ctx);
       // SAFETY: the mutations check the slot belongs to this account.
       const args = { accountId, slotId: slotId as Id<"autopilotSlots"> };
@@ -324,6 +326,7 @@ export const autopilotTools = {
     inputSchema: z.object({ slotId: slotIdInput }),
     outputSchema: capabilityResultSchema,
     execute: async (ctx: AutopilotCtx, { slotId }, options): Promise<CapabilityOutput> => {
+      requireOwnerTurn(ctx);
       const accountId = await agentAccount(ctx);
 
       await ctx.runMutation(internal.autopilotData.approveSlotInternal, {
@@ -352,6 +355,7 @@ export const autopilotTools = {
       { slotId, reason, scope },
       options,
     ): Promise<CapabilityOutput> => {
+      requireOwnerTurn(ctx);
       const accountId = await agentAccount(ctx);
 
       const status = await ctx.runMutation(internal.autopilotData.rejectSlotInternal, {
@@ -374,6 +378,7 @@ export const autopilotTools = {
     inputSchema: z.object({ slotId: slotIdInput }),
     outputSchema: capabilityResultSchema,
     execute: async (ctx: AutopilotCtx, { slotId }, options): Promise<CapabilityOutput> => {
+      requireOwnerTurn(ctx);
       const accountId = await agentAccount(ctx);
 
       await ctx.runMutation(internal.autopilotData.regenerateSlotInternal, {
@@ -390,6 +395,7 @@ export const autopilotTools = {
     inputSchema: z.object({}),
     outputSchema: capabilityResultSchema,
     execute: async (ctx: AutopilotCtx, _args, options): Promise<CapabilityOutput> => {
+      requireOwnerTurn(ctx);
       const accountId = await agentAccount(ctx);
 
       await ctx.runMutation(internal.autopilotData.reanalyzeInternal, { accountId });
