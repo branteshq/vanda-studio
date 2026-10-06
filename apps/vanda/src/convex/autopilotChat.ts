@@ -120,7 +120,7 @@ export const announcePlan = internalMutation({
       ctx,
       accountId,
       `autopilot:${accountId}:${weekStart}`,
-      `${intro} Cada post é gerado cerca de ${PRODUCE_AHEAD_LABEL} antes${approval ? " e espera o seu aceite para publicar" : " e publica sozinho; você pode editar ou pular até lá"}. Veja em Posts automáticos.`,
+      `${intro} Cada post é gerado cerca de ${PRODUCE_AHEAD_LABEL} antes${approval ? " e espera o seu aceite para publicar" : " e publica sozinho; você pode editar ou pular até lá"}. Veja no Calendário.`,
       [],
     );
 

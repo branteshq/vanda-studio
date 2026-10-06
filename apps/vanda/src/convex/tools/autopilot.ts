@@ -135,9 +135,9 @@ const report = async (
           })),
         whatsapp: renderScheduleText(overview),
         plan: renderPlanMarkdown(overview),
-        page: "/posts-automaticos",
+        page: "/calendario",
       },
-      // No chat card: the planning card on Posts automáticos is the one place the week shows.
+      // No chat card: the Calendário (with its Posts automáticos panel) is where the week shows.
     ),
   );
 };
@@ -145,7 +145,7 @@ const report = async (
 export const autopilotTools = {
   autopilot_read: createTool({
     description:
-      "Mostra os posts automáticos de feed que o Caetano cuida: se está ligado, a cadência da semana (ligado e cadência são as configurações autopilot.enabled e autopilot.cadence, de settings_set), a programação desta semana e da próxima (cada post com slotId, dia, horário, formato, slides, propósito, gancho e estado) e, com includeAudit, o diagnóstico da conta. No WhatsApp, responda com o texto de `whatsapp`; na página Posts automáticos o planejamento já aparece no card.",
+      "Mostra os posts automáticos de feed que o Caetano cuida: se está ligado, a cadência da semana (ligado e cadência são as configurações autopilot.enabled e autopilot.cadence, de settings_set), a programação desta semana e da próxima (cada post com slotId, dia, horário, formato, slides, propósito, gancho e estado) e, com includeAudit, o diagnóstico da conta. No WhatsApp, responda com o texto de `whatsapp`; no app, responda em texto curto e aponte para o Calendário.",
     inputSchema: z.object({ includeAudit: z.boolean().optional() }),
     outputSchema: capabilityResultSchema,
     execute: async (ctx: AutopilotCtx, { includeAudit }, options): Promise<CapabilityOutput> => {
@@ -391,7 +391,7 @@ export const autopilotTools = {
     },
   }),
   autopilot_reanalyze: createTool({
-    description: `Refaz o diagnóstico da conta e replaneja os posts automáticos que ainda não foram gerados nem fixados pelo dono. Leva alguns minutos; o resultado aparece na página Posts automáticos. ${OWNER_ONLY}`,
+    description: `Refaz o diagnóstico da conta e replaneja os posts automáticos que ainda não foram gerados nem fixados pelo dono. Leva alguns minutos; o Caetano conta o resultado na conversa e os posts aparecem no Calendário. ${OWNER_ONLY}`,
     inputSchema: z.object({}),
     outputSchema: capabilityResultSchema,
     execute: async (ctx: AutopilotCtx, _args, options): Promise<CapabilityOutput> => {

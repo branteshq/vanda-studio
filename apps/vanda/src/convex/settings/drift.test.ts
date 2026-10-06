@@ -10,7 +10,8 @@ const PERFIL_SOURCES = [
   "../../routes/_dashboard.perfil.tsx",
   "../../components/profile/runtime.tsx",
   "../../components/whatsapp-settings.tsx",
-  "../../routes/_dashboard.posts-automaticos.tsx",
+  "../../routes/_dashboard.calendario.tsx",
+  "../../components/autopilot/panel.tsx",
   "../../components/autopilot/post-dialog.tsx",
 ];
 

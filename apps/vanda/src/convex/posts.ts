@@ -221,7 +221,7 @@ export const schedulePostIn = async (
 
   if (post.autopilotSlotId && !autopilot)
     throw new Error(
-      "esse post é dos posts automáticos: ele é agendado quando o dono aprova (autopilot_approve_slot) ou pela página Posts automáticos",
+      "esse post é dos posts automáticos: ele é agendado quando o dono aprova (autopilot_approve_slot) ou pelo painel Posts automáticos do Calendário",
     );
 
   if (post.type === "story") {

@@ -24,6 +24,8 @@ export interface CalendarItem {
   slideCount: number;
   coverUrl: string | null;
   scheduledPostId: Id<"scheduledPosts"> | null;
+  /** The post itself, once it exists: what the preview opens for posts made in the conversation. */
+  postId: Id<"posts"> | null;
   /** Set for Caetano's automatic posts: the slot the editor opens. */
   autopilot: { slotId: Id<"autopilotSlots">; hook: string; purposeLabel: string } | null;
 }
@@ -78,6 +80,7 @@ export const range = query({
           slideCount: post?.imageIds.length ?? 0,
           coverUrl: await coverOf(ctx, post),
           scheduledPostId: item._id,
+          postId: item.postId,
           autopilot: autopilotOf(slot),
         };
       }),
@@ -116,6 +119,7 @@ export const range = query({
         slideCount: slot.slideCount,
         coverUrl: await coverOf(ctx, post),
         scheduledPostId: null,
+        postId: slot.postId ?? null,
         autopilot: autopilotOf(slot),
       });
     }

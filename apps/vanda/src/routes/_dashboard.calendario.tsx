@@ -8,7 +8,9 @@ import { Tag } from "@vanda-studio/ui/components/tag";
 import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { useActiveAccount } from "../components/active-account";
+import { AutopilotPanel } from "../components/autopilot/panel";
 import { AutopilotPostDialogById } from "../components/autopilot/post-dialog";
+import { PostPreviewDialog } from "../components/post-preview";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import type { CalendarStatus } from "../convex/calendar";
@@ -20,7 +22,7 @@ export const Route = createFileRoute("/_dashboard/calendario")({
 const STATUS_META = {
   planned: { label: "Planejado", tone: "suggestion" },
   generating: { label: "Gerando", tone: "creating" },
-  awaiting_approval: { label: "Aguardando aceite", tone: "needs" },
+  awaiting_approval: { label: "Aguardando aprovação", tone: "needs" },
   skipped: { label: "Pulado", tone: "neutral" },
   scheduled: { label: "Agendado", tone: "scheduled" },
   publishing: { label: "Publicando", tone: "creating" },
@@ -39,6 +41,7 @@ const WEEKDAYS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 function CalendarioPage() {
   const { activeAccount } = useActiveAccount();
   const [openSlot, setOpenSlot] = useState<Id<"autopilotSlots"> | null>(null);
+  const [openPost, setOpenPost] = useState<Id<"posts"> | null>(null);
 
   const [cursor, setCursor] = useState(() => {
     const now = new Date();
@@ -130,6 +133,9 @@ function CalendarioPage() {
       </header>
 
       <main className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
+        <div className="mx-auto mb-4 w-full max-w-5xl">
+          <AutopilotPanel accountId={activeAccount.id} onOpen={setOpenSlot} />
+        </div>
         {items !== undefined && items.length === 0 ? (
           <div className="flex min-h-(--spacing-empty-state) flex-col items-center justify-center text-center">
             <div className="flex size-14 items-center justify-center rounded-2xl border border-border bg-surface text-text-4 shadow-sm">
@@ -174,11 +180,14 @@ function CalendarioPage() {
                             <button
                               type="button"
                               key={item.key}
-                              disabled={!item.autopilot}
-                              onClick={() => setOpenSlot(item.autopilot?.slotId ?? null)}
+                              disabled={!item.autopilot && !item.postId}
+                              onClick={() =>
+                                item.autopilot
+                                  ? setOpenSlot(item.autopilot.slotId)
+                                  : setOpenPost(item.postId)
+                              }
                               className={cn(
-                                "flex w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-md border border-border bg-surface p-1 text-left",
-                                item.autopilot && "hover:border-border-strong",
+                                "flex w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-md border border-border bg-surface p-1 text-left hover:border-border-strong disabled:hover:border-border",
                                 item.status === "skipped" && "opacity-60",
                               )}
                               title={item.autopilot ? item.autopilot.hook : item.caption}
@@ -237,6 +246,15 @@ function CalendarioPage() {
         accountId={activeAccount.id}
         slotId={openSlot}
         onClose={() => setOpenSlot(null)}
+      />
+      <PostPreviewDialog
+        accountId={activeAccount.id}
+        postIds={(items ?? []).flatMap((item) =>
+          !item.autopilot && item.postId ? [item.postId] : [],
+        )}
+        postId={openPost}
+        onSelect={setOpenPost}
+        onClose={() => setOpenPost(null)}
       />
     </div>
   );

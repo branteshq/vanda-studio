@@ -28,4 +28,4 @@ O **Calendário** mostra cada post como rascunho, agendado, publicado ou com fal
 
 Publicar exige o Instagram do negócio conectado. Veja [Conexões](/docs/conexoes).
 
-Os [Posts automáticos](/docs/posts-automaticos) do Caetano também aparecem no Calendário, com a etiqueta **Caetano**, desde que são planejados; clique para ver, aprovar ou pular.
+Os [Posts automáticos](/docs/posts-automaticos) do Caetano também aparecem no Calendário, com a etiqueta **Caetano**, desde que são planejados; clique para ver, aprovar ou pular. No topo do Calendário fica o painel para ligá-los e escolher se pedem sua aprovação.

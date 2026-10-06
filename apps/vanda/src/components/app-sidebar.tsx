@@ -6,7 +6,6 @@ import { useQuery } from "convex-helpers/react/cache";
 import {
   Archive,
   BadgeCheckIcon,
-  CalendarClock,
   CalendarDays,
   Images,
   MessageSquareText,
@@ -637,13 +636,12 @@ function CaetanoNav() {
           <span className="group-data-[collapsible=icon]:hidden">Caetano</span>
         </SidebarMenuButton>
       </SidebarMenuItem>
-      <AutopilotNavItem />
       <CalendarNavItem />
     </SidebarMenu>
   );
 }
 
-/** Every publication of the business, from the conversation and from Caetano. */
+/** Every publication of the business, and the Posts automáticos switches on top. */
 function CalendarNavItem() {
   const navigate = useNavigate();
   const { setOpenMobile } = useSidebar();
@@ -663,34 +661,6 @@ function CalendarNavItem() {
       >
         <CalendarDays aria-hidden="true" />
         <span className="group-data-[collapsible=icon]:hidden">Calendário</span>
-      </SidebarMenuButton>
-    </SidebarMenuItem>
-  );
-}
-
-/** The automatic feed posts Caetano plans, creates and publishes. */
-function AutopilotNavItem() {
-  const navigate = useNavigate();
-  const { setOpenMobile } = useSidebar();
-  const { activeAccount } = useActiveAccount();
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
-
-  if (!activeAccount) return null;
-
-  return (
-    <SidebarMenuItem>
-      <SidebarMenuButton
-        size="navigation"
-        tooltip="Posts automáticos"
-        isActive={pathname === "/posts-automaticos"}
-        onClick={() => {
-          setOpenMobile(false);
-          void navigate({ to: "/posts-automaticos" });
-        }}
-        className="h-10"
-      >
-        <CalendarClock aria-hidden="true" />
-        <span className="group-data-[collapsible=icon]:hidden">Posts automáticos</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
   );

@@ -14,10 +14,10 @@ import {
 import { writeSetting } from "./settings/registry";
 
 /**
- * The Posts automáticos page: the queue and its one-tap decisions. Every write
- * goes through the same helpers as Vanda and Caetano's tools (autopilotData.ts).
- * Turning it on or off is a platform setting (settings/registry.writeSetting);
- * cadence and approval change in the conversation, through settings_set.
+ * The Posts automáticos panel on the Calendário and the post dialog. Every
+ * write goes through the same helpers as Vanda and Caetano's tools
+ * (autopilotData.ts). On/off and approval are platform settings
+ * (settings/registry.writeSetting); cadence changes in the conversation.
  */
 
 export const overview = query({
@@ -38,6 +38,19 @@ export const setEnabled = mutation({
       await requireUser(ctx),
       "autopilot.enabled",
       enabled ? "ligado" : "desligado",
+    );
+  },
+});
+
+/** Whether posts wait for the owner's approval: the autopilot.approval setting. */
+export const setApproval = mutation({
+  args: { required: v.boolean() },
+  handler: async (ctx, { required }): Promise<void> => {
+    await writeSetting(
+      ctx,
+      await requireUser(ctx),
+      "autopilot.approval",
+      required ? "pedir aceite" : "publicar sem aceite",
     );
   },
 });
