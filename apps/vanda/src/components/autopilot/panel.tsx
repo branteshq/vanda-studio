@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
+import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -108,28 +109,32 @@ function Strip({
   return (
     <section className="flex items-end gap-4 border-b border-border pl-2">
       {/* No box: Caetano leans over the calendar's top edge, which this border is. */}
-      <button
-        type="button"
-        onClick={poke}
-        disabled={!overview.connected || enabled.busy}
-        title={
+      <ActionTooltip
+        side="bottom"
+        label={
           asleep
             ? "Acordar o Caetano"
             : overview.enabled
               ? "Para desligar, toque em pausar"
-              : undefined
+              : "Conecte o Instagram para acordar o Caetano"
         }
-        aria-label={
-          asleep ? "Acordar o Caetano e ligar os posts automáticos" : "Caetano, posts automáticos"
-        }
-        className={cn(
-          "relative -mb-px shrink-0 cursor-pointer rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/40 disabled:cursor-default",
-          asleep && "hover-caetano-wobble",
-        )}
       >
-        <CaetanoFigure mood={mood} className="size-16 sm:size-18" />
-        {asleep ? <Zzz /> : null}
-      </button>
+        <button
+          type="button"
+          onClick={poke}
+          disabled={!overview.connected || enabled.busy}
+          aria-label={
+            asleep ? "Acordar o Caetano e ligar os posts automáticos" : "Caetano, posts automáticos"
+          }
+          className={cn(
+            "relative -mb-px shrink-0 cursor-pointer rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/40 disabled:cursor-default",
+            asleep && "hover-caetano-wobble",
+          )}
+        >
+          <CaetanoFigure mood={mood} className="size-16 sm:size-18" />
+          {asleep ? <Zzz /> : null}
+        </button>
+      </ActionTooltip>
       <div className="min-w-0 flex-1 pb-2.5" role="status" aria-live="polite">
         <p className="text-body font-semibold">Posts automáticos</p>
         <p className={cn("text-body-sm", stage?.kind === "failed" ? "text-text-2" : "text-text-3")}>
@@ -155,13 +160,15 @@ function Strip({
             <>
               {" "}
               ·{" "}
-              <button
-                type="button"
-                className="outline-none"
-                onClick={() => enabled.apply({ enabled: false })}
-              >
-                <span className={linkClass}>pausar</span>
-              </button>
+              <ActionTooltip label="Colocar o Caetano para dormir">
+                <button
+                  type="button"
+                  className="outline-none"
+                  onClick={() => enabled.apply({ enabled: false })}
+                >
+                  <span className={linkClass}>pausar</span>
+                </button>
+              </ActionTooltip>
             </>
           ) : null}
         </p>
@@ -258,9 +265,11 @@ function StatusLine({
     <>
       {" "}
       ·{" "}
-      <button type="button" className="outline-none" onClick={onPause}>
-        <span className={linkClass}>pausar</span>
-      </button>
+      <ActionTooltip label="Colocar o Caetano para dormir">
+        <button type="button" className="outline-none" onClick={onPause}>
+          <span className={linkClass}>pausar</span>
+        </button>
+      </ActionTooltip>
     </>
   );
 
@@ -279,29 +288,29 @@ function StatusLine({
   return (
     <>
       {overview.cadenceSummary} ·{" "}
-      <button
-        type="button"
-        className="outline-none"
-        disabled={approvalBusy}
-        onClick={onApproval}
-        title={
+      <ActionTooltip
+        label={
           overview.approval === "required"
             ? "Toque para publicar sem pedir aprovação"
             : "Toque para pedir sua aprovação antes de publicar"
         }
       >
-        {/* Keyed by the value: after a switch, the new words sharpen in, so it is felt. */}
-        <span
-          key={overview.approval}
-          className={cn(linkClass, approvalSwitched && "animate-title-in")}
-        >
-          {overview.approval === "required" ? "com aprovação" : "sem aprovação"}
-        </span>
-      </button>{" "}
+        <button type="button" className="outline-none" disabled={approvalBusy} onClick={onApproval}>
+          {/* Keyed by the value: after a switch, the new words sharpen in, so it is felt. */}
+          <span
+            key={overview.approval}
+            className={cn(linkClass, approvalSwitched && "animate-title-in")}
+          >
+            {overview.approval === "required" ? "com aprovação" : "sem aprovação"}
+          </span>
+        </button>
+      </ActionTooltip>{" "}
       ·{" "}
-      <Link to="/conversa" search={{ rascunho: CADENCE_DRAFT }} className="outline-none">
-        <span className={linkClass}>mudar</span>
-      </Link>
+      <ActionTooltip label="Mudar dias e horários na conversa">
+        <Link to="/conversa" search={{ rascunho: CADENCE_DRAFT }} className="outline-none">
+          <span className={linkClass}>mudar</span>
+        </Link>
+      </ActionTooltip>
       {pause}
     </>
   );

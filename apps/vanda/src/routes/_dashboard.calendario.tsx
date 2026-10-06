@@ -205,46 +205,49 @@ function CalendarioPage() {
                         const title = entryTitle(item);
 
                         return (
-                          <button
-                            type="button"
+                          <ActionTooltip
                             key={item.key}
-                            disabled={!item.autopilot && !item.postId}
-                            onClick={() =>
-                              item.autopilot
-                                ? setOpenSlot(item.autopilot.slotId)
-                                : setOpenPost(item.postId)
-                            }
-                            className="block w-full min-w-0 rounded-md px-1.5 py-1 text-left text-note hover:bg-surface disabled:hover:bg-transparent"
-                            aria-label={`${status.label}: ${title}`}
-                            title={`${status.label} · ${title}`}
+                            label={`${status.label} · ${title}${item.autopilot ? " · feito pelo Caetano" : ""}`}
                           >
-                            <span className="flex items-center gap-1.5">
-                              <span className={cn("size-2 shrink-0 rounded-full", status.dot)} />
-                              <span className="flex-1 text-micro text-text-3 tabular-nums">
-                                {new Date(item.scheduledFor).toLocaleTimeString("pt-BR", {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </span>
-                              {item.autopilot ? (
-                                <img
-                                  src={caetanoFaceUrl}
-                                  alt=""
-                                  className="size-5 shrink-0 rounded-full bg-brand-accent/15 object-contain ring-1 ring-brand-accent/30"
-                                />
-                              ) : null}
-                            </span>
-                            <span
-                              className={cn(
-                                "mt-0.5 line-clamp-2 leading-snug text-text-2",
-                                item.status === "skipped" && "text-text-4 line-through",
-                                item.status === "paused" && "text-text-4",
-                                item.status === "paused" && "text-text-4",
-                              )}
+                            <button
+                              type="button"
+                              disabled={!item.autopilot && !item.postId}
+                              onClick={() =>
+                                item.autopilot
+                                  ? setOpenSlot(item.autopilot.slotId)
+                                  : setOpenPost(item.postId)
+                              }
+                              className="block w-full min-w-0 rounded-md px-1.5 py-1 text-left text-note hover:bg-surface disabled:hover:bg-transparent"
+                              aria-label={`${status.label}: ${title}`}
                             >
-                              {title}
-                            </span>
-                          </button>
+                              <span className="flex items-center gap-1.5">
+                                <span className={cn("size-2 shrink-0 rounded-full", status.dot)} />
+                                <span className="flex-1 text-micro text-text-3 tabular-nums">
+                                  {new Date(item.scheduledFor).toLocaleTimeString("pt-BR", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </span>
+                                {item.autopilot ? (
+                                  <img
+                                    src={caetanoFaceUrl}
+                                    alt=""
+                                    className="size-5 shrink-0 rounded-full bg-brand-accent/15 object-contain ring-1 ring-brand-accent/30"
+                                  />
+                                ) : null}
+                              </span>
+                              <span
+                                className={cn(
+                                  "mt-0.5 line-clamp-2 leading-snug text-text-2",
+                                  item.status === "skipped" && "text-text-4 line-through",
+                                  item.status === "paused" && "text-text-4",
+                                  item.status === "paused" && "text-text-4",
+                                )}
+                              >
+                                {title}
+                              </span>
+                            </button>
+                          </ActionTooltip>
                         );
                       })}
                     </div>
