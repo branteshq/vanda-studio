@@ -651,7 +651,7 @@ function CaetanoNav() {
           className="h-10"
         >
           <span
-            className="flex size-5 items-center justify-center overflow-hidden rounded-full bg-brand-accent/12"
+            className="flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-accent/12"
             aria-hidden="true"
           >
             <img
@@ -686,7 +686,9 @@ function CalendarNavItem() {
         }}
         className="h-10"
       >
-        <CalendarDays aria-hidden="true" />
+        <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden="true">
+          <CalendarDays />
+        </span>
         <span className="group-data-[collapsible=icon]:hidden">Calendário</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
