@@ -23,7 +23,7 @@ Os dois usam as mesmas ferramentas: criar imagens e posts, pesquisar o mercado, 
 - **Calendário**: posts em rascunho, agendados, publicados ou com falha.
 - **Perfil**: sua conta e plano, as conexões e o arquivo da marca de cada negócio.
 
-No celular, toque em **Menu** no topo da Conversa, Galeria ou Calendário para abrir a barra lateral. Ali você acessa as conversas, alterna entre Conversa e Galeria pelo ícone no topo, abre o Calendário e entra no Perfil pelo avatar no rodapé. Ao escolher um destino, o menu fecha para mostrar a tela; o botão **Menu** continua disponível. Para fechar sem navegar, toque no **X** ou fora da barra lateral.
+No celular, toque no **ícone de menu (três linhas)** no topo da Conversa, Galeria ou Calendário para abrir a barra lateral. Ali você acessa as conversas, alterna entre Conversa e Galeria pelo ícone no topo, abre o Calendário e entra no Perfil pelo avatar no rodapé. Ao escolher um destino, o menu fecha para mostrar a tela; o ícone de menu continua disponível. Para fechar sem navegar, toque no **X** ou fora da barra lateral.
 
 ## Vários negócios
 

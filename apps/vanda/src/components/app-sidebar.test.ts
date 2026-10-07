@@ -42,6 +42,8 @@ it.each([true, false])(
     );
 
     expect(opener).not.toBeNull();
+    expect(container.querySelector("header")!.textContent).toBe("");
+    expect(container.querySelectorAll("header svg")).toHaveLength(1);
     expect(opener!.getAttribute("aria-expanded")).toBe("false");
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     await act(async () => opener!.click());

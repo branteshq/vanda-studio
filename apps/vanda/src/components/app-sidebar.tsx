@@ -562,23 +562,18 @@ export function MobileSidebarHeader() {
   const { openMobile, setOpenMobile } = useSidebar();
 
   return (
-    <header className="flex shrink-0 items-center gap-3 border-b border-border bg-background px-3 py-1.5 md:hidden">
+    <header className="flex shrink-0 items-center border-b border-border bg-background px-3 py-1.5 md:hidden">
       <Button
         variant="ghost"
-        size="lg"
-        className="h-11"
+        size="icon"
+        className="size-11"
         aria-label="Abrir menu de navegação"
         aria-expanded={openMobile}
         aria-haspopup="dialog"
         onClick={() => setOpenMobile(true)}
       >
         <Menu />
-        Menu
       </Button>
-      <div className="flex items-center gap-2 text-body font-semibold">
-        <VandaMark size={18} />
-        Vanda Studio
-      </div>
     </header>
   );
 }
