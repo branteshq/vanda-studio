@@ -8,6 +8,7 @@ import {
   BadgeCheckIcon,
   CalendarDays,
   Images,
+  Menu,
   MessageSquareText,
   PanelLeftClose,
   PanelLeftOpen,
@@ -17,6 +18,7 @@ import {
   Search,
   Trash2,
   UsersRound,
+  X,
 } from "lucide-react";
 import caetanoWelcomeUrl from "@vanda-studio/ui/assets/caetano/caetano-expression-welcome.png?url";
 import { Avatar, AvatarFallback, AvatarImage } from "@vanda-studio/ui/components/avatar";
@@ -232,6 +234,7 @@ function getInitials(name: string) {
 
 function AccountMenu() {
   const { user } = useUser();
+  const { setOpenMobile } = useSidebar();
   const navigate = useNavigate();
   const name = user?.fullName ?? user?.username ?? "Minha conta";
   const initials = getInitials(name) || "MC";
@@ -242,7 +245,10 @@ function AccountMenu() {
         variant="sidebar"
         size="icon-profile"
         aria-label="Abrir minha conta"
-        onClick={() => void navigate({ to: "/perfil" })}
+        onClick={() => {
+          setOpenMobile(false);
+          void navigate({ to: "/perfil" });
+        }}
         className="shrink-0"
       >
         <Avatar className="size-8">
@@ -551,6 +557,32 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
   );
 }
 
+/** Always reachable on phones, independently of the desktop sidebar's state. */
+export function MobileSidebarHeader() {
+  const { openMobile, setOpenMobile } = useSidebar();
+
+  return (
+    <header className="flex shrink-0 items-center gap-3 border-b border-border bg-background px-3 py-1.5 md:hidden">
+      <Button
+        variant="ghost"
+        size="lg"
+        className="h-11"
+        aria-label="Abrir menu de navegação"
+        aria-expanded={openMobile}
+        aria-haspopup="dialog"
+        onClick={() => setOpenMobile(true)}
+      >
+        <Menu />
+        Menu
+      </Button>
+      <div className="flex items-center gap-2 text-body font-semibold">
+        <VandaMark size={18} />
+        Vanda Studio
+      </div>
+    </header>
+  );
+}
+
 /**
  * The floating rail shown when the sidebar is collapsed in chat mode. Gallery
  * mode has no floating rail — its grid header carries its own inline expand
@@ -667,29 +699,30 @@ function CalendarNavItem() {
 }
 
 export function AppSidebar() {
-  const { state, toggleSidebar } = useSidebar();
+  const { state, isMobile, setOpenMobile, toggleSidebar } = useSidebar();
   const { activeAccount } = useActiveAccount();
   const { galleryActive, toChat, toGallery } = useModeNav();
+
+  const collapseLabel = isMobile
+    ? "Fechar menu de navegação"
+    : state === "collapsed"
+      ? "Expandir barra lateral"
+      : "Recolher barra lateral";
 
   return (
     <Sidebar collapsible="offcanvas" resizable resizeLabel="Redimensionar barra lateral">
       <SidebarHeader className="gap-2 px-2 pt-2.5 pb-1.5">
-        <div className="relative flex h-9 items-center justify-center overflow-hidden px-0.5">
+        <div className="relative flex h-11 items-center justify-center overflow-hidden px-0.5 md:h-9">
           <span className="absolute inset-y-0 left-0 flex items-center">
-            <ActionTooltip
-              label={state === "collapsed" ? "Expandir barra lateral" : "Recolher barra lateral"}
-              side="bottom"
-            >
+            <ActionTooltip label={collapseLabel} side="bottom">
               <Button
                 variant="sidebar"
                 size="icon-sm"
-                aria-label={
-                  state === "collapsed" ? "Expandir barra lateral" : "Recolher barra lateral"
-                }
+                aria-label={collapseLabel}
                 onClick={toggleSidebar}
-                className="shrink-0"
+                className="size-11 shrink-0 md:size-7"
               >
-                {state === "collapsed" ? <PanelLeftOpen /> : <PanelLeftClose />}
+                {isMobile ? <X /> : state === "collapsed" ? <PanelLeftOpen /> : <PanelLeftClose />}
               </Button>
             </ActionTooltip>
           </span>
@@ -704,9 +737,14 @@ export function AppSidebar() {
               <Button
                 variant="sidebar"
                 size="icon-sm"
-                onClick={galleryActive ? toChat : toGallery}
+                onClick={() => {
+                  setOpenMobile(false);
+
+                  if (galleryActive) toChat();
+                  else toGallery();
+                }}
                 aria-label={galleryActive ? "Ir para conversas" : "Ir para a galeria"}
-                className="shrink-0"
+                className="size-11 shrink-0 md:size-7"
               >
                 {galleryActive ? <MessageSquareText /> : <Images />}
               </Button>

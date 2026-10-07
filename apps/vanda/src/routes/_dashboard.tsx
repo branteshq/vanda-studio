@@ -1,7 +1,11 @@
 import { RedirectToSignIn, Show } from "@clerk/tanstack-react-start";
 import { Navigate, Outlet, createFileRoute, useRouterState } from "@tanstack/react-router";
 import { SidebarInset, SidebarProvider } from "@vanda-studio/ui/components/sidebar";
-import { AppSidebar, CollapsedSidebarControls } from "../components/app-sidebar";
+import {
+  AppSidebar,
+  CollapsedSidebarControls,
+  MobileSidebarHeader,
+} from "../components/app-sidebar";
 import { ActiveAccountProvider, useActiveAccount } from "../components/active-account";
 import { ModeNavProvider } from "../components/mode-nav";
 import { PostsRailHost } from "../components/posts-rail";
@@ -54,6 +58,7 @@ function DashboardGate() {
         <WorkRailProvider>
           <AppSidebar />
           <SidebarInset className="relative flex h-svh flex-col overflow-hidden">
+            <MobileSidebarHeader />
             <CollapsedSidebarControls />
             <Outlet />
           </SidebarInset>
