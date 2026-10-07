@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "convex-helpers/react/cache";
+import { ptBR } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import caetanoFaceUrl from "@vanda-studio/ui/assets/caetano/work/caetano-welcome.webp?url";
 import { Button } from "@vanda-studio/ui/components/button";
+import { Calendar } from "@vanda-studio/ui/components/calendar";
 import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { useActiveAccount } from "../components/active-account";
@@ -163,8 +165,12 @@ function CalendarioPage() {
           </div>
 
           <Agenda
+            key={`${activeAccount.id}-${monthStart}`}
+            month={cursor}
             days={days}
             itemsByDay={itemsByDay}
+            loading={items === undefined}
+            starting={starting}
             isToday={isToday}
             onOpen={(item) =>
               item.autopilot ? setOpenSlot(item.autopilot.slotId) : setOpenPost(item.postId)
@@ -276,7 +282,7 @@ function CalendarioPage() {
               Feito pelo Caetano
             </span>
             {items !== undefined && items.length === 0 ? (
-              <span className="ml-auto">
+              <span className="ml-auto hidden md:inline">
                 {starting
                   ? "O Caetano está planejando; os posts aparecem aqui em alguns minutos."
                   : "Nada agendado neste mês."}
@@ -308,26 +314,69 @@ type CalendarEntry = CalendarItem;
 const entryTitle = (item: CalendarEntry): string =>
   item.autopilot?.hook ?? item.caption.split("\n")[0] ?? "";
 
-/** On a phone a month grid is unreadable: the days that have posts, as a list. */
-function Agenda({
+/** A compact month picker with readable post details below it on phones. */
+export function Agenda({
+  month,
   days,
   itemsByDay,
+  loading,
+  starting,
   isToday,
   onOpen,
 }: {
+  month: Date;
   days: ReadonlyArray<{ date: Date | null; key: string }>;
   itemsByDay: Map<number, CalendarEntry[]>;
+  loading: boolean;
+  starting: boolean;
   isToday: (date: Date) => boolean;
   onOpen: (item: CalendarEntry) => void;
 }) {
+  const [selected, setSelected] = useState<Date>();
+
   const busy = days.flatMap(({ date }) =>
-    date && itemsByDay.has(date.getDate())
+    date && (!selected || date.getDate() === selected.getDate()) && itemsByDay.has(date.getDate())
       ? [{ date, items: itemsByDay.get(date.getDate())! }]
       : [],
   );
 
   return (
-    <div className="mt-6 space-y-4 md:hidden">
+    <div className="space-y-4 md:hidden">
+      <div className="rounded-b-xl border border-t-0 border-border">
+        <Calendar
+          mode="single"
+          locale={ptBR}
+          month={month}
+          hideNavigation
+          disableNavigation
+          showOutsideDays={false}
+          selected={selected}
+          onSelect={setSelected}
+          markedDays={days.flatMap(({ date }) =>
+            date && itemsByDay.has(date.getDate()) ? [date] : [],
+          )}
+          classNames={{ root: "w-full", month_caption: "sr-only" }}
+        />
+      </div>
+      <div className="flex items-center justify-between gap-2 text-note text-text-3">
+        <span>Os pontos indicam dias com posts.</span>
+        {selected ? (
+          <Button variant="ghost" size="sm" onClick={() => setSelected(undefined)}>
+            Ver mês inteiro
+          </Button>
+        ) : null}
+      </div>
+      {loading || busy.length === 0 ? (
+        <p role="status" className="rounded-xl border border-border p-4 text-body-sm text-text-3">
+          {loading
+            ? "Carregando posts…"
+            : selected
+              ? `Nada agendado em ${selected.toLocaleDateString("pt-BR", { day: "numeric", month: "long" })}.`
+              : starting
+                ? "O Caetano está planejando; os posts aparecem aqui em alguns minutos."
+                : "Nada agendado neste mês."}
+        </p>
+      ) : null}
       {busy.map(({ date, items }) => (
         <section key={date.getDate()}>
           <h2
@@ -358,15 +407,17 @@ function Agenda({
                         minute: "2-digit",
                       })}
                     </span>
-                    <span
-                      className={cn(
-                        "min-w-0 flex-1 truncate text-body-sm",
-                        item.status === "skipped" && "text-text-4 line-through",
-                      )}
-                    >
-                      {entryTitle(item)}
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className={cn(
+                          "block text-body-sm break-words",
+                          item.status === "skipped" && "text-text-4 line-through",
+                        )}
+                      >
+                        {entryTitle(item)}
+                      </span>
+                      <span className="block text-micro text-text-4">{status.label}</span>
                     </span>
-                    <span className="shrink-0 text-micro text-text-4">{status.label}</span>
                     {item.autopilot ? (
                       <img
                         src={caetanoFaceUrl}

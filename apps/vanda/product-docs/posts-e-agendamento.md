@@ -26,6 +26,8 @@ Cada rascunho guarda o tipo (imagem, carrossel ou story), a proporção, o prop�
 
 O **Calendário** mostra cada post como rascunho, agendado, publicado ou com falha. Um agendado cujas imagens foram apagadas da Galeria falha com esse motivo em vez de ficar parado. Quando um agendamento publica ou falha, a conversa em que o post foi criado recebe um aviso; com o WhatsApp vinculado, o Caetano avisa por lá também.
 
+No celular, o mês continua visível mesmo sem posts. Os pontos nos dias indicam posts, listados abaixo do calendário com horário e estado. Toque num dia para filtrar a lista; **Ver mês inteiro** volta a mostrar todos os posts do mês. As setas no topo trocam o mês e **Hoje** volta ao mês atual. Enquanto os posts carregam, aparece **Carregando posts…**; dias e meses vazios mostram que não há nada agendado.
+
 Publicar exige o Instagram do negócio conectado. Veja [Conexões](/docs/conexoes).
 
 Os [Posts automáticos](/docs/posts-automaticos) do Caetano também aparecem no Calendário, com a etiqueta **Caetano**, desde que são planejados; clique para ver, aprovar ou pular. No topo do Calendário fica o Caetano: toque nele para ligá-los e escolha ali se pedem sua aprovação.
