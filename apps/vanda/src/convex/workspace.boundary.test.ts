@@ -369,7 +369,7 @@ describe("workspace renders", () => {
 
     if (result.ok && result.file.kind === "text") {
       expect(result.file.text).toContain("Café da Ana");
-      expect(result.file.text).toContain("## Tom e voz\n\n- tom caloroso e direto (dono)");
+      expect(result.file.text).toContain("## Voz\n- Voz: tom caloroso e direto (dono)");
     }
   });
 

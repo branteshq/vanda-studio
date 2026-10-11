@@ -2,7 +2,7 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { documentMount, listDocuments, readDocument } from "./documents";
 import { autopilotMount } from "./mounts/autopilot";
-import { brandMount } from "./mounts/brand";
+import { BRAND_WRITABLE, brandMount } from "./mounts/brand";
 import { docsMount } from "./mounts/docs";
 import { imagesMount } from "./mounts/images";
 import { legacyMount } from "./mounts/legacy";
@@ -132,8 +132,7 @@ export const readPath = async (
 
 export type WriteResult = WorkspaceWriteResult;
 
-const WRITABLE_HELP =
-  "graváveis: /brand/marca.md (arquivo da marca), /brand/kit.json e /notes/<nome>.md";
+const WRITABLE_HELP = `graváveis: ${BRAND_WRITABLE}`;
 
 /**
  * One write surface, per-mount handlers underneath (the VFS shape — like

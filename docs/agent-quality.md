@@ -113,8 +113,8 @@ tool contract. New evaluations use `pimba-caetano-draft` and
   changing unrelated users' preferences. Live trials now use GPT-5.6 Terra and GPT
   Image 2.5 Flare; no cross-model winner has been established.
 
-The first local implementation supplies brand facts, the visual kit, brand notes,
-and durable memory at the start of both agents' turns. Account selection returns
+The first local implementation supplies brand facts, the visual identity (the brand file's
+Design section), brand notes, and durable memory at the start of both agents' turns. Account selection returns
 updated brand context. Caetano's handoff preserves the original current message
 and attachment IDs/pixels using stored message and attachment references, with
 ownership checks. Older conversations and media are now discoverable;
@@ -291,7 +291,7 @@ Sources: [vanda.ts](../apps/vanda/src/convex/vanda.ts), `paint` and `readFile`;
 ### Essential brand information depends on retrieval
 
 The conversational system prompt describes the workspace and adds a live clock.
-The agent is instructed to read brand facts, the visual kit, and durable preferences.
+The agent is instructed to read brand facts, the brand file's Design section, and durable preferences.
 Those facts are not all automatically included with each new task.
 
 Confirmed requirement from Davi's review: brand context must always be included.
@@ -539,8 +539,7 @@ Product help covers six maintained topics and points to real UI routes; it does
 not substitute for live account state. Historical messages are scoped to the
 active account (or Caetano's owner), and archived threads are excluded. Retrieval
 uses keywords, not embeddings. Messages and media are paginated; resource manifests
-are limited to the latest 100 and report truncation. Scheduling guidance remains a
-prompt policy, not a server-side approval gate.
+are limited to the latest 100 and report truncation.
 
 Verification for this slice: typecheck passes; 301 tests across 51 files pass,
 including discovery, ownership boundaries, history pagination, and media matches
@@ -571,13 +570,11 @@ experiments, not choices Davi needs to make upfront.
   provisional default, not proof that one method always wins.
 - **Who checks the finished image, and when should it try again?** The working
   agent does it. Both Vanda and Caetano should inspect their results and correct
-  concrete defects. No separate reviewer or reviewer subagent. We still need to
-  evaluate when another attempt helps and whether the initial two-round limit is
-  appropriate.
+  concrete defects. We still need to evaluate when another attempt helps and whether
+  the initial two-round limit is appropriate.
 - **Which model and prompt work best?** We have to find out through the fictional
   tasks and taste-based comparisons above, including consistency, cost, and wait
-  time. Limit initial live work to GPT models using Davi's connected subscription.
-  Do not choose a winner from assumptions or one impressive output.
+  time. Do not choose a winner from assumptions or one impressive output.
 
 As work proceeds, add the experiment, what changed, the observed result, and the
 decision here. Keep hypotheses distinct from measured or directly observed facts.
@@ -682,8 +679,7 @@ Remaining risks: self-review sometimes misses problems; subtle product attribute
 can still be invented; keyword discovery can require several attempts. Creative
 consistency, real-photo editing, deployed search, latency, and comparison with
 another GPT model need further trials. Scheduling authorization remains prompt
-guidance, not an enforced server-side approval gate. These results support a better
-working default and a repeatable evaluation loop, not “works for every request.”
+guidance. These results support a better working default and a repeatable evaluation loop, not “works for every request.”
 
 ## Oracle follow-up: retrieval, memory, and evaluation boundaries
 
@@ -697,14 +693,10 @@ The review found three correctness issues. They are now addressed locally:
   Archived hits no longer consume the initial 12 slots. Reaching either limit sets
   `incomplete: true` and asks for a narrower query. This is bounded overfetch, not
   exhaustive search or pagination; the component search API has no cursor.
-- Always-on `/memory` has a shared 24,000-byte serialized UTF-8 budget, including
-  paths and escaping. Writes cannot increase an over-budget account. Existing large
-  files are preserved, preference files are prioritized, and a visible partial-memory
-  notice directs retrieval rather than treating missing context as missing knowledge.
-  No automatic destructive truncation or semantic summarization occurs. Decreasing
-  writes allow incremental recovery. Long documents can be copied to discoverable
-  `/notes` before compacting memory; brand identity, visual kit, and brand notes
-  remain separate, always-included context. This is not a total model-token budget.
+- The always-on `/memory` budget described here (24,000 bytes, with partial-memory
+  notices) was removed with the old memory system. The brand file is now the
+  always-included context: its identity, its Design section and the brand notes.
+  Long documents live in discoverable `/notes`. This was never a total model-token budget.
 
 The suite now includes a nineteenth case: an attached-image revision delegated
 through Caetano. The harness reproduces production's attachment manifest and

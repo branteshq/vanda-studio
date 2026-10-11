@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
 import { installedSkillSummaries } from "./skills/catalog";
-import { listPath, readPath, type ListResult, type ReadResult } from "./workspace";
+import { listPath, type ListResult } from "./workspace";
 
 /**
  * The owner-facing window into the agent's workspace — the same resolver the
@@ -16,15 +16,6 @@ export const browse = query({
     await requireOwnedAccount(ctx, accountId);
 
     return listPath(ctx, accountId, path);
-  },
-});
-
-export const file = query({
-  args: { accountId: v.id("accounts"), path: v.string() },
-  handler: async (ctx, { accountId, path }): Promise<ReadResult> => {
-    await requireOwnedAccount(ctx, accountId);
-
-    return readPath(ctx, accountId, path);
   },
 });
 

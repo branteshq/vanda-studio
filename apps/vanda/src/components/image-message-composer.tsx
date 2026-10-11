@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type ClipboardEvent,
+  type DragEvent,
   type FormEvent,
   type KeyboardEvent,
 } from "react";
@@ -24,11 +25,15 @@ import {
 } from "@vanda-studio/ui/components/attachment";
 import { Button } from "@vanda-studio/ui/components/button";
 import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
+import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { errorMessage } from "../errors";
 
 const MAX_COMPOSER_HEIGHT = 224;
+
+/** Largest image the composer and the guide accept. */
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 const uploadResponseSchema = z.object({
   storageId: z.string().min(1),
@@ -64,26 +69,6 @@ const attachmentDescription = (attachment: ComposerAttachment) => {
   return `${attachment.width}×${attachment.height}`;
 };
 
-const imageDimensions = async (file: File): Promise<{ width: number; height: number }> => {
-  const bitmap = await createImageBitmap(file);
-  const dimensions = { width: bitmap.width, height: bitmap.height };
-  bitmap.close();
-
-  return dimensions;
-};
-
-const readyAttachment = (attachment: ComposerAttachment): ReadyImageAttachment | undefined =>
-  attachment.state === "done" && attachment.imageId && attachment.url
-    ? {
-        imageId: attachment.imageId,
-        url: attachment.url,
-        mimeType: attachment.mimeType,
-        fileName: attachment.fileName,
-        width: attachment.width,
-        height: attachment.height,
-      }
-    : undefined;
-
 export function MessageImageAttachments({
   attachments,
 }: {
@@ -112,6 +97,7 @@ export function ImageMessageComposer({
   placeholder,
   ariaLabel,
   agentName,
+  attachLabel,
   disabled,
   autoFocus,
   working,
@@ -126,6 +112,8 @@ export function ImageMessageComposer({
   placeholder: string;
   ariaLabel: string;
   agentName: string;
+  /** Shows the attach button as a labelled pill instead of an icon. */
+  attachLabel?: string | undefined;
   disabled?: boolean;
   autoFocus?: boolean;
   working?: boolean;
@@ -143,6 +131,7 @@ export function ImageMessageComposer({
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
 
   useLayoutEffect(() => {
     const element = textareaRef.current;
@@ -201,7 +190,7 @@ export function ImageMessageComposer({
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > MAX_IMAGE_BYTES) {
       updateAttachment(clientId, { state: "error", error: "Máximo de 10 MB" });
 
       return;
@@ -211,8 +200,12 @@ export function ImageMessageComposer({
     uploadControllers.current.set(clientId, controller);
 
     try {
-      const dimensions = await imageDimensions(file);
+      const bitmap = await createImageBitmap(file);
+      const dimensions = { width: bitmap.width, height: bitmap.height };
+      bitmap.close();
       updateAttachment(clientId, dimensions);
+
+      // Upload the bytes to Convex storage, then link them to the account as an image row.
       const uploadUrl = await generateUploadUrl();
 
       const response = await fetch(uploadUrl, {
@@ -287,6 +280,27 @@ export function ImageMessageComposer({
     selectFiles(images);
   };
 
+  const canAttach = accountId !== null && !disabled && !submitting && attachments.length < 4;
+
+  const onDragOver = (event: DragEvent<HTMLFormElement>) => {
+    if (!canAttach || !event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    setDragging(true);
+  };
+
+  const onDragLeave = (event: DragEvent<HTMLFormElement>) => {
+    const next = event.relatedTarget;
+
+    if (!(next instanceof Node && event.currentTarget.contains(next))) setDragging(false);
+  };
+
+  const onDrop = (event: DragEvent<HTMLFormElement>) => {
+    if (!canAttach) return;
+    event.preventDefault();
+    setDragging(false);
+    selectFiles(event.dataTransfer.files);
+  };
+
   const removeAttachment = (attachment: ComposerAttachment) => {
     cancelledUploads.current.add(attachment.clientId);
     uploadControllers.current.get(attachment.clientId)?.abort();
@@ -300,9 +314,20 @@ export function ImageMessageComposer({
     }
   };
 
-  const readyAttachments = attachments
-    .map(readyAttachment)
-    .filter((attachment): attachment is ReadyImageAttachment => attachment !== undefined);
+  const readyAttachments = attachments.flatMap((attachment): ReadyImageAttachment[] =>
+    attachment.state === "done" && attachment.imageId && attachment.url
+      ? [
+          {
+            imageId: attachment.imageId,
+            url: attachment.url,
+            mimeType: attachment.mimeType,
+            fileName: attachment.fileName,
+            width: attachment.width,
+            height: attachment.height,
+          },
+        ]
+      : [],
+  );
 
   const attachmentsSettled = attachments.every((attachment) => attachment.state === "done");
 
@@ -343,10 +368,24 @@ export function ImageMessageComposer({
     }
   };
 
-  if (usage?.chatLimited) {
-    return (
-      <footer className="shrink-0 bg-app px-4 py-3 md:px-6">
-        <div className="mx-auto w-full max-w-3xl">
+  const attachButton = (
+    <Button
+      type="button"
+      variant={attachLabel ? "outline" : "subtle"}
+      size={attachLabel ? "sm" : "icon-sm"}
+      aria-label={attachLabel ? undefined : "Adicionar imagens"}
+      disabled={!canAttach}
+      onClick={() => inputRef.current?.click()}
+    >
+      <Paperclip />
+      {attachLabel}
+    </Button>
+  );
+
+  return (
+    <footer className="shrink-0 bg-app px-4 py-3 md:px-6">
+      <div className="mx-auto w-full max-w-3xl">
+        {usage?.chatLimited ? (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4">
             <div className="min-w-0">
               <p className="text-body font-medium text-text">Limite de uso do plano atingido</p>
@@ -358,109 +397,111 @@ export function ImageMessageComposer({
               Ver planos
             </Button>
           </div>
-        </div>
-      </footer>
-    );
-  }
-
-  return (
-    <footer className="shrink-0 bg-app px-4 py-3 md:px-6">
-      <div className="mx-auto w-full max-w-3xl">
-        <form
-          onSubmit={onSubmit}
-          className="flex flex-col gap-1.5 rounded-xl border border-border bg-surface p-2 focus-within:border-border-strong"
-        >
-          {attachments.length > 0 ? (
-            <AttachmentGroup className="w-full">
-              {attachments.map((attachment) => (
-                <Attachment
-                  key={attachment.clientId}
-                  orientation="vertical"
-                  size="sm"
-                  state={attachment.state}
-                  className="w-24"
-                >
-                  <AttachmentMedia variant="image" className="w-full">
-                    <img src={attachment.previewUrl} alt={attachment.fileName} />
-                  </AttachmentMedia>
-                  <AttachmentContent>
-                    <AttachmentTitle>{attachment.fileName}</AttachmentTitle>
-                    <AttachmentDescription>
-                      {attachmentDescription(attachment)}
-                    </AttachmentDescription>
-                  </AttachmentContent>
-                  <AttachmentActions>
-                    <AttachmentAction
-                      type="button"
-                      aria-label={`Remover ${attachment.fileName}`}
-                      disabled={submitting}
-                      onClick={() => removeAttachment(attachment)}
+        ) : (
+          <>
+            <form
+              onSubmit={onSubmit}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
+              className={cn(
+                "flex flex-col gap-1.5 rounded-xl border bg-surface p-2 focus-within:border-border-strong",
+                dragging ? "border-brand-accent" : "border-border",
+              )}
+            >
+              {attachments.length > 0 ? (
+                <AttachmentGroup className="w-full">
+                  {attachments.map((attachment) => (
+                    <Attachment
+                      key={attachment.clientId}
+                      orientation="vertical"
+                      size="sm"
+                      state={attachment.state}
+                      className="w-24"
                     >
-                      <X />
-                    </AttachmentAction>
-                  </AttachmentActions>
-                </Attachment>
-              ))}
-            </AttachmentGroup>
-          ) : null}
+                      <AttachmentMedia variant="image" className="w-full">
+                        <img src={attachment.previewUrl} alt={attachment.fileName} />
+                      </AttachmentMedia>
+                      <AttachmentContent>
+                        <AttachmentTitle>{attachment.fileName}</AttachmentTitle>
+                        <AttachmentDescription>
+                          {attachmentDescription(attachment)}
+                        </AttachmentDescription>
+                      </AttachmentContent>
+                      <AttachmentActions>
+                        <AttachmentAction
+                          type="button"
+                          aria-label={`Remover ${attachment.fileName}`}
+                          disabled={submitting}
+                          onClick={() => removeAttachment(attachment)}
+                        >
+                          <X />
+                        </AttachmentAction>
+                      </AttachmentActions>
+                    </Attachment>
+                  ))}
+                </AttachmentGroup>
+              ) : null}
 
-          <textarea
-            ref={textareaRef}
-            value={draft}
-            onChange={(event) => onDraftChange(event.target.value)}
-            onKeyDown={onKeyDown}
-            onPaste={onPaste}
-            placeholder={placeholder}
-            aria-label={ariaLabel}
-            rows={1}
-            autoFocus={autoFocus}
-            className="min-h-9 w-full resize-none bg-transparent px-2 py-1.5 text-sm text-text outline-none placeholder:text-text-5"
-          />
+              <textarea
+                ref={textareaRef}
+                value={draft}
+                onChange={(event) => onDraftChange(event.target.value)}
+                onKeyDown={onKeyDown}
+                onPaste={onPaste}
+                placeholder={placeholder}
+                aria-label={ariaLabel}
+                rows={1}
+                autoFocus={autoFocus}
+                className="min-h-9 w-full resize-none bg-transparent px-2 py-1.5 text-sm text-text outline-none placeholder:text-text-5"
+              />
 
-          <div className="flex items-center justify-between">
-            <ActionTooltip label="Adicionar imagens" side="top">
-              <Button
-                type="button"
-                variant="subtle"
-                size="icon-sm"
-                aria-label="Adicionar imagens"
-                disabled={!accountId || disabled || submitting || attachments.length >= 4}
-                onClick={() => inputRef.current?.click()}
-              >
-                <Paperclip />
-              </Button>
-            </ActionTooltip>
-            <input
-              ref={inputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              hidden
-              onChange={(event) => selectFiles(event.target.files)}
-            />
-            {working && onStop ? (
-              <ActionTooltip label="Parar" side="top">
-                <Button type="button" size="icon-sm" aria-label="Parar geração" onClick={onStop}>
-                  <Square className="size-3 fill-current" />
-                </Button>
-              </ActionTooltip>
-            ) : (
-              <ActionTooltip label="Enviar" side="top">
-                <span className="inline-flex">
-                  <Button type="submit" size="icon-sm" aria-label="Enviar" disabled={!canSend}>
-                    <ArrowUp />
-                  </Button>
-                </span>
-              </ActionTooltip>
-            )}
-          </div>
-        </form>
-        {error || submitError ? (
-          <p role="alert" className="mt-2 px-2 text-xs text-destructive">
-            {error ?? submitError}
-          </p>
-        ) : null}
-        {hint ? <p className="mt-2 text-center text-note text-text-3">{hint}</p> : null}
+              <div className="flex items-center justify-between">
+                {attachLabel ? (
+                  attachButton
+                ) : (
+                  <ActionTooltip label="Adicionar imagens" side="top">
+                    {attachButton}
+                  </ActionTooltip>
+                )}
+                <input
+                  ref={inputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  hidden
+                  onChange={(event) => selectFiles(event.target.files)}
+                />
+                {working && onStop ? (
+                  <ActionTooltip label="Parar" side="top">
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      aria-label="Parar geração"
+                      onClick={onStop}
+                    >
+                      <Square className="size-3 fill-current" />
+                    </Button>
+                  </ActionTooltip>
+                ) : (
+                  <ActionTooltip label="Enviar" side="top">
+                    <span className="inline-flex">
+                      <Button type="submit" size="icon-sm" aria-label="Enviar" disabled={!canSend}>
+                        <ArrowUp />
+                      </Button>
+                    </span>
+                  </ActionTooltip>
+                )}
+              </div>
+            </form>
+            {error || submitError ? (
+              <p role="alert" className="mt-2 px-2 text-xs text-destructive">
+                {error ?? submitError}
+              </p>
+            ) : null}
+            {hint ? <p className="mt-2 text-center text-note text-text-3">{hint}</p> : null}
+          </>
+        )}
       </div>
     </footer>
   );

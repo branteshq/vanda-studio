@@ -5,8 +5,8 @@ import { getFunctionName } from "convex/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+import { brandFileDesign, brandFileOutline } from "../convex/brandFile";
 import { ProfilePage } from "../routes/_dashboard.perfil";
-import { brandFileReading } from "./profile/brand";
 
 // SAFETY: test IDs model opaque identifiers without pretending to be account records.
 const businessA = "business-a" as Id<"accounts">;
@@ -75,10 +75,22 @@ const runtime = {
     theme: mocks.query(api.users.appearance),
     setTheme: mocks.setTheme,
   }),
-  useWorkspaceFile: (accountId: string, path: string) =>
-    mocks.query(api.workspacePublic.file, { accountId, path }),
   WhatsAppSettings: () => createElement("p", null, "Caetano no WhatsApp"),
 };
+
+/** Answers Convex queries by function name, as [name, value] pairs; unlisted queries return undefined. */
+const answer = (...replies: [string, unknown][]) => {
+  const byName = new Map(replies);
+
+  mocks.query.mockImplementation((ref) => byName.get(getFunctionName(ref)));
+};
+
+// One brand file, read by the server helpers the query uses: the outline and the design derive from it.
+const brandContent = `# Marca\n\n## Tom e voz\n\n- Sem gírias (dono)\n\n## Design\n\n- Logo: ![logo da marca](image:logo1) (dono)\n- Paleta: #3860BE azul (principal); #AC8A5E dourado (destaque) (dono)\n`;
+
+const brandImages = { logo1: "https://files.test/logo.png" };
+
+const brandOutline = brandFileOutline(brandContent);
 
 let root: Root;
 
@@ -97,28 +109,24 @@ beforeEach(async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   vi.clearAllMocks();
   mocks.user.firstName = "Test";
-  mocks.query.mockImplementation((ref, args: { accountId: string }) => {
-    const name = getFunctionName(ref);
-
-    if (name === "usage:summary") return { plan: "profissional", usedPct: 37 };
-
-    if (name === "workspacePublic:file") return { ok: false };
-
-    if (name === "brandFile:get")
-      return {
-        content: `# Marca · ${args.accountId}\n\n## Tom e voz\n\n- Sem gírias (dono)\n`,
+  answer(
+    ["usage:summary", { plan: "profissional", usedPct: 37 }],
+    [
+      "brandFile:get",
+      {
+        content: brandContent,
+        outline: brandOutline,
+        images: brandImages,
+        design: brandFileDesign(brandOutline, brandImages),
         persisted: true,
         updatedAt: Date.UTC(2026, 9, 1),
         updatedBy: "owner",
         bytes: 60,
         maxBytes: 24_000,
-      };
-
-    if (name === "whatsappData:state")
-      return { connected: false, configured: true, deliveries: [] };
-
-    return undefined;
-  });
+      },
+    ],
+    ["whatsappData:state", { connected: false, configured: true, deliveries: [] }],
+  );
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -134,18 +142,10 @@ it.each([
   ["openai/gpt-image-2.5-sunburst", "GPT Image 2.5 Sunburst"],
   ["openai/gpt-image-2", "GPT Image 2"],
 ])("enables the subscription image picker and displays %s", async (image, label) => {
-  mocks.query.mockImplementation((ref) => {
-    if (getFunctionName(ref) === "users:modelPreferences") {
-      return {
-        conectado: true,
-        orchestrator: "openai/gpt-6-astra",
-        caetano: "openai/gpt-6-astra",
-        image,
-      };
-    }
-
-    return undefined;
-  });
+  answer([
+    "users:modelPreferences",
+    { conectado: true, orchestrator: "openai/gpt-6-astra", caetano: "openai/gpt-6-astra", image },
+  ]);
   await act(async () => root.render(createElement(ProfilePage, { runtime })));
   const picker = container.querySelector('[aria-label="Modelo de imagens"]');
 
@@ -182,11 +182,7 @@ it.each(["Modelo de conversa", "Modelo do Caetano"])(
       image: "openai/gpt-image-2.5-flare",
     };
 
-    mocks.query.mockImplementation((ref) => {
-      if (getFunctionName(ref) === "users:modelPreferences") return preferences;
-
-      return undefined;
-    });
+    answer(["users:modelPreferences", preferences]);
     await act(async () => root.render(createElement(ProfilePage, { runtime })));
     await click(label);
 
@@ -250,12 +246,19 @@ it("opens a business's brand file and the onboarding for unfinished ones", async
 it("reads and edits the brand file, then hands off to the conversation", async () => {
   await act(async () => root.render(createElement(ProfilePage, { runtime, marca: "business-a" })));
   expect(container.querySelector("h1")?.textContent).toBe("Business A");
-  // Read as a document: the section and its item, the origin as a quiet note, no score cards.
-  expect(container.textContent).toContain("Tom e voz");
-  expect(container.textContent).toContain("Sem gírias · dono");
-  expect(container.textContent).not.toContain("(dono)");
+  expect(container.textContent).toContain("Sem gírias");
+  expect(container.textContent).toContain("Você");
+  expect(container.textContent).toContain("#3860BE");
+
+  const swatch = [...container.querySelectorAll("li")].find((item) =>
+    item.textContent?.startsWith("#3860BE"),
+  );
+
+  expect(swatch?.textContent).toContain("azul");
   expect(container.textContent).toContain("Atualizado por você");
-  expect(container.textContent).not.toContain("Diagnóstico do Instagram");
+  expect(container.querySelector('img[alt="Logo"]')?.getAttribute("src")).toBe(
+    "https://files.test/logo.png",
+  );
 
   await click("Editar");
   const editor = container.querySelector<HTMLTextAreaElement>('[aria-label="Arquivo da marca"]');
@@ -281,15 +284,10 @@ it("does not open the brand file of a business that has not finished onboarding"
 });
 
 it("warns when the ChatGPT plan runs without a connected OpenAI account", async () => {
-  mocks.query.mockImplementation((ref) => {
-    const name = getFunctionName(ref);
-
-    if (name === "usage:summary") return { plan: "conectado", usedPct: 12 };
-
-    if (name === "openaiSub:connectionStatus") return { connected: false };
-
-    return undefined;
-  });
+  answer(
+    ["usage:summary", { plan: "conectado", usedPct: 12 }],
+    ["openaiSub:connectionStatus", { connected: false }],
+  );
   await act(async () => root.render(createElement(ProfilePage, { runtime })));
   expect(container.textContent).toContain("Sua conta OpenAI não está conectada");
   expect(container.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("12");
@@ -360,17 +358,4 @@ it("does not claim zero usage or a trial plan while the summary is loading", asy
   await act(async () => root.render(createElement(ProfilePage, { runtime })));
   expect(container.querySelector('[role="progressbar"]')).toBeNull();
   expect(container.textContent).not.toContain("Teste grátis");
-});
-
-it("reads the brand file without its title, legend or empty sections", () => {
-  const { markdown, empty } = brandFileReading(
-    "# Marca · Café\n\nA Vanda e o Caetano leem este arquivo.\n\n## O negócio\n\n- Cafeteria no Recife (dono)\n- Fecha às 18h (observado: perfil, 05/10)\n\n## Público\n\n## Nunca fazer\n\n- Falar de preço (Vanda)\n",
-  );
-
-  expect(markdown).not.toContain("# Marca");
-  expect(markdown).not.toContain("leem este arquivo");
-  expect(markdown).toContain("- Cafeteria no Recife *· dono*");
-  expect(markdown).toContain("- Fecha às 18h *· observado: perfil, 05/10*");
-  expect(markdown).not.toContain("## Público");
-  expect(empty).toEqual(["Público"]);
 });

@@ -10,6 +10,7 @@ import {
   Images,
   Menu,
   MessageSquareText,
+  type LucideIcon,
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
@@ -289,6 +290,30 @@ function ThreadTitle({ title }: { title: string | null }) {
   return <span className={cn("block truncate", reveal && "animate-title-in")}>{title}</span>;
 }
 
+/** A thread row's hover action: an icon button with its tooltip, named "<label> conversa". */
+function RowAction({
+  label,
+  icon: Icon,
+  onClick,
+}: {
+  label: string;
+  icon: LucideIcon;
+  onClick: () => void;
+}) {
+  return (
+    <ActionTooltip label={label} side="bottom">
+      <button
+        type="button"
+        aria-label={`${label} conversa`}
+        onClick={onClick}
+        className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-all duration-150 ease-out hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-95 motion-reduce:transform-none"
+      >
+        <Icon className="size-3.5" />
+      </button>
+    </ActionTooltip>
+  );
+}
+
 function sectionThreads(threads: ThreadItem[]): ThreadSection[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -318,6 +343,8 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
   const navigate = useNavigate();
   const location = useRouterState({ select: (state) => state.location });
   const threads = useQuery(api.chat.listThreads, { accountId });
+  const { activeAccount } = useActiveAccount();
+  const guideThreadId = activeAccount?.brandGuideThreadId ?? null;
 
   // Both mutate the visible list optimistically: the row updates/disappears the
   // frame the user confirms, and the server result reconciles afterwards.
@@ -361,14 +388,17 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
 
   const filtered = useMemo(() => {
     if (!threads) return [];
+
+    // The brand guide only lives in onboarding, so it never appears in the list.
+    const listed = threads.filter((thread) => thread.threadId !== guideThreadId);
     const normalized = query.trim().toLocaleLowerCase("pt-BR");
 
-    if (!normalized) return threads;
+    if (!normalized) return listed;
 
-    return threads.filter((thread) =>
+    return listed.filter((thread) =>
       (thread.title ?? "Nova conversa").toLocaleLowerCase("pt-BR").includes(normalized),
     );
-  }, [threads, query]);
+  }, [threads, query, guideThreadId]);
 
   const sections = sectionThreads(filtered);
 
@@ -521,26 +551,16 @@ function ThreadHistory({ accountId }: { accountId: Id<"accounts"> }) {
                               />
                             ) : null}
                             <div className="pointer-events-none absolute inset-y-0 right-1 flex items-center gap-0.5 opacity-0 transition-opacity duration-150 ease-out group-hover/thread:pointer-events-auto group-hover/thread:opacity-100 group-focus-within/thread:pointer-events-auto group-focus-within/thread:opacity-100 motion-reduce:transition-none">
-                              <ActionTooltip label="Renomear" side="bottom">
-                                <button
-                                  type="button"
-                                  aria-label="Renomear conversa"
-                                  onClick={() => rename(thread)}
-                                  className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-all duration-150 ease-out hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-95 motion-reduce:transform-none"
-                                >
-                                  <Pencil className="size-3.5" />
-                                </button>
-                              </ActionTooltip>
-                              <ActionTooltip label="Arquivar" side="bottom">
-                                <button
-                                  type="button"
-                                  aria-label="Arquivar conversa"
-                                  onClick={() => archive(thread)}
-                                  className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 outline-none transition-all duration-150 ease-out hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-95 motion-reduce:transform-none"
-                                >
-                                  <Archive className="size-3.5" />
-                                </button>
-                              </ActionTooltip>
+                              <RowAction
+                                label="Renomear"
+                                icon={Pencil}
+                                onClick={() => rename(thread)}
+                              />
+                              <RowAction
+                                label="Arquivar"
+                                icon={Archive}
+                                onClick={() => archive(thread)}
+                              />
                             </div>
                           </>
                         )}

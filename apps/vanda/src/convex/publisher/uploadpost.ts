@@ -24,18 +24,28 @@ const upFetch = async (path: string, init?: RequestInit): Promise<Response> => {
   return fetch(`${BASE_URL}${path}`, { ...init, headers });
 };
 
+const httpError = async (label: string, response: Response): Promise<Error> => {
+  const body = await response.text().catch(() => "");
+
+  return new Error(
+    `upload-post ${label} HTTP ${response.status}${body ? `: ${body.slice(0, 300)}` : ""}`,
+  );
+};
+
 const upJson = async <T>(path: string, schema: z.ZodType<T>, init?: RequestInit): Promise<T> => {
   const response = await upFetch(path, init);
 
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new Error(
-      `upload-post ${path} HTTP ${response.status}${body ? `: ${body.slice(0, 300)}` : ""}`,
-    );
-  }
+  if (!response.ok) throw await httpError(path, response);
 
   return schema.parse(await response.json());
 };
+
+/** A body that is missing or malformed reads as null instead of failing the caller. */
+const readLenient = async <T extends z.ZodType>(response: Response, schema: T) =>
+  schema
+    .nullable()
+    .catch(null)
+    .parse(await response.json().catch(() => null));
 
 type JsonPrimitive = string | number | boolean | null;
 
@@ -58,6 +68,8 @@ const socialAccountFieldsSchema = z.object({
   display_name: z.string().optional().catch(undefined),
   username: z.string().optional().catch(undefined),
   name: z.string().optional().catch(undefined),
+  // Best effort: present only when Upload-Post relays the Instagram bio.
+  biography: z.string().optional().catch(undefined),
 });
 
 const socialAccountSchema = z.union([z.string(), socialAccountFieldsSchema]).nullable().catch(null);
@@ -95,6 +107,8 @@ export interface InstagramState {
 export interface InstagramProfileInfo extends InstagramState {
   /** Human-facing account name when Upload-Post includes it in the connection. */
   displayName: string | null;
+  /** The Instagram bio when Upload-Post relays it; null otherwise. */
+  biography: string | null;
 }
 
 /** A usable @username — non-empty and not a bare numeric platform id. */
@@ -136,7 +150,7 @@ export const instagramProfileInfoOf = (profile: PublisherProfile): InstagramProf
 
   const fields = socialAccountFieldsSchema.safeParse(entry);
 
-  if (!fields.success) return { ...state, displayName: state.username };
+  if (!fields.success) return { ...state, displayName: state.username, biography: null };
 
   return {
     ...state,
@@ -144,6 +158,7 @@ export const instagramProfileInfoOf = (profile: PublisherProfile): InstagramProf
       usernameOrNull(fields.data.display_name) ??
       usernameOrNull(fields.data.name) ??
       state.username,
+    biography: fields.data.biography?.trim() || null,
   };
 };
 
@@ -156,7 +171,7 @@ export const ensureProfile = async (username: string): Promise<void> => {
   // wording ("Username already in use" / "already exists").
   const body = await response.text().catch(() => "");
 
-  if (response.status === 409 || /already in use|exist/i.test(body)) return;
+  if (response.status === 409 || /already (in use|exists)/i.test(body)) return;
   throw new Error(
     `upload-post create profile HTTP ${response.status}${body ? `: ${body.slice(0, 300)}` : ""}`,
   );
@@ -167,23 +182,16 @@ export const getProfile = async (username: string): Promise<PublisherProfile | n
 
   if (response.status === 404) return null;
 
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new Error(
-      `upload-post get profile HTTP ${response.status}${body ? `: ${body.slice(0, 300)}` : ""}`,
-    );
-  }
+  if (!response.ok) throw await httpError("get profile", response);
 
   return parseProfile(profileResponseSchema.parse(await response.json()));
 };
 
 /** Best-effort profile removal (used when a Vanda account is deleted). */
 export const deleteProfile = async (username: string): Promise<void> => {
-  await upFetch("/uploadposts/users", {
-    method: "DELETE",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ username }),
-  }).catch(() => undefined);
+  await upFetch("/uploadposts/users", { ...jsonInit({ username }), method: "DELETE" }).catch(
+    () => undefined,
+  );
 };
 
 export interface InstagramMediaItem {
@@ -522,8 +530,9 @@ const receiptFromHistory = async (username: string): Promise<PublishPhotosResult
 
   if (!response.ok) return { externalPostId: null, url: null };
 
-  const body = z
-    .object({
+  const body = await readLenient(
+    response,
+    z.object({
       history: z
         .array(
           z.object({
@@ -535,10 +544,8 @@ const receiptFromHistory = async (username: string): Promise<PublishPhotosResult
           }),
         )
         .default([]),
-    })
-    .nullable()
-    .catch(null)
-    .parse(await response.json().catch(() => null));
+    }),
+  );
 
   const item = (body?.history ?? []).find(
     (entry) =>
@@ -562,8 +569,9 @@ const awaitAsyncUpload = async (
       `/uploadposts/status?request_id=${encodeURIComponent(requestId)}`,
     );
 
-    const body = z
-      .object({
+    const body = await readLenient(
+      response,
+      z.object({
         status: z.string().optional(),
         results: z
           .array(
@@ -574,10 +582,8 @@ const awaitAsyncUpload = async (
             }),
           )
           .optional(),
-      })
-      .nullable()
-      .catch(null)
-      .parse(await response.json().catch(() => null));
+      }),
+    );
 
     // Result rows exist as placeholders while the job runs — only judge
     // success/failure once the aggregated status settles.
@@ -676,8 +682,9 @@ export const getPostAnalytics = async (username: string): Promise<Map<string, Po
 
   if (!response.ok) return new Map();
 
-  const body = z
-    .object({
+  const body = await readLenient(
+    response,
+    z.object({
       posts: z
         .array(
           z.object({
@@ -704,10 +711,8 @@ export const getPostAnalytics = async (username: string): Promise<Map<string, Po
           }),
         )
         .default([]),
-    })
-    .nullable()
-    .catch(null)
-    .parse(await response.json().catch(() => null));
+    }),
+  );
 
   const map = new Map<string, PostMetrics>();
 

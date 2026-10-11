@@ -445,6 +445,85 @@
   animation: vanda-title-in 0.5s var(--ease-out) both;
 }
 
+/* Caetano, the brand guide's live avatar (components/onboarding/caetano-avatar.tsx).
+ * Each motion is a theme animation, so the component names it as a plain class. */
+@theme {
+  --animate-caetano-breathe: caetano-breathe 3.2s ease-in-out infinite;
+  --animate-caetano-sway: caetano-sway 2.4s ease-in-out infinite alternate;
+  --animate-caetano-halo: caetano-halo 2.4s ease-out infinite;
+  --animate-caetano-guide-nod: caetano-guide-nod 0.9s ease-in-out infinite;
+  --animate-caetano-pop: caetano-pop 400ms var(--ease-out) both;
+  --animate-caetano-bounce: caetano-bounce 0.9s ease-in-out infinite alternate;
+  --animate-caetano-guide-hop: caetano-guide-hop 1.4s ease-in-out infinite;
+}
+/* The sprite atlas: one frame of the 8-pose row, moved by --caetano-frame. */
+@utility caetano-sprite {
+  background-image: var(--caetano-sprite);
+  background-position: var(--caetano-frame);
+  background-size: 800% 100%;
+  background-repeat: no-repeat;
+}
+@keyframes caetano-breathe {
+  50% {
+    transform: translateY(-2px) scale(1.03);
+  }
+}
+@keyframes caetano-sway {
+  from {
+    transform: rotate(-4deg);
+  }
+  to {
+    transform: rotate(4deg);
+  }
+}
+@keyframes caetano-halo {
+  from {
+    opacity: 0.6;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+}
+@keyframes caetano-guide-nod {
+  50% {
+    transform: translateY(2px) rotate(3deg);
+  }
+}
+@keyframes caetano-pop {
+  0% {
+    transform: scale(0.9);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+}
+@keyframes caetano-bounce {
+  to {
+    transform: translateY(-4px);
+  }
+}
+@keyframes caetano-guide-hop {
+  25% {
+    transform: translateY(-8px) rotate(-3deg);
+  }
+  75% {
+    transform: translateY(-4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-caetano-breathe,
+  .animate-caetano-sway,
+  .animate-caetano-halo,
+  .animate-caetano-guide-nod,
+  .animate-caetano-pop,
+  .animate-caetano-bounce,
+  .animate-caetano-guide-hop {
+    animation: none;
+  }
+}
+
 /* Caetano at work (Posts automáticos): he reads (a slow bob with a tilt),
  * plans (a quicker nod), walks to make the post (a sway) and hops when done.
  * Frames swap underneath by crossfade; these only move the figure. */

@@ -12,6 +12,7 @@
     "./assets/vanda-mark-white.svg": "./src/assets/vanda-mark-white.svg",
     "./assets/caetano/caetano-expression-welcome.png": "./src/assets/caetano/caetano-expression-welcome.png",
     "./assets/caetano/caetano-pose-waving.png": "./src/assets/caetano/caetano-pose-waving.png",
+    "./assets/caetano/caetano-sprite.webp": "./src/assets/caetano/caetano-sprite.webp",
     "./components/*": "./src/components/*.tsx",
     "./hooks/*": "./src/hooks/*.ts",
     "./lib/*": "./src/lib/*.ts",

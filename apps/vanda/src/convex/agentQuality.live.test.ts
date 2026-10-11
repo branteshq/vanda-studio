@@ -37,6 +37,22 @@ const streamVanda = vanda.streamText.bind(vanda);
 
 const streamCaetano = caetano.streamText.bind(caetano);
 
+type VandaStep = Parameters<NonNullable<Parameters<typeof streamVanda>[2]["onStepFinish"]>>[0];
+
+const traceStep = (agent: "vanda" | "caetano", step: VandaStep): EvalTraceStep => ({
+  agent,
+  text: step.text,
+  calls: step.toolCalls,
+  results: step.toolResults,
+  errors: step.content
+    .filter((part) => part.type === "tool-error")
+    .map((part) => ({
+      toolName: part.toolName,
+      message: part.error instanceof Error ? part.error.message : String(part.error),
+    })),
+  usage: step.usage,
+});
+
 const enabled = process.env.VANDA_LIVE_EVAL === "1";
 
 const model = process.env.VANDA_EVAL_MODEL ?? "openai/gpt-5.6-terra";
@@ -299,19 +315,7 @@ it.skipIf(!enabled).each(suite)(
           ...options,
           system,
           onStepFinish: async (step) => {
-            trace.push({
-              agent: "vanda",
-              text: step.text,
-              calls: step.toolCalls,
-              results: step.toolResults,
-              errors: step.content
-                .filter((part) => part.type === "tool-error")
-                .map((part) => ({
-                  toolName: part.toolName,
-                  message: part.error instanceof Error ? part.error.message : String(part.error),
-                })),
-              usage: step.usage,
-            });
+            trace.push(traceStep("vanda", step));
           },
         },
         persistence,
@@ -327,19 +331,7 @@ it.skipIf(!enabled).each(suite)(
           {
             ...options,
             onStepFinish: async (step) => {
-              trace.push({
-                agent: "caetano",
-                text: step.text,
-                calls: step.toolCalls,
-                results: step.toolResults,
-                errors: step.content
-                  .filter((part) => part.type === "tool-error")
-                  .map((part) => ({
-                    toolName: part.toolName,
-                    message: part.error instanceof Error ? part.error.message : String(part.error),
-                  })),
-                usage: step.usage,
-              });
+              trace.push(traceStep("caetano", step));
             },
           },
           persistence,
@@ -348,6 +340,23 @@ it.skipIf(!enabled).each(suite)(
     );
 
     let response = "";
+
+    const insertUpload = (
+      name: string,
+      url: string,
+      size: { mimeType: string; width?: number; height?: number },
+    ) =>
+      t.run((ctx) =>
+        ctx.db.insert("images", {
+          accountId: ids.accountId,
+          name,
+          origin: "uploaded",
+          purpose: "post",
+          externalUrl: url,
+          ...size,
+          createdAt: startedAt,
+        }),
+      );
 
     try {
       await t.action(internal.openaiSubNode.encryptAndStore, {
@@ -358,19 +367,14 @@ it.skipIf(!enabled).each(suite)(
         accountId: auth.account_id,
       });
 
-      for (const [path, content] of [
-        ["/brand/kit.json", JSON.stringify(brand.kit)],
-        ["/brand/marca.md", brandFileFor(brand)],
-      ] as const) {
-        const written = await t.mutation(internal.workspaceData.write, {
-          accountId: ids.accountId,
-          path,
-          content,
-        });
+      const written = await t.mutation(internal.workspaceData.write, {
+        accountId: ids.accountId,
+        path: "/brand/marca.md",
+        content: brandFileFor(brand),
+      });
 
-        // A silent refusal would run the case without the brand's notes and preferences.
-        expect(written.ok, path).toBe(true);
-      }
+      // A silent refusal would run the case without the brand's notes, design and preferences.
+      expect(written.ok).toBe(true);
 
       const attachments: { imageId: Id<"images">; url: string; mimeType: string }[] = [];
 
@@ -388,17 +392,7 @@ it.skipIf(!enabled).each(suite)(
         );
         const url = `data:${metadata.mimeType};base64,${bytes.toString("base64")}`;
 
-        const imageId = await t.run((ctx) =>
-          ctx.db.insert("images", {
-            accountId: ids.accountId,
-            name,
-            origin: "uploaded",
-            purpose: "post",
-            externalUrl: url,
-            ...metadata,
-            createdAt: startedAt,
-          }),
-        );
+        const imageId = await insertUpload(name, url, metadata);
 
         attachments.push({ imageId, url, mimeType: metadata.mimeType });
       }
@@ -412,19 +406,11 @@ it.skipIf(!enabled).each(suite)(
         await writeFile(resolve(directory, "reference.png"), bytes);
         const url = `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`;
 
-        const imageId = await t.run((ctx) =>
-          ctx.db.insert("images", {
-            accountId: ids.accountId,
-            name: "Peça anterior",
-            origin: "uploaded",
-            purpose: "post",
-            externalUrl: url,
-            mimeType: "image/png",
-            width: 1024,
-            height: 1280,
-            createdAt: startedAt,
-          }),
-        );
+        const imageId = await insertUpload("Peça anterior", url, {
+          mimeType: "image/png",
+          width: 1024,
+          height: 1280,
+        });
 
         referenceImageId = imageId;
         attachments.push({ imageId, url, mimeType: "image/png" });

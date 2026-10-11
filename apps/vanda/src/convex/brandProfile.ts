@@ -1,22 +1,36 @@
-import { createThread, saveMessage } from "@convex-dev/agent";
+import { createThread, saveMessage, updateThreadMetadata } from "@convex-dev/agent";
 import { v } from "convex/values";
 import { components } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
-import { internalQuery, mutation, query } from "./_generated/server";
-import * as Schema from "effect/Schema";
+import type { Id } from "./_generated/dataModel";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
-import { ensureBrandFile, writeOnboardingBrandFile } from "./brandFile";
-import { BrandAnalysis, type BrandCanonKind } from "./pipeline/brand";
-import { brandAnalysisArgs } from "./pipeline/storage";
+import { brandFileContent, brandGuide, writeOnboardingBrandFile } from "./brandFile";
+import { brandFactArg, brandKindValidator } from "./pipeline/storage";
+import { saveDocument } from "./workspace/documents";
 
 /**
- * Resolve the connected Instagram handle for an account the caller owns.
- * `analyzeAccount` passes its verified Clerk id; ownership is checked again here
- * before first-party account data is read through the publisher profile.
+ * Resolve the connected Instagram handle (or null), whether the account is onboarded, and
+ * whether its brand guide is empty, for an account the caller owns. `brandProfileNode.onboard`
+ * passes its verified Clerk id; ownership is checked again here before first-party account
+ * data is read through the publisher profile.
  */
+/** The brand guide's sections, read from the account's brand file. */
+const guideSections = async (ctx: QueryCtx, accountId: Id<"accounts">) =>
+  brandGuide(await brandFileContent(ctx, accountId));
+
 export const resolveOwnedHandle = internalQuery({
   args: { accountId: v.id("accounts"), clerkId: v.string() },
-  handler: async (ctx, { accountId, clerkId }): Promise<{ handle: string }> => {
+  handler: async (
+    ctx,
+    { accountId, clerkId },
+  ): Promise<{ handle: string | null; onboarded: boolean; guideEmpty: boolean }> => {
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
@@ -28,155 +42,135 @@ export const resolveOwnedHandle = internalQuery({
       throw new Error("account not found");
     }
 
-    if (account.handle === undefined) throw new Error("account has no Instagram connection");
-
-    return { handle: account.handle };
+    return {
+      handle: account.handle ?? null,
+      onboarded: account.onboardedAt !== undefined,
+      guideEmpty: (await guideSections(ctx, accountId)).every((s) => !s.filled),
+    };
   },
 });
 
-/** Shapes of the analysis cards `approveBrandProfile` flattens into brand file items. */
-type CanonCard = { readonly text: string; readonly evidence: string; readonly confidence: number };
+/** Caetano's greeting, opening every message he sends first in a conversation. */
+export const CAETANO_HELLO = "Oi! Eu sou o Caetano.";
 
-type CanonGroup = {
-  readonly items: ReadonlyArray<string>;
-  readonly evidence: string;
-  readonly confidence: number;
+/** Without an Instagram read, Caetano opens the guide with the basics. */
+const FALLBACK_OPENER = `${CAETANO_HELLO} Não consegui ler seu Instagram agora, mas a gente monta seu guia da marca aqui mesmo, rapidinho. Me conta: o que você vende, e pra quem?`;
+
+/** Open Caetano's brand guide thread with his first message and link it to the account. */
+const openGuideThread = async (
+  ctx: MutationCtx,
+  accountId: Id<"accounts">,
+  opener: string,
+): Promise<string> => {
+  // Threads are keyed by the account id (multi-thread model, see chat.ts).
+  const threadId = await createThread(ctx, components.agent, {
+    userId: String(accountId),
+    title: "Guia da marca",
+  });
+
+  await saveMessage(ctx, components.agent, {
+    threadId,
+    agentName: "caetano",
+    message: { role: "assistant", content: opener },
+  });
+
+  // The replaced guide is archived so it leaves the conversation list.
+  const previous = (await ctx.db.get(accountId))?.brandGuideThreadId;
+
+  if (previous !== undefined) {
+    await updateThreadMetadata(ctx, components.agent, {
+      threadId: previous,
+      patch: { status: "archived" },
+    });
+  }
+
+  await ctx.db.patch(accountId, { brandGuideThreadId: threadId });
+
+  return threadId;
 };
 
-const canonFromText = (kind: BrandCanonKind, card: CanonCard) => ({
-  kind,
-  text: card.text,
-  evidence: card.evidence,
-  confidence: card.confidence,
-});
-
-const canonFromGroup = (kind: BrandCanonKind, group: CanonGroup) =>
-  group.items.map((text) => ({
-    kind,
-    text,
-    evidence: group.evidence,
-    confidence: group.confidence,
-  }));
-
 /**
- * Confirm the brand profile — the end of onboarding. Validates the owner-approved
- * analysis against the domain contract (rejecting out-of-range confidence), then
- * writes it into the brand file (`identity`/`summary` one item each; `voice`/
- * `character`/`restriction` one item per chip), then stamps `onboardedAt`.
- * Single-use: re-confirming after onboarding is rejected; later edits go through
- * the brand file. The file is fully replaced so a retry before completion stays
- * idempotent.
+ * The end of onboarding (`brandProfileNode.onboard`): the Instagram read opens
+ * the brand file, the account is marked onboarded, and Caetano opens the brand
+ * guide thread with his first question (written from the posts); that
+ * conversation fills the file. A business already onboarded only gets this again
+ * while its brand guide is empty (a cleared file reconnected): the read refills
+ * the file and a fresh guide thread opens. `note` is the read's evidence for Caetano.
+ * Idempotent: a retry after finishing is a no-op.
  */
-export const approveBrandProfile = mutation({
+export const completeOnboarding = internalMutation({
   args: {
     accountId: v.id("accounts"),
-    ...brandAnalysisArgs,
+    kind: v.union(brandKindValidator, v.null()),
+    facts: v.array(brandFactArg),
+    opener: v.union(v.string(), v.null()),
+    note: v.union(v.string(), v.null()),
   },
-  handler: async (ctx, args) => {
-    const account = await requireOwnedAccount(ctx, args.accountId);
+  handler: async (ctx, { accountId, kind, facts, opener, note }) => {
+    const account = await ctx.db.get(accountId);
 
-    if (account.onboardedAt !== undefined) throw new Error("account already onboarded");
-    const { accountId, ...rest } = args;
-    // The public mutation's v.number() args don't enforce UnitInterval; decode against
-    // the domain contract so an out-of-range confidence is rejected, not persisted.
-    const analysis = Schema.decodeSync(BrandAnalysis)(rest);
+    if (account === null) return;
+
+    const guideEmpty = (await guideSections(ctx, accountId)).every((s) => !s.filled);
+
+    if (account.onboardedAt !== undefined && !guideEmpty) return;
+
+    await writeOnboardingBrandFile(ctx, accountId, facts);
+
+    if (note) await saveDocument(ctx, accountId, "/notes/leitura-instagram.md", note);
+    // One question per message: the model sometimes asks two, so the opener ends at its first "?".
+    const firstQuestion = opener?.trim().replace(/\?[\s\S]*$/, "?");
+
+    await openGuideThread(ctx, accountId, firstQuestion || FALLBACK_OPENER);
+
+    if (account.onboardedAt !== undefined) return;
+
     const now = Date.now();
-
-    const canon = [
-      canonFromText("identity", analysis.identity),
-      canonFromText("summary", analysis.summary),
-      ...canonFromGroup("voice", analysis.voice),
-      ...canonFromGroup("character", analysis.characters),
-      ...canonFromGroup("restriction", analysis.restrictions),
-    ];
-
     await ctx.db.patch(accountId, {
-      kind: analysis.kind.value,
+      kind: kind ?? "negocio",
       onboardedAt: now,
       updatedAt: now,
     });
-    // The confirmed facts open the brand file; from here on it is the memory both agents use.
-    await writeOnboardingBrandFile(ctx, accountId, canon);
 
     if (account.ownerUserId !== undefined) {
       await ctx.db.patch(account.ownerUserId, { activeAccountId: accountId, updatedAt: now });
-    }
-
-    // Onboarding resolves into the conversation: Vanda opens the account's
-    // first thread with what she learned and proposes the first action, so the
-    // first thing the owner sees in /conversa is an operator, not an empty chat.
-    // Threads are keyed by the account id (multi-thread model — see chat.ts).
-    const existingThreads = await ctx.runQuery(components.agent.threads.listThreadsByUserId, {
-      userId: String(accountId),
-      paginationOpts: { cursor: null, numItems: 1 },
-    });
-
-    if (existingThreads.page.length === 0) {
-      const threadId = await createThread(ctx, components.agent, {
-        userId: String(accountId),
-        title: "Boas-vindas",
-      });
-
-      const voice = analysis.voice.items.slice(0, 4).join(", ");
-      const themes = analysis.themes.items.slice(0, 4).join(", ");
-      await saveMessage(ctx, components.agent, {
-        threadId,
-        agentName: "vanda",
-        message: {
-          role: "assistant",
-          content:
-            `Prontinho — sua marca agora faz parte da minha memória. Entendi que ${analysis.identity.text} ` +
-            `A voz da marca é ${voice || "a que você confirmou"}, e os temas que mais aparecem no seu conteúdo são: ${themes || "os que confirmamos juntos"}.\n\n` +
-            `Está tudo no arquivo da sua marca, em Perfil › Negócios: dá para corrigir ou acrescentar o que quiser, ali ou aqui na conversa.\n\n` +
-            `Quer que eu já procure uma oportunidade no seu mercado? Eu observo criadores parecidos com você, encontro conteúdos com desempenho fora da curva e trago no máximo uma ideia forte. Tudo o que eu criar ou agendar fica visível no painel de posts — e dá para mudar ou desfazer quando quiser.`,
-        },
-      });
     }
   },
 });
 
 /**
- * The onboarding escape hatch: the corpus read failed (vendor outage, quota)
- * and the owner chose to continue anyway. Stamps `onboardedAt` with an empty
- * brand canon — Vanda starts knowing nothing and learns from the conversation,
- * which the instructions already handle (readiness 0 → ask the owner).
+ * Caetano's brand guide thread for a business whose brand file still has gaps,
+ * opened on first need for businesses onboarded before the guide existed. Null
+ * when the file is complete.
  */
-export const completeWithoutAnalysis = mutation({
+export const openGuide = mutation({
   args: { accountId: v.id("accounts") },
-  handler: async (ctx, { accountId }) => {
+  handler: async (ctx, { accountId }): Promise<string | null> => {
     const account = await requireOwnedAccount(ctx, accountId);
 
-    if (account.onboardedAt !== undefined) throw new Error("account already onboarded");
-    const now = Date.now();
-    await ctx.db.patch(accountId, { onboardedAt: now, updatedAt: now });
-    await ensureBrandFile(ctx, accountId);
+    const sections = await guideSections(ctx, accountId);
 
-    if (account.ownerUserId !== undefined) {
-      await ctx.db.patch(account.ownerUserId, { activeAccountId: accountId, updatedAt: now });
+    if (sections.every((section) => section.filled)) return null;
+
+    const threadId = account.brandGuideThreadId;
+    // A cleared file restarts only a thread the owner already answered in; an untouched one is reused.
+    const cleared = sections.every((section) => !section.filled);
+
+    if (threadId !== undefined) {
+      const page = cleared
+        ? await ctx.runQuery(components.agent.messages.listMessagesByThreadId, {
+            threadId,
+            order: "desc",
+            paginationOpts: { cursor: null, numItems: 2 },
+          })
+        : null;
+
+      if (page === null || page.page.length <= 1) return threadId;
     }
 
-    const existingThreads = await ctx.runQuery(components.agent.threads.listThreadsByUserId, {
-      userId: String(accountId),
-      paginationOpts: { cursor: null, numItems: 1 },
-    });
+    const opener = `${CAETANO_HELLO} Quero entender bem o seu negócio para cuidar do seu Instagram do jeito certo. Me conta: o que vocês fazem de melhor?`;
 
-    if (existingThreads.page.length === 0) {
-      const threadId = await createThread(ctx, components.agent, {
-        userId: String(accountId),
-        title: "Boas-vindas",
-      });
-
-      await saveMessage(ctx, components.agent, {
-        threadId,
-        agentName: "vanda",
-        message: {
-          role: "assistant",
-          content:
-            `Não consegui ler sua conta do Instagram agora, então vamos começar do jeito direto: me conta sobre o seu negócio — o que você vende, para quem, e o tom que você gosta de usar nas redes.\n\n` +
-            `Vou anotando o que você me contar no arquivo da sua marca, e você revisa tudo em Perfil › Negócios quando quiser. Fotos do seu produto ou do seu espaço também ajudam muito — pode mandar aqui na conversa.`,
-        },
-      });
-    }
+    return openGuideThread(ctx, accountId, opener);
   },
 });
 
@@ -226,54 +220,16 @@ export const addReferencePhoto = mutation({
 
     if (existing !== null) return existing._id;
 
-    const image = {
+    return ctx.db.insert("images", {
       accountId,
       origin: "uploaded",
       purpose: "reference",
       storageId,
       createdAt: Date.now(),
-    } satisfies Omit<Doc<"images">, "_id" | "_creationTime">;
-
-    const optional: Pick<Partial<Doc<"images">>, "referenceKind" | "width" | "height"> = {};
-
-    if (kind !== undefined) optional.referenceKind = kind;
-
-    if (width !== undefined) optional.width = width;
-
-    if (height !== undefined) optional.height = height;
-
-    return ctx.db.insert("images", { ...image, ...optional });
-  },
-});
-
-/**
- * The owner's authorized reference photos with resolved URLs — what generation
- * may condition on (identity, product, place). Used by the render pipeline and
- * the agent; account scoping is structural.
- */
-export const listAuthorizedReferences = internalQuery({
-  args: { accountId: v.id("accounts") },
-  handler: async (ctx, { accountId }) => {
-    const images = await ctx.db
-      .query("images")
-      .withIndex("by_account", (q) => q.eq("accountId", accountId))
-      .collect();
-
-    const references = images.filter((image) => image.purpose === "reference");
-
-    return (
-      await Promise.all(
-        references.map(async (image) => ({
-          imageId: image._id,
-          kind: image.referenceKind,
-          containsFace: image.containsFace,
-          description: image.description,
-          url:
-            image.externalUrl ??
-            (image.storageId ? await ctx.storage.getUrl(image.storageId) : null),
-        })),
-      )
-    ).filter((item) => item.url !== null);
+      ...(kind !== undefined && { referenceKind: kind }),
+      ...(width !== undefined && { width }),
+      ...(height !== undefined && { height }),
+    });
   },
 });
 

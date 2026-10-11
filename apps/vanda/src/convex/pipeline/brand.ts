@@ -1,28 +1,17 @@
 import * as Schema from "effect/Schema";
-import { brandCanonKinds, brandKinds } from "./constants";
+import { brandKinds } from "./constants";
 
 /** A number in [0, 1] — detection confidence. */
 export const UnitInterval = Schema.Finite.check(Schema.isBetween({ minimum: 0, maximum: 1 }));
 
 /**
  * The brand-profile stage models onboarding's "Vanda reads your account and
- * proposes what she understood." `proposeBrandProfile` (pipeline/brandProfile.ts)
- * turns a corpus (profile + captions + comments) into a `BrandAnalysis` via one
- * structured LLM pass; the owner edits it on the Confirmar screen and approves it
- * into the brand file (/brand/marca.md). Nothing here is persisted as a draft — the analysis flows
- * action -> client -> `approveBrandProfile`.
+ * proposes what she understood": `proposeBrandProfile` (pipeline/brandProfile.ts)
+ * turns a corpus into a `BrandAnalysis` in one structured LLM pass, which
+ * `completeOnboarding` writes into /brand/marca.md. Nothing here is persisted as a draft.
  */
 
-/** The owner-confirmed canon kinds (single source: constants). */
-export const BrandCanonKind = Schema.Literals(brandCanonKinds);
-
-export type BrandCanonKind = typeof BrandCanonKind.Type;
-
-/**
- * One single-valued analysis card (identity, summary) with the model's evidence
- * line and detection confidence — the provenance the Confirmar screen surfaces so
- * the owner knows what to scrutinize before confirming.
- */
+/** One single-valued analysis card (identity, summary) with its evidence and confidence. */
 export const BrandText = Schema.Struct({
   text: Schema.String,
   evidence: Schema.String,
@@ -33,8 +22,7 @@ export type BrandText = typeof BrandText.Type;
 
 /**
  * One multi-valued analysis card (voice, themes, characters, restrictions,
- * opportunities): atomic chips plus a single shared evidence/confidence, matching
- * the Confirmar card layout (one confidence dot per card, chips inside).
+ * opportunities): atomic items plus a single shared evidence and confidence.
  */
 export const BrandGroup = Schema.Struct({
   items: Schema.Array(Schema.String),
@@ -49,33 +37,33 @@ export type BrandGroup = typeof BrandGroup.Type;
  * the brand ("pessoal", e.g. the owner appears in the posts). The owner confirms
  * or flips it; it sets `accounts.kind` and shapes how create generates.
  */
-export const BrandKind = Schema.Literals(brandKinds);
-
-export type BrandKind = typeof BrandKind.Type;
-
 export const BrandKindCard = Schema.Struct({
-  value: BrandKind,
+  value: Schema.Literals(brandKinds),
   evidence: Schema.String,
   confidence: UnitInterval,
 });
 
-export type BrandKindCard = typeof BrandKindCard.Type;
-
 /**
- * Vanda's structured read of a brand — the `generateObject` schema and the shape
- * the owner approves. `identity`/`voice`/`character`/`restriction`/`summary` persist
- * as brand file items; `kind` sets the account's brand type; `themes` seed the `themes`
- * table; `opportunities` are previews the planner later earns, so neither is canon.
+ * Vanda's structured read of a brand from the profile, captions and comments.
+ * Onboarding writes the confident cards into the brand file as observed items;
+ * `opener` is Caetano's first message of the brand guide, written from the posts;
+ * `kind` sets the account's brand type; `themes`/`opportunities` are previews, not memory.
  */
 export const BrandAnalysis = Schema.Struct({
   identity: BrandText,
   summary: BrandText,
   kind: BrandKindCard,
+  location: BrandText,
+  positioning: BrandText,
+  offers: BrandGroup,
+  audience: BrandGroup,
   voice: BrandGroup,
   themes: BrandGroup,
   characters: BrandGroup,
+  proof: BrandGroup,
   restrictions: BrandGroup,
   opportunities: BrandGroup,
+  opener: Schema.String,
 });
 
 export type BrandAnalysis = typeof BrandAnalysis.Type;

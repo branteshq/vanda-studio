@@ -40,16 +40,13 @@ export interface SettingDefinition {
 }
 
 /**
- * Public functions the Perfil UI calls that are not settings: the brand file and
- * the visual kit. The drift test requires every other call to be claimed by a
- * setting above.
+ * Public functions the Perfil UI calls that are not settings: the brand file.
+ * The drift test requires every other call to be claimed by a setting above.
  */
 export const NON_SETTING_UI_FUNCTIONS = [
   // The brand file is what Vanda knows, edited as a document, not a setting.
   "brandFile.get",
   "brandFile.save",
-  // The visual kit shown beside it.
-  "workspacePublic.file",
   // The Calendário's posts are content, not settings.
   "calendar.range",
   // Autopilot posts are content, not settings: the agents change them with autopilot_* tools.

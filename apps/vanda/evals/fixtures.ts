@@ -3,7 +3,7 @@ export type EvalBrand = {
   name: string;
   handle: string;
   notes: string;
-  kit: {
+  design: {
     colors: { hex: string; name: string }[];
     fonts: { family: string; role?: string }[];
     tagline: string;
@@ -34,7 +34,7 @@ export const brands: EvalBrand[] = [
     name: "Café Caju",
     handle: "@cafecaju.recife",
     notes: "Cafeteria de bairro fictícia no Recife, com torra local e clima de varanda.",
-    kit: {
+    design: {
       colors: [
         { hex: "#7A3E2D", name: "Cacau" },
         { hex: "#F4E7D3", name: "Aveia" },
@@ -60,7 +60,7 @@ export const brands: EvalBrand[] = [
     name: "Orvalho Botânica",
     handle: "@orvalhobotanica",
     notes: "Marca fictícia de cosméticos artesanais de Curitiba, focada em rotinas simples.",
-    kit: {
+    design: {
       colors: [
         { hex: "#315C4B", name: "Musgo" },
         { hex: "#E9E1D3", name: "Argila clara" },
@@ -86,7 +86,7 @@ export const brands: EvalBrand[] = [
     name: "Prumo Reparos",
     handle: "@prumoreparos.sp",
     notes: "Serviço fictício de pequenos reparos residenciais na cidade de São Paulo.",
-    kit: {
+    design: {
       colors: [
         { hex: "#183B56", name: "Azul ferramenta" },
         { hex: "#F2C14E", name: "Amarelo fita" },
@@ -112,7 +112,7 @@ export const brands: EvalBrand[] = [
     name: "Pimba! Papelaria",
     handle: "@pimbapapelaria",
     notes: "Papelaria criativa fictícia de Belo Horizonte, colorida e irreverente.",
-    kit: {
+    design: {
       colors: [
         { hex: "#5B2EFF", name: "Roxo elétrico" },
         { hex: "#FF4F8B", name: "Rosa marca-texto" },
@@ -142,7 +142,7 @@ export const cases: EvalCase[] = [
     prompt: "Crie um post de feed para apresentar o combo da manhã, com legenda e direção visual.",
     expectations: [
       "Usa corretamente o preço de R$ 16 e os itens do combo.",
-      "Mantém voz acolhedora e aplica elementos reconhecíveis do kit.",
+      "Mantém voz acolhedora e aplica elementos reconhecíveis da seção Design.",
       "Não inventa desconto, entrega ou reserva.",
     ],
     kind: "creative",

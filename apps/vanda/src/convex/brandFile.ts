@@ -1,11 +1,16 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import {
+  internalQuery,
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
 import type { brandCanonKinds } from "./pipeline/constants";
-import { BRAND_FILE_SECTIONS as SECTIONS, brandFileFacts } from "./brandFileText";
 import { saveDocument, type DocumentAuthor } from "./workspace/documents";
-import type { WorkspaceWriteResult } from "./workspace/types";
+import { imageUrl, type WorkspaceWriteResult } from "./workspace/types";
 
 /**
  * The brand file: one Markdown document per business that both agents read at
@@ -24,35 +29,106 @@ export const MAX_BRAND_FILE_BYTES = 24_000;
 export const brandFileBytes = (content: string): number =>
   new TextEncoder().encode(content).byteLength;
 
-export { brandFileFacts, type BrandFileFact } from "./brandFileText";
-
 /** The kinds of fact onboarding extracts; each lands in one section. */
 export type BrandFactKind = (typeof brandCanonKinds)[number];
 
-type CanonKind = BrandFactKind;
+/** One item; `origin` defaults to the owner's word ("dono"). */
+export type BrandFact = { kind: BrandFactKind; text: string; origin?: string };
 
-export const BRAND_FILE_LEGEND = [
-  "A Vanda e o Caetano leem este arquivo em toda conversa. Cada item termina com a origem:",
-  "",
-  "- **(dono)**: você disse ou confirmou. Só muda se você pedir.",
-  "- **(observado: evidência, data)**: aprendido com resultados. É revisado quando surgem novas evidências.",
-  "- **(Vanda)**: padrão sugerido pela Vanda. Você pode mudar quando quiser.",
-].join("\n");
+/** The section that holds the palette, the typography and the logo. */
+const DESIGN_SECTION = "Design";
 
-const oneLine = (text: string): string => text.replace(/\s+/g, " ").trim();
+/** Labels of the Design items: "- Paleta: #hex nome (papel); …", "- Logo: ![…](image:id)". */
+export const DESIGN_LABELS = { palette: "Paleta", typography: "Tipografia", logo: "Logo" } as const;
 
-// Room left for the reference lines of legacy notes that do not fit inline.
+/** Legacy notes: everything under this heading is carried over verbatim, never parsed. */
+const LEGACY_HEADING = "Notas anteriores";
+
+/** The sections in file order; `discover` is what the guide interview asks for. */
+const SECTIONS: { title: string; kinds: readonly BrandFactKind[]; discover?: string }[] = [
+  {
+    title: "O negócio",
+    kinds: [
+      "summary",
+      "identity",
+      "positioning",
+      "offer",
+      "differentiator",
+      "location",
+      "objective",
+    ],
+    discover: "o que vende, preços aproximados, onde ou como atende, e o que quer do Instagram",
+  },
+  { title: "Público", kinds: ["audience"], discover: "quem compra e do que precisa ou tem medo" },
+  {
+    title: "Voz",
+    kinds: ["voice", "character"],
+    discover:
+      "se o perfil é só profissional ou também pessoal e descontraído; como fala com os clientes; se usa emojis",
+  },
+  {
+    title: DESIGN_SECTION,
+    kinds: [],
+    discover:
+      "cores e o papel de cada uma, se tem logo (e onde ele vai), a fonte se souber, o estilo das imagens e o que evitar",
+  },
+  {
+    title: "Nunca fazer",
+    kinds: ["restriction", "forbidden_claim"],
+    discover:
+      "o que a lei ou o conselho da profissão proíbe nos anúncios e assuntos que a marca evita",
+  },
+  {
+    title: "Provas",
+    kinds: ["proof"],
+    discover: "registro profissional, tempo de mercado, prêmios ou depoimentos de clientes",
+  },
+  { title: "Preferências", kinds: [] },
+  { title: "O que funciona", kinds: [] },
+];
+
+/** The section titles of the brand file, in file order. */
+export const SECTION_TITLES = SECTIONS.map((section) => section.title);
+
+const BRAND_FILE_LEGEND =
+  "Lido pela Vanda e pelo Caetano em toda conversa. A origem no fim de cada item diz quem pode mudá-lo: (dono) só você; (observado: evidência, data) revisado com novos resultados; (Vanda) sugestão, mude quando quiser. Este guia define a identidade; tipo, formato e layout de cada post são escolhidos a cada post.";
+
+/** The label each canon kind gets on its composed line; kinds without one render bare. */
+const LABELS: Partial<Record<BrandFactKind, string>> = {
+  identity: "O que é",
+  summary: "Resumo",
+  positioning: "Posicionamento",
+  offer: "Oferta",
+  differentiator: "Diferencial",
+  location: "Onde",
+  objective: "Objetivo do perfil",
+  audience: "Quem",
+  voice: "Voz",
+  character: "Quem aparece",
+};
+
+/** One line per kind and origin: "- Oferta: a; b (dono)". */
+const groupedLines = (facts: readonly BrandFact[]): string[] => {
+  const groups = new Map<string, { label: string | undefined; origin: string; texts: string[] }>();
+
+  for (const fact of facts) {
+    const origin = fact.origin ?? "dono";
+    const key = `${fact.kind} ${origin}`;
+    const group = groups.get(key) ?? { label: LABELS[fact.kind], origin, texts: [] };
+
+    group.texts.push(fact.text.replace(/\s+/g, " ").trim());
+    groups.set(key, group);
+  }
+
+  return [...groups.values()].map(
+    ({ label, origin, texts }) => `- ${label ? `${label}: ` : ""}${texts.join("; ")} (${origin})`,
+  );
+};
+
+/** Room left for the reference lines of legacy notes that do not fit inline. */
 const LEGACY_REFERENCE_MARGIN = 1_000;
 
 const PREFERENCE_PATHS = new Set(["/memory/preferences.md", "/memory/preferencias.md"]);
-
-const prioritized = <Document extends { readonly path: string }>(
-  documents: readonly Document[],
-): Document[] =>
-  documents.toSorted(
-    (left, right) =>
-      Number(!PREFERENCE_PATHS.has(left.path)) - Number(!PREFERENCE_PATHS.has(right.path)),
-  );
 
 /** Where an old document stays readable: /legado/brand-notes.md, /legado/memory-<name>. */
 export const legacyPath = (path: string): string =>
@@ -60,29 +136,23 @@ export const legacyPath = (path: string): string =>
     ? "/legado/brand-notes.md"
     : `/legado/memory-${path.slice("/memory/".length)}`;
 
-interface BrandFileSources {
-  readonly name: string;
-  readonly handle?: string | null | undefined;
-  readonly facts: ReadonlyArray<{ readonly kind: CanonKind; readonly text: string }>;
-  /** Legacy documents (/brand/notes.md, /memory/*.md) carried over verbatim. */
-  readonly legacy: ReadonlyArray<{ readonly path: string; readonly content: string }>;
-}
+/** Legacy documents (/brand/notes.md, /memory/*.md) are carried over verbatim. */
+type BrandFileSources = {
+  name: string;
+  handle?: string | null | undefined;
+  facts: readonly BrandFact[];
+  legacy: readonly { path: string; content: string }[];
+};
 
 /** The first version of a brand file, built from what the account already knows. */
 export function composeBrandFile(sources: BrandFileSources): string {
-  const lines = [
-    `# Marca · ${sources.name}${sources.handle ? ` (@${sources.handle})` : ""}`,
-    "",
-    BRAND_FILE_LEGEND,
-  ];
+  const handle = sources.handle ? ` (@${sources.handle})` : "";
+  const lines = [`# Marca · ${sources.name}${handle}`, "", BRAND_FILE_LEGEND];
 
   for (const section of SECTIONS) {
-    lines.push("", `## ${section.title}`);
     const facts = sources.facts.filter((fact) => section.kinds.includes(fact.kind));
 
-    if (facts.length > 0) lines.push("");
-
-    for (const fact of facts) lines.push(`- ${oneLine(fact.text)} (dono)`);
+    lines.push("", `## ${section.title}`, ...groupedLines(facts));
   }
 
   const legacy = sources.legacy.filter((document) => document.content.trim());
@@ -90,13 +160,16 @@ export function composeBrandFile(sources: BrandFileSources): string {
   if (legacy.length > 0) {
     lines.push(
       "",
-      "## Notas anteriores",
-      "",
+      `## ${LEGACY_HEADING}`,
       "Trazidas das antigas anotações e memória da Vanda. Ao usar algo daqui, mova para a seção certa com a origem.",
     );
 
     // Inline what fits the always-on budget, preferences first; point to the rest.
-    for (const document of prioritized(legacy)) {
+    const preferencesFirst = legacy.toSorted(
+      (a, b) => Number(!PREFERENCE_PATHS.has(a.path)) - Number(!PREFERENCE_PATHS.has(b.path)),
+    );
+
+    for (const document of preferencesFirst) {
       const block = ["", `### ${document.path}`, "", document.content.trim()];
       const candidate = `${[...lines, ...block].join("\n")}\n`;
 
@@ -113,9 +186,135 @@ export function composeBrandFile(sources: BrandFileSources): string {
   return `${lines.join("\n")}\n`;
 }
 
+/** The one parser: "## " sections with their "- " items in file order; stops at the legacy notes unless `legacy`. */
+const walk = (content: string, legacy = false) => {
+  const sections: { title: string; items: string[] }[] = [];
+
+  for (const line of content.split("\n")) {
+    const heading = /^##\s+(.+?)\s*$/.exec(line);
+
+    if (heading) {
+      if (heading[1] === LEGACY_HEADING && !legacy) break;
+
+      sections.push({ title: heading[1]!, items: [] });
+      continue;
+    }
+
+    const text = /^\s*[-*]\s+(.+?)\s*$/.exec(line)?.[1]?.trim();
+    const section = sections.at(-1);
+
+    if (section && text) section.items.push(text);
+  }
+
+  return sections;
+};
+
+/** The titles of the sections that have at least one item. */
+const filledTitles = (content: string) =>
+  new Set(
+    walk(content)
+      .filter((section) => section.items.length > 0)
+      .map((section) => section.title),
+  );
+
+/** Every item under its section, the legend excluded; legacy notes included (marca-N ids). */
+export const brandFileFacts = (content: string) =>
+  walk(content, true)
+    .flatMap((section) => section.items.map((text) => ({ kind: section.title, text })))
+    .map((fact, index) => ({ id: `marca-${index + 1}`, kind: fact.kind, text: fact.text }));
+
+/** The balanced "(…)" closing a text (trailing punctuation ignored), parentheses nested inside it included. */
+const trailingGroup = (text: string): { index: number; inner: string } | null => {
+  const trimmed = text.replace(/[\s.;,]+$/, "");
+
+  if (!trimmed.endsWith(")")) return null;
+
+  for (let index = trimmed.length - 1, depth = 0; index >= 0; index--) {
+    if (trimmed[index] === ")") depth++;
+    else if (trimmed[index] === "(" && --depth === 0)
+      return { index, inner: trimmed.slice(index + 1, -1) };
+  }
+
+  return null;
+};
+
+const parseOutlineItem = (line: string) => {
+  const origin = trailingGroup(line);
+  const body = (origin ? line.slice(0, origin.index) : line).trim();
+  const colon = body.indexOf(": ");
+  const prefix = colon > 0 ? body.slice(0, colon) : "";
+  const label = prefix && prefix.length <= 30 && !/[(!]/.test(prefix) ? prefix : null;
+
+  return {
+    label,
+    text: (label ? body.slice(colon + 2) : body).trim(),
+    origin: origin?.inner.trim() || "dono",
+  };
+};
+
+/** The brand file as sections of labelled items; every "## " is a section, empty ones too. */
+export const brandFileOutline = (content: string) =>
+  walk(content).map(({ title, items }) => ({ title, items: items.map(parseOutlineItem) }));
+
+type Outline = ReturnType<typeof brandFileOutline>;
+
+const designItems = (outline: Outline) =>
+  outline.find((section) => section.title === DESIGN_SECTION)?.items ?? [];
+
+/** The texts of the Design items with one label, markdown and origin dropped, joined by "; ". */
+export const designText = (outline: Outline, label: string): string =>
+  designItems(outline)
+    .filter((item) => item.label === label)
+    .map((item) =>
+      item.text
+        .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+        .replace(/\*\*|__|[*`]/g, "")
+        .replace(/\s+/g, " ")
+        .trim(),
+    )
+    .filter(Boolean)
+    .join("; ");
+
+/** The palette, typography and logo of the Design section, as the Perfil view shows them. */
+export const brandFileDesign = (outline: Outline, images: Record<string, string>) => {
+  const items = designItems(outline);
+  const logo = items.find((item) => item.label === DESIGN_LABELS.logo);
+  const imageId = logo ? /\(image:([a-z0-9]+)\)/.exec(logo.text)?.[1] : undefined;
+
+  return {
+    // One swatch per "#hex" segment, split on ";"; the last "(…)" of a segment is its role.
+    palette: items
+      .filter((item) => item.label === DESIGN_LABELS.palette)
+      .flatMap((item) =>
+        item.text.split(";").flatMap((segment) => {
+          const hex = /#[0-9a-f]{3,8}\b/i.exec(segment);
+
+          if (!hex) return [];
+
+          const rest =
+            `${segment.slice(0, hex.index)} ${segment.slice(hex.index + hex[0].length)}`.trim();
+
+          const role = trailingGroup(rest);
+
+          return [
+            {
+              hex: hex[0],
+              name: (role ? rest.slice(0, role.index) : rest).replace(/[\s.;,]+$/, ""),
+              role: role?.inner.trim() || null,
+            },
+          ];
+        }),
+      ),
+    typography: designText(outline, DESIGN_LABELS.typography),
+    logoUrl: (imageId && images[imageId]) ?? null,
+  };
+};
+
+export type BrandFileDesign = ReturnType<typeof brandFileDesign>;
+
 /** The onboarding kinds the file covers: a section with at least one item covers its kinds. */
 export function brandFileKinds(content: string): BrandFactKind[] {
-  const filled = new Set(brandFileFacts(content).map((fact) => fact.kind));
+  const filled = filledTitles(content);
 
   return SECTIONS.flatMap((section) => (filled.has(section.title) ? section.kinds : []));
 }
@@ -126,6 +325,7 @@ const getStored = (ctx: QueryCtx, accountId: Id<"accounts">) =>
     .withIndex("by_account_path", (q) => q.eq("accountId", accountId).eq("path", BRAND_FILE_PATH))
     .unique();
 
+/** The old notes and memory documents of an account, as they were stored. */
 export const legacyDocuments = async (ctx: QueryCtx, accountId: Id<"accounts">) => {
   const notes = await ctx.db
     .query("workspaceFiles")
@@ -142,13 +342,12 @@ export const legacyDocuments = async (ctx: QueryCtx, accountId: Id<"accounts">) 
   return [...(notes ? [notes] : []), ...memory].map(({ path, content }) => ({ path, content }));
 };
 
-// Accounts from before the brand file still have their confirmed facts in brandCanon,
-// read only here to seed their file once; nothing writes that table anymore.
+// Accounts from before the brand file seed their file once from brandCanon, which nothing writes now.
 const composeFor = async (
   ctx: QueryCtx,
   accountId: Id<"accounts">,
-  onboarding?: ReadonlyArray<{ readonly kind: CanonKind; readonly text: string }>,
-): Promise<string> => {
+  onboarding?: readonly BrandFact[],
+) => {
   const account = await ctx.db.get(accountId);
 
   const facts =
@@ -168,25 +367,17 @@ const composeFor = async (
   });
 };
 
-export interface BrandFile {
-  readonly content: string;
-  /** False until the first save: the content is composed from legacy sources. */
-  readonly persisted: boolean;
-  readonly updatedAt: number | null;
-  readonly updatedBy: string | null;
-}
-
-export async function loadBrandFile(ctx: QueryCtx, accountId: Id<"accounts">): Promise<BrandFile> {
+/** The brand file as the owner sees it; `persisted` is false until the first save, when it is composed. */
+export async function loadBrandFile(ctx: QueryCtx, accountId: Id<"accounts">) {
   const stored = await getStored(ctx, accountId);
 
-  if (stored) {
+  if (stored)
     return {
       content: stored.content,
       persisted: true,
       updatedAt: stored.updatedAt,
       updatedBy: stored.updatedBy,
     };
-  }
 
   return {
     content: await composeFor(ctx, accountId),
@@ -195,6 +386,19 @@ export async function loadBrandFile(ctx: QueryCtx, accountId: Id<"accounts">): P
     updatedBy: null,
   };
 }
+
+/** Each image the content links as `![…](image:<id>)`, with its row when it belongs to the account (null for a foreign or unknown id). */
+const linkedImages = (ctx: QueryCtx, accountId: Id<"accounts">, content: string) =>
+  Promise.all(
+    [...new Set([...content.matchAll(/\(image:([a-z0-9]+)\)/g)].map((match) => match[1]!))].map(
+      async (imageId) => {
+        const id = ctx.db.normalizeId("images", imageId);
+        const image = id ? await ctx.db.get(id) : null;
+
+        return { imageId, image: image?.accountId === accountId ? image : null };
+      },
+    ),
+  );
 
 export async function saveBrandFile(
   ctx: MutationCtx,
@@ -213,13 +417,19 @@ export async function saveBrandFile(
     };
   }
 
+  const foreign = (await linkedImages(ctx, accountId, content)).find((link) => link.image === null);
+
+  if (foreign) {
+    return {
+      ok: false,
+      error: `a imagem ${foreign.imageId} não é desta conta; use o imageId de um anexo ou de /brand/references, ou remova o link`,
+    };
+  }
+
   return saveDocument(ctx, accountId, BRAND_FILE_PATH, content, author);
 }
 
-/**
- * Persist the composed file once, so later edits start from a stable document.
- * Returns whether it created one (migrations:brandFiles counts them).
- */
+/** Persists the composed file once, so later edits start from a stable document; true when it created one. */
 export async function ensureBrandFile(
   ctx: MutationCtx,
   accountId: Id<"accounts">,
@@ -232,12 +442,12 @@ export async function ensureBrandFile(
   return true;
 }
 
-/** Onboarding's approved analysis opens the brand file (replacing a retry's earlier one). */
+/** Onboarding's Instagram read opens the brand file, replacing a retry's earlier one. */
 export async function writeOnboardingBrandFile(
   ctx: MutationCtx,
   accountId: Id<"accounts">,
-  facts: ReadonlyArray<{ readonly kind: BrandFactKind; readonly text: string }>,
-): Promise<void> {
+  facts: readonly BrandFact[],
+) {
   await saveDocument(ctx, accountId, BRAND_FILE_PATH, await composeFor(ctx, accountId, facts));
 }
 
@@ -246,14 +456,65 @@ export async function brandFileContent(ctx: QueryCtx, accountId: Id<"accounts">)
   return (await loadBrandFile(ctx, accountId)).content;
 }
 
+/** The brand guide: the interview sections and whether each already has an item. */
+export const brandGuide = (content: string) => {
+  const filled = filledTitles(content);
+
+  return SECTIONS.flatMap(({ title, discover }) =>
+    discover ? [{ title, discover, filled: filled.has(title) }] : [],
+  );
+};
+
+export type BrandGuideSection = ReturnType<typeof brandGuide>[number];
+
+/** The guide thread and the guide sections. */
+const guideTurnOf = async (ctx: QueryCtx, accountId: Id<"accounts">, content: string) => ({
+  threadId: (await ctx.db.get(accountId))?.brandGuideThreadId ?? null,
+  sections: brandGuide(content),
+});
+
+/** The guide card above Caetano's thread: which thread, and how far it got. */
+export const guide = query({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }) => {
+    await requireOwnedAccount(ctx, accountId);
+
+    return guideTurnOf(ctx, accountId, (await loadBrandFile(ctx, accountId)).content);
+  },
+});
+
+/** What a chat turn needs to know: is this Caetano's guide thread, and what is left. */
+export const guideTurn = internalQuery({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }) =>
+    guideTurnOf(ctx, accountId, (await loadBrandFile(ctx, accountId)).content),
+});
+
 /** The owner's view of a business's brand file. */
 export const get = query({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
     await requireOwnedAccount(ctx, accountId);
-    const file = await loadBrandFile(ctx, accountId);
 
-    return { ...file, bytes: brandFileBytes(file.content), maxBytes: MAX_BRAND_FILE_BYTES };
+    const file = await loadBrandFile(ctx, accountId);
+    const images: Record<string, string> = {};
+
+    for (const { imageId, image } of await linkedImages(ctx, accountId, file.content)) {
+      const url = image ? await imageUrl(ctx, image) : null;
+
+      if (url) images[imageId] = url;
+    }
+
+    const outline = brandFileOutline(file.content);
+
+    return {
+      ...file,
+      bytes: brandFileBytes(file.content),
+      maxBytes: MAX_BRAND_FILE_BYTES,
+      outline,
+      images,
+      design: brandFileDesign(outline, images),
+    };
   },
 });
 
@@ -262,6 +523,7 @@ export const save = mutation({
   args: { accountId: v.id("accounts"), content: v.string() },
   handler: async (ctx, { accountId, content }): Promise<void> => {
     await requireOwnedAccount(ctx, accountId);
+
     const result = await saveBrandFile(ctx, accountId, content, "owner");
 
     if (!result.ok) throw new Error(result.error);

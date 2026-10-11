@@ -14,7 +14,7 @@ import { cn } from "@vanda-studio/ui/lib/utils";
  * Memoized on `children` so token-by-token streaming re-renders stay cheap.
  */
 
-const components: Components = {
+const baseComponents: Components = {
   a: (props) => <a target="_blank" rel="noreferrer" {...props} />,
 };
 
@@ -22,10 +22,13 @@ function MarkdownImpl({
   children,
   className,
   variant = "chat",
+  components: overrides,
 }: {
   children: string;
   className?: string;
   variant?: "chat" | "reading";
+  /** Per-element renderers layered over the defaults (e.g. a swatch for hex codes). */
+  components?: Components;
 }) {
   return (
     <div
@@ -35,7 +38,7 @@ function MarkdownImpl({
         className,
       )}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ ...baseComponents, ...overrides }}>
         {children}
       </ReactMarkdown>
     </div>

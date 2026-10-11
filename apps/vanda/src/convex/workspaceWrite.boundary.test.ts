@@ -3,8 +3,8 @@ import agentTest from "@convex-dev/agent/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
-import { parseBrandKit } from "./workspace/brandKit";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -39,15 +39,24 @@ const setup = async () => {
   return { t, owner: t.withIdentity({ subject: "ana" }), ...ids };
 };
 
-const readText = async (
-  t: Awaited<ReturnType<typeof setup>>["t"],
-  accountId: Awaited<ReturnType<typeof setup>>["accountId"],
-  path: string,
-) => {
+type Harness = Awaited<ReturnType<typeof setup>>["t"];
+
+const write = (t: Harness, accountId: Id<"accounts">, path: string, content: string) =>
+  t.mutation(internal.workspaceData.write, { accountId, path, content });
+
+const readText = async (t: Harness, accountId: Id<"accounts">, path: string) => {
   const read = await t.query(internal.workspaceData.read, { accountId, path });
 
   return read.ok && read.file.kind === "text" ? read.file.text : null;
 };
+
+const revisionsOf = (t: Harness, accountId: Id<"accounts">, path: string) =>
+  t.run((ctx) =>
+    ctx.db
+      .query("workspaceFileRevisions")
+      .withIndex("by_account_path", (q) => q.eq("accountId", accountId).eq("path", path))
+      .collect(),
+  );
 
 describe("workspace writes", () => {
   it("opens the brand file from confirmed facts and round-trips agent edits", async () => {
@@ -64,17 +73,15 @@ describe("workspace writes", () => {
 
     const first = await readText(t, accountId, "/brand/marca.md");
     expect(first).toContain("# Marca · Café da Ana");
-    expect(first).toContain("## Nunca fazer\n\n- Não anunciar álcool (dono)");
+    expect(first).toContain("## Nunca fazer\n- Não anunciar álcool (dono)");
 
     const edited = `${first}\n- Fotos com luz natural rendem mais salvamentos (observado: 6 posts, out)\n`;
 
-    expect(
-      await t.mutation(internal.workspaceData.write, {
-        accountId,
-        path: "/brand/marca.md",
-        content: edited,
-      }),
-    ).toEqual({ ok: true, path: "/brand/marca.md", note: "criado" });
+    expect(await write(t, accountId, "/brand/marca.md", edited)).toEqual({
+      ok: true,
+      path: "/brand/marca.md",
+      note: "criado",
+    });
     expect(await readText(t, accountId, "/brand/marca.md")).toBe(edited);
     expect(await t.query(internal.brandContext.conversation, { accountId })).toContain(
       "luz natural",
@@ -84,11 +91,12 @@ describe("workspace writes", () => {
   it("records whether the owner or Vanda wrote the brand file", async () => {
     const { t, owner, accountId } = await setup();
 
-    await t.mutation(internal.workspaceData.write, {
+    await write(
+      t,
       accountId,
-      path: "/brand/marca.md",
-      content: "# Marca\n\n- Sempre assinar como Café da Ana (dono)\n",
-    });
+      "/brand/marca.md",
+      "# Marca\n\n- Sempre assinar como Café da Ana (dono)\n",
+    );
     await owner.mutation(api.brandFile.save, {
       accountId,
       content: "# Marca\n\n- Sempre assinar como Café da Ana (dono)\n- Sem emojis (dono)\n",
@@ -98,14 +106,7 @@ describe("workspace writes", () => {
     expect(file).toMatchObject({ persisted: true, updatedBy: "owner" });
     expect(file.content).toContain("Sem emojis");
 
-    const revisions = await t.run((ctx) =>
-      ctx.db
-        .query("workspaceFileRevisions")
-        .withIndex("by_account_path", (q) =>
-          q.eq("accountId", accountId).eq("path", "/brand/marca.md"),
-        )
-        .collect(),
-    );
+    const revisions = await revisionsOf(t, accountId, "/brand/marca.md");
 
     expect(revisions.map((revision) => revision.savedBy)).toEqual(["vanda", "owner"]);
     await expect(
@@ -116,11 +117,7 @@ describe("workspace writes", () => {
   it("bounds the brand file to the always-on budget", async () => {
     const { t, owner, accountId } = await setup();
 
-    const oversized = await t.mutation(internal.workspaceData.write, {
-      accountId,
-      path: "/brand/marca.md",
-      content: "x".repeat(24_001),
-    });
+    const oversized = await write(t, accountId, "/brand/marca.md", "x".repeat(24_001));
 
     expect(oversized).toMatchObject({ ok: false, error: expect.stringContaining("limite") });
     await expect(
@@ -134,63 +131,18 @@ describe("workspace writes", () => {
   it("overwrites replace the head and append a revision", async () => {
     const { t, accountId } = await setup();
     const path = "/notes/plano.md";
-    await t.mutation(internal.workspaceData.write, { accountId, path, content: "v1" });
+    await write(t, accountId, path, "v1");
 
-    const second = await t.mutation(internal.workspaceData.write, {
-      accountId,
+    expect(await write(t, accountId, path, "v2")).toEqual({
+      ok: true,
       path,
-      content: "v2",
+      note: "atualizado",
     });
-
-    expect(second).toEqual({ ok: true, path, note: "atualizado" });
     expect(await readText(t, accountId, path)).toBe("v2");
 
-    const revisions = await t.run((ctx) =>
-      ctx.db
-        .query("workspaceFileRevisions")
-        .withIndex("by_account_path", (q) => q.eq("accountId", accountId).eq("path", path))
-        .collect(),
-    );
+    const revisions = await revisionsOf(t, accountId, path);
 
     expect(revisions.map((revision) => revision.content)).toEqual(["v1", "v2"]);
-  });
-
-  it("validates and normalizes brand kit writes", async () => {
-    const { t, accountId } = await setup();
-
-    const written = await t.mutation(internal.workspaceData.write, {
-      accountId,
-      path: "/brand/kit.json",
-      content: JSON.stringify({
-        colors: [{ hex: "#D81B60", name: "rosa", role: "primária" }, { hex: "#fdfcfb" }],
-        fonts: [{ family: "Poppins", role: "títulos" }],
-        tagline: "café com afeto",
-      }),
-    });
-
-    expect(written.ok).toBe(true);
-
-    const kit = parseBrandKit((await readText(t, accountId, "/brand/kit.json")) ?? "");
-    expect(kit?.colors[0]?.hex).toBe("#d81b60");
-    expect(kit?.tagline).toBe("café com afeto");
-
-    const cases: Array<[string, string]> = [
-      ["não é json", "JSON válido"],
-      [JSON.stringify({ colors: [{ hex: "rosa" }] }), "hex"],
-      [JSON.stringify({ palette: [] }), "campo desconhecido"],
-    ];
-
-    for (const [content, hint] of cases) {
-      const result = await t.mutation(internal.workspaceData.write, {
-        accountId,
-        path: "/brand/kit.json",
-        content,
-      });
-
-      expect(result.ok).toBe(false);
-
-      if (!result.ok) expect(result.error).toContain(hint);
-    }
   });
 
   it("refuses projection and retired writes with where to write instead", async () => {
@@ -207,11 +159,7 @@ describe("workspace writes", () => {
     ];
 
     for (const [path, hint] of cases) {
-      const result = await t.mutation(internal.workspaceData.write, {
-        accountId,
-        path,
-        content: "x",
-      });
+      const result = await write(t, accountId, path, "x");
 
       expect(result.ok).toBe(false);
 
@@ -228,20 +176,10 @@ describe("workspace writes", () => {
       "/notes/sub/nota.md",
       "/templates/moldura.md",
     ]) {
-      const result = await t.mutation(internal.workspaceData.write, {
-        accountId,
-        path,
-        content: "x",
-      });
-
-      expect(result.ok).toBe(false);
+      expect((await write(t, accountId, path, "x")).ok).toBe(false);
     }
 
-    const oversized = await t.mutation(internal.workspaceData.write, {
-      accountId,
-      path: "/notes/grande.md",
-      content: "x".repeat(64_001),
-    });
+    const oversized = await write(t, accountId, "/notes/grande.md", "x".repeat(64_001));
 
     expect(oversized).toMatchObject({ ok: false, error: expect.stringContaining("grande demais") });
   });
@@ -250,11 +188,7 @@ describe("workspace writes", () => {
     const { t, accountId, foreignAccountId } = await setup();
 
     for (const path of ["/notes/segredo.md", "/brand/marca.md"])
-      await t.mutation(internal.workspaceData.write, {
-        accountId,
-        path,
-        content: "receita secreta",
-      });
+      await write(t, accountId, path, "receita secreta");
 
     const listing = await t.query(internal.workspaceData.list, {
       accountId: foreignAccountId,

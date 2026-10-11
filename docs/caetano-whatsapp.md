@@ -71,9 +71,9 @@ Production was configured on September 14, 2026:
 - Active v2 payloads, received/sent/delivered/read/failed events, inbound buffering (configured at 3 seconds; the recommended window is now 5).
 - Production has its own signing secret. The development sandbox webhook remains unchanged.
 
-Backend and frontend were deployed directly with owner authorization, without pushing upstream. The frontend was staged and returned HTTP 200 before promotion. Unsigned ingress returned 401 and a signed empty batch returned 200. A real production round trip followed: the owner's phone was linked through the production Perfil on September 14, and 7 text replies between September 15 and 24 all reached `read`.
+Backend and frontend were deployed directly with owner authorization, without pushing upstream. The frontend returned HTTP 200 before it was promoted. Unsigned ingress returned 401 and a signed empty batch returned 200. A real production round trip followed: the owner's phone was linked through the production Perfil on September 14, and 7 text replies between September 15 and 24 all reached `read`.
 
-Production onboarding does not require sandbox activation. Link the production account separately, even if the same phone was linked in development. Media and the update template described above are not yet deployed or exercised in production. Rotate the previously chat-exposed Kapso API key before a broader launch, and confirm Meta AI-provider eligibility and pricing with Kapso.
+Production onboarding does not require sandbox activation. Link the production account separately, even if the same phone was linked in development. Media and the update template described above are not yet deployed or exercised in production. Rotate the previously chat-exposed Kapso API key before a broader launch.
 
 ## Link the Vanda account
 
@@ -106,7 +106,7 @@ Outbound requests use `biz_opaque_callback_data` to correlate status webhooks th
 
 There are no global polling crons. Work uses durable Convex scheduled mutations/actions, a watchdog for each active turn, and a timeout for each send. Monitor Convex scheduled-function failures and Kapso's webhook delivery dashboard. Kapso can pause a failing webhook after sustained failures; fix the cause and re-enable it there.
 
-Receipt/history retention requires a separate retention policy. Since October 1, 2026, Meta bills service messages per message as well as templates; confirm Meta's AI-provider classification and pricing with Kapso. Use separate production credentials and explicit opt-in.
+Receipt/history retention requires a separate retention policy. Since October 1, 2026, Meta bills service messages per message as well as templates. Use separate production credentials and explicit opt-in.
 
 ## Sources
 

@@ -6,9 +6,9 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction, type ActionCtx } from "./_generated/server";
 import { agentActivityIdValidator, type AgentActivityId } from "./agentActivity";
+import type { BrandDesign } from "./brandContext";
 import { chainSlidePrompt } from "./gallery";
 import { MAX_DECODE_PIXELS, sniffImage } from "./pipeline/imageBytes";
-import type { BrandKit } from "./workspace/brandKit";
 import {
   blendBand,
   buildPatch,
@@ -36,9 +36,14 @@ const concurrency = () => {
 // Preview strip height; the loop shows as slide 1 repeated after the last.
 const STRIP_HEIGHT = 360;
 
+// Where slide 1's text column starts, as % of its width; the repainted bands sit left of it.
+const TEXT_COLUMN_FROM = 24;
+
 // Cut close-ups: each cut shows this share of both slides beside it, at this height,
 // so clipped letters and floating objects are visible (the strip is too small).
-const CUT_SHARE = 0.3;
+// Kept 2 points below the text column, so the close-ups show only the repainted bands at
+// each cut, never the text column.
+const CUT_SHARE = (TEXT_COLUMN_FROM - 2) / 100;
 
 const CUT_HEIGHT = 720;
 
@@ -62,45 +67,26 @@ const DISCARD_DELAY_MS = 60 * 60 * 1000;
 
 type SeamRole = "hero" | "satellite";
 
-/** The agent's style sheet and the account's kit, closing every prompt. */
+/** The agent's style sheet and the account's brand design, closing every prompt. */
 const direction = (style: string | undefined, brand: string): string[] => [
   ...(style?.trim() ? [`Art direction: ${style.trim()}.`] : []),
   ...(brand ? [brand] : []),
 ];
 
-/** The account's kit as a prompt line, so every repaint keeps the brand even if the agent forgets it. */
-export const brandDirection = (kit: BrandKit | null): string => {
-  if (!kit) return "";
-  const parts: string[] = [];
-
-  if (kit.colors.length) {
-    const colors = kit.colors
-      .map((color) => {
-        const label = [color.name, color.role].filter(Boolean).join(", ");
-
-        return label ? `${color.hex} (${label})` : color.hex;
-      })
-      .join(", ");
-
-    // Continuity outranks the kit: if slide 1 was painted off-kit, recoloring the
-    // continued scenery would make every later slide drift away from it.
-    parts.push(
-      `Brand palette: ${colors}. Paint new objects, accents and text in these colors, no other dominant colors; scenery that continues from the existing image keeps the colors it already has.`,
-    );
-  }
-
-  if (kit.fonts.length) {
-    const fonts = kit.fonts
-      .map((font) => (font.role ? `${font.family} for ${font.role}` : font.family))
-      .join(", ");
-
-    parts.push(
-      `Brand typography: set every text in ${fonts}, unless slide 1 already sets its text in another face; then match slide 1 so the carousel reads as one piece.`,
-    );
-  }
-
-  return parts.join(" ");
-};
+/**
+ * The brand's palette and typography as prompt lines, so every repaint keeps the brand even if
+ * the agent forgets it. Continuity outranks the palette: if slide 1 was painted off-palette,
+ * recoloring the continued scenery would make every later slide drift away from it.
+ */
+export const brandDirection = ({ palette, typography }: BrandDesign): string =>
+  [
+    palette &&
+      `Brand palette: ${palette}. Paint new objects and accents in these colors, no other dominant colors; scenery that continues from the existing image keeps the colors it already has.`,
+    typography &&
+      `Brand typography for the slide's own text only: ${typography}, unless slide 1 already sets its text in another face; then match slide 1.`,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
 // Bridges that float in a scene with a floor or table read as a glitch.
 const GROUNDED =
@@ -152,7 +138,7 @@ export const extendPrompt = (
 
 /** Text column of slide `index` (0-based), as % of its width, clear of every repaint band. */
 const textColumn = (index: number): readonly [from: number, to: number] =>
-  index === 1 ? [40, 72] : [24, 72];
+  index === 1 ? [40, 72] : [TEXT_COLUMN_FROM, 72];
 
 /** Step B of the chain: finish the new slide and its text from the continued scenery. */
 export const completePrompt = (
@@ -170,7 +156,7 @@ export const completePrompt = (
     `This image is ONE Instagram carousel slide. Its left ${known}% is finished scenery — it continues from the previous slide — and the rest is an empty placeholder of flat color streaks.`,
     `Keep the ${keep} exactly as it is. Paint the placeholder as the seamless continuation of the same scene (same environment, horizon height, light, palette and technique), with no visible line or color step.`,
     `Then complete the slide with: ${content.trim()}.`,
-    `Place every text element inside the column between ${from}% and ${to}% of the width, on a calm area of background or a soft scrim; write the text exactly as given and nothing else.`,
+    `Place every text element inside the column between ${from}% and ${to}% of the width, on a calm area of background or a soft scrim; write the text exactly as given and nothing else. The brand signature, any progress marker and any small footer text also go inside that same column, never in the corners or within the outer quarter near either edge.`,
     "Text never overlaps the hero, the bridge objects, people or any other subject: keep a clear gap of at least 4% of the width between every letter and every object. If the column is not clear, make the text smaller or move it up or down inside the column; never move an object behind or under the text.",
     last
       ? "The right quarter is only the environment continuing to the edge: it flows back into the first slide."
@@ -186,6 +172,14 @@ export const completePrompt = (
 const bufferOf = (data: Uint8Array): Buffer =>
   Buffer.from(data.buffer, data.byteOffset, data.byteLength);
 
+const toJimp = (bitmap: Bitmap) =>
+  Jimp.fromBitmap({ width: bitmap.width, height: bitmap.height, data: bufferOf(bitmap.data) });
+
+const jpegBlob = async (image: ReturnType<typeof toJimp>, quality: number): Promise<Blob> =>
+  new Blob([new Uint8Array(await image.getBuffer("image/jpeg", { quality }))], {
+    type: "image/jpeg",
+  });
+
 const decode = async (bytes: ArrayBuffer): Promise<Bitmap> => {
   const image = await Jimp.read(Buffer.from(bytes));
 
@@ -198,17 +192,7 @@ const decode = async (bytes: ArrayBuffer): Promise<Bitmap> => {
 
 // JPEG, not PNG: a 1024×1280 slide drops from ~2.5 MB to ~300 KB, so every
 // upload, provider fetch and model view of it is faster.
-const encodeJpeg = async (bitmap: Bitmap): Promise<Blob> => {
-  const image = Jimp.fromBitmap({
-    width: bitmap.width,
-    height: bitmap.height,
-    data: bufferOf(bitmap.data),
-  });
-
-  return new Blob([new Uint8Array(await image.getBuffer("image/jpeg", { quality: 92 }))], {
-    type: "image/jpeg",
-  });
-};
+const encodeJpeg = (bitmap: Bitmap): Promise<Blob> => jpegBlob(toJimp(bitmap), 92);
 
 const fetchBytes = async (
   ctx: ActionCtx,
@@ -233,7 +217,7 @@ const fetchBytes = async (
 
 const resize = async (bitmap: Bitmap, width: number, height: number): Promise<Bitmap> => {
   if (bitmap.width === width && bitmap.height === height) return bitmap;
-  const image = Jimp.fromBitmap({ ...bitmap, data: bufferOf(bitmap.data) });
+  const image = toJimp(bitmap);
   image.resize({ w: width, h: height });
 
   return { width, height, data: new Uint8Array(image.bitmap.data) };
@@ -293,31 +277,41 @@ const discardWorking = async (
 /** A slide already in memory, or one decoded only when the strip reaches it. */
 type SlideSource = () => Promise<Bitmap>;
 
+const ready =
+  (bitmap: Bitmap): SlideSource =>
+  async () =>
+    bitmap;
+
+const stripTileWidth = (size: Size) => Math.round((size.width * STRIP_HEIGHT) / size.height);
+
+/** Cut close-up geometry: the share of each slide shown, its half tile, and the full tile with its gap. */
+const cutGeometry = (size: Size) => {
+  const share = Math.round(size.width * CUT_SHARE);
+  const half = Math.round((share * CUT_HEIGHT) / size.height);
+
+  return { share, half, tileWidth: half * 2 + CUT_GAP };
+};
+
 /** Slides side by side plus slide 1 again, so the loop seam is visible too. */
 const stripPreview = async (size: Size, slides: readonly SlideSource[]): Promise<Blob> => {
-  const tileWidth = Math.round((size.width * STRIP_HEIGHT) / size.height);
+  const tileWidth = stripTileWidth(size);
   const tiles = [...slides, slides[0]!];
   const strip = new Jimp({ width: tileWidth * tiles.length, height: STRIP_HEIGHT });
 
   // One full-size slide in memory at a time.
   for (const [index, load] of tiles.entries()) {
-    const slide = await load();
-    const tile = Jimp.fromBitmap({ ...slide, data: bufferOf(slide.data) });
+    const tile = toJimp(await load());
     tile.resize({ w: tileWidth, h: STRIP_HEIGHT });
     strip.composite(tile, index * tileWidth, 0);
   }
 
-  return new Blob([new Uint8Array(await strip.getBuffer("image/jpeg", { quality: 85 }))], {
-    type: "image/jpeg",
-  });
+  return jpegBlob(strip, 85);
 };
 
 /** Every cut (the loop one last) as a close-up: the edges of both slides beside it. */
 const cutsPreview = async (size: Size, slides: readonly SlideSource[]): Promise<Blob> => {
   const count = slides.length;
-  const share = Math.round(size.width * CUT_SHARE);
-  const half = Math.round((share * CUT_HEIGHT) / size.height);
-  const tileWidth = half * 2 + CUT_GAP;
+  const { share, half, tileWidth } = cutGeometry(size);
 
   const sheet = new Jimp({
     width: tileWidth * count - CUT_GAP,
@@ -330,17 +324,13 @@ const cutsPreview = async (size: Size, slides: readonly SlideSource[]): Promise<
     const slide = await load();
 
     const edge = (x: number) =>
-      Jimp.fromBitmap({ ...slide, data: bufferOf(slide.data) })
-        .crop({ x, y: 0, w: share, h: size.height })
-        .resize({ w: half, h: CUT_HEIGHT });
+      toJimp(slide).crop({ x, y: 0, w: share, h: size.height }).resize({ w: half, h: CUT_HEIGHT });
 
     sheet.composite(edge(size.width - share), index * tileWidth, 0);
     sheet.composite(edge(0), ((index - 1 + count) % count) * tileWidth + half, 0);
   }
 
-  return new Blob([new Uint8Array(await sheet.getBuffer("image/jpeg", { quality: 88 }))], {
-    type: "image/jpeg",
-  });
+  return jpegBlob(sheet, 88);
 };
 
 type Run = {
@@ -560,21 +550,17 @@ const savePreviews = async (
   size: Size,
   slides: readonly SlideSource[],
 ): Promise<{ strip: Preview; cuts: Preview }> => {
-  const { width, height } = size;
-  const tileWidth = Math.round((width * STRIP_HEIGHT) / height);
-  const half = Math.round((Math.round(width * CUT_SHARE) * CUT_HEIGHT) / height);
-
   const strip = await savePreview(ctx, run, await stripPreview(size, slides), {
     prompt: "Prévia do carrossel infinito: slides lado a lado e o slide 1 repetido no fim",
     name: "Prévia infinito",
-    width: tileWidth * (slides.length + 1),
+    width: stripTileWidth(size) * (slides.length + 1),
     height: STRIP_HEIGHT,
   });
 
   const cuts = await savePreview(ctx, run, await cutsPreview(size, slides), {
     prompt: "Cortes do carrossel infinito de perto, para conferência",
     name: "Cortes de perto",
-    width: (half * 2 + CUT_GAP) * slides.length - CUT_GAP,
+    width: cutGeometry(size).tileWidth * slides.length - CUT_GAP,
     height: CUT_HEIGHT,
   });
 
@@ -651,7 +637,7 @@ export const weave = internalAction({
     const slides = await Promise.all(sources.bytes.map(decode));
 
     const brand = brandDirection(
-      await ctx.runQuery(internal.brandContext.kit, { accountId: args.accountId }),
+      await ctx.runQuery(internal.brandContext.design, { accountId: args.accountId }),
     );
 
     const { width } = slides[0]!;
@@ -719,12 +705,7 @@ export const weave = internalAction({
         saved,
       );
 
-      const previews = await savePreviews(
-        ctx,
-        run,
-        size,
-        slides.map((slide) => async () => slide),
-      );
+      const previews = await savePreviews(ctx, run, size, slides.map(ready));
 
       return {
         slides: saved,
@@ -788,7 +769,7 @@ export const extend = internalAction({
     const { run, size } = sources;
 
     const brand = brandDirection(
-      await ctx.runQuery(internal.brandContext.kit, { accountId: args.accountId }),
+      await ctx.runQuery(internal.brandContext.design, { accountId: args.accountId }),
     );
 
     const { width } = size;
@@ -911,7 +892,7 @@ export const extend = internalAction({
       const tiles = Array.from({ length: count }, (_, position): SlideSource => {
         const bitmap = changed.get(position);
 
-        return bitmap ? async () => bitmap : () => decode(sources.bytes[position]!);
+        return bitmap ? ready(bitmap) : () => decode(sources.bytes[position]!);
       });
 
       return { slides: saved, ...(await savePreviews(ctx, run, size, tiles)), seams };

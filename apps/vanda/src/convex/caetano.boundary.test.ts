@@ -5,6 +5,7 @@ import { convertArrayToReadableStream, MockLanguageModelV3 } from "ai/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it, vi } from "vitest";
 import { api, components, internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { caetano, caetanoToolDiscovery } from "./caetanoAgent";
 import { failedModelAttempt } from "./chatModel";
 import { vanda, vandaToolDiscovery } from "./vanda";
@@ -12,6 +13,10 @@ import { capabilityResult } from "./resourceRefs";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
+
+type Harness = ReturnType<typeof convexTest>;
+
+type Owner = ReturnType<Harness["withIdentity"]>;
 
 type StreamResult = Awaited<ReturnType<typeof caetano.streamText>>;
 
@@ -64,6 +69,69 @@ const setup = async () => {
   return { t, ...ids };
 };
 
+const insertAccount = (t: Harness, ownerUserId: Id<"users">, name: string) =>
+  t.run((ctx) =>
+    ctx.db.insert("accounts", { ownerUserId, name, onboardedAt: 1, createdAt: 1, updatedAt: 1 }),
+  );
+
+const connectChatGpt = (t: Harness, userId: Id<"users">) =>
+  t.run((ctx) =>
+    ctx.db.patch(userId, { planId: "conectado", openaiAccessCiphertext: "test-token" }),
+  );
+
+const setModel = async (owner: Owner, modelId: string) => {
+  for (const mutation of [api.users.setCaetanoModel, api.users.setAgentModel]) {
+    await owner.mutation(mutation, { modelId });
+  }
+};
+
+const uploadImage = async (t: Harness, accountId: Id<"accounts">, bytes: string) => {
+  const storageId = await t.run((ctx) => ctx.storage.store(new Blob([bytes])));
+
+  const { imageId } = await t.withIdentity({ subject: "ana" }).mutation(api.imageUploads.addImage, {
+    accountId,
+    storageId,
+    mimeType: "image/png",
+    width: 800,
+    height: 600,
+  });
+
+  return { storageId, imageId };
+};
+
+const messagesOf = (owner: Owner, threadId: string) =>
+  owner.query(api.caetano.listMessages, {
+    threadId,
+    paginationOpts: { cursor: null, numItems: 20 },
+  });
+
+const finish = (unified: "tool-calls" | "stop") => ({
+  type: "finish" as const,
+  finishReason: { unified, raw: undefined },
+  usage: {
+    inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+    outputTokens: { total: 1, text: 1, reasoning: 0 },
+  },
+});
+
+/** One model turn: a single tool call when given, otherwise a plain stop. */
+const modelTurn = (call: { toolCallId: string; toolName: string; input: unknown } | null) => ({
+  stream: convertArrayToReadableStream([
+    { type: "stream-start" as const, warnings: [] },
+    ...(call
+      ? [
+          {
+            type: "tool-call" as const,
+            toolCallId: call.toolCallId,
+            toolName: call.toolName,
+            input: JSON.stringify(call.input),
+          },
+        ]
+      : []),
+    finish(call ? "tool-calls" : "stop"),
+  ]),
+});
+
 describe("Caetano control plane", () => {
   it.each([false, true])(
     "persists GPT-6.1 Sol for both agents (connected: %s)",
@@ -71,15 +139,8 @@ describe("Caetano control plane", () => {
       const { t, userId } = await setup();
       const owner = t.withIdentity({ subject: "ana" });
 
-      if (connected) {
-        await t.run((ctx) =>
-          ctx.db.patch(userId, { planId: "conectado", openaiAccessCiphertext: "test-token" }),
-        );
-      }
-
-      for (const mutation of [api.users.setCaetanoModel, api.users.setAgentModel]) {
-        await owner.mutation(mutation, { modelId: "openai/gpt-6.1-sol" });
-      }
+      if (connected) await connectChatGpt(t, userId);
+      await setModel(owner, "openai/gpt-6.1-sol");
 
       expect(await owner.query(api.users.modelPreferences)).toMatchObject({
         caetano: "openai/gpt-6.1-sol",
@@ -94,9 +155,7 @@ describe("Caetano control plane", () => {
     const owner = t.withIdentity({ subject: "ana" });
     const modelId = "meta/muse-spark-1.3-contributor";
 
-    for (const mutation of [api.users.setCaetanoModel, api.users.setAgentModel]) {
-      await owner.mutation(mutation, { modelId });
-    }
+    await setModel(owner, modelId);
 
     expect(await owner.query(api.users.modelPreferences)).toMatchObject({
       caetano: modelId,
@@ -108,9 +167,7 @@ describe("Caetano control plane", () => {
       orchestrator: modelId,
     });
 
-    await t.run((ctx) =>
-      ctx.db.patch(userId, { planId: "conectado", openaiAccessCiphertext: "test-token" }),
-    );
+    await connectChatGpt(t, userId);
 
     for (const mutation of [api.users.setCaetanoModel, api.users.setAgentModel]) {
       await expect(owner.mutation(mutation, { modelId })).rejects.toThrow("ChatGPT");
@@ -131,9 +188,7 @@ describe("Caetano control plane", () => {
       orchestrator: "openai/gpt-6-luna",
       image: "openai/gpt-image-2.5-sunburst",
     });
-    await t.run((ctx) =>
-      ctx.db.patch(userId, { planId: "conectado", openaiAccessCiphertext: "test-token" }),
-    );
+    await connectChatGpt(t, userId);
 
     for (const mutation of [api.users.setCaetanoModel, api.users.setAgentModel]) {
       await expect(
@@ -291,16 +346,7 @@ describe("Caetano control plane", () => {
 
   it("allows product settings from Vanda but keeps its conversation pinned to its account", async () => {
     const { t, userId, accountId } = await setup();
-
-    const otherAccountId = await t.run((ctx) =>
-      ctx.db.insert("accounts", {
-        ownerUserId: userId,
-        name: "Padaria da Ana",
-        onboardedAt: 1,
-        createdAt: 1,
-        updatedAt: 1,
-      }),
-    );
+    const otherAccountId = await insertAccount(t, userId, "Padaria da Ana");
 
     await t.action(async (ctx) => {
       const toolCtx = { ...ctx, accountId };
@@ -331,16 +377,7 @@ describe("Caetano control plane", () => {
 
   it("does not retarget an in-flight Caetano turn when another tab switches accounts", async () => {
     const { t, userId, accountId } = await setup();
-
-    const otherAccountId = await t.run((ctx) =>
-      ctx.db.insert("accounts", {
-        ownerUserId: userId,
-        name: "Outro negócio",
-        onboardedAt: 1,
-        createdAt: 1,
-        updatedAt: 1,
-      }),
-    );
+    const otherAccountId = await insertAccount(t, userId, "Outro negócio");
 
     const accountScope = { accountId };
     await t.mutation(internal.caetanoData.selectAccount, { userId, accountId: otherAccountId });
@@ -384,10 +421,7 @@ describe("Caetano control plane", () => {
     expect(state.threadId).toBe(sent.threadId);
     expect(state.processing).toBe(true);
 
-    const messages = await owner.query(api.caetano.listMessages, {
-      threadId: sent.threadId,
-      paginationOpts: { cursor: null, numItems: 20 },
-    });
+    const messages = await messagesOf(owner, sent.threadId);
 
     expect(messages.page.some((message) => message.text === "Oi, Caetano")).toBe(true);
 
@@ -442,46 +476,25 @@ describe("Caetano control plane", () => {
   it("accepts an owned image-only message and exposes the image in the transcript", async () => {
     const { t, accountId } = await setup();
     const owner = t.withIdentity({ subject: "ana" });
-    const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["image"])));
-
-    const uploaded = await owner.mutation(api.imageUploads.addImage, {
-      accountId,
-      storageId,
-      mimeType: "image/png",
-      width: 800,
-      height: 600,
-    });
+    const { imageId } = await uploadImage(t, accountId, "image");
 
     const sent = await owner.mutation(api.caetano.sendMessage, {
       prompt: "",
-      imageIds: [uploaded.imageId],
+      imageIds: [imageId],
     });
 
-    const messages = await owner.query(api.caetano.listMessages, {
-      threadId: sent.threadId,
-      paginationOpts: { cursor: null, numItems: 20 },
-    });
+    const messages = await messagesOf(owner, sent.threadId);
 
     expect(
       messages.page.some((message) => message.parts.some((part) => part.type === "file")),
     ).toBe(true);
-    expect((await t.run((ctx) => ctx.db.get(uploaded.imageId)))?.lastAttachedAt).toEqual(
-      expect.any(Number),
-    );
+    expect((await t.run((ctx) => ctx.db.get(imageId)))?.lastAttachedAt).toEqual(expect.any(Number));
   });
 
   it("creates a draft from an owned attachment in the Caetano thread and records resources", async () => {
     const { t, userId, accountId } = await setup();
     const owner = t.withIdentity({ subject: "ana" });
-    const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["product-photo"])));
-
-    const { imageId } = await owner.mutation(api.imageUploads.addImage, {
-      accountId,
-      storageId,
-      mimeType: "image/png",
-      width: 800,
-      height: 600,
-    });
+    const { imageId } = await uploadImage(t, accountId, "product-photo");
 
     const sent = await owner.mutation(api.caetano.sendMessage, {
       prompt: "Crie um rascunho com esta foto",
@@ -492,44 +505,24 @@ describe("Caetano control plane", () => {
 
     const model = new MockLanguageModelV3({
       supportedUrls: { "image/*": [/^https?:\/\/.*$/] },
-      doStream: async () => {
-        const create = call++ === 0;
-
-        return {
-          stream: convertArrayToReadableStream([
-            { type: "stream-start" as const, warnings: [] },
-            ...(create
-              ? [
-                  {
-                    type: "tool-call" as const,
-                    toolCallId: "create-draft",
-                    toolName: "create_post",
-                    input: JSON.stringify({
-                      imageIds: [imageId],
-                      caption: "Café feito com calma.",
-                      type: "image",
-                      format: "4:3",
-                      purpose: "institucional",
-                      rationale:
-                        "image porque é uma mensagem única; institucional porque reforça quem somos, não editorial.",
-                    }),
-                  },
-                ]
-              : []),
-            {
-              type: "finish" as const,
-              finishReason: {
-                unified: create ? ("tool-calls" as const) : ("stop" as const),
-                raw: undefined,
-              },
-              usage: {
-                inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
-                outputTokens: { total: 1, text: 1, reasoning: 0 },
-              },
-            },
-          ]),
-        };
-      },
+      doStream: async () =>
+        modelTurn(
+          call++ === 0
+            ? {
+                toolCallId: "create-draft",
+                toolName: "create_post",
+                input: {
+                  imageIds: [imageId],
+                  caption: "Café feito com calma.",
+                  type: "image",
+                  format: "4:3",
+                  purpose: "institucional",
+                  rationale:
+                    "image porque é uma mensagem única; institucional porque reforça quem somos, não editorial.",
+                },
+              }
+            : null,
+        ),
     });
 
     await t.action(async (ctx) => {
@@ -582,10 +575,7 @@ describe("Caetano control plane", () => {
 
     await t.mutation(internal.threadResources.postPublicationFollowup, { scheduledPostId });
 
-    const messages = await owner.query(api.caetano.listMessages, {
-      threadId: sent.threadId,
-      paginationOpts: { cursor: null, numItems: 20 },
-    });
+    const messages = await messagesOf(owner, sent.threadId);
 
     expect(
       messages.page.filter(
@@ -621,15 +611,7 @@ describe("Caetano control plane", () => {
   it("preserves the exact request and attachments in the original conversation", async () => {
     const { t, accountId } = await setup();
     const owner = t.withIdentity({ subject: "ana" });
-    const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["product-photo"])));
-
-    const { imageId } = await owner.mutation(api.imageUploads.addImage, {
-      accountId,
-      storageId,
-      mimeType: "image/png",
-      width: 800,
-      height: 600,
-    });
+    const { storageId, imageId } = await uploadImage(t, accountId, "product-photo");
 
     const original = "Troque SÓ o fundo. Preserve o rótulo ‘Café 42’, sem desconto e sem publicar.";
 
@@ -670,7 +652,7 @@ describe("Caetano control plane", () => {
     );
   });
 
-  it("includes brand facts, kit and preferences but not foreign data or the media archive", async () => {
+  it("includes brand facts and preferences but not foreign data or the media archive", async () => {
     const { t, userId, accountId, foreignAccountId } = await setup();
     await t.run(async (ctx) => {
       await ctx.db.insert("brandCanon", {
@@ -689,25 +671,14 @@ describe("Caetano control plane", () => {
       });
     });
     // Legacy notes from before the brand file still reach the context through it.
-    await t.run((ctx) =>
-      ctx.db.insert("workspaceFiles", {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("workspaceFiles", {
         accountId,
         path: "/brand/notes.md",
         content: "Somente café de origem local",
         updatedAt: 1,
         updatedBy: "vanda",
-      }),
-    );
-    await t.mutation(internal.workspaceData.write, {
-      accountId,
-      path: "/brand/kit.json",
-      content: JSON.stringify({
-        colors: [{ hex: "#123456", name: "azul" }],
-        fonts: [],
-        tagline: "Café com calma",
-      }),
-    });
-    await t.run(async (ctx) => {
+      });
       await ctx.db.insert("workspaceFiles", {
         accountId,
         path: "/memory/preferencias.md",
@@ -738,8 +709,7 @@ describe("Caetano control plane", () => {
       "Café da Ana",
       "cafedaana",
       "Somente café de origem local",
-      "#123456",
-      "Café com calma",
+      '<arquivo path="/brand/marca.md">',
       "Nunca prometa entrega grátis",
       "Não anunciar bebidas alcoólicas",
     ])
@@ -754,10 +724,12 @@ describe("Caetano control plane", () => {
     await t.mutation(internal.workspaceData.write, {
       accountId,
       path: "/brand/marca.md",
-      content: "# Marca · Café da Ana\n\n## O negócio\n\n- Agora servimos chá também (dono)\n",
+      content:
+        "# Marca · Café da Ana\n\n## O negócio\n- Agora servimos chá também (dono)\n\n## Design\n- Paleta: #123456 azul (dono)\n",
     });
     const refreshed = await t.query(internal.brandContext.conversation, { userId });
     expect(refreshed).toContain("Agora servimos chá também");
+    expect(refreshed).toContain("- Paleta: #123456 azul (dono)");
     expect(refreshed).not.toContain("Somente café de origem local");
     await t.run((ctx) => ctx.db.patch(userId, { activeAccountId: undefined }));
     expect(await t.query(internal.brandContext.conversation, { userId })).toContain(
@@ -860,16 +832,7 @@ describe("Caetano control plane", () => {
     "preserves ownership and resource recording after discovery (foreign=%s)",
     async (foreign) => {
       const { t, userId, accountId, foreignAccountId } = await setup();
-
-      const secondAccountId = await t.run((ctx) =>
-        ctx.db.insert("accounts", {
-          ownerUserId: userId,
-          name: "Padaria da Ana",
-          onboardedAt: 1,
-          createdAt: 1,
-          updatedAt: 1,
-        }),
-      );
+      const secondAccountId = await insertAccount(t, userId, "Padaria da Ana");
 
       const target = foreign ? foreignAccountId : secondAccountId;
 
@@ -889,32 +852,9 @@ describe("Caetano control plane", () => {
         doStream: async () => {
           const next = calls[step++];
 
-          return {
-            stream: convertArrayToReadableStream([
-              { type: "stream-start" as const, warnings: [] },
-              ...(next
-                ? [
-                    {
-                      type: "tool-call" as const,
-                      toolCallId: `call-${step}`,
-                      toolName: next.name,
-                      input: JSON.stringify(next.input),
-                    },
-                  ]
-                : []),
-              {
-                type: "finish" as const,
-                finishReason: {
-                  unified: next ? ("tool-calls" as const) : ("stop" as const),
-                  raw: undefined,
-                },
-                usage: {
-                  inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
-                  outputTokens: { total: 1, text: 1, reasoning: 0 },
-                },
-              },
-            ]),
-          };
+          return modelTurn(
+            next ? { toolCallId: `call-${step}`, toolName: next.name, input: next.input } : null,
+          );
         },
       });
 

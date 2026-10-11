@@ -1,6 +1,6 @@
 # run_code — deterministic compute primitive
 
-**Status:** design · **Owner:** vanda agent tools · **Depends on:** E2B (vendor), existing paint pipeline
+**Status:** design, removed from the agent's tools on September 25, 2026 (see `agent-quality.md`, "Shared capabilities"); kept as the design record · **Owner:** vanda agent tools · **Depends on:** E2B (vendor), existing paint pipeline
 
 ## 1. Purpose
 
@@ -101,8 +101,8 @@ booted explicitly via `setStartCmd("sudo /root/.jupyter/start-up.sh", waitForPor
 - Font pack installed system-wide (deterministic text needs fonts _in the image_):
   Inter, Poppins, Montserrat, Lora, Playfair Display, Roboto + DejaVu fallback, with an
   `/home/user/fonts/manifest.json` listing family → path so code never guesses paths.
-- No network. No preinstalled credentials. Nothing account-specific baked in — account
-  files arrive per-run.
+- Nothing account-specific is baked in; account files arrive per run (network and
+  credentials: see §2).
 
 Runtime budget per run:
 
@@ -224,9 +224,10 @@ Addition to `INSTRUCTIONS` (routing rule, mirrors the paint block):
 
 ## 11. v2 direction (explicitly out of scope now)
 
-- **Templates:** promote a successful `codeRuns` row to a named script stored in the
-  account's brand kit; "aplica o template promo na foto X" becomes a cheap re-run.
-- **Brand kit mounts:** `/home/user/brand/` (logo, colors.json, fonts) alongside `in/` —
+- **Templates:** promote a successful `codeRuns` row to a named script stored with the
+  account's brand file; "aplica o template promo na foto X" becomes a cheap re-run.
+- **Brand mounts:** `/home/user/brand/` (the brand file's Design section for palette,
+  typography and the logo image) alongside `in/` —
   first concrete step toward the account-as-workspace substrate.
 - **Per-thread sessions:** keep one sandbox alive per thread for REPL-style iteration
   (E2B supports long TTLs); only worth it once runs chain often enough that per-run

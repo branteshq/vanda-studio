@@ -20,23 +20,21 @@ Uma imagem larga cortada em slides iguais, no nível dos melhores carrosséis in
 
 ## Anatomia de um carrossel de referência
 
-| Elemento          | O que os bons fazem                                                                                                                       | Números (em % do slide)                                                                                                                                                     |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Herói             | UM sujeito grande com o centro visual exatamente no corte 1→2: o slide 1 mostra uma parte, o slide 2 o resto, e o olho quer deslizar      | ~55–70% da altura, apoiado embaixo e saindo pela borda inferior; o corte passa pela parte mais rica e simples (tronco, capacete, garrafa, porta do carro), nunca pelo rosto |
-| Ambiente          | uma cena contínua na tela inteira; mudança de ambiente (claro → escuro, dentro → fora) em **diagonal** dentro de um slide, nunca no corte | horizonte e luz na mesma % da altura em todos os slides                                                                                                                     |
-| Satélites         | um objeto por corte restante, alternando em cima e embaixo, com brilho e sombra, nas cores do kit (ou da paleta proposta)                 | 20–30% da altura; nunca dois seguidos na mesma altura                                                                                                                       |
-| Plano médio       | um planeta, forma ou objeto grande desfocado, meio fora do quadro                                                                         | desfoque leve; dentro do slide, longe das bordas                                                                                                                            |
-| Evidência         | prints, telas, gráficos em cartão com sombra e uma seta ou nota escrita à mão                                                             | na coluna de texto                                                                                                                                                          |
-| Texto             | título condensado em caixa alta na cor de destaque; corpo arredondado e legível; uma palavra-chave colorida por parágrafo                 | título grande (gancho maior que os internos), corpo legível no celular, coluna estreita                                                                                     |
-| Progresso e marca | "0%… 100%" pequeno e discreto; @perfil pequeno                                                                                            | embaixo e em cima, centralizados                                                                                                                                            |
-| Cortes            | todos contínuos, inclusive a volta do último para o primeiro                                                                              | nota perto de 0                                                                                                                                                             |
+| Elemento    | O que os bons fazem                                                                                                                       | Números (em % do slide)                                                                                                                                                     |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Herói       | UM sujeito grande com o centro visual exatamente no corte 1→2: o slide 1 mostra uma parte, o slide 2 o resto, e o olho quer deslizar      | ~55–70% da altura, apoiado embaixo e saindo pela borda inferior; o corte passa pela parte mais rica e simples (tronco, capacete, garrafa, porta do carro), nunca pelo rosto |
+| Ambiente    | uma cena contínua na tela inteira; mudança de ambiente (claro → escuro, dentro → fora) em **diagonal** dentro de um slide, nunca no corte | horizonte e luz na mesma % da altura em todos os slides                                                                                                                     |
+| Satélites   | um objeto por corte restante, alternando em cima e embaixo, com brilho e sombra, nas cores da seção Design (ou da paleta proposta)        | 20–30% da altura; nunca dois seguidos na mesma altura                                                                                                                       |
+| Plano médio | um planeta, forma ou objeto grande desfocado, meio fora do quadro                                                                         | desfoque leve; dentro do slide, longe das bordas                                                                                                                            |
+| Texto       | título condensado em caixa alta na cor de destaque; corpo arredondado e legível; uma palavra-chave colorida por parágrafo                 | título grande (gancho maior que os internos), corpo legível no celular, coluna estreita                                                                                     |
+| Cortes      | todos contínuos, inclusive a volta do último para o primeiro                                                                              | nota perto de 0                                                                                                                                                             |
 
 ## Como o gerador funciona (leia antes de planejar)
 
 A cena é pintada **em cadeia**, da esquerda para a direita, e cada slide nasce como continuação real do anterior:
 
 1. **Slide 1** com `paint`: a peça completa, com o herói saindo pela borda direita.
-2. **Slides 2…N** com `extend_infinite_carousel`, um por chamada. A ferramenta continua a cena a partir da metade direita do slide anterior, com a ponte atravessando o corte (no 1→2, o resto do herói). Depois completa o novo slide com o texto dele. Quando o novo slide é o último (`total`), a ferramenta fecha a volta N→1 com `loopBridge`.
+2. **Slides 2…N** com `extend_infinite_carousel`, um por chamada. A ferramenta continua a cena a partir da metade direita do slide anterior, com a ponte atravessando o corte (no 1→2, o resto do herói). Depois completa o novo slide com o texto dele; no último, fecha a volta N→1 (ver §5).
 
 Cada chamada repinta a borda direita do slide anterior e devolve a **cadeia inteira com novos imageIds**. Use sempre a cadeia devolvida, tanto na chamada seguinte quanto no `create_post`.
 
@@ -47,7 +45,7 @@ Faixas que a ferramenta repinta (o que estiver nelas muda):
 
 **Orçamento de etapas e de tempo (obrigatório):** a resposta inteira tem cerca de 10 minutos, e cada slide da cadeia leva por volta de 1,5 min.
 
-- Leia esta skill, post-production, a do propósito e `/brand/kit.json` uma vez só. Não leia imagens antigas da galeria nem posts anteriores, a menos que o dono peça.
+- Leia esta skill, post-production, a do propósito e a seção Design do arquivo da marca uma vez só. Não leia imagens antigas da galeria nem posts anteriores, a menos que o dono peça.
 - Pesquisa web: no máximo 1 busca e 1 leitura, e só se o tema exigir dado atual.
 - Busque `carrossel infinito` no tool_search para ter `extend_infinite_carousel`.
 - Depois: 1 `paint` (slide 1), N−1 `extend_infinite_carousel` e `create_post`. As chamadas intermediárias não trazem prévia; a única prévia vem quando a volta fecha. Não use `read` nos slides, nem entre as chamadas nem depois.
@@ -56,14 +54,13 @@ Faixas que a ferramenta repinta (o que estiver nelas muda):
 
 ## 0. Marca (obrigatório, antes do plano)
 
-O carrossel é da marca, não da skill. O contexto da marca já está na conversa: memória (identidade, voz, público, restrições), kit e notas.
+O carrossel é da marca, não da skill. O contexto da marca já está na conversa, no arquivo da marca (identidade, voz, público, restrições, seção Design e notas).
 
-- Leia `/brand/kit.json` e `list /brand/references`.
-- **Kit com cores ou fontes:** a ficha de estilo usa só essas cores (fundo, destaques, satélites, título) e só essas fontes, com os hex exatos. A direção de estilo da tabela define apenas a cena e a luz, nunca a paleta nem as fontes. `extend_infinite_carousel` já anexa o kit a cada slide, mas o slide 1 (`paint`) depende de você escrever os hex e as fontes no prompt: a cena continua com as cores e a tipografia do slide 1, então um slide 1 fora do kit deixa o carrossel inteiro fora do kit.
-- **Kit vazio:** proponha uma paleta sóbria (2–3 cores em hex) coerente com a voz e o setor da memória. Diga na linha do plano que é uma proposta, não a paleta oficial. Nunca apresente cores inventadas como "da marca". Na entrega, ofereça em uma frase salvar a paleta no kit.
-- **Referências:** imagens de estilo ou produto em `/brand/references` entram em `referenceImageIds` no `paint` do slide 1 (estilo, luz, produto real). Rosto de pessoa só se a referência for daquela pessoa.
-- **Assinatura:** o nome da marca (ou o @perfil) em texto pequeno e discreto. Nunca invente um logo nem símbolo.
-- **Voz e restrições da memória** valem para o herói, a cena e o texto (por exemplo: sem tom sensacionalista, sem prometer resultado, pessoas só com contexto). Se uma restrição bater de frente com o herói planejado, troque o herói.
+- Leia a seção Design do arquivo da marca e `list /brand/references`.
+- **Design com cores ou fontes:** a ficha de estilo usa só essas cores (fundo, destaques, satélites, título) e só essas fontes, com os hex exatos. A direção de estilo da tabela define apenas a cena e a luz, nunca a paleta nem as fontes. `extend_infinite_carousel` já anexa a seção Design a cada slide, mas o slide 1 (`paint`) depende de você escrever os hex e as fontes no prompt: a cena continua com as cores e a tipografia do slide 1, então um slide 1 fora da paleta deixa o carrossel inteiro fora dela.
+- **Referências:** imagens de estilo ou produto em `/brand/references` entram em `referenceImageIds` no `paint` do slide 1 (estilo, luz, produto real). Regras de rosto e de referência: post-production §2.
+- **Assinatura:** o nome da marca (ou o @perfil) em texto pequeno e discreto.
+- **Voz e restrições do arquivo da marca** valem para o herói, a cena e o texto (por exemplo: sem tom sensacionalista, sem prometer resultado, pessoas só com contexto). Se uma restrição bater de frente com o herói planejado, troque o herói.
 
 ## 1. Briefing: deduza, não interrogue
 
@@ -71,7 +68,7 @@ O carrossel é da marca, não da skill. O contexto da marca já está na convers
 - **Slides:** **4 por padrão** (gancho, 2 ideias, CTA); 5 só se o dono pedir mais; mínimo 3. Com mais ideias, junte ou escolha as mais fortes.
 - **Format:** 4:5 por padrão (ocupa mais tela); 1:1 só se pedirem.
 - **Herói:** um sujeito concreto ligado ao tema. Se o pedido exigir algo real e específico (um produto, uma pessoa) e você não souber como ele é, pergunte uma vez, junto com a direção de estilo. Nunca reproduza arte de outro perfil nem o rosto de uma pessoa real.
-- **Estilo:** escolha a direção da tabela que melhor combina com a voz, o setor e o kit da marca, e diga em uma linha (com a paleta). O cinematográfico escuro é uma opção, não o padrão. Todo estilo tem herói e satélites: um carrossel infinito sem herói é um carrossel comum.
+- **Estilo:** escolha a direção da tabela que melhor combina com a voz, o setor e a seção Design da marca, e diga em uma linha (com a paleta). O cinematográfico escuro é uma opção, não o padrão. Todo estilo tem herói e satélites: um carrossel infinito sem herói é um carrossel comum.
 
 ## 2. Plano (escreva antes de pintar)
 
@@ -79,16 +76,16 @@ O carrossel é da marca, não da skill. O contexto da marca já está na convers
 2. **Herói:** sujeito, pose (levemente virado para o lado do texto), altura (55–70%), por onde o corte passa (área grande e simples). Proibido como herói ou ponte: objetos com números, letras, ponteiros ou detalhes exatos (relógio com mostrador, calendário, placa, tela com texto, moeda, gráfico, documento). O modelo não continua esses detalhes através do corte e eles saem errados. Prefira formas grandes e lisas: personagem, produto, escultura, planta, veículo, esfera, objeto 3D sem inscrição. Um relógio só serve sem algarismos nem ponteiros.
 3. **Mapa de cortes:** uma linha por corte, variando objeto, tamanho e altura. Exemplo para 5 slides:
    `1→2 HERÓI astronauta de traje branco, corpo inteiro, ~65% da altura, apoiado embaixo · 2→3 esfera laranja brilhante no terço superior · 3→4 esfera azul no terço inferior · 4→5 asteroide no terço superior · 5→1 VOLTA esfera grande no meio`.
-4. **Ficha de estilo:** ambiente, luz, técnica (foto, 3D, ilustração), horizonte em %, a paleta em hex e as fontes. Paleta e fontes vêm do kit; sem kit, use a paleta proposta e uma condensada para título + uma sans legível. Ela vai igual no `paint` do slide 1 e em toda chamada (`style`).
+4. **Ficha de estilo:** ambiente, luz, técnica (foto, 3D, ilustração), horizonte em %, a paleta em hex e as fontes. Paleta e fontes vêm da seção Design; sem ela, siga a proposta de post-production §1 e use uma condensada para título + uma sans legível. Ela vai igual no `paint` do slide 1 e em toda chamada (`style`).
 
 ## 3. Regras de design
 
 1. **Herói no corte 1→2:** um só por carrossel, nascido no slide 1 e continuado no slide 2 pela ferramenta.
-2. **Toda costura tem uma ponte:** o herói no 1→2 e um satélite em cada um dos outros cortes, inclusive a volta. Satélites com 20–30% da altura, alternando cima e baixo, sem texto nem logo. **Numa cena com chão ou mesa, todo satélite está apoiado em algo visível** (a mesa, o piso, uma prateleira, um parapeito) ou pendurado (um galho, uma luminária). Só flutua em cena de céu, espaço ou água. Escreva o apoio na ponte: _"xícara de cerâmica apoiada na mesa, no terço inferior"_, nunca só _"no terço superior"_.
+2. **Toda costura tem uma ponte:** o herói no 1→2 e um satélite em cada um dos outros cortes, inclusive a volta. Satélites conforme a tabela, sem texto nem logo. **Numa cena com chão ou mesa, todo satélite está apoiado em algo visível** (a mesa, o piso, uma prateleira, um parapeito) ou pendurado (um galho, uma luminária). Só flutua em cena de céu, espaço ou água. Escreva o apoio na ponte: _"xícara de cerâmica apoiada na mesa, no terço inferior"_, nunca só _"no terço superior"_.
 3. **Ambiente contínuo:** o fundo encosta nas quatro bordas de todo slide. Proibido: moldura, vinheta, recorte de papel, mapa ou silhueta fechada, figura isolada no centro. Mudança de ambiente só em diagonal, dentro de um slide.
 4. **Ordem de profundidade** (de trás para a frente): ambiente → véu → brilho → plano médio desfocado → herói → satélites → cartões de evidência → texto → progresso e @perfil. Quanto mais longe, mais desfoque; o herói é nítido.
 5. **Colunas de texto** (fora das faixas repintadas):
-   - slide 1: entre 22% e 60% da largura (a direita é do herói, a esquerda recebe a volta);
+   - slide 1: entre 24% e 60% da largura (a direita é do herói, a esquerda recebe a volta);
    - slide 2: entre 40% e 72% (a esquerda é do herói);
    - demais slides: entre 24% e 72%.
      A ferramenta já posiciona o texto dos slides 2…N. Você só escreve o conteúdo.
@@ -98,20 +95,20 @@ O carrossel é da marca, não da skill. O contexto da marca já está na convers
 
 ### Direções de estilo
 
-| Estilo                 | Ambiente                                                                | Herói                                                 | Satélites                                   | Tipografia (sem kit)                                      |
+| Estilo                 | Ambiente                                                                | Herói                                                 | Satélites                                   | Tipografia (sem seção Design)                             |
 | ---------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------- |
 | Cinematográfico escuro | espaço profundo com nebulosa e estrelas, ou foto escurecida e desfocada | personagem ou produto renderizado com luz de contorno | esferas brilhantes, planetas                | condensada (tipo Bebas Neue) + arredondada (tipo Poppins) |
-| Vitrine de produto     | degradê suave nas cores do kit ou cor lisa                              | o produto, recortado, com sombra suave                | o produto em outros ângulos, pílulas de cor | grotesca pesada + sans limpa                              |
+| Vitrine de produto     | degradê suave nas cores da seção Design ou cor lisa                     | o produto, recortado, com sombra suave                | o produto em outros ângulos, pílulas de cor | grotesca pesada + sans limpa                              |
 | Editorial claro        | papel com granulado e um bloco de cor em diagonal                       | pessoa ou objeto com sombra dura                      | letras gigantes, anéis                      | condensada pesada + sans editorial                        |
 | Panorama fotográfico   | uma foto contínua, levemente desfocada                                  | sujeito da mesma sessão de fotos                      | janelas com foto em arco                    | sans limpa                                                |
 | Tech / UI              | espaço azulado com textura de grade                                     | celular ou notebook mostrando a tela                  | nós e esferas luminosas                     | geométrica + mono                                         |
 
 ## 4. Slide 1 (`paint`)
 
-Um prompt com a ficha de estilo (hex e fontes do kit, ou a proposta), as referências da marca em `referenceImageIds`, `aspectRatio` no format escolhido e:
+Um prompt com a ficha de estilo (hex e fontes da seção Design, ou a proposta), as referências da marca em `referenceImageIds`, `aspectRatio` no format escolhido e:
 
 - **o herói com o centro visual exatamente na borda direita**, cortado por ela: só a metade esquerda dele aparece, ocupando no máximo os 35% da direita do slide (de 65% a 100% da largura). A outra metade fica para o slide 2. Ele tem ~55–70% da altura, apoiado embaixo, e o corte passa pelo tronco ou pela lateral, nunca pelo rosto;
-- o gancho e "arraste →" na coluna de 22% a 60%, progresso "0%" embaixo no centro, @perfil em cima no centro;
+- o gancho e "arraste →" na coluna de 24% a 60%, progresso "0%" embaixo no centro, @perfil em cima no centro;
 - **texto nunca sobre o herói, pessoas ou objetos:** escreva no prompt que entre a última letra e o herói fica um vão livre de pelo menos 4% da largura, e que, se faltar espaço, o texto diminui ou sobe (o herói nunca vai para trás do texto);
 - os 20% da esquerda só com o ambiente continuando (a volta repinta ali);
 - o fundo encostando nas quatro bordas, sem moldura nem cartão.
@@ -134,7 +131,7 @@ As chamadas intermediárias devolvem só a cadeia e a nota do corte (perto de 0 
 ## 6. Revisão
 
 1. **Prévia em faixa:** o herói atravessa o corte 1→2 inteiro e reconhecível; cada satélite atravessa o seu corte; a volta N→1 é contínua; nenhum degrau de cor ou horizonte desalinhado; nenhum slide parece cartão.
-2. **Cortes de perto, um por um:** a faixa é pequena demais para defeitos de acabamento. Em cada corte, confira: nenhuma letra cortada, apagada ou pela metade; nenhum texto encostado num objeto; nenhum objeto flutuando sem apoio numa cena com chão ou mesa; nenhum objeto duplicado ou fantasma.
+2. **Cortes de perto, um por um:** a faixa é pequena demais para defeitos de acabamento. Cada close-up mostra só a área em volta do corte (a linha branca), e as bordas dele cortam texto por design: julgue só o que está na linha. Confira: nenhuma letra cortada, apagada ou pela metade na linha; nenhuma letra fantasma ou extra e nenhum logo pintado na faixa; nenhum texto encostado num objeto; nenhum objeto flutuando sem apoio numa cena com chão ou mesa; nenhum objeto duplicado ou fantasma.
 3. **Cada slide sozinho** carrega a sua mensagem; o slide 1 vende o deslize.
 4. **Texto** exato e legível. Use `read` num imageId só se precisar ver um slide inteiro de perto.
 
@@ -148,14 +145,14 @@ As chamadas intermediárias devolvem só a cadeia e a nota do corte (perto de 0 
 | Corte do herói cai no rosto           | Descreva a pose "de perfil, o corte passa pelo tronco" no slide 1                                                     |
 | Slides parecem cartões separados      | Moldura, vinheta ou figura fechada no slide 1: a cadeia copia o estilo, então corrija o slide 1                       |
 | Volta N→1 com salto                   | Os 20% da esquerda do slide 1 tinham objeto ou texto: conserte com `onlySeams: [N]`                                   |
-| Texto cortado ou apagado na borda     | O texto estava fora da coluna; no slide 1, mantenha-o entre 22% e 60%                                                 |
+| Texto cortado ou apagado na borda     | O texto estava fora da coluna; no slide 1, mantenha-o entre 24% e 60%, sem cantos                                     |
 | Texto sobre o herói                   | No slide 1, o herói só nos 35% da direita e o vão de 4% escrito no prompt; nos seguintes, a ferramenta já exige o vão |
 | Objeto flutuando no céu ou no ar      | A ponte não dizia onde o objeto se apoia: descreva o apoio (mesa, piso, galho) e refaça o corte com `onlySeams`       |
 | Números ou ponteiros errados no herói | O herói tinha detalhes exatos (relógio, placa, tela): troque por uma forma lisa, sem inscrição                        |
 
 ## 7. Entrega
 
-`create_post` com type carousel, o format usado e os imageIds da **última cadeia devolvida**, na ordem (nunca a prévia). Legenda com o essencial nos primeiros 125 caracteres. A mensagem ao dono tem no máximo 3 frases curtas: o que foi criado (tema, número de slides, rascunho salvo), por que esse tipo, propósito e format, e que a publicação é na ordem numérica. Com kit vazio, a terceira frase oferece salvar a paleta usada no kit. Sem repetir a legenda nem listar etapas.
+`create_post` com type carousel, o format usado e os imageIds da **última cadeia devolvida**, na ordem (nunca a prévia), conforme post-production §5. Legenda com o essencial nos primeiros 125 caracteres. A mensagem ao dono tem no máximo 3 frases curtas (tema, número de slides, rascunho salvo, a escolha de tipo, propósito e format, e que a publicação é na ordem numérica), sem repetir a legenda nem listar etapas.
 
 ## Método manual (Canva, Figma, Photoshop)
 

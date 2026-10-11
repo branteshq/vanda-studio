@@ -10,7 +10,7 @@ import {
 
 /**
  * Document store backing the writable files of the workspace (/brand/marca.md,
- * /brand/kit.json, /notes). Unlike the projected views, these files ARE
+ * /notes). Unlike the projected views, these files ARE
  * the data: workspaceFiles holds the head of each file, workspaceFileRevisions
  * an append-only history of every write (audit trail and undo safety).
  */

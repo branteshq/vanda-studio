@@ -119,6 +119,7 @@ export const fetchBrandCorpus = (
         profile: {
           name: profileInfo?.displayName ?? connectedHandle,
           username: profileInfo?.username ?? connectedHandle,
+          biography: profileInfo?.biography ?? undefined,
           mediaCount: mediaPage.pagination.hasMore ? undefined : mediaPage.media.length,
           followers: analytics?.followers ?? undefined,
           reach: analytics?.reach ?? undefined,
