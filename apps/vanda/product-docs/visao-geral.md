@@ -25,7 +25,7 @@ Os dois usam as mesmas ferramentas: criar imagens e posts, pesquisar o mercado, 
 
 ## Vários negócios
 
-Um dono pode ter vários negócios. Em **Barra lateral › seletor de negócio** você troca o negócio ativo, e **Adicionar negócio** cria um novo. Marca, memória, galeria e posts são separados por negócio; plano e cota são do dono.
+Um dono pode ter vários negócios. Em **Barra lateral › seletor de negócio** você troca o negócio ativo, e **Adicionar negócio** cria um novo. Arquivo da marca, galeria e posts são separados por negócio; plano e cota são do dono.
 
 ## Aparência
 
