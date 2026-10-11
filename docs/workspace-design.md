@@ -21,14 +21,13 @@ First principles:
   the only write tool, forever — dispatch lives in the resolver, not in the model's tool
   selection (like Linux: one `write()` syscall, per-driver handlers; writable `/proc`
   files parse input per-file). v1 handlers cover the files that ARE the data —
-  `/memory/*.md` (free), `/templates/*.py` (free), `/brand/notes.md` (owner-approval,
-  via `needsApproval` as a function of the path). Projections stay read-only: a refused
+  `/brand/marca.md` and `/notes/*.md` (see `BRAND_WRITABLE`). Projections stay read-only: a refused
   write returns the verb that changes that state (`revise_slide`, `paint`,
   `publish_project`…) — errors as navigation, applied to writes. New writable targets
   are new handlers behind the same tool, never new tools; a projection can later gain a
   true inverse (e.g. `caption.md` parse → document edit) without touching the surface.
   Every write upserts the head in `workspaceFiles` and appends to
-  `workspaceFileRevisions` (audit trail / undo). `/memory` is NOT auto-injected into the
+  `workspaceFileRevisions` (audit trail / undo). `/notes` is NOT auto-injected into the
   system prompt — the agent reads what it needs, keeping a poisoned note inspectable.
 - **Multimodal read (v1).** Reading an image path returns a metadata header AND the
   pixels — the model sees the image. Tool results carry image parts by URL:
@@ -41,18 +40,15 @@ First principles:
 ```
 /
 ├── brand/
-│   ├── memory.md              ← confirmed brandCanon + readiness, rendered as prose
-│   ├── profile.json           ← handle, mode, kind, readiness
-│   ├── notes.md               ← WRITABLE (owner approval): free-form brand notes
-│   ├── kit.json               ← WRITABLE (owner approval): visual identity — exact
-│   │                            colors/fonts/tagline; writes are schema-validated and
-│   │                            normalized (the first per-target write parser)
+│   ├── marca.md               ← WRITABLE: the brand file — identity, voice, and a
+│   │                            ## Design section (palette, typography, logo as an
+│   │                            image link), with the origin of each item
 │   └── references/
 │       └── rosto-ana-8xk2.jpg ← read = header (imageId, kind, autorização) + pixels
-├── memory/                    ← WRITABLE (free): durable agent notes — owner
-│   └── preferencias.md          preferences, plans, learnings across conversations
-├── templates/                 ← WRITABLE (free): reusable Python for run_code
-│   └── moldura-branca.py
+├── notes/                     ← WRITABLE (free): long documents and archived details
+│   └── planos-q4.md             consulted on demand, never auto-injected
+├── legado/                    ← read-only: the notes and memory the brand file replaced
+├── docs/                      ← product documentation, read-only
 ├── skills/                    ← installed Agent Skills packages, read-only
 │   └── unslop/
 │       ├── SKILL.md
@@ -64,13 +60,8 @@ First principles:
 │   ├── public/cafe-vizinho/profile.json · posts.json
 │   ├── posts/ABC123/post.json · comments.json · insights.json
 │   └── searches/cafeterias-pinheiros.json
-├── projects/
-│   └── cafe-gelado-3kb2/
-│       ├── status.json        ← stage, review, publication state
-│       ├── brief.json         ← briefSnapshotJson, when present
-│       ├── slides.md          ← active carouselDocument rendered (slideIds inline)
-│       ├── caption.md
-│       └── renders/01.jpg …   ← read = pixels (visual audit before publishing)
+├── posts/                     ← post calendar: drafts, scheduled, published
+├── web/                       ← research evidence with URLs and access dates (untrusted)
 ├── market/
 │   ├── opportunities/
 │   │   └── cafe-gelado-viral-9dk2.md  ← evidence, trigger, adaptation, join ids
@@ -107,7 +98,7 @@ step (same philosophy as run_code returning tracebacks).
 convex/workspace/
 ├── types.ts        WorkspaceEntry / WorkspaceFile / WorkspaceMount (list/read/write?)
 ├── documents.ts    workspaceFiles store: save/read/list + documentMount factory
-├── mounts/         brand · memory · templates · skills · images · instagram · posts · market · runs
+├── mounts/         brand · notes · skills · docs · images · instagram · web · posts · market · runs · legacy
 └── index.ts        registry, path parsing, writePath, writeNeedsApproval
 
 convex/workspaceData.ts   internalQuery list / read + internalMutation write
@@ -128,15 +119,14 @@ vanda.ts                  tools `list`, `read`, `write` (pi-shaped)
 
 - `list(path)` — directory listing with summaries. Root `/` lists the mounts.
 - `read(path, offset?, limit?)` — text content, or header + pixels for images.
-- `write(path, content)` — full-content write into the writable files;
-  `needsApproval` computed from the path (only `/brand/notes.md` in v1). Listings mark
-  writable files (`gravável` / `gravável com aprovação`).
+- `write(path, content)` — full-content write into the writable files
+  (`/brand/marca.md`, `/notes/*.md`). Listings mark writable files (`gravável`).
 
 Named `list`/`read` (pi-style) betting on the model's filesystem training transferring.
 Retired at the same time: the six reader tools; INSTRUCTIONS rewritten to describe the
 workspace and reference paths (`/brand/references`) instead of tool names.
 
-## 6. Interaction with run_code (phase 3 — implemented)
+## 6. Interaction with run_code (phase 3 — implemented, later removed; see `agent-quality.md`)
 
 run_code takes `inputPaths`: any text file visible through the account workspace or an
 account-owned image path/bare attachment imageId. Each input materializes at its
@@ -151,4 +141,4 @@ outputs are stored under `/runs/<run>/outputs/`. `paint` still speaks imageIds.
 Boundary tests per mount: ownership wall (foreign account's entities invisible and
 unresolvable), suffix resolution (stale slug still resolves; bare suffix resolves),
 errors-as-navigation (miss returns nearest listing), deterministic renders (golden
-assertions on memory.md / slides.md shape), listing caps.
+assertions on rendered file shape), listing caps.
