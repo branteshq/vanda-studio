@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { useRouterState } from "@tanstack/react-router";
 import { useQuery } from "convex-helpers/react/cache";
 import { ptBR } from "date-fns/locale";
 import {
@@ -25,11 +24,12 @@ import {
 } from "@vanda-studio/ui/components/sidebar";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { StatusPill } from "@vanda-studio/ui/components/status-pill";
-import { ActionTooltip } from "@vanda-studio/ui/components/tooltip";
+import { Tag } from "@vanda-studio/ui/components/tag";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { useActiveAccount } from "./active-account";
+import { AutopilotPostDialogById } from "./autopilot/post-dialog";
 import { useWorkRail } from "./work-rail";
 
 /**
@@ -78,34 +78,6 @@ export function PostsRailHost() {
     >
       <PostsRail />
     </SidebarProvider>
-  );
-}
-
-/** The floating opener shown while the rail is closed — the right-side twin
- * of `CollapsedSidebarControls`. Rendered inside the inset by the layout;
- * the gallery renders its opener inline in its own header instead. */
-export function CollapsedRailControls() {
-  const rail = useWorkRail();
-
-  const gallery = useRouterState({
-    select: (s) => s.location.pathname.startsWith("/galeria"),
-  });
-
-  if (rail.open || gallery) return null;
-
-  return (
-    <div className="absolute top-3 right-3 z-20 hidden items-center rounded-lg border border-border bg-surface/90 p-0.5 shadow-sm backdrop-blur-sm md:flex">
-      <ActionTooltip label="Abrir posts" side="bottom">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Abrir posts"
-          onClick={() => rail.setOpen(true)}
-        >
-          <CalendarDays />
-        </Button>
-      </ActionTooltip>
-    </div>
   );
 }
 
@@ -234,6 +206,7 @@ function PostList({ accountId }: { accountId: Id<"accounts"> }) {
                       </span>
                       <span className="mt-0.5 flex items-center gap-1.5">
                         <StatusPill tone={meta.tone}>{meta.label}</StatusPill>
+                        {post.autopilotSlotId ? <Tag tone="brand">Caetano</Tag> : null}
                         <span className="truncate text-note text-text-5">
                           {post.scheduledFor !== null
                             ? formatWhen(post.scheduledFor)
@@ -250,6 +223,30 @@ function PostList({ accountId }: { accountId: Id<"accounts"> }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Autopilot posts are edited as their slot: same editor as the Caetano page and Calendário. */
+function AutopilotSlotLink({
+  accountId,
+  slotId,
+}: {
+  accountId: Id<"accounts">;
+  slotId: Id<"autopilotSlots">;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <Button variant="outline" size="sm" className="w-full" onClick={() => setOpen(true)}>
+        Ver post automático
+      </Button>
+      <AutopilotPostDialogById
+        accountId={accountId}
+        slotId={open ? slotId : null}
+        onClose={() => setOpen(false)}
+      />
+    </>
   );
 }
 
@@ -277,11 +274,17 @@ function PostDetail({ accountId, postId }: { accountId: Id<"accounts">; postId: 
   return (
     <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
       <div className="flex items-center justify-between gap-2">
-        <StatusPill tone={meta.tone}>{meta.label}</StatusPill>
+        <span className="flex items-center gap-1.5">
+          <StatusPill tone={meta.tone}>{meta.label}</StatusPill>
+          {post.autopilotSlotId ? <Tag tone="brand">Post do Caetano</Tag> : null}
+        </span>
         <span className="text-note text-text-5">
           {post.scheduledFor !== null ? formatWhen(post.scheduledFor) : formatWhen(post.createdAt)}
         </span>
       </div>
+      {post.autopilotSlotId ? (
+        <AutopilotSlotLink accountId={accountId} slotId={post.autopilotSlotId} />
+      ) : null}
 
       {url !== undefined ? (
         <div className="relative overflow-hidden rounded-lg border border-border bg-inset">

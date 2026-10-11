@@ -33,7 +33,7 @@ interface ManifestWrite {
   readonly presented: readonly ThreadResource[];
 }
 
-const upsertManifest = async (ctx: MutationCtx, args: ManifestWrite): Promise<void> => {
+export const upsertManifest = async (ctx: MutationCtx, args: ManifestWrite): Promise<void> => {
   const existing = await ctx.db
     .query("threadResourceManifests")
     .withIndex("by_thread_tool", (q) =>

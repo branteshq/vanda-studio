@@ -22,6 +22,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { resolveOrchestratorModel } from "./agentModels";
+import { autopilotJobValidator, type AutopilotJob } from "./autopilotModel";
 import { isConnectedSubscriber } from "./openaiSub";
 import { codexChatModel } from "./pipeline/codex";
 import { requireOwnedAccount, requireUser } from "./authz";
@@ -29,6 +30,7 @@ import {
   caetano,
   caetanoSystemPrompt,
   caetanoToolDiscovery,
+  AUTOPILOT_JOB_PROMPT,
   WHATSAPP_CHANNEL_PROMPT,
 } from "./caetanoAgent";
 import { messageWithImages, resolveMessageImages } from "./messageImages";
@@ -44,6 +46,10 @@ const threadKey = (userId: Id<"users">): string => `caetano:${userId}`;
 
 // Bounds a turn when the owner keeps typing; later messages then queue as a new turn.
 const MAX_FOLLOWUP_PASSES = 3;
+
+const TURN_TIMEOUT_MS = 15 * 60_000;
+
+const JOB_TURN_TIMEOUT_MS = 30 * 60_000;
 
 const FOLLOWUP_PROMPT =
   "O dono mandou mais mensagens enquanto você trabalhava, e sua resposta anterior ainda não foi enviada a ele. Trate as mensagens como um pedido só: responda numa única mensagem que cubra tudo, aproveitando o que da resposta anterior continuar valendo. Não refaça ações já concluídas.";
@@ -82,15 +88,27 @@ export const state = query({
     const queued = await ctx.db
       .query("caetanoInbox")
       .withIndex("by_user_status", (q) => q.eq("userId", user._id).eq("status", "queued"))
-      .first();
+      .collect();
+
+    const live = activity.filter(
+      (row) => row.threadId === threadId && row.startedAt >= Date.now() - JOB_TURN_TIMEOUT_MS,
+    );
+
+    const isJob = async (inboxId: Id<"caetanoInbox"> | undefined) =>
+      !!(inboxId && (await ctx.db.get(inboxId))?.autopilotJob);
+
+    const liveJobs = await Promise.all(live.map((row) => isJob(row.inboxId)));
 
     return {
       threadId,
+      // The owner's own turn: posts automáticos work never blocks the composer.
       processing:
-        !!queued ||
-        activity.some(
-          (row) => row.threadId === threadId && row.startedAt >= Date.now() - 15 * 60_000,
+        queued.some((row) => !row.autopilotJob) ||
+        live.some(
+          (row, index) => !liveJobs[index] && row.startedAt >= Date.now() - TURN_TIMEOUT_MS,
         ),
+      // Caetano is doing posts automáticos work (shown folded in the chat).
+      working: queued.some((row) => !!row.autopilotJob) || liveJobs.some(Boolean),
       activeAccountId: user.activeAccountId ?? null,
     };
   },
@@ -121,27 +139,13 @@ const submitMessage = async (
   const queued = await ctx.db
     .query("caetanoInbox")
     .withIndex("by_user_status", (q) => q.eq("userId", user._id).eq("status", "queued"))
-    .take(20);
+    .collect();
 
-  if (queued.length >= 20) throw new Error("Muitas mensagens na fila. Aguarde uma resposta.");
+  // Only the owner's own messages count: queued posts automáticos work is not his backlog.
+  if (queued.filter((row) => !row.autopilotJob).length >= 20)
+    throw new Error("Muitas mensagens na fila. Aguarde uma resposta.");
 
-  let target = input.threadId ?? user.caetanoThreadId;
-
-  if (target) {
-    const metadata = await getThreadMetadata(ctx, components.agent, { threadId: target }).catch(
-      () => null,
-    );
-
-    if (!metadata || metadata.userId !== threadKey(user._id)) {
-      if (input.threadId) throw publicError("NOT_FOUND");
-      target = undefined;
-    }
-  }
-
-  if (!target) {
-    target = await createThread(ctx, components.agent, { userId: threadKey(user._id) });
-    await ctx.db.patch(user._id, { caetanoThreadId: target, updatedAt: Date.now() });
-  }
+  const target = await ownerThread(ctx, user, input.threadId);
 
   const { messageId } = await saveMessage(ctx, components.agent, {
     threadId: target,
@@ -186,6 +190,68 @@ const submitMessage = async (
 
   return { threadId: target, messageId };
 };
+
+/** The owner's single Caetano thread, created on first use. */
+const ownerThread = async (
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  requested?: string | undefined,
+): Promise<string> => {
+  const target = requested ?? user.caetanoThreadId;
+
+  if (target) {
+    const metadata = await getThreadMetadata(ctx, components.agent, { threadId: target }).catch(
+      () => null,
+    );
+
+    if (metadata?.userId === threadKey(user._id)) return target;
+
+    if (requested) throw publicError("NOT_FOUND");
+  }
+
+  const created = await createThread(ctx, components.agent, { userId: threadKey(user._id) });
+  await ctx.db.patch(user._id, { caetanoThreadId: created, updatedAt: Date.now() });
+
+  return created;
+};
+
+/**
+ * Queues posts automáticos work in the owner's Caetano thread, as a turn like
+ * any other: same instructions, brand context, model, budget and tools. The
+ * prompt is a user message the chat groups under its week.
+ */
+const submitJobIn = async (
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  job: AutopilotJob,
+  prompt: string,
+): Promise<void> => {
+  const user = await ctx.db.get(userId);
+
+  if (!user) throw new Error("user not found");
+
+  const threadId = await ownerThread(ctx, user);
+
+  const { messageId } = await saveMessage(ctx, components.agent, {
+    threadId,
+    message: { role: "user", content: prompt },
+  });
+
+  await ctx.db.insert("caetanoInbox", {
+    userId,
+    threadId,
+    promptMessageId: messageId,
+    channel: "web",
+    autopilotJob: job,
+    status: "queued",
+  });
+  await ctx.scheduler.runAfter(0, internal.caetano.startNext, { userId });
+};
+
+export const submitJob = internalMutation({
+  args: { userId: v.id("users"), job: autopilotJobValidator, prompt: v.string() },
+  handler: (ctx, { userId, job, prompt }) => submitJobIn(ctx, userId, job, prompt),
+});
 
 export const sendMessage = mutation({
   args: {
@@ -248,10 +314,13 @@ export const startNext = internalMutation({
 
     if (active) return;
 
-    const next = await ctx.db
+    const queued = await ctx.db
       .query("caetanoInbox")
       .withIndex("by_user_status", (q) => q.eq("userId", userId).eq("status", "queued"))
-      .first();
+      .collect();
+
+    // The owner never waits behind posts automáticos work.
+    const next = queued.find((row) => !row.autopilotJob) ?? queued[0];
 
     if (!next) return;
 
@@ -270,7 +339,12 @@ export const startNext = internalMutation({
       promptMessageId: next.promptMessageId,
       activityId,
     });
-    await ctx.scheduler.runAfter(15 * 60_000, internal.caetano.expireTurn, { activityId });
+    // A post (several paints) takes longer than a reply.
+    await ctx.scheduler.runAfter(
+      next.autopilotJob ? JOB_TURN_TIMEOUT_MS : TURN_TIMEOUT_MS,
+      internal.caetano.expireTurn,
+      { activityId },
+    );
   },
 });
 
@@ -289,7 +363,7 @@ export const expireTurn = internalMutation({
     });
     await deliverForActivity(ctx, activityId, message);
     // Preserve the existing expiry behavior: stop delegated work and queued turns too.
-    await stopForUser(ctx, activity.userId, activity.threadId);
+    await stopForUser(ctx, activity.userId, activity.threadId, "tempo esgotado");
 
     return true;
   },
@@ -303,7 +377,7 @@ export const turnIsActive = internalQuery({
     if (!activity) return null;
     const inbox = activity.inboxId ? await ctx.db.get(activity.inboxId) : null;
 
-    return { channel: inbox?.channel ?? "web" };
+    return { channel: inbox?.channel ?? "web", autopilotJob: inbox?.autopilotJob };
   },
 });
 
@@ -323,7 +397,14 @@ export const claimFollowups = internalMutation({
       .withIndex("by_user_status", (q) => q.eq("userId", activity.userId).eq("status", "queued"))
       .collect();
 
-    const followups = queued.filter((row) => row.threadId === activity.threadId);
+    // Posts automáticos work never merges with the owner's messages, either way.
+    const inbox = activity.inboxId ? await ctx.db.get(activity.inboxId) : null;
+
+    if (inbox?.autopilotJob) return [];
+
+    const followups = queued.filter(
+      (row) => row.threadId === activity.threadId && !row.autopilotJob,
+    );
 
     if (followups.length === 0) return [];
 
@@ -475,7 +556,12 @@ export const generateResponse = internalAction({
             );
 
       const accounts = await ctx.runQuery(internal.caetanoData.listAccounts, { userId });
-      const accountScope = { accountId: accounts.find((account) => account.active)?.accountId };
+      const job = turn.autopilotJob;
+
+      // Posts automáticos work runs on its own business, whichever one is active.
+      const accountScope = {
+        accountId: job?.accountId ?? accounts.find((account) => account.active)?.accountId,
+      };
 
       const brand = accountScope.accountId
         ? await ctx.runQuery(internal.brandContext.conversation, {
@@ -486,7 +572,8 @@ export const generateResponse = internalAction({
 
       const system =
         `${caetanoSystemPrompt()}\n\n${brand}` +
-        (turn.channel === "whatsapp" ? `\n\n${WHATSAPP_CHANNEL_PROMPT}` : "");
+        (turn.channel === "whatsapp" ? `\n\n${WHATSAPP_CHANNEL_PROMPT}` : "") +
+        (job ? `\n\n${AUTOPILOT_JOB_PROMPT}` : "");
 
       // One pass answers through `prompt`. Messages that arrive meanwhile are folded
       // in by another pass, and only the final answer is delivered.
@@ -498,6 +585,7 @@ export const generateResponse = internalAction({
             accountScope,
             activityId,
             caetanoThreadId: threadId,
+            autopilotJob: job,
           },
           { threadId },
           {
@@ -589,6 +677,9 @@ export const recordGenerationFailure = internalMutation({
 
     if (!metadata || metadata.userId !== threadKey(userId)) return false;
     const message = errorMessage({ kind: "vanda-error", code: code ?? "UNEXPECTED" });
+
+    // Posts automáticos work fails with the real reason (usage limit, model error…).
+    await completeJobOf(ctx, activity.inboxId, message);
     await saveMessage(ctx, components.agent, {
       threadId,
       promptMessageId: activity.promptMessageId,
@@ -610,6 +701,7 @@ export const finishActivity = internalMutation({
     if (!activity) return;
 
     if (activity.inboxId) await ctx.db.patch(activity.inboxId, { status: "done" });
+    await completeJobOf(ctx, activity.inboxId);
     await ctx.db.delete(activityId);
     await ctx.scheduler.runAfter(0, internal.caetano.startNext, { userId: activity.userId });
   },
@@ -629,7 +721,12 @@ const abortThread = async (ctx: MutationCtx, threadId: string, reason: string): 
   }
 };
 
-const stopForUser = async (ctx: MutationCtx, userId: Id<"users">, threadId: string) => {
+const stopForUser = async (
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  threadId: string,
+  reason = "pelo dono",
+) => {
   await requireCaetanoThread(ctx, userId, threadId);
 
   const activity = await ctx.db
@@ -642,6 +739,7 @@ const stopForUser = async (ctx: MutationCtx, userId: Id<"users">, threadId: stri
 
   for (const row of relevant) {
     if (row.inboxId) await ctx.db.patch(row.inboxId, { status: "stopped" });
+    await completeJobOf(ctx, row.inboxId, `O trabalho foi interrompido (${reason}).`);
     await ctx.db.delete(row._id);
   }
 
@@ -650,7 +748,30 @@ const stopForUser = async (ctx: MutationCtx, userId: Id<"users">, threadId: stri
     .withIndex("by_user_status", (q) => q.eq("userId", userId).eq("status", "queued"))
     .collect();
 
-  for (const row of queued) await ctx.db.patch(row._id, { status: "stopped" });
+  // Stop drops the owner's pending messages; queued posts automáticos work runs on.
+  for (const row of queued.filter((item) => !item.autopilotJob))
+    await ctx.db.patch(row._id, { status: "stopped" });
+
+  await ctx.scheduler.runAfter(0, internal.caetano.startNext, { userId });
+};
+
+/** A finished, stopped or expired turn settles its posts automáticos work. */
+const completeJobOf = async (
+  ctx: MutationCtx,
+  inboxId: Id<"caetanoInbox"> | undefined,
+  error?: string,
+): Promise<void> => {
+  const inbox = inboxId ? await ctx.db.get(inboxId) : null;
+
+  if (!inbox?.autopilotJob) return;
+
+  const job = inbox.autopilotJob;
+
+  await ctx.scheduler.runAfter(
+    0,
+    internal.autopilotData.completeJob,
+    error === undefined ? { job } : { job, error },
+  );
 };
 
 export const stopGeneration = mutation({

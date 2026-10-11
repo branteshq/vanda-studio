@@ -39,6 +39,12 @@ export const threadResourceValidator = v.union(
     operationId: v.optional(v.string()),
     accountId: v.optional(v.id("accounts")),
   }),
+  // The autopilot's week (Monday 00:00 São Paulo), rendered as the "Programação da semana" card.
+  v.object({
+    kind: v.literal("autopilotWeek"),
+    accountId: v.id("accounts"),
+    weekStart: v.number(),
+  }),
 );
 
 export type ThreadResource = Infer<typeof threadResourceValidator>;
@@ -70,6 +76,7 @@ export const threadResourceSchema = z.discriminatedUnion("kind", [
     operationId: z.string().optional(),
     accountId: z.string().optional(),
   }),
+  z.object({ kind: z.literal("autopilotWeek"), accountId: z.string(), weekStart: z.number() }),
 ]);
 
 export const presentableResourceInputSchema = z.discriminatedUnion("kind", [
@@ -135,6 +142,8 @@ export const resourceKey = (resource: z.infer<typeof threadResourceSchema>): str
       return `link:${resource.url}`;
     case "operation":
       return `operation:${resource.operationId ?? resource.operation}:${resource.status}`;
+    case "autopilotWeek":
+      return `autopilotWeek:${resource.accountId}:${resource.weekStart}`;
   }
 };
 

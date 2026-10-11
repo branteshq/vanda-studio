@@ -7,9 +7,111 @@ import { PLAN_TIERS, planLabel, tierOfPlan } from "../../convex/billing/plans";
 import { errorMessage } from "../../errors";
 import { useProfileRuntime } from "./runtime";
 
+type Summary = NonNullable<ReturnType<ReturnType<typeof useProfileRuntime>["useUsageSummary"]>>;
+
+type Breakdown = Summary["breakdown"];
+
+const METER_TONE = {
+  brand: "bg-brand-accent",
+  danger: "bg-destructive",
+  muted: "bg-text-4",
+} as const;
+
+/** A share of the plan as a thin bar: the meter and each category use the same shape. */
+function Meter({
+  pct,
+  tone,
+  label,
+}: {
+  pct: number;
+  tone: keyof typeof METER_TONE;
+  label: string;
+}) {
+  return (
+    <div
+      className="h-1.5 overflow-hidden rounded-full bg-muted"
+      role="progressbar"
+      aria-valuenow={pct}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label={label}
+    >
+      <div
+        className={cn(
+          "h-full w-(--progress) rounded-full transition-all duration-300 ease-out",
+          METER_TONE[tone],
+        )}
+        style={
+          // SAFETY: React forwards CSS variables; the progress value includes its percentage unit.
+          { "--progress": `${Math.min(100, pct)}%` } as CSSProperties
+        }
+      />
+    </div>
+  );
+}
+
+/** Where the plan went, in the owner's words; ChatGPT-covered work listed as covered. */
+function UsageBreakdown({ breakdown }: { breakdown: Breakdown }) {
+  const used = breakdown.categories
+    .filter((category) => !category.viaChatGpt && category.pct > 0)
+    .toSorted((a, b) => b.pct - a.pct);
+
+  const covered = breakdown.categories.filter((category) => category.viaChatGpt);
+  const webClose = breakdown.web.used >= breakdown.web.limit / 2;
+
+  const remaining = breakdown.remaining.filter((item) => item.count > 0);
+
+  return (
+    <div className="mt-4 space-y-2.5">
+      {used.length === 0 && covered.length === 0 ? (
+        <p className="text-body-sm text-text-3">Nada usado ainda neste período.</p>
+      ) : null}
+      {used.map((category) => (
+        <div key={category.id} className="flex items-center gap-3">
+          <span className="min-w-0 flex-1 truncate text-body-sm text-text-2">{category.label}</span>
+          <span className="w-28 shrink-0">
+            <Meter pct={category.pct} tone="muted" label={category.label} />
+          </span>
+          <span className="w-10 shrink-0 text-right text-note text-text-3 tabular-nums">
+            {category.pct}%
+          </span>
+        </div>
+      ))}
+      {covered.map((category) => (
+        <div key={category.id} className="flex items-center justify-between gap-3">
+          <span className="truncate text-body-sm text-text-2">{category.label}</span>
+          <span className="inline-flex shrink-0 items-center gap-1 text-note text-text-3">
+            <Check className="size-3.5 text-green" aria-hidden />
+            pela sua assinatura do ChatGPT
+          </span>
+        </div>
+      ))}
+      {remaining.length > 0 ? (
+        <p className="pt-1 text-body-sm text-text-3">
+          Ainda dá para{" "}
+          {remaining.map((item, index) => (
+            <span key={item.label}>
+              {index > 0 ? " ou " : ""}~{item.count} {item.label}
+            </span>
+          ))}
+          .
+        </p>
+      ) : null}
+      {webClose ? (
+        <p className="text-body-sm text-text-3">
+          Pesquisa na web nas últimas 24 horas: {breakdown.web.used} de {breakdown.web.limit}.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 /**
- * The plan in one block: name, how usage works, and the bar. The owner only
- * ever sees a percentage, never the underlying money.
+ * The plan in one block: its name, how much of it is used, and on what. Every
+ * plan shows the same meter: on the ChatGPT plan, conversations and images are
+ * covered by the subscription, and everything Vanda pays for (Instagram
+ * research, the radar, web search) still draws from the plan. The owner sees
+ * percentages and examples, never the underlying money.
  */
 export function PlanSummary({ action }: { action: ReactNode }) {
   const runtime = useProfileRuntime();
@@ -34,51 +136,37 @@ export function PlanSummary({ action }: { action: ReactNode }) {
 
       {summary === undefined ? (
         <Skeleton className="mt-4 h-2 w-full rounded-full" />
-      ) : conectado && openai?.connected !== false ? (
-        // Conectado with a live login: inference rides the owner's ChatGPT, no bar.
-        <p className="mt-3 text-body-sm text-text-3">
-          Conversas e imagens usam os limites da sua conta OpenAI.
-        </p>
       ) : (
         <>
-          {conectado ? (
+          {conectado && openai?.connected === false ? (
             <p className="mt-3 rounded-lg border border-amber/30 bg-amber/5 px-3 py-2 text-body-sm text-text-2">
-              Sua conta OpenAI não está conectada, então o uso sai do saldo do plano. Conecte em
-              Conexões, logo abaixo.
+              Sua conta OpenAI não está conectada, então conversas e imagens também saem do plano.
+              Conecte em Conexões, logo abaixo.
             </p>
           ) : null}
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-2xl font-medium tracking-tight tabular-nums">{pct}%</span>
-            <span className="text-body-sm text-text-3">utilizado</span>
+          <div className="mt-4 flex items-baseline justify-between gap-3">
+            <p className="flex items-baseline gap-2">
+              <span className="text-2xl font-medium tracking-tight tabular-nums">{pct}%</span>
+              <span className="text-body-sm text-text-3">do plano usado</span>
+            </p>
+            <span className="text-note text-text-4">
+              {summary?.renewsAt
+                ? `Renova em ${new Date(summary.renewsAt).toLocaleDateString("pt-BR")}`
+                : "Crédito de teste"}
+            </span>
           </div>
-          <div
-            className="mt-2 h-2 overflow-hidden rounded-full bg-muted"
-            role="progressbar"
-            aria-valuenow={pct}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label="Uso do plano"
-          >
-            <div
-              className={cn(
-                "h-full w-(--progress) rounded-full transition-all duration-300 ease-out",
-                summary?.limited ? "bg-destructive" : "bg-brand-accent",
-              )}
-              style={
-                // SAFETY: React forwards CSS variables; the progress value includes its percentage unit.
-                { "--progress": `${pct}%` } as CSSProperties
-              }
-            />
+          <div className="mt-2">
+            <Meter pct={pct} tone={summary?.limited ? "danger" : "brand"} label="Uso do plano" />
           </div>
-          <p className="mt-2 text-body-sm text-text-3">
-            {summary?.limited
-              ? summary.chatLimited
+          {summary?.limited ? (
+            <p className="mt-2 text-body-sm text-text-2">
+              {summary.chatLimited
                 ? "Limite atingido. Mude de plano ou aguarde a renovação."
-                : "Limite dos serviços pagos pela Vanda atingido. Conversa e imagens pela sua assinatura do ChatGPT continuam disponíveis."
-              : summary?.renewsAt
-                ? `Renova em ${new Date(summary.renewsAt).toLocaleDateString("pt-BR")}. O plano é compartilhado entre seus negócios.`
-                : "Crédito de teste. Assine para renovar todo mês."}
-          </p>
+                : "Limite atingido para pesquisa no Instagram, radar e web. Conversas e imagens pela sua assinatura do ChatGPT continuam."}
+            </p>
+          ) : null}
+          {summary?.breakdown ? <UsageBreakdown breakdown={summary.breakdown} /> : null}
+          <p className="mt-3 text-note text-text-4">O plano é compartilhado entre seus negócios.</p>
         </>
       )}
     </div>

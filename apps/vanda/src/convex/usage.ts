@@ -11,6 +11,13 @@ import { PLAN_TIERS, tierOfPlan } from "./billing/plans";
 import { isConnectedSubscriber } from "./openaiSub";
 import { modelUsageValidator } from "./usageDetails";
 import type { AgentActivityId } from "./agentActivity";
+import {
+  categoryOfKind,
+  TYPICAL_COST_MICRO_USD,
+  USAGE_CATEGORIES,
+  type UsageCategoryId,
+  WEB_DAILY_LIMIT,
+} from "./usageCategories";
 
 /**
  * The usage meter: every real-money cost (model calls, image generation,
@@ -22,6 +29,9 @@ import type { AgentActivityId } from "./agentActivity";
  * Enforcement never leaves Convex: allowance and billing period are a cached
  * snapshot on the users row (synced from Autumn), and balance checks read one
  * counter row. Autumn is consulted once per period change, never per call.
+ *
+ * What is metered, what deliberately is not (WhatsApp messages, for now) and
+ * how the owner sees it: docs/usage-metering.md.
  */
 
 /** Pinned FX for converting BRL plan budgets into the USD meter. Revisit when
@@ -161,17 +171,79 @@ export const chargeUsage = async (
 
   if (microUsd === 0) return;
   const row = await periodRow(ctx, user._id, periodKey);
+  const category = categoryOfKind(args.kind);
 
   if (row) {
-    await ctx.db.patch(row._id, { spentMicroUsd: row.spentMicroUsd + microUsd, updatedAt: now });
+    const byCategory = row.byCategory ?? {};
+
+    await ctx.db.patch(row._id, {
+      spentMicroUsd: row.spentMicroUsd + microUsd,
+      byCategory: { ...byCategory, [category]: (byCategory[category] ?? 0) + microUsd },
+      updatedAt: now,
+    });
   } else {
     await ctx.db.insert("usagePeriods", {
       userId: user._id,
       periodKey,
       spentMicroUsd: microUsd,
+      byCategory: { [category]: microUsd },
       updatedAt: now,
     });
   }
+};
+
+export interface UsageBreakdown {
+  /** Each category's share of the plan's allowance, in whole percent. */
+  readonly categories: ReadonlyArray<{
+    readonly id: UsageCategoryId;
+    readonly label: string;
+    readonly pct: number;
+    /** Runs on the owner's ChatGPT subscription: shown as covered, not as plan usage. */
+    readonly viaChatGpt: boolean;
+  }>;
+  /** What the rest of the allowance still buys, in the owner's terms ("~140 pesquisas de perfil"). */
+  readonly remaining: ReadonlyArray<{ readonly count: number; readonly label: string }>;
+  readonly web: { readonly used: number; readonly limit: number };
+}
+
+/** The owner's view of where the plan went: categories, what is left, daily caps. */
+export const breakdownOf = async (ctx: QueryCtx, user: Doc<"users">): Promise<UsageBreakdown> => {
+  const state = await budgetOf(ctx, user);
+  const row = await periodRow(ctx, user._id, state.periodKey);
+  const spent = row?.byCategory ?? {};
+  const chatGpt = isConnectedSubscriber(user);
+  const allowance = Math.max(1, state.allowanceMicroUsd);
+  const left = Math.max(0, state.allowanceMicroUsd - state.spentMicroUsd);
+
+  const categories = USAGE_CATEGORIES.map((category) => ({
+    id: category.id,
+    label: category.label,
+    pct: Math.round(((spent[category.id] ?? 0) / allowance) * 100),
+    viaChatGpt: chatGpt && category.viaChatGpt,
+  }));
+
+  // Lead with what this owner spends on most; Instagram research and the radar by default.
+  const examples = (["instagram", "radar", "web"] as const)
+    .toSorted((a, b) => (spent[b] ?? 0) - (spent[a] ?? 0))
+    .slice(0, 2);
+
+  const remaining = examples.map((id) => {
+    const typical = TYPICAL_COST_MICRO_USD[id];
+    const count = Math.floor(left / typical.microUsd);
+
+    return { count, label: count === 1 ? typical.one : typical.many };
+  });
+
+  const webUsed = (
+    await ctx.db
+      .query("webRequests")
+      .withIndex("by_user_created", (q) =>
+        q.eq("userId", user._id).gte("createdAt", Date.now() - 86_400_000),
+      )
+      .collect()
+  ).length;
+
+  return { categories, remaining, web: { used: webUsed, limit: WEB_DAILY_LIMIT } };
 };
 
 /** Actions charge through this; accountId or userId, cost in USD. */
@@ -274,6 +346,7 @@ export const summary = query({
     // Chat and images ride the owner's ChatGPT: the same routing the backend uses.
     viaChatGpt: boolean;
     renewsAt: number | null;
+    breakdown: UsageBreakdown;
   } | null> => {
     const identity = await ctx.auth.getUserIdentity();
 
@@ -300,6 +373,7 @@ export const summary = query({
       chatLimited: !state.ok && !isConnectedSubscriber(user),
       viaChatGpt: isConnectedSubscriber(user),
       renewsAt: user.planId ? (user.billingPeriodEnd ?? null) : null,
+      breakdown: await breakdownOf(ctx, user),
     };
   },
 });

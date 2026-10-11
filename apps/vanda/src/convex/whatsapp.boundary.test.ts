@@ -493,7 +493,12 @@ describe("WhatsApp and canonical Caetano queue", () => {
           input_audio: { format: "ogg" },
         });
 
-        return Response.json({ choices: [{ message: { content: "faz um post com essa foto" } }] });
+        expect(body.usage).toEqual({ include: true });
+
+        return Response.json({
+          choices: [{ message: { content: "faz um post com essa foto" } }],
+          usage: { cost: 0.0015 },
+        });
       }
 
       throw new Error(`unexpected fetch ${url}`);
@@ -518,6 +523,11 @@ describe("WhatsApp and canonical Caetano queue", () => {
     const inbox = await t.run((ctx) => ctx.db.query("caetanoInbox").collect());
     expect(inbox).toHaveLength(1);
     expect(inbox[0]).toMatchObject({ channel: "whatsapp", connectionId, externalMessageId: "m1" });
+    // Transcribing the voice note is charged to the owner at OpenRouter's reported cost.
+    const charges = await t.run((ctx) => ctx.db.query("usageEvents").collect());
+    expect(charges).toEqual([
+      expect.objectContaining({ userId, kind: "transcription", microUsd: 1_500 }),
+    ]);
     expect(await t.run((ctx) => ctx.db.query("whatsappOutbox").collect())).toHaveLength(0);
   });
 

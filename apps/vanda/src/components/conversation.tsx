@@ -15,7 +15,7 @@ import {
 } from "@convex-dev/agent/react";
 import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
-import { Check, ChevronDown, X } from "lucide-react";
+import { Check, ChevronDown, Pin, X } from "lucide-react";
 import { ThinkingOrb, type OrbState } from "thinking-orbs";
 import { z } from "zod";
 import { Bubble, BubbleContent } from "@vanda-studio/ui/components/bubble";
@@ -66,6 +66,18 @@ const TOOL_LABEL = {
   read: "Lendo",
   write: "Gravando",
   present: "Mostrando resultado",
+  settings_get: "Lendo as configurações",
+  settings_set: "Mudando uma configuração",
+  autopilot_read: "Lendo a programação",
+  autopilot_update_slot: "Mudando um post",
+  autopilot_skip_slot: "Pulando um post",
+  autopilot_approve_slot: "Aprovando um post",
+  autopilot_reject_slot: "Registrando a recusa",
+  autopilot_regenerate_slot: "Refazendo um post",
+  autopilot_reanalyze: "Reanalisando a conta",
+  autopilot_measure_account: "Medindo a conta",
+  autopilot_save_audit: "Gravando o diagnóstico",
+  autopilot_save_plan: "Gravando o plano da semana",
 };
 
 /**
@@ -477,16 +489,24 @@ export function handOffFirstSend(handoff: {
 function UserMessage({
   text,
   attachments,
+  focus = null,
   enter = false,
 }: {
   text: string;
   attachments: ComponentProps<typeof MessageImageAttachments>["attachments"];
+  focus?: string | null;
   enter?: boolean;
 }) {
   return (
     <Message align="end" enter={enter}>
       <MessageContent>
         <MessageImageAttachments attachments={attachments} />
+        {focus ? (
+          <span className="inline-flex items-center gap-1 self-end rounded-full bg-creating-bg px-2 py-0.5 text-micro text-brand-accent">
+            <Pin className="size-3" aria-hidden="true" />
+            {focus}
+          </span>
+        ) : null}
         {text ? (
           <Bubble variant="muted" className="max-w-full sm:max-w-4/5">
             <BubbleContent className="whitespace-pre-wrap">
@@ -791,8 +811,26 @@ export function Conversation({
   );
 }
 
+/** The post a message was about ("foco … rótulo=…"), shown as a chip above the bubble. */
+const focusOf = (text: string): string | null => {
+  const match =
+    /<caetano_ref>foco [^<]*?(?:slide=(\d+)\/(\d+) )?rótulo="([^"]+)"<\/caetano_ref>/.exec(text);
+
+  if (!match) return null;
+
+  return match[1] ? `${match[3]} · imagem ${match[1]}/${match[2]}` : (match[3] ?? null);
+};
+
 const visibleUserText = (text: string): string =>
-  text.replace(/\s*<vanda_attachment_context>[\s\S]*?<\/vanda_attachment_context>/g, "").trim();
+  text
+    .replace(/\s*<vanda_attachment_context>[\s\S]*?<\/vanda_attachment_context>/g, "")
+    .replace(/\s*<caetano_ref>[\s\S]*?<\/caetano_ref>/g, "")
+    // Early guided messages wrote setting names and ids inline: never show them.
+    .replace(
+      /\s*\((?:autopilot\.\w+|desligue autopilot\.\w+|ligue autopilot\.\w+|slotId [\w-]+|ruleId [\w-]+)\)/g,
+      "",
+    )
+    .trim();
 
 /** A standalone hex color: `#fff` or `#a6874b`, preceded by space, a bracket or line start. */
 const HEX_TOKEN = /(^|[\s(])(#(?:[0-9a-f]{6}|[0-9a-f]{3}))\b/gi;
@@ -889,12 +927,12 @@ function ChatMessage({
   const [lightboxId, setLightboxId] = useState<string | null>(null);
 
   if (message.role === "user") {
-    const text = visibleUserText(
-      message.parts
-        .filter((part) => part.type === "text")
-        .map((part) => part.text)
-        .join("\n"),
-    );
+    const raw = message.parts
+      .filter((part) => part.type === "text")
+      .map((part) => part.text)
+      .join("\n");
+
+    const text = visibleUserText(raw);
 
     const attachments = message.parts.flatMap((part) =>
       part.type === "file" && part.mediaType.startsWith("image/")
@@ -904,7 +942,7 @@ function ChatMessage({
 
     if (!text && attachments.length === 0) return null;
 
-    return <UserMessage text={text} attachments={attachments} enter={enter} />;
+    return <UserMessage text={text} attachments={attachments} focus={focusOf(raw)} enter={enter} />;
   }
 
   const streaming = message.status === "streaming";

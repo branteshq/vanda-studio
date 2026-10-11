@@ -43,12 +43,10 @@ interface Section {
 }
 
 const sections = (doc: ProductDoc): Section[] =>
-  doc.markdown
-    .split(/\n(?=#{1,3} )/)
-    .map((chunk) => ({
-      heading: chunk.split("\n", 1)[0]?.replace(/^#+\s*/, "") ?? "",
-      text: chunk,
-    }));
+  doc.markdown.split(/\n(?=#{1,3} )/).map((chunk) => ({
+    heading: chunk.split("\n", 1)[0]?.replace(/^#+\s*/, "") ?? "",
+    text: chunk,
+  }));
 
 export interface ProductDocMatch {
   readonly slug: string;

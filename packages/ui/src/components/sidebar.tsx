@@ -269,6 +269,9 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
+          // Sidebar headers supply their own toggle; a second close button
+          // would cover the header's right-hand navigation action.
+          showCloseButton={false}
           className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground"
           style={
             {

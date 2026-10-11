@@ -16,6 +16,9 @@ import { publishDue } from "./pipeline/publish";
 export const runScheduledPost = internalAction({
   args: { scheduledPostId: v.id("scheduledPosts") },
   handler: async (ctx, { scheduledPostId }) => {
+    if (await ctx.runMutation(internal.publishScheduled.holdUnapproved, { scheduledPostId }))
+      return;
+
     // The credential phase (profile lookup) runs before publishDue, so its
     // failures are recorded here; publishDue records its own publish-phase
     // failures. Either way the row never strands at "scheduled".

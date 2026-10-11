@@ -1,0 +1,78 @@
+{
+  "total": 100,
+  "nota": "Pontue com rigor. Um perfil sem trabalho fica entre 30 e 50. Nome, primeira linha da bio e posts fixados valem mais que a foto porque são o que um visitante lê antes de decidir seguir.",
+  "itens": [
+    {
+      "id": "nome",
+      "pontos": 12,
+      "nota_maxima": "O campo nome (negrito, 30 caracteres) traz o nome e o que a marca faz em palavras que as pessoas buscam: 'Ana Lima | Confeitaria em Santos'. Esse campo entra na busca.",
+      "falha_comum": "Só o nome, ou nome com emoji."
+    },
+    {
+      "id": "bio_primeira_linha",
+      "pontos": 12,
+      "nota_maxima": "A primeira linha diz para quem é e o que muda para essa pessoa.",
+      "falha_comum": "Lista de adjetivos separados por barras."
+    },
+    {
+      "id": "bio_corpo",
+      "pontos": 8,
+      "nota_maxima": "O resto da bio traz uma prova ou uma oferta concreta, em frase.",
+      "falha_comum": "Sopa de palavras-chave ou espaço vazio."
+    },
+    {
+      "id": "fixados",
+      "pontos": 10,
+      "nota_maxima": "Três posts fixados com funções diferentes: melhor prova, explicação mais clara da oferta, melhor apresentação da marca.",
+      "falha_comum": "Nada fixado; o topo da grade é o que saiu por último."
+    },
+    {
+      "id": "link",
+      "pontos": 8,
+      "nota_maxima": "Um destino coerente com a promessa da bio. Mais de dois links vira cardápio, e cardápio converte pior que uma porta.",
+      "falha_comum": "Árvore de links com onze opções, ou nenhum link."
+    },
+    {
+      "id": "destaques",
+      "pontos": 8,
+      "nota_maxima": "Quatro a seis destaques com nomes das perguntas do cliente (Preços, Resultados, Como funciona, Sobre), capas consistentes.",
+      "falha_comum": "'Aleatório', 'Vida', ou catorze destaques sem ordem."
+    },
+    {
+      "id": "grade_legivel",
+      "pontos": 8,
+      "nota_maxima": "As nove primeiras capas são legíveis em miniatura e dizem do que a conta trata sem nenhum toque.",
+      "falha_comum": "Nove capas sem texto ou com texto miúdo."
+    },
+    {
+      "id": "foto",
+      "pontos": 6,
+      "nota_maxima": "Rosto ou marca ocupa o círculo, legível a ~40 px, fundo que não compete.",
+      "falha_comum": "Foto de corpo inteiro ou logo ilegível."
+    },
+    {
+      "id": "usuario",
+      "pontos": 6,
+      "nota_maxima": "@ legível, fácil de falar em voz alta, igual nas outras redes.",
+      "falha_comum": "Underlines empilhados ou números no lugar de letras."
+    },
+    {
+      "id": "categoria_contato",
+      "pontos": 6,
+      "nota_maxima": "Conta profissional com categoria certa e botões de contato funcionando.",
+      "falha_comum": "Conta pessoal: sem insights e sem botão de contato."
+    },
+    {
+      "id": "atividade_recente",
+      "pontos": 10,
+      "nota_maxima": "Postou nos últimos sete dias e respondeu comentários do post mais recente.",
+      "falha_comum": "Cinco semanas sem post, ou comentários sem resposta."
+    },
+    {
+      "id": "stories",
+      "pontos": 6,
+      "nota_maxima": "Story no ar agora, ou na maioria dos dias.",
+      "falha_comum": "Nunca tem story."
+    }
+  ]
+}

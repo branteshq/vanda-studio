@@ -10,10 +10,10 @@ const FRAMES = 8;
 const POSE = {
   idle: { frame: 0, motion: "animate-caetano-breathe" },
   thinking: { frame: 1, motion: "animate-caetano-sway" },
-  writing: { frame: 2, motion: "animate-caetano-nod" },
+  writing: { frame: 2, motion: "animate-caetano-guide-nod" },
   saved: { frame: 3, motion: "animate-caetano-pop" },
   talking: { frame: 0, motion: "animate-caetano-bounce" },
-  done: { frame: 4, motion: "animate-caetano-hop" },
+  done: { frame: 4, motion: "animate-caetano-guide-hop" },
 } satisfies Record<CaetanoState, { frame: number; motion: string }>;
 
 /**
