@@ -29,7 +29,7 @@ export const PIPELINE_MODELS = {
 export const DEFAULT_MODEL = PIPELINE_MODELS.consolidate;
 
 export const PROMPT_VERSIONS = {
-  brandProfile: "brand-profile/pt-br-v1",
+  brandProfile: "brand-profile/pt-br-v4",
   consolidate: "consolidate/batch-brand-v1",
   plan: "plan/brand-grounded-pt-br-v1",
   create: "create/brand-grounded-pt-br-v1",

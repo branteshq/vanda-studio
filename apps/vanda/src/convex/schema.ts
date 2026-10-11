@@ -3,10 +3,9 @@ import { v } from "convex/values";
 import { errorCodeValidator } from "./publicErrors";
 import { threadResourceValidator } from "./resourceRefs";
 import { modelUsageValidator } from "./usageDetails";
-import { brandCanonColumns } from "./pipeline/storage";
+import { brandCanonColumns, brandKindValidator } from "./pipeline/storage";
 import { postPurposeValidator } from "./postPurposes";
 import {
-  brandKinds,
   imageOrigins,
   imagePurposes,
   inputAssessmentDecisions,
@@ -208,11 +207,13 @@ export default defineSchema({
     handle: v.optional(v.string()),
     // Set when the publisher profile reports a live Instagram connection.
     publisherConnectedAt: v.optional(v.number()),
-    // Set by approveBrandProfile when the owner confirms the brand profile — the
+    // Set when onboarding reads the Instagram and opens the brand file — the
     // onboarding gate. Unset means connected-but-not-yet-onboarded.
     onboardedAt: v.optional(v.number()),
-    // Brand type Vanda proposed and the owner confirmed at onboarding (negocio | pessoal).
-    kind: v.optional(v.union(...brandKinds.map((k) => v.literal(k)))),
+    // The thread where Caetano interviews the owner to fill the brand guide.
+    brandGuideThreadId: v.optional(v.string()),
+    // Brand type Vanda proposed at onboarding (negocio | pessoal).
+    kind: v.optional(brandKindValidator),
     // DEPRECATED (pre-multi-thread): the once-canonical conversation pointer.
     // Threads are now keyed in the agent component by String(accountId); this
     // field remains only for the one-time chat:migrateThreadKeys backfill.
@@ -263,9 +264,7 @@ export default defineSchema({
     .index("by_thread_created", ["threadId", "createdAt"])
     .index("by_thread_tool", ["threadId", "toolCallId"]),
 
-  // Brand canon: the confirmed facts of accounts onboarded before the brand file.
-  // Nothing writes it anymore; brandFile reads it once to seed those accounts'
-  // /brand/marca.md, which is now the only brand memory.
+  // Legacy brand facts; nothing writes them, brandFile seeds /brand/marca.md from them once.
   brandCanon: defineTable(brandCanonColumns).index("by_account", ["accountId"]),
 
   modelRuns: defineTable({
@@ -819,7 +818,7 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_account_created", ["accountId", "createdAt"]),
 
-  // Writable workspace documents (/brand/marca.md, /brand/kit.json, /notes; legacy /memory and /brand/notes.md). Unlike
+  // Writable workspace documents (/brand/marca.md, /notes; legacy /memory and /brand/notes.md). Unlike
   // the projected views, these files ARE the data: this table holds the head of
   // each file; every write also appends to workspaceFileRevisions.
   workspaceFiles: defineTable({

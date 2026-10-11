@@ -4,20 +4,20 @@ import { cn } from "@vanda-studio/ui/lib/utils";
 import { OrchidAperture } from "../orchid-aperture";
 import { VandaMark } from "../vanda-mark";
 
-export type OnboardingStep = "conectar" | "conhecer" | "confirmar";
+type OnboardingStep = "conectar" | "conhecer" | "conversar";
+
+type RingState = "done" | "active" | "pending";
 
 const STEPS: { key: OnboardingStep; label: string }[] = [
   { key: "conectar", label: "Conectar" },
   { key: "conhecer", label: "Conhecer" },
-  { key: "confirmar", label: "Confirmar" },
+  { key: "conversar", label: "Conversar" },
 ];
 
-const stepTextColor = (state: "done" | "active" | "pending") => {
-  if (state === "active") return "text-text-2";
-
-  if (state === "done") return "text-text-3";
-
-  return "text-text-5";
+const LABEL_COLOR: Record<RingState, string> = {
+  active: "text-text-2",
+  done: "text-text-3",
+  pending: "text-text-5",
 };
 
 /** The Vanda lockup: orchid mark + wordmark, shared across every onboarding frame. */
@@ -33,21 +33,22 @@ export function OnboardingHeader() {
   );
 }
 
-/** Conectar · Conhecer · Confirmar, with rings: done / active / pending. */
+/** Conectar · Conhecer · Conversar, with rings: done / active / pending. */
 export function StepIndicator({ current }: { current: OnboardingStep }) {
   const currentIndex = STEPS.findIndex((step) => step.key === current);
 
   return (
     <div className="hidden items-center gap-2 sm:flex">
       {STEPS.map((step, index) => {
-        const state = index < currentIndex ? "done" : index === currentIndex ? "active" : "pending";
+        const state: RingState =
+          index < currentIndex ? "done" : index === currentIndex ? "active" : "pending";
 
         return (
           <div key={step.key} className="flex items-center gap-2">
             {index > 0 ? <span className="h-px w-5 bg-border" /> : null}
             <span className="flex items-center gap-1.5">
               <StatusRing state={state} />
-              <span className={cn("text-xs", stepTextColor(state))}>{step.label}</span>
+              <span className={cn("text-xs", LABEL_COLOR[state])}>{step.label}</span>
             </span>
           </div>
         );

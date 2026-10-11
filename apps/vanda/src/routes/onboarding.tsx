@@ -5,14 +5,9 @@ import { useQuery } from "convex-helpers/react/cache";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Spinner } from "@vanda-studio/ui/components/spinner";
-import { ConfirmStep } from "../components/onboarding/confirm-step";
 import { ConnectStep } from "../components/onboarding/connect-step";
+import { GuideStep } from "../components/onboarding/guide-step";
 import { ObservingStep } from "../components/onboarding/observing-step";
-import {
-  type CorpusStats,
-  type EditableAnalysis,
-  toEditable,
-} from "../components/onboarding/types";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 
@@ -37,6 +32,8 @@ function OnboardingPage() {
   );
 }
 
+type Pending = { id: Id<"accounts">; connected: boolean };
+
 function OnboardingLoading() {
   return (
     <div className="grid min-h-svh place-items-center bg-app">
@@ -47,7 +44,7 @@ function OnboardingLoading() {
 
 /**
  * The onboarding gate, aligned with `DashboardGate`: once any business is
- * onboarded the user is past first-time setup (-> dashboard). Explicit search
+ * onboarded the user is past first-time setup (-> app). Explicit search
  * state targets add-business and resume flows; without it, first-time setup either
  * connects the first account or resumes its pending analysis.
  */
@@ -58,37 +55,50 @@ function OnboardingFlow() {
   if (accounts === undefined) return <OnboardingLoading />;
   const requested = accounts.find((account) => account.id === accountId);
 
-  if (requested?.onboardedAt != null) return <ActivateAndRedirect accountId={requested.id} />;
+  if (requested?.onboardedAt != null) {
+    return <GuideGate accountId={requested.id} />;
+  }
 
   if (requested) {
     return requested.connected ? (
-      <AnalyzeFlow accountId={requested.id} />
+      <ObservingStep accountId={requested.id} />
     ) : (
       <SyncConnection accountId={requested.id} />
     );
   }
 
-  if (flow === "add") return <ConnectStep />;
+  const pending = accounts.find((account) => account.onboardedAt == null);
+
+  // Resume the unfinished account instead of creating another orphan one.
+  if (flow === "add") return <ResumePending account={pending} />;
+
+  // The account onboarding just finished is active: its brand guide is the last step.
+  const ready = accounts.find((account) => account.onboardedAt != null && account.active);
+
+  if (ready) return <GuideGate accountId={ready.id} refresh={false} />;
 
   if (accounts.some((account) => account.onboardedAt != null)) {
     return <Navigate to="/conversa" />;
   }
 
-  const pending = accounts.find((account) => account.onboardedAt == null);
+  return <ResumePending account={pending} />;
+}
 
-  if (pending === undefined) return <ConnectStep />;
+/** An unfinished account resumes where it stopped: the analysis once connected, else the connect step. */
+function ResumePending({ account }: { account: Pending | undefined }) {
+  if (account === undefined) return <ConnectStep />;
 
-  return pending.connected ? (
-    <AnalyzeFlow accountId={pending.id} />
+  return account.connected ? (
+    <ObservingStep accountId={account.id} />
   ) : (
-    <ConnectStep accountId={pending.id} />
+    <ConnectStep accountId={account.id} />
   );
 }
 
 /**
  * Landing spot after the publisher's connect page redirects back: pull the
- * profile once and cache the connection. On success the reactive accounts
- * query flips `connected` and the parent advances to AnalyzeFlow; on failure
+ * profile (retrying briefly) and cache the connection. On success the reactive accounts
+ * query flips `connected` and the parent advances to the observing step; on failure
  * (customer bailed out of the OAuth page) we offer the connect button again.
  */
 function SyncConnection({ accountId }: { accountId: Id<"accounts"> }) {
@@ -97,13 +107,27 @@ function SyncConnection({ accountId }: { accountId: Id<"accounts"> }) {
 
   useEffect(() => {
     let cancelled = false;
-    void sync({ accountId })
-      .then((result) => {
-        if (!cancelled && !result.connected) setFailed(true);
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      });
+
+    // Upload-Post may not have the connection yet right after the redirect, so retry a few times.
+    const run = async () => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        if (cancelled) return;
+
+        try {
+          const result = await sync({ accountId });
+
+          if (result.connected) return;
+        } catch {
+          // Treated like "not connected yet": try again.
+        }
+      }
+
+      if (!cancelled) setFailed(true);
+    };
+
+    void run();
 
     return () => {
       cancelled = true;
@@ -113,70 +137,55 @@ function SyncConnection({ accountId }: { accountId: Id<"accounts"> }) {
   return failed ? <ConnectStep accountId={accountId} /> : <OnboardingLoading />;
 }
 
-function ActivateAndRedirect({ accountId }: { accountId: Id<"accounts"> }) {
+/**
+ * Connect, reconnect and the finished onboarding land here. An incomplete brand
+ * file keeps the owner on Caetano's guide screen; otherwise the app opens.
+ * `refresh` re-syncs the connection first; the just-onboarded account is already connected.
+ */
+function GuideGate({
+  accountId,
+  refresh = true,
+}: {
+  accountId: Id<"accounts">;
+  refresh?: boolean;
+}) {
+  const sync = useAction(api.publisherConnect.syncConnection);
+  const onboard = useAction(api.brandProfileNode.onboard);
   const selectActive = useMutation(api.accounts.selectActive);
+  const openGuide = useMutation(api.brandProfile.openGuide);
   const navigate = useNavigate();
+  const [guideThreadId, setGuideThreadId] = useState<string | null>(null);
 
   useEffect(() => {
-    void selectActive({ accountId }).then(() => navigate({ to: "/conversa" }));
-  }, [accountId, navigate, selectActive]);
+    let cancelled = false;
 
-  return <OnboardingLoading />;
-}
+    const run = async () => {
+      if (refresh) {
+        await sync({ accountId }).catch(() => null);
+        // Re-reads Instagram when the brand file was cleared; a no-op otherwise.
+        await onboard({ accountId }).catch(() => null);
+      }
 
-type Step = "observing" | "confirm";
+      await selectActive({ accountId });
+      const guide = await openGuide({ accountId });
 
-function AnalyzeFlow({ accountId }: { accountId: Id<"accounts"> }) {
-  const navigate = useNavigate();
-  const approve = useMutation(api.brandProfile.approveBrandProfile);
-  const skipAnalysis = useMutation(api.brandProfile.completeWithoutAnalysis);
-  const [step, setStep] = useState<Step>("observing");
-  const [analysis, setAnalysis] = useState<EditableAnalysis | null>(null);
-  const [stats, setStats] = useState<CorpusStats | null>(null);
-  const [busy, setBusy] = useState(false);
+      if (cancelled) return;
 
-  async function finish(edited: EditableAnalysis) {
-    if (busy) return;
-    setBusy(true);
+      if (guide) {
+        setGuideThreadId(guide);
+      } else {
+        void navigate({ to: "/conversa" });
+      }
+    };
 
-    try {
-      await approve({ accountId, ...edited });
-      await navigate({ to: "/conversa" });
-    } catch {
-      setBusy(false);
-    }
-  }
+    void run();
 
-  if (step === "observing") {
-    return (
-      <ObservingStep
-        accountId={accountId}
-        onComplete={(result) => {
-          setAnalysis(toEditable(result.analysis));
-          setStats(result.stats);
-          setStep("confirm");
-        }}
-        onSkip={async () => {
-          await skipAnalysis({ accountId });
-          await navigate({ to: "/conversa" });
-        }}
-      />
-    );
-  }
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId, navigate, onboard, openGuide, refresh, selectActive, sync]);
 
-  if (step === "confirm" && analysis && stats) {
-    return (
-      <ConfirmStep
-        accountId={accountId}
-        analysis={analysis}
-        stats={stats}
-        onContinue={(edited) => {
-          setAnalysis(edited);
-          void finish(edited);
-        }}
-      />
-    );
-  }
+  if (guideThreadId) return <GuideStep accountId={accountId} threadId={guideThreadId} />;
 
   return <OnboardingLoading />;
 }

@@ -30,15 +30,7 @@ export function ActiveAccountProvider({ children }: { children: ReactNode }) {
       store.setQuery(
         api.accounts.listMine,
         {},
-        current.map((account) => ({
-          id: account.id,
-          name: account.name,
-          handle: account.handle,
-          connected: account.connected,
-          onboardedAt: account.onboardedAt,
-          active: account.id === accountId,
-          createdAt: account.createdAt,
-        })),
+        current.map((account) => ({ ...account, active: account.id === accountId })),
       );
     },
   );

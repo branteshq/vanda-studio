@@ -31,6 +31,7 @@ import { isConnectedSubscriber } from "./openaiSub";
 import { messageWithImages, resolveMessageImages } from "./messageImages";
 import { chatUsageHandler, failedModelAttempt, turnClock } from "./chatModel";
 import { conversationContext } from "./conversationContext";
+import { brandGuidePrompt, caetano, caetanoSystemPrompt } from "./caetanoAgent";
 import { openrouterChatModel, systemPrompt, vanda, vandaToolDiscovery } from "./vanda";
 import { errorMessage, publicError } from "../errors";
 import { errorCodeValidator, safeFailure } from "./publicErrors";
@@ -393,11 +394,17 @@ export const generateResponse = internalAction({
       if (caetanoThreadId) Object.assign(streamContext, { caetanoThreadId });
 
       const brand = await ctx.runQuery(internal.brandContext.conversation, { accountId });
+      // Caetano runs the brand guide interview in its own thread.
+      const guide = await ctx.runQuery(internal.brandFile.guideTurn, { accountId });
+      const inGuide = guide.threadId === threadId;
+      const agent = inGuide ? caetano : vanda;
 
       const streamOptions = {
         promptMessageId,
         maxOutputTokens: 8192,
-        system: `${systemPrompt()}\n\n${brand}`,
+        system: inGuide
+          ? `${caetanoSystemPrompt()}\n\n${brandGuidePrompt(guide.sections)}\n\n${brand}`
+          : `${systemPrompt()}\n\n${brand}`,
         providerOptions: { openrouter: { session_id: threadId } },
         prepareStep: vandaToolDiscovery.prepareStep,
         onError: ({ error }: { error: unknown }) => {
@@ -407,7 +414,7 @@ export const generateResponse = internalAction({
 
       if (model) Object.assign(streamOptions, { model });
 
-      const result = await vanda.streamText(streamContext, { threadId }, streamOptions, {
+      const result = await agent.streamText(streamContext, { threadId }, streamOptions, {
         saveStreamDeltas: true,
         usageHandler: chatUsageHandler("chat", requestId ?? promptMessageId),
         contextOptions: { recentMessages: 0 },

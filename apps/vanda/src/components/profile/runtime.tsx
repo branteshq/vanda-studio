@@ -64,8 +64,6 @@ const profileHooks = {
       setTheme: (theme: string) => setTheme({ theme }),
     };
   },
-  useWorkspaceFile: (accountId: Id<"accounts">, path: string) =>
-    useQuery(api.workspacePublic.file, { accountId, path }),
 };
 
 type ClerkUser = NonNullable<ReturnType<typeof useUser>["user"]>;

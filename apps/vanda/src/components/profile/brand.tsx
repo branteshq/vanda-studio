@@ -1,9 +1,11 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
+import { Ban } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
-import { Markdown } from "@vanda-studio/ui/components/markdown";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
+import type { FunctionReturnType } from "convex/server";
+import type { BrandFileDesign } from "../../convex/brandFile";
+import type { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { parseBrandKit } from "../../convex/workspace/brandKit";
 import { errorMessage } from "../../errors";
 import { useProfileRuntime } from "./runtime";
 
@@ -38,6 +40,149 @@ const formatUpdated = (updatedAt: number | null, updatedBy: string | null): stri
 
   return `Atualizado por ${who} em ${new Date(updatedAt).toLocaleDateString("pt-BR")}.`;
 };
+
+// The Design section's identity labels, shown in the strip instead of the cards. Literals on
+// purpose: importing brandFile.ts here would pull server code into the client bundle.
+const DESIGN = "Design";
+
+const NEVER = "Nunca fazer";
+
+const IDENTITY_LABELS = new Set(["Paleta", "Logo", "Tipografia"]);
+
+const IMAGE_LINKS = /!\[[^\]]*\]\(image:[^)\s]+\)/g;
+
+/** What `api.brandFile.get` returns: the file, its outline and its design. */
+export type BrandFileRead = FunctionReturnType<typeof api.brandFile.get>;
+
+const hasIdentity = (design: BrandFileDesign): boolean =>
+  Boolean(design.logoUrl) || design.palette.length > 0 || Boolean(design.typography);
+
+/** Each section with the items the read view shows: image links and the identity labels are dropped. */
+const visibleSections = (outline: BrandFileRead["outline"]) =>
+  outline.map((section) => ({
+    section,
+    items: section.items
+      .map((item) => ({ ...item, text: item.text.replace(IMAGE_LINKS, "").trim() }))
+      .filter(
+        (item) =>
+          item.text !== "" &&
+          !(section.title === DESIGN && item.label !== null && IDENTITY_LABELS.has(item.label)),
+      ),
+  }));
+
+const originBadge = (origin: string): string => {
+  if (origin.startsWith("dono")) return "Você";
+
+  if (origin.startsWith("observado")) return "Observado";
+
+  return "Sugestão da Vanda";
+};
+
+/** Logo, palette and typeface of the Design section, above the section cards. */
+function BrandIdentity({ design }: { design: BrandFileDesign }) {
+  const { palette, typography, logoUrl } = design;
+
+  if (!hasIdentity(design)) return null;
+
+  // The first family of the typography line: "Gotham Narrow, Arial" to "Gotham Narrow".
+  const font = typography
+    .split(/[,;/(]/)[0]!
+    .replace(/["']/g, "")
+    .trim();
+
+  return (
+    <div className="mb-5 flex flex-wrap items-start gap-x-8 gap-y-5">
+      {logoUrl ? (
+        <div className="rounded-lg border border-border bg-inset p-3">
+          <img src={logoUrl} alt="Logo" className="max-h-20 w-auto object-contain" />
+        </div>
+      ) : null}
+      {palette.length > 0 ? (
+        <div>
+          <p className="text-caption tracking-wide text-text-4 uppercase">Paleta</p>
+          <ul className="mt-2 flex flex-wrap gap-4">
+            {palette.map((swatch) => (
+              <li key={`${swatch.hex}-${swatch.name}`} className="w-20">
+                <div
+                  // SAFETY: React accepts custom properties at runtime; CSSProperties omits their open-ended names. The value is a hex matched by the server's swatch parser.
+                  style={{ "--swatch": swatch.hex } as CSSProperties}
+                  className="size-10 rounded-lg border border-border bg-(--swatch)"
+                />
+                <p className="mt-1.5 font-mono text-caption text-text-3">{swatch.hex}</p>
+                {swatch.name ? <p className="text-caption text-text-2">{swatch.name}</p> : null}
+                {swatch.role ? <p className="text-caption text-text-4">{swatch.role}</p> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {typography ? (
+        <div className="min-w-0">
+          <p className="text-caption tracking-wide text-text-4 uppercase">Tipografia</p>
+          <p
+            // SAFETY: React accepts custom properties at runtime; CSSProperties omits their open-ended names. The value is a quoted family name.
+            style={{ "--brand-font": `"${font}", var(--font-sans, sans-serif)` } as CSSProperties}
+            className="mt-2 font-(family-name:--brand-font) text-body text-text"
+          >
+            {typography}
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** The brand file, read-only: the identity strip, then one card per section. */
+function BrandFileView({ file }: { file: BrandFileRead }) {
+  return (
+    <>
+      <BrandIdentity design={file.design} />
+      <div className="grid gap-3 md:grid-cols-2">
+        {visibleSections(file.outline).map(({ section, items }) => {
+          if (items.length === 0 && section.items.length > 0) return null;
+
+          return (
+            <section
+              key={section.title}
+              className="min-w-0 rounded-lg border border-border bg-inset/40 p-4"
+            >
+              <h3 className="text-body-sm font-semibold">{section.title}</h3>
+              {section.items.length === 0 ? (
+                <p className="mt-2 text-body-sm text-text-5">
+                  Ainda vazio — o Caetano pergunta no guia da marca.
+                </p>
+              ) : (
+                <ul className="mt-3 space-y-3">
+                  {items.map((item) => (
+                    <li key={`${item.label ?? ""}:${item.text}`} className="min-w-0">
+                      {item.label ? (
+                        <p className="text-caption tracking-wide text-text-4 uppercase">
+                          {item.label}
+                        </p>
+                      ) : null}
+                      <p className="text-body-sm text-text-2">
+                        {section.title === NEVER ? (
+                          <Ban aria-hidden className="mr-1 inline size-3.5 text-destructive" />
+                        ) : null}
+                        {item.text}
+                        <span
+                          title={item.origin}
+                          className="ml-2 inline-block rounded-full border border-border px-1.5 text-caption text-text-4"
+                        >
+                          {originBadge(item.origin)}
+                        </span>
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          );
+        })}
+      </div>
+    </>
+  );
+}
 
 /**
  * The brand file: what both agents know about this business, one document the
@@ -95,7 +240,7 @@ export function BrandFileCard({ accountId }: { accountId: Id<"accounts"> }) {
           <Skeleton className="h-3.5 w-2/5" />
         </div>
       ) : draft === null ? (
-        <Markdown variant="reading">{file.content}</Markdown>
+        <BrandFileView file={file} />
       ) : (
         <>
           <textarea
@@ -116,97 +261,6 @@ export function BrandFileCard({ accountId }: { accountId: Id<"accounts"> }) {
           {error}
         </p>
       ) : null}
-    </SectionCard>
-  );
-}
-
-/**
- * The Pomelli-style identity card: swatches with exact hexes, font previews,
- * tagline, rendered straight from /brand/kit.json: what's shown here is what
- * the image prompts use.
- */
-export function BrandKitCard({ accountId }: { accountId: Id<"accounts"> }) {
-  const file = useProfileRuntime().useWorkspaceFile(accountId, "/brand/kit.json");
-  const text = file?.ok && file.file.kind === "text" ? file.file.text : null;
-  const kit = text !== null ? parseBrandKit(text) : null;
-  const empty = kit === null || (kit.colors.length === 0 && kit.fonts.length === 0 && !kit.tagline);
-
-  return (
-    <SectionCard
-      title="Identidade visual"
-      caption="As cores e fontes exatas que a Vanda usa nas artes."
-    >
-      {file === undefined ? (
-        <div className="flex gap-3" aria-hidden>
-          <Skeleton className="size-14 rounded-full" />
-          <Skeleton className="size-14 rounded-full" />
-          <Skeleton className="size-14 rounded-full" />
-        </div>
-      ) : empty ? (
-        <p className="text-body-sm leading-relaxed text-text-3">
-          Nenhuma identidade registrada ainda. Diga na conversa algo como{" "}
-          <em>"nossas cores são #d81b60 e #fdfcfb, e a fonte é Poppins"</em>, e a Vanda monta o kit.
-        </p>
-      ) : (
-        <div className="space-y-6">
-          {kit.colors.length > 0 ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {kit.colors.map((color) => (
-                <div key={color.hex} className="overflow-hidden rounded-lg border border-border">
-                  <span
-                    aria-hidden
-                    className="block h-24 w-full bg-(--swatch)"
-                    style={
-                      // SAFETY: React forwards CSS variables; this is the customer's color swatch, not UI chrome.
-                      { "--swatch": color.hex } as CSSProperties
-                    }
-                  />
-                  <div className="p-3">
-                    <span className="font-mono text-xs text-text-2">{color.hex}</span>
-                    {color.name || color.role ? (
-                      <span className="mt-1 block truncate text-note text-text-3">
-                        {color.name ?? color.role}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-          {kit.fonts.length > 0 ? (
-            <div className="flex flex-wrap gap-3">
-              {kit.fonts.map((font) => (
-                <div
-                  key={`${font.family}-${font.role ?? ""}`}
-                  className="flex min-w-36 flex-col rounded-lg border border-border px-5 py-4"
-                >
-                  <span
-                    aria-hidden
-                    className="font-(family-name:--brand-font) text-3xl leading-tight text-text"
-                    style={
-                      // SAFETY: React forwards custom properties; CSSProperties omits their open-ended names.
-                      {
-                        "--brand-font": `"${font.family}", sans-serif`,
-                      } as CSSProperties
-                    }
-                  >
-                    Aa
-                  </span>
-                  <span className="mt-1 text-body-sm font-medium">{font.family}</span>
-                  {font.role ? <span className="text-note text-text-4">{font.role}</span> : null}
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-          {kit.tagline ? (
-            <p className="border-t border-border pt-5 text-xl leading-relaxed font-medium tracking-tight text-text-2">
-              “{kit.tagline}”
-            </p>
-          ) : null}
-        </div>
-      )}
     </SectionCard>
   );
 }

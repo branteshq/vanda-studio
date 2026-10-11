@@ -114,7 +114,6 @@ import type * as whatsapp from "../whatsapp.js";
 import type * as whatsapp_protocol from "../whatsapp/protocol.js";
 import type * as whatsappData from "../whatsappData.js";
 import type * as whatsappMedia from "../whatsappMedia.js";
-import type * as workspace_brandKit from "../workspace/brandKit.js";
 import type * as workspace_documents from "../workspace/documents.js";
 import type * as workspace_index from "../workspace/index.js";
 import type * as workspace_mounts_brand from "../workspace/mounts/brand.js";
@@ -243,7 +242,6 @@ declare const fullApi: ApiFromModules<{
   "whatsapp/protocol": typeof whatsapp_protocol;
   whatsappData: typeof whatsappData;
   whatsappMedia: typeof whatsappMedia;
-  "workspace/brandKit": typeof workspace_brandKit;
   "workspace/documents": typeof workspace_documents;
   "workspace/index": typeof workspace_index;
   "workspace/mounts/brand": typeof workspace_mounts_brand;

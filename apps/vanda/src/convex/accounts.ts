@@ -41,6 +41,7 @@ export const listMine = query({
       handle: account.handle ?? null,
       connected: account.publisherConnectedAt !== undefined,
       onboardedAt: account.onboardedAt ?? null,
+      brandGuideThreadId: account.brandGuideThreadId ?? null,
       active: user.activeAccountId === account._id,
       createdAt: account.createdAt,
     }));

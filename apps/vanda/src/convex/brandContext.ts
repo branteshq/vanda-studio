@@ -1,8 +1,30 @@
 import { v } from "convex/values";
 import { internalQuery } from "./_generated/server";
-import { BRAND_FILE_PATH, MAX_BRAND_FILE_BYTES, brandFileBytes, loadBrandFile } from "./brandFile";
-import { readPath } from "./workspace";
-import { parseBrandKit, type BrandKit } from "./workspace/brandKit";
+import {
+  BRAND_FILE_PATH,
+  DESIGN_LABELS,
+  MAX_BRAND_FILE_BYTES,
+  brandFileBytes,
+  brandFileOutline,
+  designText,
+  loadBrandFile,
+} from "./brandFile";
+
+/** The brand's palette and typography from the Design section; origin tags and markdown dropped. */
+export interface BrandDesign {
+  readonly palette: string;
+  readonly typography: string;
+}
+
+/** Only the "Paleta:" and "Tipografia:" items of the Design section; empty when missing. */
+export const designDirection = (content: string): BrandDesign => {
+  const outline = brandFileOutline(content);
+
+  return {
+    palette: designText(outline, DESIGN_LABELS.palette),
+    typography: designText(outline, DESIGN_LABELS.typography),
+  };
+};
 
 /** Brand identity is turn context, not an optional tool lookup. Media stays discoverable. */
 export const conversation = internalQuery({
@@ -18,7 +40,6 @@ export const conversation = internalQuery({
       throw new Error("conta não encontrada");
 
     const brand = await loadBrandFile(ctx, target);
-    const kit = await readPath(ctx, target, "/brand/kit.json");
     const bytes = brandFileBytes(brand.content);
 
     return [
@@ -29,26 +50,17 @@ export const conversation = internalQuery({
             `ARQUIVO DA MARCA GRANDE: ${bytes} de ${MAX_BRAND_FILE_BYTES} bytes. Nada foi cortado. Compacte quando puder, sem perder itens (dono), e mova detalhes longos para /notes.`,
           ]
         : []),
-      JSON.stringify([
-        { path: BRAND_FILE_PATH, content: brand.content },
-        {
-          path: "/brand/kit.json",
-          content: kit.ok && kit.file.kind === "text" ? kit.file.text : "Não informado.",
-        },
-      ]),
+      `<arquivo path="${BRAND_FILE_PATH}">\n${brand.content}\n</arquivo>`,
     ].join("\n\n");
   },
 });
 
-/** The visual kit for server-built image prompts; null while it has no color or font. */
-export const kit = internalQuery({
+/** The palette and typography of the brand file's Design section; empty when none. */
+export const design = internalQuery({
   args: { accountId: v.id("accounts") },
-  handler: async (ctx, { accountId }): Promise<BrandKit | null> => {
-    const result = await readPath(ctx, accountId, "/brand/kit.json");
+  handler: async (ctx, { accountId }): Promise<BrandDesign> => {
+    const { content } = await loadBrandFile(ctx, accountId);
 
-    if (!result.ok || result.file.kind !== "text") return null;
-    const parsed = parseBrandKit(result.file.text);
-
-    return parsed && (parsed.colors.length > 0 || parsed.fonts.length > 0) ? parsed : null;
+    return designDirection(content);
   },
 });

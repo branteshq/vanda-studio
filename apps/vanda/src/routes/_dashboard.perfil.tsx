@@ -8,7 +8,7 @@ import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { tierOfPlan } from "../convex/billing/plans";
 import type { Id } from "../convex/_generated/dataModel";
 import { AppearanceControl } from "../components/profile/appearance";
-import { BrandFileCard, BrandKitCard, SectionCard } from "../components/profile/brand";
+import { BrandFileCard, SectionCard } from "../components/profile/brand";
 import { InstagramConnectionRow, OpenAiConnectionRow } from "../components/profile/connections";
 import { ModelsCard } from "../components/profile/models";
 import { PlanSummary, PlansPicker } from "../components/profile/plan";
@@ -259,7 +259,6 @@ function BrandPage({ accountId, name }: { accountId: Id<"accounts">; name: strin
       </div>
       {/* Keyed by business so an unsaved draft never carries over to another one. */}
       <BrandFileCard key={accountId} accountId={accountId} />
-      <BrandKitCard accountId={accountId} />
       <Button
         variant="subtle"
         onClick={() => {

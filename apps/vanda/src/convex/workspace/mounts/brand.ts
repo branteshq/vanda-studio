@@ -1,13 +1,10 @@
 import type { Id } from "../../_generated/dataModel";
 import type { QueryCtx } from "../../_generated/server";
 import { loadBrandFile, saveBrandFile } from "../../brandFile";
-import { validateBrandKit } from "../brandKit";
-import { readDocument, saveDocument } from "../documents";
 import {
   entityName,
   imageFileParts,
   imageUrl,
-  jsonFile,
   resolveByName,
   type WorkspaceEntry,
   type WorkspaceFile,
@@ -23,35 +20,24 @@ const loadReferences = async (ctx: QueryCtx, accountId: Id<"accounts">) => {
   return images.filter((image) => image.purpose === "reference");
 };
 
-const referenceLabel = (image: { referenceKind?: string | undefined }): string => {
-  switch (image.referenceKind) {
-    case "face":
-      return "rosto";
-    case "product":
-      return "produto";
-    case "place":
-      return "lugar";
-    case "style":
-      return "estilo";
-    default:
-      return "referencia";
-  }
+const REFERENCE_LABELS = {
+  face: "rosto",
+  product: "produto",
+  place: "lugar",
+  style: "estilo",
 };
 
-const KIT_PATH = "/brand/kit.json";
+const referenceLabel = (image: { referenceKind?: keyof typeof REFERENCE_LABELS | undefined }) =>
+  image.referenceKind ? REFERENCE_LABELS[image.referenceKind] : "referencia";
 
-/** Read fallback that teaches the kit's schema in-band. */
-const EMPTY_KIT = {
-  colors: [],
-  fonts: [],
-  dica: 'sem identidade visual ainda — grave com write: {"colors":[{"hex":"#d81b60","name":"rosa","role":"primária"}],"fonts":[{"family":"Poppins","role":"títulos"}],"tagline":"..."}',
-};
+// The brand writes: the file and its long-form notes. The workspace's write help shares it.
+export const BRAND_WRITABLE =
+  "/brand/marca.md (arquivo da marca, com a origem de cada item e a seção Design); detalhes longos vão em /notes/";
 
 export const brandMount: WorkspaceMount = {
   root: "brand",
-  summary: "arquivo da marca (memória do negócio), identidade visual e fotos de referência",
-  writeHint:
-    "graváveis aqui: /brand/marca.md (arquivo da marca, com a origem de cada item) e /brand/kit.json (identidade visual); detalhes longos vão em /notes/",
+  summary: "arquivo da marca (memória do negócio, com a seção Design) e fotos de referência",
+  writeHint: `gravável aqui: ${BRAND_WRITABLE}`,
   list: async (ctx, accountId, segments): Promise<WorkspaceEntry[] | null> => {
     if (segments.length === 0) {
       return [
@@ -60,11 +46,6 @@ export const brandMount: WorkspaceMount = {
           kind: "file",
           summary:
             "arquivo da marca: fatos, tom, preferências e aprendizados, com origem (gravável)",
-        },
-        {
-          name: "kit.json",
-          kind: "file",
-          summary: "identidade visual: cores exatas, fontes e tagline (gravável)",
         },
         { name: "references", kind: "dir", summary: "fotos de referência (rosto, produto, lugar)" },
       ];
@@ -89,18 +70,12 @@ export const brandMount: WorkspaceMount = {
       return { kind: "text", text: (await loadBrandFile(ctx, accountId)).content };
     }
 
-    if (segments.length === 1 && segments[0] === "kit.json") {
-      return (await readDocument(ctx, accountId, KIT_PATH)) ?? jsonFile(EMPTY_KIT);
-    }
-
     if (segments.length === 2 && segments[0] === "references") {
       const references = await loadReferences(ctx, accountId);
       const image = resolveByName(segments[1]!, references);
+      const url = image && (await imageUrl(ctx, image));
 
-      if (!image) return null;
-      const url = await imageUrl(ctx, image);
-
-      if (!url) return null;
+      if (!image || !url) return null;
 
       const authorized =
         image.referenceKind === "face"
@@ -124,14 +99,6 @@ export const brandMount: WorkspaceMount = {
   write: async (ctx, accountId, segments, content) => {
     if (segments.length === 1 && segments[0] === "marca.md") {
       return saveBrandFile(ctx, accountId, content, "vanda");
-    }
-
-    if (segments.length === 1 && segments[0] === "kit.json") {
-      const kit = validateBrandKit(content);
-
-      if (!kit.ok) return { ok: false, error: kit.error };
-
-      return saveDocument(ctx, accountId, KIT_PATH, kit.normalized);
     }
 
     return { ok: false, error: brandMount.writeHint };

@@ -49,6 +49,23 @@ async function setup() {
 
 type Test = Awaited<ReturnType<typeof setup>>["t"];
 
+const allImages = (t: Test) => t.run((ctx) => ctx.db.query("images").collect());
+
+/** Every repaint call answers with a gray PNG; the parsed request bodies are recorded in `bodies`. */
+async function stubRepaint(bodies: { prompt: string; input_references?: unknown[] }[] = []) {
+  const repaint = (await png(0x808080ff)).toString("base64");
+
+  const request = vi.fn(async (_url: string, init?: RequestInit) => {
+    bodies.push(JSON.parse(String(init?.body)));
+
+    return Response.json({ data: [{ b64_json: repaint, media_type: "image/png" }] });
+  });
+
+  vi.stubGlobal("fetch", request);
+
+  return request;
+}
+
 /** Run the deferred discards now: they are scheduled an hour out, past the turn. */
 async function runDiscards(t: Test) {
   const jobs = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
@@ -68,17 +85,8 @@ async function runDiscards(t: Test) {
 describe("carouselWeave.weave", () => {
   it("repaints every seam including the loop and keeps only the woven slides", async () => {
     const { t, accountId, imageIds } = await setup();
-    const repaint = (await png(0x808080ff)).toString("base64");
-    const prompts: string[] = [];
-
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (_url: string, init?: RequestInit) => {
-        prompts.push(JSON.parse(String(init?.body)).prompt);
-
-        return Response.json({ data: [{ b64_json: repaint, media_type: "image/png" }] });
-      }),
-    );
+    const bodies: { prompt: string }[] = [];
+    await stubRepaint(bodies);
 
     const result = await t.action(internal.carouselWeave.weave, {
       accountId,
@@ -88,11 +96,11 @@ describe("carouselWeave.weave", () => {
       style: "aquarela suave",
     });
 
-    expect(prompts).toHaveLength(3);
-    expect(prompts[2]).toContain("uma onda");
-    expect(prompts[0]).toContain("hero subject");
-    expect(prompts[1]).not.toContain("hero subject");
-    expect(prompts[0]).toContain("aquarela suave");
+    expect(bodies).toHaveLength(3);
+    expect(bodies[2]!.prompt).toContain("uma onda");
+    expect(bodies[0]!.prompt).toContain("hero subject");
+    expect(bodies[1]!.prompt).not.toContain("hero subject");
+    expect(bodies[0]!.prompt).toContain("aquarela suave");
     expect(result.slides).toHaveLength(3);
     expect(result.seams.map((seam) => [seam.seam, seam.woven])).toEqual([
       ["1→2", true],
@@ -103,7 +111,7 @@ describe("carouselWeave.weave", () => {
     // Every cut is now the same gray on both sides.
     for (const seam of result.seams) expect(seam.score).toBe(0);
 
-    const images = await t.run((ctx) => ctx.db.query("images").collect());
+    const images = await allImages(t);
     // 3 sources + 3 woven slides + strip + cut close-ups; repainted seams were discarded.
     expect(images).toHaveLength(8);
     expect(result.cuts).toBeDefined();
@@ -138,13 +146,7 @@ describe("carouselWeave.weave", () => {
 
   it("re-weaves only the requested seams and validates the bridge count", async () => {
     const { t, accountId, imageIds } = await setup();
-    const repaint = (await png(0x808080ff)).toString("base64");
-
-    const request = vi.fn(async () =>
-      Response.json({ data: [{ b64_json: repaint, media_type: "image/png" }] }),
-    );
-
-    vi.stubGlobal("fetch", request);
+    const request = await stubRepaint();
 
     await expect(
       t.action(internal.carouselWeave.weave, {
@@ -170,7 +172,7 @@ describe("carouselWeave.weave", () => {
     expect(result.slides[0]!.imageId).not.toBe(imageIds[0]);
     expect(result.slides[2]!.imageId).not.toBe(imageIds[2]);
     // 3 sources + 2 changed slides + strip + cuts, and the replaced versions are queued for discard.
-    expect(await t.run((ctx) => ctx.db.query("images").collect())).toHaveLength(7);
+    expect(await allImages(t)).toHaveLength(7);
     const [discard] = await runDiscards(t);
     expect(discard!.args[0].imageIds).toEqual([imageIds[0], imageIds[2]]);
     expect(result.seams[0]!.score).toBeGreaterThan(50);
@@ -208,7 +210,7 @@ describe("carouselWeave cleanup", () => {
 
     // Seam 3 never started; seam 1's billed repaint was discarded.
     expect(calls).toBe(2);
-    expect(await t.run((ctx) => ctx.db.query("images").collect())).toHaveLength(3);
+    expect(await allImages(t)).toHaveLength(3);
   });
 
   it("tolerates working rows the owner already deleted", async () => {
@@ -217,7 +219,7 @@ describe("carouselWeave cleanup", () => {
 
     await t.mutation(internal.gallery.discardWorking, { accountId, imageIds });
 
-    expect(await t.run((ctx) => ctx.db.query("images").collect())).toHaveLength(0);
+    expect(await allImages(t)).toHaveLength(0);
   });
 
   it("refuses slides too big to decode before fetching a repaint", async () => {
@@ -308,13 +310,7 @@ describe("carouselWeave cleanup", () => {
   it("falls back to one worker for a nonsense concurrency", async () => {
     const { t, accountId, imageIds } = await setup();
     vi.stubEnv("VANDA_WEAVE_CONCURRENCY", "-1");
-    const repaint = (await png(0x808080ff)).toString("base64");
-
-    const request = vi.fn(async () =>
-      Response.json({ data: [{ b64_json: repaint, media_type: "image/png" }] }),
-    );
-
-    vi.stubGlobal("fetch", request);
+    const request = await stubRepaint();
 
     const result = await t.action(internal.carouselWeave.weave, {
       accountId,
@@ -342,23 +338,10 @@ describe("seamPrompt", () => {
 });
 
 describe("carouselWeave.extend", () => {
-  const stubPaint = async (prompts: string[]) => {
-    const repaint = (await png(0x808080ff)).toString("base64");
-
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (_url: string, init?: RequestInit) => {
-        prompts.push(JSON.parse(String(init?.body)).prompt);
-
-        return Response.json({ data: [{ b64_json: repaint, media_type: "image/png" }] });
-      }),
-    );
-  };
-
   it("chains slides, replaces the edited ones and closes the loop on the last", async () => {
     const { t, accountId, imageIds } = await setup();
-    const prompts: string[] = [];
-    await stubPaint(prompts);
+    const bodies: { prompt: string }[] = [];
+    await stubRepaint(bodies);
 
     const second = await t.action(internal.carouselWeave.extend, {
       accountId,
@@ -370,16 +353,16 @@ describe("carouselWeave.extend", () => {
     });
 
     // A (extend) + B (complete).
-    expect(prompts).toHaveLength(2);
-    expect(prompts[0]).toContain("is the hero: astronauta de traje branco");
-    expect(prompts[1]).toContain("título PASSO 1");
+    expect(bodies).toHaveLength(2);
+    expect(bodies[0]!.prompt).toContain("is the hero: astronauta de traje branco");
+    expect(bodies[1]!.prompt).toContain("título PASSO 1");
     expect(second.slides).toHaveLength(2);
     // The previous slide's right edge was repainted, so it is a new image.
     expect(second.slides[0]!.imageId).not.toBe(imageIds[0]);
     expect(second.seams.map((seam) => seam.seam)).toEqual(["1→2"]);
     // No preview while the chain is still growing.
     expect(second.strip).toBeUndefined();
-    expect(prompts[1]).toContain("Text never overlaps the hero");
+    expect(bodies[1]!.prompt).toContain("Text never overlaps the hero");
 
     const third = await t.action(internal.carouselWeave.extend, {
       accountId,
@@ -391,18 +374,18 @@ describe("carouselWeave.extend", () => {
     });
 
     // A + B + the loop seam.
-    expect(prompts).toHaveLength(5);
-    expect(prompts[2]).toContain("bridge element crossing the vertical line at x=24%");
+    expect(bodies).toHaveLength(5);
+    expect(bodies[2]!.prompt).toContain("bridge element crossing the vertical line at x=24%");
     expect(third.slides).toHaveLength(3);
     expect(third.seams.map((seam) => seam.seam)).toEqual(["2→3", "3→1 (volta)"]);
     // Slide 1 changed again for the loop; every slide is a fresh image.
     expect(new Set(third.slides.map((slide) => slide.imageId)).size).toBe(3);
 
     // Superseded slides wait out the turn, so links the model already holds stay valid.
-    expect(await t.run((ctx) => ctx.db.query("images").collect())).toHaveLength(10);
+    expect(await allImages(t)).toHaveLength(10);
     await runDiscards(t);
 
-    const images = await t.run((ctx) => ctx.db.query("images").collect());
+    const images = await allImages(t);
     const ids = new Set(images.map((image) => image._id));
 
     // Owner-painted sources stay; superseded chain slides and working repaints are gone.
@@ -419,7 +402,7 @@ describe("carouselWeave.extend", () => {
 
   it("never discards a slide a post, the chain or an agent paint still owns", async () => {
     const { t, accountId, imageIds } = await setup();
-    await stubPaint([]);
+    await stubRepaint();
 
     // An agent paint whose prompt opens the way chain slides do is not a chain slide.
     await t.run((ctx) =>
@@ -451,7 +434,7 @@ describe("carouselWeave.extend", () => {
     });
 
     expect(await runDiscards(t)).toHaveLength(2);
-    const ids = new Set((await t.run((ctx) => ctx.db.query("images").collect())).map((i) => i._id));
+    const ids = new Set((await allImages(t)).map((i) => i._id));
 
     expect(ids.has(imageIds[0]!)).toBe(true);
 
@@ -470,27 +453,16 @@ describe("carouselWeave.extend", () => {
     expect(await t.run((ctx) => ctx.db.get(repeated))).not.toBeNull();
   });
 
-  it("carries the brand kit into every repaint and slide 1 into the text step", async () => {
+  it("carries the brand design into every repaint and slide 1 into the text step", async () => {
     const { t, accountId, imageIds } = await setup();
-    const repaint = (await png(0x808080ff)).toString("base64");
     const bodies: { prompt: string; input_references?: unknown[] }[] = [];
-
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (_url: string, init?: RequestInit) => {
-        bodies.push(JSON.parse(String(init?.body)));
-
-        return Response.json({ data: [{ b64_json: repaint, media_type: "image/png" }] });
-      }),
-    );
+    await stubRepaint(bodies);
 
     await t.mutation(internal.workspaceData.write, {
       accountId,
-      path: "/brand/kit.json",
-      content: JSON.stringify({
-        colors: [{ hex: "#183B56", name: "Azul ferramenta", role: "primária" }],
-        fonts: [{ family: "Archivo", role: "títulos" }],
-      }),
+      path: "/brand/marca.md",
+      content:
+        "# Marca\n\n## Design\n- Paleta: #183b56 azul ferramenta (primária)\n- Tipografia: Archivo (títulos)\n",
     });
 
     await t.action(internal.carouselWeave.extend, {
@@ -502,13 +474,12 @@ describe("carouselWeave.extend", () => {
       loopBridge: "esfera azul",
     });
 
-    // A, B and the loop seam all carry the kit.
+    // A, B and the loop seam all carry the design.
     expect(bodies).toHaveLength(3);
 
     for (const body of bodies) {
-      // The kit normalizes hex to lowercase on write.
-      expect(body.prompt).toContain("#183b56 (Azul ferramenta, primária)");
-      expect(body.prompt).toContain("Archivo for títulos");
+      expect(body.prompt).toContain("Brand palette: #183b56 azul ferramenta. Paint");
+      expect(body.prompt).toContain("Brand typography for the slide's own text only: Archivo,");
     }
 
     // A edits only the canvas; B also sees slide 1 for typography.
@@ -518,7 +489,7 @@ describe("carouselWeave.extend", () => {
 
   it("refuses a loop before 3 slides and a chain past 5", async () => {
     const { t, accountId, imageIds } = await setup();
-    await stubPaint([]);
+    await stubRepaint();
 
     await expect(
       t.action(internal.carouselWeave.extend, {
@@ -544,16 +515,18 @@ describe("carouselWeave.extend", () => {
 });
 
 describe("brandDirection", () => {
-  it("renders a filled kit and stays silent without one", () => {
-    expect(
-      brandDirection({
-        colors: [{ hex: "#F2C14E", name: "Amarelo fita" }, { hex: "#F7F7F2" }],
-        fonts: [{ family: "Archivo", role: "títulos" }, { family: "Source Sans 3" }],
-      }),
-    ).toBe(
-      "Brand palette: #F2C14E (Amarelo fita), #F7F7F2. Paint new objects, accents and text in these colors, no other dominant colors; scenery that continues from the existing image keeps the colors it already has. Brand typography: set every text in Archivo for títulos, Source Sans 3, unless slide 1 already sets its text in another face; then match slide 1 so the carousel reads as one piece.",
+  it("renders the palette and typography lines and stays silent without them", () => {
+    const direction = brandDirection({
+      palette: "#F2C14E amarelo fita (principal)",
+      typography: "Inter",
+    });
+
+    expect(direction).toContain(
+      "Brand palette: #F2C14E amarelo fita (principal). Paint new objects",
     );
-    expect(brandDirection(null)).toBe("");
+    expect(direction).toContain("Brand typography for the slide's own text only: Inter, unless");
+    expect(brandDirection({ palette: "", typography: "" })).toBe("");
+    expect(brandDirection({ palette: "", typography: "Inter" })).not.toContain("Brand palette");
     expect(seamPrompt("esfera", undefined, "satellite")).not.toContain("Brand palette");
   });
 });
