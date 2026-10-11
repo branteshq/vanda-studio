@@ -11,7 +11,7 @@ export const professionalBrands: EvalBrand[] = [
     handle: "@iris.exemplo",
     notes:
       "Marca inteiramente fictícia para estudo visual. Dra. Helena Prado é personagem inventada, não uma médica real.",
-    kit: {
+    design: {
       colors: [
         { hex: "#0A3042", name: "Petróleo" },
         { hex: "#5DBBDD", name: "Azul claro" },
@@ -36,7 +36,7 @@ export const professionalBrands: EvalBrand[] = [
     handle: "@linha.exemplo",
     notes:
       "Escritório e profissional fictícios: Eng. Rafael Nunes. Conteúdo educativo, não diagnóstico de uma edificação.",
-    kit: {
+    design: {
       colors: [
         { hex: "#172F36", name: "Grafite" },
         { hex: "#D5A55C", name: "Latão" },
@@ -60,7 +60,7 @@ export const professionalBrands: EvalBrand[] = [
     name: "Clara Odontologia",
     handle: "@clara.exemplo",
     notes: "Marca e dentista inteiramente fictícias: Dra. Marina Azevedo.",
-    kit: {
+    design: {
       colors: [
         { hex: "#183D40", name: "Verde profundo" },
         { hex: "#91BAB2", name: "Sálvia" },

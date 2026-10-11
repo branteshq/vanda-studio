@@ -185,18 +185,13 @@ it.skipIf(!enabled).each(Array.from({ length: repeats }, (_, index) => index + 1
       accountId: auth.account_id,
     });
 
-    for (const [path, content] of [
-      ["/brand/marca.md", brandFileFor(brand)],
-      ["/brand/kit.json", JSON.stringify(brand.kit)],
-    ] as const) {
-      const written = await t.mutation(internal.workspaceData.write, {
-        accountId: ids.accountId,
-        path,
-        content,
-      });
+    const written = await t.mutation(internal.workspaceData.write, {
+      accountId: ids.accountId,
+      path: "/brand/marca.md",
+      content: brandFileFor(brand),
+    });
 
-      expect(written.ok, path).toBe(true);
-    }
+    expect(written.ok).toBe(true);
 
     const brandFile = async () => {
       const read = await t.query(internal.workspaceData.read, {
