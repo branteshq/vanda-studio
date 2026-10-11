@@ -27,16 +27,6 @@ type AccountConnectionPatch = {
  * stay inside the publisher — our snapshot is just {handle, connectedAt}.
  */
 
-const originOf = (raw: string): string => {
-  const parsed = new URL(raw);
-
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-    throw new Error("invalid origin");
-  }
-
-  return parsed.origin;
-};
-
 /** First touchpoint for a brand-new user: upsert the users row, insert the account. */
 export const createPendingAccount = internalMutation({
   args: {
@@ -104,14 +94,13 @@ export const applyConnection = internalMutation({
 /**
  * Start (or resume) the Instagram connect flow: ensures the account and its
  * publisher profile exist, then mints the white-label connect URL. The
- * customer lands back on `/onboarding?accountId=…` (or `/perfil`) and
- * `syncConnection` picks up the result.
+ * customer lands back on `/onboarding?accountId=…` and `syncConnection`
+ * picks up the result.
  */
 export const startConnect = action({
   args: {
     accountId: v.optional(v.id("accounts")),
     origin: v.string(),
-    returnTo: v.optional(v.literal("perfil")),
   },
   handler: async (ctx, args): Promise<{ accountId: Id<"accounts">; url: string }> => {
     const identity = await ctx.auth.getUserIdentity();
@@ -137,12 +126,13 @@ export const startConnect = action({
 
     const username = String(accountId);
     await ensureProfile(username);
-    const origin = originOf(args.origin);
+    const origin = new URL(args.origin);
 
-    const redirectUrl =
-      args.returnTo === "perfil"
-        ? `${origin}/perfil`
-        : `${origin}/onboarding?accountId=${username}`;
+    if (origin.protocol !== "https:" && origin.protocol !== "http:") {
+      throw new Error("invalid origin");
+    }
+
+    const redirectUrl = `${origin.origin}/onboarding?accountId=${username}`;
 
     const url = await generateConnectUrl({ username, redirectUrl });
 

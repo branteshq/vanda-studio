@@ -35,7 +35,7 @@ export function InstagramConnectionRow({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void syncConnection({ accountId }).catch(() => {});
+    void syncConnection({ accountId }).catch((cause) => setError(errorMessage(cause)));
   }, [accountId, syncConnection]);
 
   const connect = async () => {
@@ -46,7 +46,6 @@ export function InstagramConnectionRow({
       const { url } = await startConnect({
         accountId,
         origin: window.location.origin,
-        returnTo: "perfil",
       });
 
       window.location.href = url;
