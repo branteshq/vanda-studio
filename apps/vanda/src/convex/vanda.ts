@@ -12,6 +12,7 @@ import { imageModelOutput, imagePreviewSchema } from "./messageImages";
 import { toolDiscovery } from "./toolDiscovery";
 import { previousWorkTools } from "./tools/previousWork";
 import { productTools } from "./tools/product";
+import { guideTools } from "./tools/guide";
 import { referenceTools } from "./tools/references";
 import { autopilotDiscovery, autopilotTools } from "./tools/autopilot";
 import * as WebToolFactory from "./tools/web";
@@ -1144,6 +1145,7 @@ const tools = {
   present,
   ...instagramTools,
   ...referenceTools,
+  ...guideTools,
   paint,
   create_post: createPost,
   schedule_post: schedulePost,
@@ -1258,6 +1260,11 @@ export const vandaToolDiscovery = toolDiscovery(
     reference_remove: {
       keywords:
         "referência referências tirar remover desmarcar não serve mais remove unmark reference",
+      effect: "write",
+    },
+    brand_guide_finish: {
+      keywords:
+        "guia da marca encerrar terminar finalizar concluir aprovado fechou pronto onboarding finish guide done",
       effect: "write",
     },
     ...autopilotDiscovery,

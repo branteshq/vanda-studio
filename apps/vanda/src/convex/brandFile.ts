@@ -468,6 +468,47 @@ const answeredTitles = (content: string) =>
       .map((section) => section.title),
   );
 
+/** Sections whose items come from results, never from the owner's word. */
+const OBSERVED_SECTION = "O que funciona";
+
+/**
+ * The owner approved Caetano's draft: every (Vanda) guess in the identity sections
+ * becomes (dono). Results and legacy notes stay as they are. Returns the new text
+ * and how many items changed.
+ */
+interface ConfirmedBrandFile {
+  content: string;
+  confirmed: number;
+}
+
+export const confirmBrandGuesses = (content: string): ConfirmedBrandFile => {
+  let section: string | null = null;
+  let confirmed = 0;
+
+  const lines = content.split("\n").map((line) => {
+    const heading = /^##\s+(.+?)\s*$/.exec(line);
+
+    // Legacy notes run to the end of the file, whatever headings they carry.
+    if (heading && section !== LEGACY_HEADING) {
+      section = heading[1]!;
+
+      return line;
+    }
+
+    if (section === null || section === OBSERVED_SECTION || section === LEGACY_HEADING) return line;
+
+    if (!/^\s*[-*]\s+/.test(line)) return line;
+
+    const next = line.replace(/\(Vanda\)(\s*[.;,]?\s*)$/, "(dono)$1");
+
+    if (next !== line) confirmed++;
+
+    return next;
+  });
+
+  return { content: lines.join("\n"), confirmed };
+};
+
 /** The brand guide: the interview sections and whether each is answered, for the guide card. */
 export const brandGuide = (content: string) => {
   const filled = answeredTitles(content);
@@ -485,6 +526,7 @@ export const guide = query({
 
     return {
       threadId: account.brandGuideThreadId ?? null,
+      done: account.brandGuideDoneAt !== undefined,
       sections: brandGuide((await loadBrandFile(ctx, accountId)).content),
     };
   },

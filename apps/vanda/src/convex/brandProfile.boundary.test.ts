@@ -3,7 +3,7 @@ import agentTest from "@convex-dev/agent/test";
 import { saveMessage } from "@convex-dev/agent";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
-import { api, components } from "./_generated/api";
+import { api, components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { brandFileFacts } from "./brandFile";
 import { isPlatformTurn } from "./platformTurn";
@@ -191,5 +191,65 @@ describe("openGuide", () => {
     await expect(
       t.withIdentity({ subject: "c2" }).mutation(api.brandProfile.openGuide, { accountId }),
     ).rejects.toThrow();
+  });
+});
+
+/** Caetano's first draft: every section filled with guesses, plus one observed result. */
+const DRAFT = `# Tábua Contábil
+
+## O negócio
+- Oferta: contabilidade para MEI (Vanda)
+- Preço: plano MEI R$ 89/mês (dono)
+
+## Público
+- MEIs de Recife que fazem tudo sozinhos (Vanda).
+
+## Voz
+- Tom: direto, didático (Vanda)
+
+## Design
+- Paleta: #14213D azul (fundo); #F2B134 mostarda (destaque) (Vanda)
+
+## Nunca fazer
+- prometer restituição de imposto (dono)
+
+## Provas
+- CRC ativo (Vanda)
+
+## O que funciona
+- carrosséis de dicas salvam mais (Vanda)
+`;
+
+describe("the guide ends on the owner's approval", () => {
+  it("stays open with a complete draft, then finishGuide confirms the guesses and closes it", async () => {
+    const { t, accountId } = await setup();
+    const owner = t.withIdentity({ subject: "c1" });
+    await t.run((ctx) => ctx.db.patch(accountId, { onboardedAt: Date.now() }));
+    const threadId = (await owner.mutation(api.brandProfile.openGuide, { accountId }))!;
+    await owner.mutation(api.brandFile.save, { accountId, content: DRAFT });
+
+    // A full draft is not an approval: the guide keeps its thread.
+    await expect(owner.mutation(api.brandProfile.openGuide, { accountId })).resolves.toBe(threadId);
+    expect((await owner.query(api.brandFile.guide, { accountId })).done).toBe(false);
+
+    // Only the guide thread may end it.
+    await expect(
+      t.mutation(internal.brandProfile.finishGuide, { accountId, threadId: "another-thread" }),
+    ).resolves.toMatchObject({ ok: false });
+
+    await expect(
+      t.mutation(internal.brandProfile.finishGuide, { accountId, threadId }),
+    ).resolves.toEqual({ ok: true, confirmed: 5 });
+
+    const file = await owner.query(api.brandFile.get, { accountId });
+    const content = file?.content ?? "";
+    expect(content).toContain("- Oferta: contabilidade para MEI (dono)");
+    expect(content).toContain("- MEIs de Recife que fazem tudo sozinhos (dono).");
+    expect(content).toContain("(destaque) (dono)");
+    // Results are evidence, not the owner's word.
+    expect(content).toContain("- carrosséis de dicas salvam mais (Vanda)");
+
+    expect((await owner.query(api.brandFile.guide, { accountId })).done).toBe(true);
+    await expect(owner.mutation(api.brandProfile.openGuide, { accountId })).resolves.toBeNull();
   });
 });

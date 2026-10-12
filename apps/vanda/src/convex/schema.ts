@@ -239,6 +239,8 @@ export default defineSchema({
     onboardedAt: v.optional(v.number()),
     // The thread where Caetano interviews the owner to fill the brand guide.
     brandGuideThreadId: v.optional(v.string()),
+    // Set when the owner approved Caetano's draft of the brand file and the guide ended.
+    brandGuideDoneAt: v.optional(v.number()),
     // Brand type Vanda proposed at onboarding (negocio | pessoal).
     kind: v.optional(brandKindValidator),
     // DEPRECATED (pre-multi-thread): the once-canonical conversation pointer.

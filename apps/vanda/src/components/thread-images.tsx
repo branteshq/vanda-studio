@@ -167,6 +167,45 @@ export function ThreadImage({
   );
 }
 
+/** A small tile of the same image surface, for a row of images (the guide's saved references). */
+export function ThreadImageThumb({
+  image,
+  accountId,
+  onOpen,
+}: {
+  image: ThreadImageView;
+  accountId: Id<"accounts">;
+  onOpen: () => void;
+}) {
+  const runtime = useContext(ThreadImageRuntimeContext);
+  const enter = useEntranceOnMount();
+  const live = runtime.useImage(accountId, image.imageId);
+  const url = live?.url ?? image.url;
+
+  if (live === null) return null;
+
+  return (
+    <MediaTile
+      label={live?.name ?? "Referência"}
+      {...(url ? { onOpen } : {})}
+      className={cn("w-13 rounded-sm", enter && "animate-attachment-in")}
+    >
+      <MediaTileMedia aspectRatio={4 / 5}>
+        {url ? (
+          <img
+            src={url}
+            alt={live?.name ?? "Referência"}
+            loading="lazy"
+            className="size-full object-cover"
+          />
+        ) : (
+          <Skeleton className="size-full" />
+        )}
+      </MediaTileMedia>
+    </MediaTile>
+  );
+}
+
 /** Same detail panel and mutations as gallery images, scoped to the image's account. */
 export function ThreadImageLightbox({
   accountId,

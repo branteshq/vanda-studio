@@ -4,13 +4,14 @@ import { Instagram } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { OnboardingSplit } from "./onboarding-shell";
+import { Caetano } from "../caetano";
+import { OnboardingCenter } from "./onboarding-shell";
 
 /**
  * Step 1 — the only hard requirement. Connecting Instagram is a full-page
  * round-trip through the publisher's white-label OAuth page (startConnect →
  * connect page → back to /onboarding?accountId=…), so this step just kicks it
- * off; the wizard resumes once the connection syncs.
+ * off; the guide opens once the connection syncs. Caetano waves hello (and again on click).
  */
 export function ConnectStep({ accountId }: { accountId?: Id<"accounts"> }) {
   const startConnect = useAction(api.publisherConnect.startConnect);
@@ -33,23 +34,17 @@ export function ConnectStep({ accountId }: { accountId?: Id<"accounts"> }) {
   }
 
   return (
-    <OnboardingSplit
-      current="conectar"
-      aperture={{ caption: "A orquídea como lente", sub: "Sempre no melhor momento de publicar" }}
-    >
-      <h1 className="text-3xl font-semibold leading-tight tracking-tight">
-        Sua agência de marketing,
-        <br />
-        no automático.
-      </h1>
-      <p className="mt-3 text-sm leading-relaxed text-text-3">
-        Conecte seu Instagram — a Vanda lê sua conta e já começa a entender seu negócio.
+    <OnboardingCenter>
+      <Caetano size={200} intro="wave" onClickMove="wave" className="mb-2" />
+      <h1 className="text-2xl font-semibold tracking-tight">Oi, eu sou o Caetano.</h1>
+      <p className="mt-2 max-w-xs text-sm leading-relaxed text-text-3">
+        Conecta o Instagram. Eu leio o feed e monto o guia da marca que a Vanda usa em todo post.
       </p>
 
       <Button
         variant="brand"
-        size="xl"
-        className="mt-7 w-full"
+        size="lg"
+        className="mt-7"
         disabled={status === "connecting"}
         onClick={connect}
       >
@@ -65,8 +60,8 @@ export function ConnectStep({ accountId }: { accountId?: Id<"accounts"> }) {
           </button>
         </p>
       ) : (
-        <p className="mt-3 text-xs text-text-5">Conexão segura · você controla tudo</p>
+        <p className="mt-3.5 text-body-sm text-text-5">Conexão segura · você controla tudo</p>
       )}
-    </OnboardingSplit>
+    </OnboardingCenter>
   );
 }

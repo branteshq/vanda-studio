@@ -105,6 +105,7 @@ import type * as skills_types from "../skills/types.js";
 import type * as threadResources from "../threadResources.js";
 import type * as toolDiscovery from "../toolDiscovery.js";
 import type * as tools_autopilot from "../tools/autopilot.js";
+import type * as tools_guide from "../tools/guide.js";
 import type * as tools_instagram from "../tools/instagram.js";
 import type * as tools_previousWork from "../tools/previousWork.js";
 import type * as tools_product from "../tools/product.js";
@@ -243,6 +244,7 @@ declare const fullApi: ApiFromModules<{
   threadResources: typeof threadResources;
   toolDiscovery: typeof toolDiscovery;
   "tools/autopilot": typeof tools_autopilot;
+  "tools/guide": typeof tools_guide;
   "tools/instagram": typeof tools_instagram;
   "tools/previousWork": typeof tools_previousWork;
   "tools/product": typeof tools_product;

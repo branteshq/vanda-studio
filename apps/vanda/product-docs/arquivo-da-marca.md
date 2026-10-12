@@ -11,17 +11,19 @@ Cada negócio tem um **arquivo da marca**: um documento único com tudo o que a 
 
 ## Como começa
 
-Depois de conectar o Instagram, a configuração termina na conversa **Guia da marca** com o Caetano. Antes de falar, ele lê seu perfil e seus posts recentes, olhando as imagens, e anota no arquivo o que viu, marcado como **(Vanda)**: o que você oferece, a voz das legendas, as cores, as fontes e o estilo das fotos. Ele também guarda de 4 a 6 posts que mostram o padrão do seu feed como referências (veja Referências, abaixo). Isso leva alguns segundos, e o chat mostra **Caetano está lendo seu Instagram…**.
+Depois de conectar o Instagram, a configuração termina no **Guia da marca**, uma conversa curta com o Caetano. Primeiro ele lê seu perfil e seus posts recentes, olhando as imagens. Enquanto isso, o chat mostra o que ele está fazendo (**lendo os posts…**, **guardando referências…**, **escrevendo o guia da marca…**). Ele anota no arquivo tudo o que viu, marcado como **(Vanda)**: o que você oferece, para quem, a voz das legendas, as cores, as fontes e o padrão dos posts. Também guarda de 4 a 6 posts que mostram o padrão do seu feed como referências, e eles aparecem em miniatura no chat (veja Referências, abaixo).
 
-Depois vem o papo sobre o que o Instagram não mostra e a confirmação do que ele viu: o que você faz, para quem, a voz, o design, o que nunca fazer e as provas que você tem. Enquanto vocês conversam, o Caetano anota no arquivo (aparece **Anotado no seu guia da marca** no chat).
+Depois ele manda uma mensagem só, com o que entendeu, diz o que deduziu pelo feed e pergunta de uma vez o que o Instagram não mostra, como o preço, o que você quer conseguir no Instagram ou o que a lei do seu setor proíbe. Responda do seu jeito, ou corrija o que estiver errado. Ele anota e pergunta **Fechou?**.
 
-**Fotos e o logo são opcionais, e você pode enviá-los a qualquer momento.** Use o botão **Enviar foto ou logo**, aqui embaixo, ou arraste a imagem para o campo da mensagem (PNG, JPG ou WebP, até 10 MB). Sem logo, a Vanda usa o nome da marca em texto, e o guia segue sem ficar pendente.
+Quando você aprova ("fechou", "tá certo"), o guia termina: tudo o que estava como **(Vanda)** passa a **(dono)** e aparece **Guia pronto.**, com o botão **Começar a criar**.
 
-Cada resposta entra no arquivo como **(dono)**. Em **Terminar depois** você sai da conversa, e o guia continua na lista de conversas. Quando você reconecta o Instagram com lacunas, o Caetano volta a ela.
+**Fotos e o logo são opcionais, e você pode enviá-los a qualquer momento.** Use o botão **Enviar foto ou logo**, aqui embaixo, ou arraste a imagem para o campo da mensagem (PNG, JPG ou WebP, até 10 MB). Para corrigir uma cor, diga a cor ou mande uma imagem com ela. Sem logo, a Vanda usa o nome da marca em texto.
+
+Em **Terminar depois** você sai da conversa e vai direto para o app; o arquivo fica com o que o Caetano já anotou. Quando você reconecta o Instagram antes de aprovar o guia, o Caetano volta a ele.
 
 ## Onde fica
 
-Em **Perfil › Negócios**, abra o negócio. Lá você lê o arquivo, clica em **Editar** para mudar o que quiser e salva. Também dá para pedir na conversa ("anota que a gente não atende aos domingos" ou "nossas cores são #d81b60 e #fdfcfb"). No guia, quando o Caetano pergunta sobre cores, um painel de cores abre logo abaixo: escolha uma cor, cole o hex ou tire as cores de uma imagem, e envie para o Caetano.
+Em **Perfil › Negócios**, abra o negócio. Lá você lê o arquivo, clica em **Editar** para mudar o que quiser e salva. Também dá para pedir na conversa ("anota que a gente não atende aos domingos" ou "nossas cores são #d81b60 e #fdfcfb").
 
 ## Seções
 

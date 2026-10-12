@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useRef,
   useState,
   type ComponentProps,
   type CSSProperties,
@@ -19,7 +18,6 @@ import { Check, ChevronDown, Pin, X } from "lucide-react";
 import { ThinkingOrb, type OrbState } from "thinking-orbs";
 import { z } from "zod";
 import { Bubble, BubbleContent } from "@vanda-studio/ui/components/bubble";
-import { Button } from "@vanda-studio/ui/components/button";
 import { Markdown } from "@vanda-studio/ui/components/markdown";
 import { Marker, MarkerContent, MarkerIcon } from "@vanda-studio/ui/components/marker";
 import { Message, MessageContent } from "@vanda-studio/ui/components/message";
@@ -31,18 +29,16 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "@vanda-studio/ui/components/message-scroller";
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@vanda-studio/ui/components/sheet";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { cn } from "@vanda-studio/ui/lib/utils";
-import type { BrandFileRead } from "./profile/brand";
 import {
   ImageMessageComposer,
   MessageImageAttachments,
   type ReadyImageAttachment,
 } from "./image-message-composer";
-import { CaetanoAvatar, type CaetanoState } from "./onboarding/caetano-avatar";
+import { Caetano, CaetanoHead, type CaetanoState } from "./caetano";
 import { EntranceReadyContext, useEntranceOnMount } from "./thread-entrance";
-import { ThreadImage, ThreadImageLightbox } from "./thread-images";
+import { ThreadImage, ThreadImageLightbox, ThreadImageThumb } from "./thread-images";
 import { resourcesForMessage, ThreadResourceList } from "./thread-resources";
 import { VandaMark } from "./vanda-mark";
 import { api } from "../convex/_generated/api";
@@ -110,220 +106,8 @@ function MarkerOrb({ state }: { state: OrbState }) {
   return <ThinkingOrb state={state} size={20} className="!size-4" />;
 }
 
-/** Guide mode: Caetano's words in an outlined bubble. Its fill matches the page, so it reads as border only. */
-function SpeechBubble({ children }: { children: ReactNode }) {
-  return (
-    <Bubble variant="outline" className="max-w-full sm:max-w-4/5">
-      <BubbleContent>{children}</BubbleContent>
-    </Bubble>
-  );
-}
-
-/** Image links in an outline item (logo, photos): the stage shows text only. */
-const GUIDE_IMAGE_LINKS = /!\[[^\]]*\]\([^)\s]*\)/g;
-
-/** How long a section stays highlighted after it changes. */
-const RECENT_MS = 4000;
-
-/** One filled section of the brand file: its first item's text, or null for Design (shows its palette). */
-type GuideBlock = { title: string; text: string | null };
-
-/** The sections that hold something, in file order. Design is kept only with a palette or typeface. */
-function guideBlocksOf(file: BrandFileRead): GuideBlock[] {
-  return file.outline.flatMap(({ title, items }): GuideBlock[] => {
-    if (title === "Design") {
-      return file.design.palette.length > 0 || file.design.typography
-        ? [{ title, text: null }]
-        : [];
-    }
-
-    const first = items
-      .map((item) => item.text.replace(GUIDE_IMAGE_LINKS, "").trim())
-      .find((text) => text !== "");
-
-    return first === undefined ? [] : [{ title, text: first }];
-  });
-}
-
-/** The guide's stage as data: what the brand file holds, one block per section, and how far the guide has got. */
-function useGuideStage(accountId: Id<"accounts">) {
-  const file = useQuery(api.brandFile.get, { accountId });
-  const guide = useQuery(api.brandFile.guide, { accountId });
-  const [recent, setRecent] = useState<{ title: string } | null>(null);
-  // The last seen item texts per section; the first read is the baseline, not a change.
-  const seen = useRef(new Map<string, string>());
-
-  useEffect(() => {
-    if (file === undefined) return;
-
-    const next = new Map(
-      file.outline.map((section) => [
-        section.title,
-        section.items.map((item) => item.text).join("\n"),
-      ]),
-    );
-
-    const previous = seen.current;
-    seen.current = next;
-
-    let changed: string | null = null;
-
-    for (const [title, text] of next) {
-      if (previous.has(title) && previous.get(title) !== text) changed = title;
-    }
-
-    if (changed !== null) setRecent({ title: changed });
-  }, [file]);
-
-  useEffect(() => {
-    if (recent === null) return;
-
-    const id = window.setTimeout(() => setRecent(null), RECENT_MS);
-
-    return () => window.clearTimeout(id);
-  }, [recent]);
-
-  const blocks = file === undefined ? [] : guideBlocksOf(file);
-  const sections = guide?.sections ?? [];
-  const done = sections.filter((section) => section.filled).length;
-  const share = sections.length === 0 ? 0 : Math.round((done / sections.length) * 100);
-  const progress = guide === undefined ? null : share;
-
-  return { file, blocks, recent, progress };
-}
-
-/** The guide's progress: a thin bar, filled by the share of sections done. */
-function GuideProgress({ value, className }: { value: number; className?: string }) {
-  return (
-    <div
-      role="progressbar"
-      aria-label="Quanto do guia já está pronto"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={value}
-      className={cn("h-1.5 overflow-hidden rounded-full bg-border", className)}
-    >
-      <div
-        className="h-full w-(--progress) rounded-full bg-brand-accent transition-all duration-500"
-        style={
-          // SAFETY: a custom property only; the share filled is a runtime value.
-          { "--progress": `${value}%` } as CSSProperties
-        }
-      />
-    </div>
-  );
-}
-
-/** The stage's body, shared by the desktop aside and the mobile sheet: header, one block per section, progress. */
-function GuideStageContent({ stage }: { stage: ReturnType<typeof useGuideStage> }) {
-  const { file, blocks, recent, progress } = stage;
-
-  return (
-    <>
-      <div>
-        <h2 className="text-body-sm font-semibold">Seu guia da marca</h2>
-        <p className="text-caption text-text-4">O que o Caetano já entendeu</p>
-      </div>
-
-      {file === undefined ? null : blocks.length === 0 ? (
-        <p className="text-body-sm text-text-5">O que eu for aprendendo aparece aqui.</p>
-      ) : (
-        blocks.map((block) => {
-          const isRecent = recent?.title === block.title;
-
-          return (
-            <section
-              key={block.title}
-              className={cn("min-w-0", isRecent && "-mx-3 rounded-lg bg-brand-accent/10 px-3 py-2")}
-            >
-              <p className="text-caption tracking-wide text-text-4 uppercase">
-                {block.title}
-                {isRecent ? <span className="text-brand-accent normal-case"> · agora</span> : null}
-              </p>
-              {block.text === null ? (
-                <>
-                  {file.design.palette.length > 0 ? (
-                    <ul className="mt-2 flex flex-wrap gap-2">
-                      {file.design.palette.map((swatch) => (
-                        <li key={`${swatch.hex}-${swatch.name}`}>
-                          <div
-                            title={swatch.name || swatch.hex}
-                            // SAFETY: React accepts custom properties at runtime; CSSProperties omits their open-ended names. The value is a hex matched by the server's swatch parser.
-                            style={{ "--swatch": swatch.hex } as CSSProperties}
-                            className="size-5 rounded-sm border border-border bg-(--swatch)"
-                          />
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  {file.design.typography ? (
-                    <p className="mt-2 line-clamp-2 text-body-sm">{file.design.typography}</p>
-                  ) : null}
-                </>
-              ) : (
-                <p className="mt-1 line-clamp-2 text-body-sm">{block.text}</p>
-              )}
-            </section>
-          );
-        })
-      )}
-
-      {progress === null ? null : <GuideProgress value={progress} className="mt-auto" />}
-    </>
-  );
-}
-
-/** The guide's stage beside the chat (lg and up), from the owner's first message on. */
-function GuideStage({ accountId }: { accountId: Id<"accounts"> }) {
-  const stage = useGuideStage(accountId);
-
-  return (
-    <aside className="hidden w-80 shrink-0 flex-col gap-5 overflow-y-auto border-l border-border bg-inset px-6 py-7 animate-in fade-in slide-in-from-right-4 duration-300 lg:flex">
-      <GuideStageContent stage={stage} />
-    </aside>
-  );
-}
-
-/** Below lg there is no room beside the chat: a progress row opens the same stage in a sheet. */
-function GuideMobileBar({ accountId }: { accountId: Id<"accounts"> }) {
-  const stage = useGuideStage(accountId);
-
-  return (
-    <div className="flex items-center gap-3 px-4 pb-2 lg:hidden">
-      <GuideProgress value={stage.progress ?? 0} className="flex-1" />
-      <Sheet>
-        <SheetTrigger render={<Button variant="outline" size="sm" />}>Ver guia</SheetTrigger>
-        <SheetContent side="bottom" className="h-3/4">
-          <SheetTitle className="sr-only">Seu guia da marca</SheetTitle>
-          <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-6 pt-6 pb-8">
-            <GuideStageContent stage={stage} />
-          </div>
-        </SheetContent>
-      </Sheet>
-    </div>
-  );
-}
-
 /** The shared thinking state: a breathing orb where the answer will appear. */
-function ThinkingMarker({
-  guide = false,
-  reading = false,
-}: {
-  guide?: boolean;
-  reading?: boolean;
-}) {
-  if (guide) {
-    return (
-      <SpeechBubble>
-        <Marker role="status">
-          <MarkerContent loading>
-            {reading ? "Caetano está lendo seu Instagram…" : "Caetano está pensando…"}
-          </MarkerContent>
-        </Marker>
-      </SpeechBubble>
-    );
-  }
-
+function ThinkingMarker() {
   return (
     <Marker role="status">
       <MarkerIcon>
@@ -336,9 +120,6 @@ function ThinkingMarker({
 
 /** The brand guide file; same path as BRAND_FILE_PATH in convex/brandFile.ts. */
 const BRAND_FILE_PATH = "/brand/marca.md";
-
-/** How long the "Anotado" pose holds after a brand-file write lands. */
-const SAVED_MS = 1500;
 
 /** The loose view of a tool part — covers `tool-*` and `dynamic-tool` shapes. */
 interface ToolPartView {
@@ -376,9 +157,8 @@ const isRunning = (part: ToolPartView): boolean =>
 const isBrandWrite = (part: ToolPartView): boolean =>
   toolNameOf(part) === "write" && toolPathOf(part) === BRAND_FILE_PATH;
 
-/** Guide mode shows only the brand write and failures; reads and lists stay hidden. */
-const guideRowOf = (part: ToolPartView): boolean =>
-  isBrandWrite(part) || part.state === "output-error";
+/** Guide mode shows only failures; reads, writes and saves stay behind Caetano's working line. */
+const guideRowOf = (part: ToolPartView): boolean => part.state === "output-error";
 
 /** The tool parts of an assistant message, in their loose view. */
 function toolPartsOf(message: UIMessage): ToolPartView[] {
@@ -389,25 +169,107 @@ function toolPartsOf(message: UIMessage): ToolPartView[] {
   );
 }
 
-/** Caetano's pose in the guide: what the chat is doing now, most specific first. */
-function guideStateOf(signals: {
-  working: boolean;
-  done: boolean;
-  writing: boolean;
-  saved: boolean;
-  talking: boolean;
-}): CaetanoState {
-  if (!signals.working && signals.done) return "done";
+const isInstagramRead = (part: ToolPartView): boolean =>
+  toolNameOf(part).startsWith("read_instagram_");
 
-  if (signals.writing) return "writing";
+/** The images Caetano saved as brand references in this turn, in order. */
+function savedReferencesOf(parts: ToolPartView[]): { imageId: string }[] {
+  const ids = parts.flatMap((part) => {
+    if (toolNameOf(part) !== "reference_save" || part.state !== "output-available") return [];
+    const parsed = toolDataOf(part);
+    const saved = z.object({ imageId: z.string() }).safeParse(parsed.success ? parsed.data : null);
 
-  if (signals.saved) return "saved";
+    return saved.success ? [saved.data.imageId] : [];
+  });
 
-  if (signals.talking) return "talking";
+  return [...new Set(ids)].map((imageId) => ({ imageId }));
+}
 
-  if (signals.working) return "thinking";
+interface GuideActivity {
+  state: CaetanoState;
+  label: string;
+}
 
-  return "idle";
+/** What Caetano is doing in a guide turn, from the tool that runs now (or ran last). */
+function guideActivityOf(parts: ToolPartView[]): GuideActivity {
+  const current = parts.findLast(isRunning) ?? parts.at(-1);
+  const saved = savedReferencesOf(parts).length;
+
+  if (current === undefined) return { state: "read", label: "lendo seu Instagram" };
+
+  if (isBrandWrite(current)) return { state: "think", label: "escrevendo o guia da marca" };
+
+  if (toolNameOf(current) === "reference_save") {
+    return { state: "read", label: `guardando referências · ${saved}` };
+  }
+
+  if (toolNameOf(current) === "read_instagram_profile")
+    return { state: "read", label: "lendo o perfil" };
+
+  if (isInstagramRead(current)) return { state: "read", label: "lendo os posts" };
+
+  return { state: "think", label: "pensando" };
+}
+
+/** Caetano at work in the guide: the full figure while he reads, beside what he is doing. */
+function GuideWorking({ state, label }: { state: CaetanoState; label: string }) {
+  return (
+    <div role="status" className="flex items-end gap-3.5">
+      <Caetano state={state} size={88} className="-mb-1.5" />
+      <Marker className="mb-3">
+        <MarkerContent tone="muted" loading>
+          {label}…
+        </MarkerContent>
+      </Marker>
+    </div>
+  );
+}
+
+/** Caetano's name over his messages, with his head cropped from the same frames. */
+function CaetanoName({ state, still }: { state: CaetanoState; still: boolean }) {
+  return (
+    <div className="flex items-center gap-2 text-body-sm text-text-3">
+      <CaetanoHead state={state} size={28} still={still} />
+      Caetano
+    </div>
+  );
+}
+
+/** The posts Caetano kept as layout references: one quiet line and a row of thumbnails. */
+function GuideReferences({
+  accountId,
+  images,
+}: {
+  accountId: Id<"accounts">;
+  images: { imageId: string }[];
+}) {
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      <p className="text-body text-text-3">
+        Guardei {images.length === 1 ? "1 post" : `${images.length} posts`} como referência de
+        layout.
+      </p>
+      <div className="flex gap-1.5">
+        {images.map((image) => (
+          <ThreadImageThumb
+            key={image.imageId}
+            image={image}
+            accountId={accountId}
+            onOpen={() => setOpenId(image.imageId)}
+          />
+        ))}
+      </div>
+      <ThreadImageLightbox
+        accountId={accountId}
+        images={images}
+        selectedId={openId}
+        onSelect={setOpenId}
+        onClose={() => setOpenId(null)}
+      />
+    </div>
+  );
 }
 
 interface PaintedImageView {
@@ -542,9 +404,15 @@ export function PendingFirstMessage({
     <div className="flex flex-col gap-6">
       <UserMessage text={text} attachments={attachments} />
       <Message align="start">
-        {guide ? <CaetanoAvatar state="thinking" /> : null}
         <MessageContent>
-          <ThinkingMarker guide={guide} />
+          {guide ? (
+            <>
+              <CaetanoName state="think" still={false} />
+              <GuideWorking state="think" label="pensando" />
+            </>
+          ) : (
+            <ThinkingMarker />
+          )}
         </MessageContent>
       </Message>
     </div>
@@ -613,7 +481,6 @@ export function Conversation({
   actions,
   intro,
   guide = false,
-  done = false,
 }: {
   accountId: Id<"accounts">;
   threadId: string;
@@ -625,12 +492,10 @@ export function Conversation({
   };
   /** Quick replies shown just above the composer, aligned with the messages. */
   actions?: ReactNode;
-  /** Shown above the first message (the guide's title). */
+  /** Shown above the first message. */
   intro?: ReactNode;
-  /** The brand guide: Caetano is live in the chat and brand-file writes show as one line. */
+  /** The brand guide: Caetano's chat, where only his answers, his reading and the saved references show. */
   guide?: boolean;
-  /** The guide is complete (every part filled). */
-  done?: boolean;
 }) {
   // Optimistic: the user's text bubble renders the frame Enter is pressed, then
   // the server copy (including any image parts) replaces it after the round-trip.
@@ -706,34 +571,6 @@ export function Conversation({
   // Guide mode: only the newest assistant message carries Caetano's live pose.
   const lastMessage = visibleMessages.at(-1);
   const liveMessage = lastMessage?.role === "assistant" ? lastMessage : undefined;
-  const brandWrite = liveMessage ? toolPartsOf(liveMessage).findLast(isBrandWrite) : undefined;
-  const writing = brandWrite !== undefined && isRunning(brandWrite);
-  const brandWriteDone = brandWrite?.state === "output-available";
-
-  const talking =
-    streaming &&
-    (liveMessage?.parts.some((part) => part.type === "text" && part.text.trim()) ?? false);
-
-  // "Anotado" holds for a moment only when a write lands during this visit, not on history load.
-  const wasWriting = useRef(false);
-  const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    if (brandWriteDone && wasWriting.current) setSaved(true);
-
-    wasWriting.current = writing;
-  }, [brandWriteDone, writing]);
-
-  useEffect(() => {
-    if (!saved) return;
-
-    const id = window.setTimeout(() => setSaved(false), SAVED_MS);
-
-    return () => window.clearTimeout(id);
-  }, [saved]);
-
-  const guideStarted = guide && visibleMessages.some((message) => message.role === "user");
-  const caetanoState = guideStateOf({ working, done, writing, saved, talking });
 
   // Flip entrance animations on one frame after the first history paint.
   const [entranceReady, setEntranceReady] = useState(false);
@@ -749,7 +586,6 @@ export function Conversation({
       <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {guideStarted ? <GuideMobileBar accountId={accountId} /> : null}
             <MessageScrollerProvider autoScroll defaultScrollPosition="last-anchor">
               <div className="min-h-0 flex-1 overflow-hidden">
                 <MessageScroller>
@@ -798,16 +634,20 @@ export function Conversation({
                                   resourceManifests ?? [],
                                 )}
                                 guide={guide}
-                                live={message === liveMessage ? caetanoState : undefined}
+                                live={message === liveMessage && working}
                               />
                             </MessageScrollerItem>
                           ))}
                           {guide && working && lastMessage?.role !== "assistant" ? (
                             <MessageScrollerItem messageId="caetano-pending">
                               <Message align="start">
-                                <CaetanoAvatar state="thinking" />
                                 <MessageContent>
-                                  <ThinkingMarker guide reading={visibleMessages.length === 0} />
+                                  <CaetanoName state="read" still={false} />
+                                  {visibleMessages.length === 0 ? (
+                                    <GuideWorking state="read" label="lendo seu Instagram" />
+                                  ) : (
+                                    <GuideWorking state="think" label="pensando" />
+                                  )}
                                 </MessageContent>
                               </Message>
                             </MessageScrollerItem>
@@ -839,7 +679,6 @@ export function Conversation({
             />
           </div>
         </div>
-        {guideStarted ? <GuideStage accountId={accountId} /> : null}
       </div>
     </EntranceReadyContext.Provider>
   );
@@ -953,8 +792,8 @@ function ChatMessage({
   accountId: Id<"accounts">;
   resources: ThreadResource[];
   guide: boolean;
-  /** Caetano's live pose; undefined for every message but the newest in the guide. */
-  live?: CaetanoState | undefined;
+  /** The guide's newest message while Caetano still works on it. */
+  live?: boolean;
 }) {
   const enter = useEntranceOnMount();
   // Which of this turn's generated images is expanded in the lightbox.
@@ -1006,7 +845,10 @@ function ChatMessage({
   }
 
   const nothingYet = streaming && answers.length === 0 && traceRows.length === 0;
-  const readingInstagram = toolRows.some((part) => toolNameOf(part).startsWith("read_instagram_"));
+  const savedReferences = guide ? savedReferencesOf(toolRows) : [];
+  const activity = guideActivityOf(toolRows);
+  // Caetano shows what he is doing until his answer starts.
+  const guideWorking = guide && live === true && answers.length === 0;
 
   const manifestResources = resources.filter(
     (resource) =>
@@ -1017,24 +859,24 @@ function ChatMessage({
 
   return (
     <Message align="start" enter={enter}>
-      {guide ? <CaetanoAvatar state={live ?? "idle"} still={live === undefined} /> : null}
       <MessageContent>
+        {guide ? (
+          <CaetanoName state={guideWorking ? activity.state : "idle"} still={live !== true} />
+        ) : null}
+        {guideWorking ? <GuideWorking state={activity.state} label={activity.label} /> : null}
+        {savedReferences.length > 0 ? (
+          <GuideReferences accountId={accountId} images={savedReferences} />
+        ) : null}
         {!guide && toolRows.length > 0 ? (
           <ToolTrace parts={toolRows} running={toolRows.some(isRunning)} />
         ) : null}
-        {answers.map(({ key, text }) =>
-          guide ? (
-            <SpeechBubble key={key}>
+        {answers.map(({ key, text }) => (
+          <Bubble key={key} variant="ghost">
+            <BubbleContent>
               <StreamingText text={text} streaming={streaming} />
-            </SpeechBubble>
-          ) : (
-            <Bubble key={key} variant="ghost">
-              <BubbleContent>
-                <StreamingText text={text} streaming={streaming} />
-              </BubbleContent>
-            </Bubble>
-          ),
-        )}
+            </BubbleContent>
+          </Bubble>
+        ))}
         {guide ? <GuideTrace parts={traceRows} /> : null}
         {paintedImages.map((image) => (
           <ThreadImage
@@ -1054,7 +896,7 @@ function ChatMessage({
             onClose={() => setLightboxId(null)}
           />
         ) : null}
-        {nothingYet ? <ThinkingMarker guide={guide} reading={readingInstagram} /> : null}
+        {nothingYet && !guide ? <ThinkingMarker /> : null}
       </MessageContent>
     </Message>
   );
@@ -1068,33 +910,16 @@ function StreamingText({ text, streaming }: { text: string; streaming: boolean }
   return <Markdown components={colorComponents}>{markHexColors(visible)}</Markdown>;
 }
 
-/** Guide mode: the brand write is one quiet line; failures keep their row. */
+/** Guide mode: only failed tools keep a row; the rest is Caetano's working line. */
 function GuideTrace({ parts }: { parts: ToolPartView[] }) {
   if (parts.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-1">
-      {parts.map((part) =>
-        isBrandWrite(part) && part.state !== "output-error" ? (
-          <BrandWriteRow key={part.toolCallId ?? part.type} running={isRunning(part)} />
-        ) : (
-          <ToolRow key={part.toolCallId ?? part.type} part={part} />
-        ),
-      )}
+      {parts.map((part) => (
+        <ToolRow key={part.toolCallId ?? part.type} part={part} />
+      ))}
     </div>
-  );
-}
-
-function BrandWriteRow({ running }: { running: boolean }) {
-  return (
-    <Marker role={running ? "status" : undefined}>
-      <MarkerIcon>
-        {running ? <MarkerOrb state="composing" /> : <Check className="text-text-5" />}
-      </MarkerIcon>
-      <MarkerContent tone="muted" loading={running}>
-        {running ? "Anotando no seu guia da marca…" : "Anotado no seu guia da marca"}
-      </MarkerContent>
-    </Marker>
   );
 }
 

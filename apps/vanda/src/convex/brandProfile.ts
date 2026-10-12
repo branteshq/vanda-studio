@@ -2,9 +2,21 @@ import { createThread, saveMessage, updateThreadMetadata } from "@convex-dev/age
 import { v } from "convex/values";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
-import { brandFileContent, brandGuide, writeOnboardingBrandFile } from "./brandFile";
+import {
+  brandFileContent,
+  brandGuide,
+  confirmBrandGuesses,
+  saveBrandFile,
+  writeOnboardingBrandFile,
+} from "./brandFile";
 import { startThreadActivity } from "./chat";
 import { isPlatformTurn, platformTurn } from "./platformTurn";
 import { loadReferences } from "./references";
@@ -81,9 +93,9 @@ export const onboard = mutation({
 });
 
 /**
- * Caetano's brand guide thread for a business whose brand file still has gaps:
- * opened on first need, and again when the file was cleared after the owner
- * answered. Null when the file is complete.
+ * Caetano's brand guide thread until the owner approves his draft of the brand
+ * file: opened on first need, and again when the file was cleared after the
+ * owner answered. Null once the guide is done.
  */
 export const openGuide = mutation({
   args: { accountId: v.id("accounts") },
@@ -91,12 +103,16 @@ export const openGuide = mutation({
     const account = await requireOwnedAccount(ctx, accountId);
 
     const sections = await guideSections(ctx, accountId);
-
-    if (sections.every((section) => section.filled)) return null;
-
-    const threadId = account.brandGuideThreadId;
     // A cleared file restarts only a thread the owner already answered in; an untouched one is reused.
     const cleared = sections.every((section) => !section.filled);
+
+    if (account.brandGuideDoneAt !== undefined) {
+      if (!cleared) return null;
+      // The owner emptied an approved file: the guide starts over.
+      await ctx.db.patch(accountId, { brandGuideDoneAt: undefined });
+    }
+
+    const threadId = account.brandGuideThreadId;
 
     if (threadId !== undefined) {
       const page = cleared
@@ -118,6 +134,39 @@ export const openGuide = mutation({
     }
 
     return openGuideThread(ctx, accountId);
+  },
+});
+
+/**
+ * The owner approved Caetano's draft in the guide thread: his (Vanda) guesses
+ * become (dono) and the guide ends (the onboarding page shows "Guia pronto.").
+ * Only the account's guide thread may end it.
+ */
+export const finishGuide = internalMutation({
+  args: { accountId: v.id("accounts"), threadId: v.string() },
+  handler: async (
+    ctx,
+    { accountId, threadId },
+  ): Promise<{ ok: true; confirmed: number } | { ok: false; error: string }> => {
+    const account = await ctx.db.get(accountId);
+
+    if (!account || account.brandGuideThreadId !== threadId) {
+      return { ok: false, error: "só a conversa do guia da marca pode encerrar o guia" };
+    }
+
+    const { content, confirmed } = confirmBrandGuesses(await brandFileContent(ctx, accountId));
+
+    if (confirmed > 0) {
+      const saved = await saveBrandFile(ctx, accountId, content, "vanda");
+
+      if (!saved.ok) return { ok: false, error: saved.error };
+    }
+
+    if (account.brandGuideDoneAt === undefined) {
+      await ctx.db.patch(accountId, { brandGuideDoneAt: Date.now() });
+    }
+
+    return { ok: true, confirmed };
   },
 });
 

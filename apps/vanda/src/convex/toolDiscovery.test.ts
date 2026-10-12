@@ -102,6 +102,7 @@ describe("role-specific discovery", () => {
     "autopilot_save_plan",
     "autopilot_skip_slot",
     "autopilot_update_slot",
+    "brand_guide_finish",
     "cancel_schedule",
     "delete_post",
     "extend_infinite_carousel",

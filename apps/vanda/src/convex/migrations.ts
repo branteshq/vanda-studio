@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import type { FunctionReference } from "convex/server";
 import { internal } from "./_generated/api";
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
-import { ensureBrandFile } from "./brandFile";
+import { brandFileContent, brandGuide, ensureBrandFile } from "./brandFile";
 import { currentPostType } from "./pipeline/constants";
 import { referenceLabelsOf } from "./references";
 
@@ -38,6 +38,7 @@ const MIGRATIONS: ReadonlyArray<{ name: string; page: MigrationPage }> = [
   { name: "brandFiles", page: internal.migrations.brandFiles },
   { name: "usageCategories", page: internal.migrations.usageCategories },
   { name: "referenceLabels", page: internal.migrations.referenceLabels },
+  { name: "brandGuideDone", page: internal.migrations.brandGuideDone },
 ];
 
 /** Legacy `feed` meant carousel: rewrite it to `carousel` (2+ images) or `image` (1 image). */
@@ -112,6 +113,31 @@ export const referenceLabels = internalMutation({
         referenceAddedBy: "owner",
         referenceSource: "enviada",
       });
+      migrated++;
+    }
+
+    return { migrated, cursor: page.isDone ? null : page.continueCursor };
+  },
+});
+
+/**
+ * The guide used to end once every section had an item; now it ends when the
+ * owner approves. Accounts whose file was already complete keep it ended, so
+ * reconnecting never sends them back to the guide.
+ */
+export const brandGuideDone = internalMutation({
+  args: { cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, { cursor }): Promise<{ migrated: number; cursor: string | null }> => {
+    const page = await ctx.db.query("accounts").paginate({ cursor, numItems: BRAND_FILE_BATCH });
+    let migrated = 0;
+
+    for (const account of page.page) {
+      if (account.brandGuideDoneAt !== undefined || account.onboardedAt === undefined) continue;
+
+      const sections = brandGuide(await brandFileContent(ctx, account._id));
+
+      if (!sections.every((section) => section.filled)) continue;
+      await ctx.db.patch(account._id, { brandGuideDoneAt: account.onboardedAt });
       migrated++;
     }
 

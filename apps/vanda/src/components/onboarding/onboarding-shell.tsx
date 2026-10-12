@@ -1,23 +1,5 @@
 import type { ReactNode } from "react";
-import { StatusRing } from "@vanda-studio/ui/components/status-ring";
-import { cn } from "@vanda-studio/ui/lib/utils";
-import { OrchidAperture } from "../orchid-aperture";
 import { VandaMark } from "../vanda-mark";
-
-type OnboardingStep = "conectar" | "conversar";
-
-type RingState = "done" | "active" | "pending";
-
-const STEPS: { key: OnboardingStep; label: string }[] = [
-  { key: "conectar", label: "Conectar" },
-  { key: "conversar", label: "Conversar" },
-];
-
-const LABEL_COLOR: Record<RingState, string> = {
-  active: "text-text-2",
-  done: "text-text-3",
-  pending: "text-text-5",
-};
 
 /** The Vanda lockup: orchid mark + wordmark, shared across every onboarding frame. */
 export function OnboardingHeader() {
@@ -32,65 +14,24 @@ export function OnboardingHeader() {
   );
 }
 
-/** Conectar · Conversar, with rings: done / active / pending. */
-export function StepIndicator({ current }: { current: OnboardingStep }) {
-  const currentIndex = STEPS.findIndex((step) => step.key === current);
-
+/** The top of every onboarding screen: the lockup, and an optional way out on the right. */
+export function OnboardingTop({ children }: { children?: ReactNode }) {
   return (
-    <div className="hidden items-center gap-2 sm:flex">
-      {STEPS.map((step, index) => {
-        const state: RingState =
-          index < currentIndex ? "done" : index === currentIndex ? "active" : "pending";
-
-        return (
-          <div key={step.key} className="flex items-center gap-2">
-            {index > 0 ? <span className="h-px w-5 bg-border" /> : null}
-            <span className="flex items-center gap-1.5">
-              <StatusRing state={state} />
-              <span className={cn("text-xs", LABEL_COLOR[state])}>{step.label}</span>
-            </span>
-          </div>
-        );
-      })}
-    </div>
+    <header className="flex h-13 shrink-0 items-center justify-between gap-4 px-5">
+      <OnboardingHeader />
+      {children}
+    </header>
   );
 }
 
-/**
- * The login-continuity split: a calm content column on the left, the orchid
- * aperture blooming on the right. Used by Connect. The aperture caption labels the moment.
- */
-export function OnboardingSplit({
-  current,
-  aperture,
-  children,
-}: {
-  current: OnboardingStep;
-  aperture: { caption: string; sub?: string };
-  children: ReactNode;
-}) {
+/** A full-screen moment outside the chat (Conectar, Guia pronto): Caetano, one line, one button. */
+export function OnboardingCenter({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-svh overflow-hidden bg-app text-text antialiased">
-      <div className="relative flex w-full shrink-0 flex-col border-r border-border px-6 py-9 sm:px-12 lg:w-1/2 lg:max-w-180">
-        <div className="flex items-center justify-between gap-4">
-          <OnboardingHeader />
-          <StepIndicator current={current} />
-        </div>
-        <div className="flex flex-1 flex-col justify-center py-10">
-          <div className="w-full max-w-105">{children}</div>
-        </div>
-        <p className="text-caption text-text-5">© 2026 Vanda Studio</p>
-      </div>
-
-      <div className="relative hidden flex-1 items-center justify-center overflow-hidden bg-inset lg:flex">
-        <div className="relative z-10 size-130 max-w-4/5">
-          <OrchidAperture />
-        </div>
-        <div className="absolute right-8 bottom-8 text-right">
-          <p className="text-body-sm text-text-4">{aperture.caption}</p>
-          {aperture.sub ? <p className="mt-1 text-caption text-text-5">{aperture.sub}</p> : null}
-        </div>
-      </div>
+    <div className="flex min-h-svh flex-col bg-app text-text antialiased">
+      <OnboardingTop />
+      <main className="flex flex-1 items-center justify-center px-6 pb-13">
+        <div className="flex w-full max-w-105 flex-col items-center text-center">{children}</div>
+      </main>
     </div>
   );
 }
