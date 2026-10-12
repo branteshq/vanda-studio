@@ -426,3 +426,39 @@ describe("post skill ranking", () => {
     if (query.includes("infinito")) expect(names).toContain("post-type-infinite-carousel");
   });
 });
+
+describe("ad format skill ranking", () => {
+  // "nós" is a stop word, so without the name phrase "nós vs nós" only searched "vs".
+  it.each([
+    [
+      "post-production post tipo image propósito storytelling nós vs nós cafeteria",
+      "post-ad-nos-vs-nos",
+    ],
+    [
+      "post-production post tipo image propósito produto formato nós vs eles",
+      "post-ad-nos-vs-eles",
+    ],
+    [
+      "post-production post tipo image propósito educacional formato de anúncio tier list",
+      "post-ad-tier-list",
+    ],
+    [
+      "post-production post tipo image propósito produto formato de anúncio notas do iPhone",
+      "post-ad-notas-do-iphone",
+    ],
+  ])("offers the named ad format for %s", async (query, format) => {
+    const result = await vandaToolDiscovery.search.execute!(
+      { query },
+      { toolCallId: "search", messages: [] },
+    );
+
+    const names = z
+      .object({ skills: z.array(z.object({ name: z.string() })) })
+      .parse(result)
+      .skills.map((skill) => skill.name);
+
+    expect(names).toContain(format);
+    expect(names.find((name) => name.startsWith("post-ad-"))).toBe(format);
+    expect(names).toContain("post-production");
+  });
+});
