@@ -390,7 +390,7 @@ export async function loadBrandFile(ctx: QueryCtx, accountId: Id<"accounts">) {
 /** Each image the content links as `![…](image:<id>)`, with its row when it belongs to the account (null for a foreign or unknown id). */
 const linkedImages = (ctx: QueryCtx, accountId: Id<"accounts">, content: string) =>
   Promise.all(
-    [...new Set([...content.matchAll(/\(image:([a-z0-9]+)\)/g)].map((match) => match[1]!))].map(
+    [...new Set([...content.matchAll(/\(image:([^)\s]*)\)/g)].map((match) => match[1]!))].map(
       async (imageId) => {
         const id = ctx.db.normalizeId("images", imageId);
         const image = id ? await ctx.db.get(id) : null;
@@ -442,7 +442,7 @@ export async function ensureBrandFile(
   return true;
 }
 
-/** Onboarding's Instagram read opens the brand file, replacing a retry's earlier one. */
+/** Onboarding opens the brand file, replacing a retry's earlier one. */
 export async function writeOnboardingBrandFile(
   ctx: MutationCtx,
   accountId: Id<"accounts">,

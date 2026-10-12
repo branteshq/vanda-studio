@@ -216,6 +216,8 @@ describe("brand file images, get and guide", () => {
       error: expect.stringContaining("não é desta conta"),
     });
     expect((await save("naoexiste")).ok).toBe(false);
+    // A placeholder for an image that never arrived is not a link either.
+    expect((await save("ANEXO_NAO_DISPONIVEL")).ok).toBe(false);
     expect((await save(own)).ok).toBe(true);
   });
 
