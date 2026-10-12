@@ -7,7 +7,7 @@ allowed-tools: paint create_post
 # Formato de anúncio: truque 101
 
 - Objetivo: ensinar uma dica simples, confirmada pelo dono ou pela marca, legível no feed.
-- Herói: o item que a dica usa, escolhido pelo pedido e pelo arquivo da marca: produto, prato, peça, pessoa, lugar ou objeto-símbolo do serviço (calendário, chave). Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela. Sem foto, descreva só o que o dono confirmou.
+- Herói: o item que a dica usa, escolhido pelo pedido e pelo arquivo da marca: produto, prato, peça, pessoa, lugar ou objeto-símbolo do serviço (calendário, chave). Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (se o dono pedir para manter a foto e só mudar fundo ou estilo, edite-a com editOfImageId). Pessoa real só com foto dela. Sem foto, descreva só o que o dono confirmou.
 - Adaptação (os ícones dos passos vêm do mundo do herói): cafeteria, grão, moedor e xícara; banco, papel, lápis e calendário, nunca cédula ou gráfico; oficina, chave, parafuso e filtro; dentista, escova, fio dental e relógio; loja de roupas, cabide, dobra e etiqueta; escola, caderno, lápis e régua.
 - Composição: de cima para baixo: (1) título quase na largura toda, o maior texto; (2) [HERO] inteiro à esquerda, um terço da arte, sem mão ou uso; (3) à direita, dois ou três passos em faixas iguais, cada um com número grande em círculo (o dobro da linha do passo), ícone e linha curta; (4) nome e assinatura pequenos na base.
 - Texto: título "Truque 101: <dica em até 6 palavras>"; cada passo com número e linha de até 4 palavras, em uma linha só; nome exato do item e assinatura na base, menores que os passos. Nenhum outro texto.

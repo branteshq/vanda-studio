@@ -7,7 +7,7 @@ allowed-tools: paint create_post
 # Formato de anúncio: você pode evitar
 
 - Objetivo: mostrar uma escolha cotidiana evitável e a alternativa, sem medo.
-- Herói: o que representa a oferta neste post, pelo pedido e pelo arquivo da marca: produto, prato, pessoa, lugar ou objeto-símbolo do serviço (cartão, chave, ferramenta). Com foto do dono, use referenceImageIds; editOfImageId só corrige a peça gerada. Pessoa real só com foto dela. Sem foto, descreva só o confirmado.
+- Herói: o que representa a oferta neste post, pelo pedido e pelo arquivo da marca: produto, prato, pessoa, lugar ou objeto-símbolo do serviço (cartão, chave, ferramenta). Com foto do dono, use referenceImageIds e gere imagem nova; se ele pedir para manter a foto e só mudar fundo ou estilo, edite-a com editOfImageId. Pessoa real só com foto dela. Sem foto, descreva só o confirmado.
 - Adaptação (objetos neutros que mudam com o negócio): café, copos descartáveis e cápsulas vazias; banco, faturas e envelopes fechados; conserto, peças gastas e fita adesiva; roupa, peças amassadas e cabides tortos; escola, cadernos com folhas soltas e lápis sem ponta; serviço, ferramenta ou cartão confirmado pelo dono.
 - Composição: duas metades com divisão vertical limpa. Esquerda: só objetos ou ícones neutros, sem pessoa. Direita: o [HERO] inteiro, cerca de 60% da peça. Título no topo, apoio abaixo, assinatura pequena no rodapé. Herói sem objeto: símbolo do serviço combinado com o dono, sem tela de app ou logo de terceiros.
 - Texto: título "Você pode evitar" e a situação, até 14 palavras, é o maior texto. Apoio com a alternativa, até 8 palavras, sem caixa ou botão. Assinatura menor. Sem preço, prazo, telefone ou CTA.

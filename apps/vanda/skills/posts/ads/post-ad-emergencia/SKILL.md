@@ -7,7 +7,7 @@ allowed-tools: paint create_post
 # Formato de anúncio: emergência
 
 - Objetivo: parar a rolagem com urgência publicitária, nunca com cara de alerta.
-- Herói: o que representa a oferta, pelo pedido e pelo arquivo da marca: produto, prato, pessoa, lugar ou objeto-símbolo do serviço. Com foto do dono, passe-a em referenceImageIds e gere imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela. Sem foto, descreva só o que o dono confirmou.
+- Herói: o que representa a oferta, pelo pedido e pelo arquivo da marca: produto, prato, pessoa, lugar ou objeto-símbolo do serviço. Com foto do dono, passe-a em referenceImageIds e gere imagem nova (se o dono pedir para manter a foto e só mudar fundo ou estilo, edite-a com editOfImageId). Pessoa real só com foto dela. Sem foto, descreva só o que o dono confirmou.
 - Adaptação (o herói muda; faixas e chamada não): café ou restaurante, a bebida ou o prato; beleza, a peça de cuidado; reparos, peça ou ferramenta do serviço; clínica, instrumento simples, sem corpo nem resultado; loja de roupas, peça dobrada; escola, livro ou lápis; app, símbolo gráfico neutro, sem tela.
 - Composição: duas ou três faixas diagonais sólidas (cerca de 25°) em cores de contraste da marca. Chamada no topo, 80% da largura. [HERO] intacto no centro, 40% da altura, sobre uma faixa. Nome e preço em bloco de contraste abaixo, se houver. CTA em faixa isolada; assinatura pequena embaixo.
 - Texto: cada trecho uma vez. Chamada de 2 a 5 palavras, o maior texto. Nome e preço, o segundo. CTA de até 6 palavras, com verbo. Assinatura, o menor.

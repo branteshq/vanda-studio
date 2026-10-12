@@ -7,7 +7,7 @@ allowed-tools: paint create_post
 # Formato de anúncio: rabisco
 
 - Objetivo: conceito leve; rabiscos à mão levam o olhar ao herói.
-- Herói: o que representa a oferta: produto, prato, pessoa, lugar ou objeto-símbolo do serviço (cartão, chave), desenhado à mão quando for serviço. Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela. Sem foto, só o que o dono confirmou.
+- Herói: o que representa a oferta: produto, prato, pessoa, lugar ou objeto-símbolo do serviço (cartão, chave), desenhado à mão quando for serviço. Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (se o dono pedir para manter a foto e só mudar fundo ou estilo, edite-a com editOfImageId). Pessoa real só com foto dela. Sem foto, só o que o dono confirmou.
 - Adaptação (os rabiscos mudam com o negócio): comida e bebida, vapor ou gotas no lugar da linha de movimento; beleza e moda, traços de brilho e pétalas; reparos e indústria, faíscas e parafusos desenhados; finanças, cartão, documento ou cadeado desenhado, nunca cédulas ou moedas; educação, lápis e livro; tecnologia, aparelho desenhado, sem app ou marca.
 - Composição: papel claro liso. Herói no centro, nítido, de metade a dois terços da altura. Em volta, de dois a quatro rabiscos em tinta preta: uma seta curva para o herói e, no máximo, uma linha de movimento e uma estrelinha, no espaço vazio, sem tocar o herói, dentro da margem de 7%. Serviço sem objeto: ícone desenhado à mão, sem app, marca ou pessoa.
 - Texto: até três blocos. Nome do herói no topo, letra grossa, até 4 palavras (o maior). Frase manuscrita de até 6 palavras, só se o dono a deu. Preço ou condição sob o herói. Assinatura pequena no rodapé. Nenhum outro texto.

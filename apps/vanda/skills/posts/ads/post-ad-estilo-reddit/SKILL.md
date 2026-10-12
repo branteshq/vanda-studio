@@ -7,7 +7,7 @@ allowed-tools: paint create_post
 # Formato de anúncio: estilo Reddit
 
 - Objetivo: relato real de cliente ou comentário, sem imitar plataforma.
-- Herói: o que representa a oferta neste post, escolhido pelo pedido e pelo arquivo da marca: produto, prato ou objeto-símbolo do serviço (ferramenta, chave, documento). Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela; sem foto, descreva só o que o dono confirmou.
+- Herói: o que representa a oferta neste post, escolhido pelo pedido e pelo arquivo da marca: produto, prato ou objeto-símbolo do serviço (ferramenta, chave, documento). Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (se o dono pedir para manter a foto e só mudar fundo ou estilo, edite-a com editOfImageId). Pessoa real só com foto dela; sem foto, descreva só o que o dono confirmou.
 - Adaptação: etiqueta, citação e item ao lado mudam com o negócio. Café: "CLIENTE DA CASA", xícara. Clínica: "PACIENTE", escova ou espelho odontológico, sem paciente visível. Banco: "COMUNIDADE", chave ou cofre simbólico, sem números nem tela de app. Conserto: "CLIENTE", peça consertada. Roupa: "AVALIAÇÃO", peça dobrada. Escola: "ALUNO", caderno e lápis.
 - Composição: cartão branco, cantos arredondados, 70% da largura, sobre fundo claro e opaco. De cima para baixo: cabeçalho cinza sem letras, etiqueta pequena em caixa-alta, citação grande, atribuição pequena. [HERO] ao lado ou abaixo do cartão, em 25% da peça, sem tocar o cartão.
 - Texto: etiqueta opcional, até 4 palavras; citação exata do autorizado, até 25 palavras, a maior letra da peça; atribuição curta, sem @ nem nome de usuário; assinatura da marca no canto. Relato longo: uma frase.

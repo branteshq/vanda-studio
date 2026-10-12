@@ -7,7 +7,7 @@ allowed-tools: paint create_post
 # Formato de anúncio: alerta de estoque baixo
 
 - Objetivo: disponibilidade real com cara de última chance; a faixa lê primeiro.
-- Herói: o que representa a oferta limitada, escolhido pelo pedido e pelo arquivo da marca: produto, prato, pessoa ou objeto-símbolo do serviço (cartão, chave, vaga). Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela. Sem foto, descreva só o que o dono confirmou.
+- Herói: o que representa a oferta limitada, escolhido pelo pedido e pelo arquivo da marca: produto, prato, pessoa ou objeto-símbolo do serviço (cartão, chave, vaga). Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (se o dono pedir para manter a foto e só mudar fundo ou estilo, edite-a com editOfImageId). Pessoa real só com foto dela. Sem foto, descreva só o que o dono confirmou.
 - Adaptação: roupa, a peça ou tamanho que sobrou; café e padaria, o pacote do lote; bebida, a garrafa do lote; oficina, a ferramenta e as vagas da semana; escola, o caderno da turma e as vagas; banco, o cartão físico, com limite confirmado. Em todos, faixa e CTA na cor de alerta; fundo na cor da marca.
 - Composição: fundo chapado e saturado. Faixa de largura total, sem cantos arredondados, no terço superior (25% da altura). [HERO] inteiro e nítido no centro (40% da altura), sem cenário, sobre superfície lisa. Na base: apoio, CTA isolado em barra e assinatura.
 - Texto: cada trecho uma vez. Faixa, a maior (até 6 palavras: quantidade ou condição confirmada). Apoio, menor (até 10 palavras: item, lote ou prazo, preço exato). CTA com verbo, até 4 palavras. Assinatura: a marca.

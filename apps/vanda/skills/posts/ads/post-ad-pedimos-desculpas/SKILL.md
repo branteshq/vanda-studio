@@ -7,7 +7,7 @@ allowed-tools: paint create_post
 # Formato de anúncio: pedimos desculpas
 
 - Objetivo: apresentar o item ou serviço num pedido de desculpas bem-humorado, cujo motivo é um exagero simpático do negócio.
-- Herói: o que representa a oferta neste post, pelo pedido e pelo arquivo da marca: produto, prato, pessoa, lugar ou objeto-símbolo do serviço. Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela. Sem foto, use só o que o dono confirmou.
+- Herói: o que representa a oferta neste post, pelo pedido e pelo arquivo da marca: produto, prato, pessoa, lugar ou objeto-símbolo do serviço. Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (se o dono pedir para manter a foto e só mudar fundo ou estilo, edite-a com editOfImageId). Pessoa real só com foto dela. Sem foto, use só o que o dono confirmou.
 - Adaptação (o motivo e o herói mudam com o negócio): cafeteria, o café é tão bom que pedimos desculpas por viciar; oficina, o conserto saiu tão rápido que não deu tempo de tomar um café; loja de roupas, a peça veste tão bem que pedimos desculpas pelos elogios; banco ou app, a aprovação é tão rápida que pedimos desculpas por isso. Serviço sem objeto: use um símbolo dele.
 - Composição: fundo liso de cor única, da marca ou claro. Manchete grande no terço superior, ~70% da largura; subtítulo menor, centralizado, abaixo; [HERO] inteiro no centro inferior, ~30% da altura, em cor que contraste com o fundo; até dois traços de destaque; assinatura no rodapé.
 - Texto: três trechos, uma vez cada. Manchete "Pedimos desculpas", a maior. Subtítulo com o motivo, até 14 palavras, no máximo duas linhas. Assinatura da marca, a menor.

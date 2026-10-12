@@ -7,7 +7,7 @@ allowed-tools: paint create_post
 # Formato de anúncio: notas do iPhone
 
 - Objetivo: parecer anotação rápida de celular, recomendação pessoal e casual de qualquer oferta.
-- Herói: opcional. Item físico (produto, prato, peça, ferramenta) é o herói; serviço não tem herói. Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela. Sem foto, descreva só o que o dono confirmou.
+- Herói: opcional. Item físico (produto, prato, peça, ferramenta) é o herói; serviço não tem herói. Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (se o dono pedir para manter a foto e só mudar fundo ou estilo, edite-a com editOfImageId). Pessoa real só com foto dela. Sem foto, descreva só o que o dono confirmou.
 - Adaptação (título, itens e herói mudam com o negócio): café, "Pedidos favoritos", bebidas ou pratos confirmados, herói um copo real. Clínica, "Antes da consulta", orientações confirmadas, sem herói. Oficina, "Checklist do carro", serviços confirmados, herói uma peça pequena. Loja de roupas, "Looks da semana", peças e tamanhos, herói uma peça dobrada. Banco, "Dicas úteis", condições confirmadas, sem herói e sem cédulas.
 - Composição: uma nota genérica, de frente, ocupando 70% a 80% da peça, cantos arredondados, fundo claro. Sem moldura, mão, barra de status ou ícones. Fundo liso, sem cena. Título no topo, à esquerda; abaixo, a lista com bolinhas simples. [HERO] físico: pequeno (até 1/4 da peça), num canto, sem cobrir texto. Sem herói, apague a frase do herói no prompt.
 - Texto: título de até quatro palavras, o maior texto (o dobro da lista); três a cinco itens de até cinco palavras, uma por linha; assinatura pequena com o nome da marca.

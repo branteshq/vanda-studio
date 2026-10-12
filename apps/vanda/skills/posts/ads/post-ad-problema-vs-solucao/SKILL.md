@@ -7,7 +7,7 @@ allowed-tools: paint create_post
 # Formato de anúncio: problema vs solução
 
 - Objetivo: mostrar num olhar o problema do dia a dia e a solução da marca.
-- Herói: o item cujo estado muda entre os painéis, escolhido pelo pedido e pelo arquivo da marca: prato, objeto do dia a dia ou objeto-símbolo do serviço (aparelho, documento, chave). Com foto, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela.
+- Herói: o item cujo estado muda entre os painéis, escolhido pelo pedido e pelo arquivo da marca: prato, objeto do dia a dia ou objeto-símbolo do serviço (aparelho, documento, chave). Com foto, passe-a em referenceImageIds e gere uma imagem nova (se o dono pedir para manter a foto e só mudar fundo ou estilo, edite-a com editOfImageId). Pessoa real só com foto dela.
 - Adaptação: café ou restaurante, prato derramado, depois servido inteiro; reparos, aparelho aberto com peças soltas, depois montado; finanças, papéis espalhados, depois organizados numa pasta na cor da marca (nunca cédulas); roupas, peça amassada, depois passada num cabide; escola, caderno com folhas soltas, depois organizado; tecnologia, cabos emaranhados, depois o aparelho limpo (nunca tela de app).
 - Composição: dois painéis iguais (4:5 ou 1:1), divisória vertical nítida. Mesma cena e luz; muda só o estado do [HERO]. Faixa no topo de cada painel; frase abaixo. Problema: [HERO] desmontado ou fora do lugar. Solução: o mesmo [HERO] inteiro e limpo, no centro, cerca de 60% do painel.
 - Texto: faixas "PROBLEMA" e "SOLUÇÃO" (maiores); frase de cada lado, até 8 palavras; ressalva e assinatura nunca abaixo da metade da frase.

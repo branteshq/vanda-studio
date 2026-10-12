@@ -7,7 +7,7 @@ allowed-tools: paint create_post
 # Formato de anúncio: efeito colateral
 
 - Objetivo: gancho de humor com cara de aviso; a consequência leve é piada, nunca alerta.
-- Herói: o que representa a oferta, pelo pedido e pelo arquivo da marca: produto, prato, pessoa, lugar ou objeto-símbolo do serviço. Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela. Sem foto, descreva só o confirmado.
+- Herói: o que representa a oferta, pelo pedido e pelo arquivo da marca: produto, prato, pessoa, lugar ou objeto-símbolo do serviço. Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (se o dono pedir para manter a foto e só mudar fundo ou estilo, edite-a com editOfImageId). Pessoa real só com foto dela. Sem foto, descreva só o confirmado.
 - Adaptação (detalhe cômico do mundo do herói): café, calda respingada na lapela e guardanapo em forma de chapéu; clínica, sorriso exagerado com escova ou cartão de agenda, sem sintomas; loja de roupas, etiqueta de provador na manga e cabide no casaco; reparo, faísca de solda em forma de confete e serragem no ombro; finanças, folhas de papel e bilhetes na cor da marca, nunca cédulas.
 - Composição: 4:5, fundo opaco claro e liso. Pessoa fictícia adulta em meio-busto, ~60% da altura à esquerda, expressão divertida, olhando para o título. [HERO] embaixo, nítido, ~um quarto da largura. Título no terço superior direito, nunca sobre rosto ou herói. Assinatura pequena embaixo. Serviço: objeto-símbolo em uso.
 - Texto: título, o maior, até 8 palavras: "Efeito colateral: <consequência leve>." Apoio, menor, até 6 palavras, só se confirmado ou nenhum. Assinatura: marca, pequena. Nenhum outro texto.

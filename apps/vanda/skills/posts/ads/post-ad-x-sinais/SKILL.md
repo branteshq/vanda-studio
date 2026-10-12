@@ -7,7 +7,7 @@ allowed-tools: paint create_post
 # Formato de anúncio: X sinais
 
 - Objetivo: ensinar de 3 a 5 sinais de uma situação ("3 sinais de que…"), com o herói como resposta.
-- Herói: o que resolve a situação, pelo pedido e pelo arquivo da marca: produto, peça, aparelho, prato, cartão ou, em serviço, um objeto que o represente. Com foto do dono, passe-a em referenceImageIds e gere imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela. Sem foto, só o que o dono confirmou.
+- Herói: o que resolve a situação, pelo pedido e pelo arquivo da marca: produto, peça, aparelho, prato, cartão ou, em serviço, um objeto que o represente. Com foto do dono, passe-a em referenceImageIds e gere imagem nova (se o dono pedir para manter a foto e só mudar fundo ou estilo, edite-a com editOfImageId). Pessoa real só com foto dela. Sem foto, só o que o dono confirmou.
 - Adaptação: os desenhos vêm do negócio. Café: grão, filtro e gota. Conserto: gota, engrenagem e filtro. Loja de roupas: botão, costura e barra. Escola: lápis, livro e relógio. Banco: folha, cadeado e gráfico na cor da marca. Consultório: agenda ou dente, com sinais confirmados pela marca.
 - Composição: título com o número no terço superior, maior texto. Abaixo, uma coluna: cada sinal tem círculo numerado, frase ao lado e desenho simples do mesmo tamanho. [HERO] no terço inferior, menor que o título: objeto inteiro ou, em serviço, só o nome.
 - Texto: título "N sinais de que…", até 9 palavras, N igual à quantidade de sinais; cada sinal numa linha, até 6 palavras; [HERO NAME] em até 4 palavras; assinatura pequena. Nenhum outro texto. Com 4 ou 5 sinais, some [SIGN 4] e [SIGN 5].

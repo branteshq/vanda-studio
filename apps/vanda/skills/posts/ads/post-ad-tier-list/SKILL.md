@@ -7,7 +7,7 @@ allowed-tools: paint create_post
 # Formato de anúncio: tier list
 
 - Objetivo: classificar itens da mesma categoria em faixas S, A e B, por um critério da marca.
-- Herói: o que representa cada item neste post, pelo pedido e pelo arquivo da marca: produto, prato, serviço, lugar ou pessoa. Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela. Sem foto, descreva só o que o dono confirmou.
+- Herói: o que representa cada item neste post, pelo pedido e pelo arquivo da marca: produto, prato, serviço, lugar ou pessoa. Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (se o dono pedir para manter a foto e só mudar fundo ou estilo, edite-a com editOfImageId). Pessoa real só com foto dela. Sem foto, descreva só o que o dono confirmou.
 - Mundo do herói (a mini foto de cada item): café, a bebida no balcão; oficina, a peça com serragem ou faíscas; clínica, o instrumento em luz limpa; loja de roupas, a peça dobrada; banco, cartão ou documento sobre mesa clara, sem cédulas nem gráficos; escola, caderno; app, um objeto físico que representa a função, nunca tela de terceiros.
 - Composição: título do critério no terço superior, apoio menor abaixo. Três faixas iguais, empilhadas, em metade da peça, S no topo. Em cada faixa: bloco colorido à esquerda com a letra; nome do item ao lado; à direita, mini foto do [HERO] no seu mundo. Cor forte em S, clara em B, letra escura na clara. Assinatura pequena embaixo.
 - Texto: Título (até 6 palavras, o maior) com as palavras do critério da marca; apoio (até 5 palavras); letra de cada faixa, maior que o nome; nome do item (até 4 palavras); assinatura.

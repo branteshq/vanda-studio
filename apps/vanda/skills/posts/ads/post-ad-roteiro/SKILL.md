@@ -7,7 +7,7 @@ allowed-tools: paint create_post
 # Formato de anúncio: roteiro
 
 - Objetivo: o gesto de polegar e indicador quase encostados, a um passo da escolha.
-- Herói: o que representa a oferta neste post, escolhido pelo pedido e pelo arquivo da marca: produto, prato, objeto-símbolo do serviço ou elemento limpo do lugar. Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela.
+- Herói: o que representa a oferta neste post, escolhido pelo pedido e pelo arquivo da marca: produto, prato, objeto-símbolo do serviço ou elemento limpo do lugar. Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (se o dono pedir para manter a foto e só mudar fundo ou estilo, edite-a com editOfImageId). Pessoa real só com foto dela.
 - Mundo do herói (o item ao lado da mão): comida, o prato ou a xícara do cardápio; beleza, o item da marca sem modelo; saúde, um instrumento limpo, sem promessa de resultado; reparos, a peça ou a ferramenta; finanças, um cartão ou símbolo na cor da marca (nunca cédulas ou gráficos); educação, o caderno ou o livro.
 - Composição: mão inteira em primeiro plano, no terço direito, dedos dentro da moldura; vão pequeno e visível entre polegar e indicador, sem segurar nada. [HERO] inteiro ao lado da mão, menor que ela, em três quartos; sem objeto, um elemento limpo do serviço, sem pessoas. Fundo claro e liso. Frase grande no terço superior, à esquerda.
 - Texto: uma chamada curta e exata (ex.: "Você está a um passo"), o maior texto do quadro. No máximo três blocos: frase, condição ou CTA (se houver) e assinatura. Sem caixa de preço, selo ou botão. Sem etapas, setas ou números.
