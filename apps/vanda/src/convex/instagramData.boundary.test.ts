@@ -3,6 +3,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { internal } from "./_generated/api";
 import { apifyInstagramCostUsd } from "./instagram/costs";
+import { capabilityResultSchema } from "./resourceRefs";
 import { makeInstagramTools } from "./tools/instagram";
 import schema from "./schema";
 
@@ -157,6 +158,88 @@ describe("Instagram observation cache and workspace", () => {
     if (!file.ok || file.file.kind !== "text") throw new Error("expected workspace observation");
     expect(JSON.parse(file.file.text).data).toEqual(payload);
     expect(cached.payload).toEqual(payload);
+  });
+
+  it("shows the post images to the agent only when asked", async () => {
+    const { t, accountId } = await setup();
+
+    const posts = [
+      {
+        id: "media-1",
+        url: "https://instagram.com/p/a",
+        mediaType: "image",
+        mediaUrl: "https://cdn.example.com/a.jpg",
+        publicEngagement: {},
+      },
+      {
+        id: "media-2",
+        url: "https://instagram.com/p/b",
+        mediaType: "video",
+        mediaUrl: "https://cdn.example.com/b.mp4",
+        thumbnailUrl: "https://cdn.example.com/b.jpg",
+        publicEngagement: {},
+      },
+      {
+        id: "media-3",
+        url: "https://instagram.com/p/c",
+        mediaType: "video",
+        mediaUrl: "https://cdn.example.com/c.mp4",
+        publicEngagement: {},
+      },
+    ];
+
+    const run = async () => ({
+      data: posts,
+      savedTo: "/instagram/self/posts.json",
+      cached: false,
+      source: "upload_post" as const,
+      completeness: "complete" as const,
+      observedAt: Date.now(),
+    });
+
+    const tools = makeInstagramTools({
+      searchProfiles: run,
+      readProfile: run,
+      listPosts: run,
+      readPost: run,
+      listComments: run,
+      readMetrics: run,
+    });
+
+    const tool = Object.assign(tools.read_instagram_posts, {
+      ctx: { accountId, threadId: "thread", messageId: "prompt", runMutation: t.mutation.bind(t) },
+    });
+
+    const call = { toolCallId: "posts-1", messages: [] };
+
+    const withImages = capabilityResultSchema.parse(
+      await tool.execute!({ scope: "connected", images: true }, call),
+    );
+
+    const seen = await tool.toModelOutput!({
+      toolCallId: "posts-1",
+      input: { scope: "connected" },
+      output: withImages,
+    });
+
+    if (seen.type !== "content") throw new Error("expected images in the tool output");
+    expect(seen.value.filter((part) => part.type === "image-url")).toEqual([
+      { type: "image-url", url: "https://cdn.example.com/a.jpg" },
+      { type: "image-url", url: "https://cdn.example.com/b.jpg" },
+    ]);
+
+    const textOnly = capabilityResultSchema.parse(
+      await tool.execute!({ scope: "connected" }, call),
+    );
+
+    const plain = await tool.toModelOutput!({
+      toolCallId: "posts-1",
+      input: { scope: "connected" },
+      output: textOnly,
+    });
+
+    expect(plain.type).toBe("json");
+    expect(JSON.stringify(plain)).not.toContain("cdn.example.com");
   });
 
   it("does not serve expired observations as cache hits", async () => {

@@ -184,6 +184,34 @@ describe("legacy Instagram history", () => {
     expect(compactInstagramHistory(compacted)).toEqual(compacted);
   });
 
+  it("drops post images from earlier turns and keeps the text", () => {
+    const messages: ModelMessage[] = [
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            toolName: "read_instagram_posts",
+            toolCallId: "posts-1",
+            output: {
+              type: "content",
+              value: [
+                { type: "text", text: '{"savedTo":"/instagram/self/posts.json"}' },
+                { type: "text", text: "Imagem do post media-1:" },
+                { type: "image-url", url: "https://cdn.example.com/media-1.jpg" },
+              ],
+            },
+          },
+        ],
+      },
+    ];
+
+    const compacted = JSON.stringify(compactInstagramHistory(messages));
+    expect(compacted).not.toContain("cdn.example.com");
+    expect(compacted).toContain("/instagram/self/posts.json");
+    expect(compacted).toContain("Imagem do post media-1:");
+  });
+
   it("leaves errors and unrelated messages alone", () => {
     const messages: ModelMessage[] = [
       { role: "user", content: "Olá" },

@@ -194,7 +194,7 @@ const TOOL_OPERATIONS = new Map<string, InstagramOperation>([
   ["read_instagram_metrics", "insights"],
 ]);
 
-/** Compact legacy tool history on read, without modifying stored messages. */
+/** Compact legacy tool history and drop post images on read, without modifying stored messages. */
 export const compactInstagramHistory = (messages: ModelMessage[]): ModelMessage[] =>
   messages.map((message) => {
     if (message.role !== "tool") return message;
@@ -205,7 +205,24 @@ export const compactInstagramHistory = (messages: ModelMessage[]): ModelMessage[
         if (part.type !== "tool-result") return part;
         const operation = TOOL_OPERATIONS.get(part.toolName);
 
-        if (!operation || part.output.type !== "json") return part;
+        if (!operation) return part;
+
+        // Post images are seen in the turn that read them; their CDN links expire.
+        if (part.output.type === "content") {
+          return {
+            ...part,
+            output: {
+              ...part.output,
+              value: part.output.value.map((item) =>
+                item.type === "image-url"
+                  ? { type: "text" as const, text: "(imagem vista na leitura; link expirado)" }
+                  : item,
+              ),
+            },
+          };
+        }
+
+        if (part.output.type !== "json") return part;
         const output = record(part.output.value);
         const wrapped = Array.isArray(output.resources) && Array.isArray(output.presented);
         const observation = wrapped ? record(output.data) : output;

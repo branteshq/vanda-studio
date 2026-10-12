@@ -64,15 +64,53 @@ const instagramToolResultSchema = z.object({
 
 type InstagramToolResult = z.infer<typeof instagramToolResultSchema>;
 
+/** Enough covers to see the grid, few enough to fit one turn. */
+const MAX_COVERS = 12;
+
+const coverSchema = z.object({ postId: z.string(), url: z.string().url() });
+
+/** The image of each post: a video's thumbnail, an image's (or carousel's first) media. */
+const coverOf = z
+  .object({
+    id: z.string(),
+    mediaType: z.string().optional(),
+    mediaUrl: z.string().optional(),
+    thumbnailUrl: z.string().optional(),
+  })
+  .transform(({ id, mediaType, mediaUrl, thumbnailUrl }) => ({
+    postId: id,
+    url: thumbnailUrl ?? (mediaType === "video" ? undefined : mediaUrl),
+  }))
+  .pipe(coverSchema);
+
+/** The covers of a posts read; posts without an image are skipped. */
+const postCoversSchema = z
+  .array(z.unknown())
+  .catch([])
+  .transform((items) =>
+    items
+      .flatMap((item) => {
+        const cover = coverOf.safeParse(item);
+
+        return cover.success ? [cover.data] : [];
+      })
+      .slice(0, MAX_COVERS),
+  );
+
+/** The covers carried by a read_instagram_posts result, if it asked for them. */
+const coveredResultSchema = z.object({ covers: z.array(coverSchema) }).catch({ covers: [] });
+
 const instagramResult = async (
   ctx: InstagramToolCtx,
   options: ToolExecutionOptions,
   operation: InstagramOperation,
   run: (ctx: InstagramToolCtx) => Promise<InstagramToolResult>,
+  withCovers = false,
 ) => {
   const accountId = await agentAccount(ctx);
   const result = instagramToolResultSchema.parse(await run({ ...ctx, accountId }));
-  const data = summarizeInstagramResult(operation, result);
+  const summary = summarizeInstagramResult(operation, result);
+  const data = withCovers ? { ...summary, covers: postCoversSchema.parse(result.data) } : summary;
 
   const resources: ThreadResource[] = [{ kind: "document", accountId, path: result.savedTo }];
 
@@ -109,16 +147,46 @@ export const makeInstagramTools = (runners: InstagramToolRunners) => {
 
   const readInstagramPosts = createTool({
     description:
-      "Lista posts/reels/carrosséis. scope=connected lê o catálogo oficial da conta; scope=public lê um perfil público. Use cursor para continuar uma leitura conectada. Retorna uma prévia limitada com IDs, URLs e métricas; o resultado completo fica em /instagram, acessível com read.",
+      "Lista posts/reels/carrosséis. scope=connected lê o catálogo oficial da conta; scope=public lê um perfil público. Use cursor para continuar uma leitura conectada. Retorna uma prévia limitada com IDs, URLs e métricas; o resultado completo fica em /instagram, acessível com read. Com images=true você também vê as imagens dos posts, neste turno.",
     inputSchema: z.object({
       scope: scopeSchema,
       handle: z.string().optional().describe("@handle obrigatório quando scope=public"),
       limit: z.number().int().min(1).max(100).optional().describe("padrão 25"),
       cursor: z.string().optional().describe("cursor retornado pela página anterior"),
+      images: z
+        .boolean()
+        .optional()
+        .describe(
+          `true para ver as imagens dos posts (até ${MAX_COVERS}): cores, fontes, fotos e composição`,
+        ),
     }),
     outputSchema: capabilityResultSchema,
-    execute: (ctx: InstagramToolCtx, args, options) =>
-      instagramResult(ctx, options, "posts", (scoped) => runners.listPosts(scoped, args)),
+    execute: (ctx: InstagramToolCtx, { images, ...args }, options) =>
+      instagramResult(
+        ctx,
+        options,
+        "posts",
+        (scoped) => runners.listPosts(scoped, args),
+        images === true,
+      ),
+    // The covers are shown in this turn only: CDN links expire, so history keeps the text.
+    toModelOutput: (_ctx, { output }) => {
+      const { covers } = coveredResultSchema.parse(output.data);
+
+      if (covers.length === 0)
+        return { type: "json", value: z.json().parse(JSON.parse(JSON.stringify(output))) };
+
+      return {
+        type: "content",
+        value: [
+          { type: "text", text: JSON.stringify(output.data) },
+          ...covers.flatMap((cover) => [
+            { type: "text" as const, text: `Imagem do post ${cover.postId}:` },
+            { type: "image-url" as const, url: cover.url },
+          ]),
+        ],
+      };
+    },
   });
 
   const readInstagramPost = createTool({
