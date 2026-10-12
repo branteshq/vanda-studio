@@ -16,7 +16,7 @@ Decida pelo pedido, pela marca e pelo momento do perfil; o que o dono pedir expl
 2. **Propósito** (`purpose`): o objetivo que guia o design. Ids: institucional, educacional, informativo, produto, promocional, prova_social, editorial, storytelling, bastidores, comunidade, anuncio, dados, expressao_cultural, employer_branding. Secundário só com dois objetivos reais; o principal decide a hierarquia. Se for ambíguo, consulte o mix em /posts.
 3. **Format** (`format`): a proporção de todas as imagens, dentro do que o tipo permite (image e carousel: 1:1, 4:5, 3:4, 4:3 ou 16:9; story: 9:16). Use o mesmo valor em `aspectRatio` em cada paint. `paint` não gera 4:3 (paisagem pintada é 16:9). Fotos prontas do dono mantêm a proporção original se o feed aceitar (4:5 a 1,91:1): informe o format mais próximo, sem repintar.
 
-Busque no tool_search `post tipo <image|carrossel|carrossel infinito|story>` e `post propósito <sinal do pedido>` e leia o SKILL.md de cada um (o secundário só se houver). Em revisão, leia o post em /posts (type, format, propósito, justificativa) e carregue só o que a correção exige.
+Busque no tool_search `post tipo <image|carrossel|carrossel infinito|story>` e `post propósito <sinal do pedido>` e leia o SKILL.md de cada um (o secundário só se houver). Formato de anúncio pedido (meme, tier list…): busque `formato de anúncio <nome>` e siga o SKILL.md dele. Em revisão, leia o post em /posts (type, format, propósito, justificativa) e carregue só o que a correção exige.
 
 No `create_post`, informe type, format, propósito e `rationale` (até 400 caracteres): `<type> porque …; <propósito> porque …; <format> porque …; decisões visuais: …`. Ao entregar, diga ao dono em uma frase por que escolheu tipo, propósito e format.
 
