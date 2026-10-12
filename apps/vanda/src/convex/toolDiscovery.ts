@@ -47,17 +47,31 @@ const EXACT_NAME = 100;
 
 const normalize = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
+// Every ad format skill (post-ad-*) is described as "Formato de anúncio <nome>" and Vanda
+// searches "formato de anúncio <nome>". The phrase marks a format search; counted as
+// words it would make "anuncio" common and drown the anuncio purpose.
+const AD_FORMAT_MARKER = "formato de anuncio";
+
+const withoutMarker = (text: string) => normalize(text).replaceAll(AD_FORMAT_MARKER, " ");
+
+const isAdFormat = (name: string) => name.startsWith("post-ad-");
+
 const stopWords = new Set(
   "a as o os de da das do dos e em no na nos nas um uma para por com que quero preciso como meu minha meus minhas the a an and or to of for with how my i want need".split(
     " ",
   ),
 );
 
-// A skill's identifying name words as a padded phrase; one word is too loose to guarantee a place.
-const namePhrase = (name: string) => {
+// A skill's identifying name words ("nos vs nos" for post-ad-nos-vs-nos).
+const identifyingWords = (name: string) => {
   const parts = name.split("-");
-  const start = parts.findIndex((part) => !FAMILY_WORDS.has(part));
-  const identifying = parts.slice(start);
+
+  return parts.slice(parts.findIndex((part) => !FAMILY_WORDS.has(part)));
+};
+
+// As a padded phrase; one word is too loose to guarantee a place.
+const namePhrase = (name: string) => {
+  const identifying = identifyingWords(name);
 
   return identifying.length > 1 ? ` ${identifying.join(" ")} ` : undefined;
 };
@@ -89,15 +103,38 @@ export function toolDiscovery<Tools extends ToolSet>(
     ...skills.map((skill) => ({ kind: "skill" as const, keywords: "", ...skill })),
   ];
 
+  // A format's name word identifies it only if no core post skill (type, purpose,
+  // production, instagram-*) uses that word: "story do instagram" is an ordinary story
+  // request, while "combo" or "nós vs nós" can only mean the format.
+  const coreNameWords = new Set(
+    skills.filter((skill) => !isAdFormat(skill.name)).flatMap((skill) => skill.name.split("-")),
+  );
+
+  const formatOwns = (name: string) =>
+    !isAdFormat(name) ||
+    !name.split("-").some((part) => coreNameWords.has(part) && !FAMILY_WORDS.has(part));
+
   const indexed = catalog.map((entry) => ({
     entry,
-    tokens: new Set(words(`${entry.name} ${entry.description} ${entry.keywords}`)),
+    tokens: new Set(words(withoutMarker(`${entry.name} ${entry.description} ${entry.keywords}`))),
+
     // Skill names are chosen to identify; tool names (read_instagram_post) are generic.
     nameTokens: new Set(
-      entry.kind === "skill" ? words(entry.name).filter((word) => !FAMILY_WORDS.has(word)) : [],
+      entry.kind === "skill"
+        ? words(entry.name).filter(
+            (word) =>
+              !FAMILY_WORDS.has(word) && (!isAdFormat(entry.name) || !coreNameWords.has(word)),
+          )
+        : [],
     ),
     // Stop words still count here: "nós vs nós" would otherwise only search "vs".
-    namePhrase: entry.kind === "skill" ? namePhrase(entry.name) : undefined,
+    namePhrase:
+      entry.kind === "skill" && formatOwns(entry.name) ? namePhrase(entry.name) : undefined,
+    // "formato de anúncio <nome>", the search Vanda is told to make, always names the format.
+    markedName:
+      entry.kind === "skill" && isAdFormat(entry.name)
+        ? ` ${AD_FORMAT_MARKER} ${identifyingWords(entry.name).join(" ")} `
+        : undefined,
   }));
 
   // Rare words decide the ranking: "post" and "propósito" sit in every purpose
@@ -119,18 +156,20 @@ export function toolDiscovery<Tools extends ToolSet>(
     }),
     outputSchema: searchResultSchema,
     execute: async ({ query }) => {
-      const terms = [...new Set(words(query))];
+      const terms = [...new Set(words(withoutMarker(query)))];
       const normalizedQuery = normalize(query.trim());
       const spacedQuery = ` ${normalizedQuery.replace(/[^a-z0-9]+/g, " ")} `;
       const exact = catalog.find((entry) => entry.name === normalizedQuery);
 
-      const ranked = indexed.flatMap(({ entry, tokens, nameTokens, namePhrase }) => {
+      const ranked = indexed.flatMap(({ entry, tokens, nameTokens, namePhrase, markedName }) => {
         if (exact && entry !== exact) return [];
 
         if (normalizedQuery === "*") return [{ entry, score: 1 }];
 
         const named =
-          normalizedQuery.includes(entry.name) || (namePhrase && spacedQuery.includes(namePhrase))
+          normalizedQuery.includes(entry.name) ||
+          (namePhrase && spacedQuery.includes(namePhrase)) ||
+          (markedName && spacedQuery.includes(markedName))
             ? EXACT_NAME
             : 0;
 

@@ -527,3 +527,31 @@ describe("every ad format skill is reachable", () => {
     expect(await skillNames(query)).toContain(name);
   });
 });
+
+describe("ad formats don't crowd out the core post skills", () => {
+  const skillNames = async (query: string) =>
+    z
+      .object({ skills: z.array(z.object({ name: z.string() })) })
+      .parse(
+        await vandaToolDiscovery.search.execute!({ query }, { toolCallId: "search", messages: [] }),
+      )
+      .skills.map((skill) => skill.name);
+
+  // Every format is described as "Formato de anúncio …"; counted as a word, "anuncio"
+  // stopped identifying the anuncio purpose once "Instagram" competed in the query.
+  it.each([
+    "post-production post tipo image propósito anuncio criar arte Instagram",
+    "habilidade post-production, post tipo story, post propósito anuncio para story do Instagram",
+  ])("keeps the named purpose and leaves story ads out of %s", async (query) => {
+    const names = await skillNames(query);
+
+    expect(names).toContain("post-purpose-anuncio");
+    expect(names).not.toContain("post-ad-story-do-instagram");
+  });
+
+  it("finds the story ad format when it is asked for by name", async () => {
+    expect(
+      await skillNames("post-production post tipo story formato de anúncio story do Instagram"),
+    ).toContain("post-ad-story-do-instagram");
+  });
+});
