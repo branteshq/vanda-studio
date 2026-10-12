@@ -1,20 +1,10 @@
 import { useEffect, useState } from "react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Spinner } from "@vanda-studio/ui/components/spinner";
-import { cn } from "@vanda-studio/ui/lib/utils";
 import type { Id } from "../../convex/_generated/dataModel";
 import { errorMessage } from "../../errors";
+import { ProfileRow } from "./layout";
 import { useProfileRuntime } from "./runtime";
-
-/** A connection's state dot: green when live, muted otherwise. */
-function StatusDot({ on }: { on: boolean }) {
-  return (
-    <span
-      aria-hidden
-      className={cn("inline-block size-2 shrink-0 rounded-full", on ? "bg-green" : "bg-text-5")}
-    />
-  );
-}
 
 /**
  * One business's Instagram connection through the publisher (Upload-Post). On
@@ -55,31 +45,30 @@ export function InstagramConnectionRow({
     }
   };
 
+  // Listed under an "Instagram" label, so the row names only the business.
+  // Reconectar stays visible: it is what the owner reaches for when posting breaks.
   return (
-    <div className="py-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <StatusDot on={status?.connected === true} />
-          <div className="min-w-0">
-            <p className="truncate text-body-sm font-medium">Instagram · {name}</p>
-            <p className="text-xs text-text-4">
-              {status?.connected
-                ? `Conectado${status.handle ? ` como @${status.handle}` : ""}`
-                : "Conecte para a Vanda publicar e ler as métricas deste negócio."}
-            </p>
-          </div>
-        </div>
+    <ProfileRow
+      tone={status?.connected ? "on" : "off"}
+      title={name}
+      detail={
+        status?.connected
+          ? `Conectado${status.handle ? ` como @${status.handle}` : ""}`
+          : "Conecte para a Vanda publicar e ler as métricas deste negócio."
+      }
+      actions={
         <Button
-          variant={status?.connected ? "outline" : "default"}
+          variant={status?.connected ? "subtle" : "default"}
           size="sm"
           disabled={busy || status === undefined}
           onClick={() => void connect()}
         >
           {busy ? "Abrindo…" : status?.connected ? "Reconectar" : "Conectar"}
         </Button>
-      </div>
-      {error ? <p className="mt-2 text-body-sm text-destructive">{error}</p> : null}
-    </div>
+      }
+    >
+      {error ? <p className="mt-2 pl-4.5 text-body-sm text-destructive">{error}</p> : null}
+    </ProfileRow>
   );
 }
 
@@ -147,32 +136,31 @@ export function OpenAiConnectionRow() {
   };
 
   return (
-    <div className="py-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <StatusDot on={status?.connected === true} />
-          <div className="min-w-0">
-            <p className="text-body-sm font-medium">Conta OpenAI</p>
-            <p className="text-xs text-text-4">
-              {status?.connected
-                ? "Conectada. Conversas e imagens usam sua assinatura do ChatGPT."
-                : "Conecte para usar sua assinatura do ChatGPT no plano ChatGPT."}
-            </p>
-          </div>
-        </div>
-        {status?.connected ? (
-          <Button variant="outline" size="sm" onClick={() => void disconnect()}>
+    <ProfileRow
+      tone={status?.connected ? "on" : flowState === "waiting" ? "pending" : "off"}
+      title="Conta OpenAI"
+      detail={
+        status?.connected
+          ? "Conectada. Conversas e imagens usam sua assinatura do ChatGPT."
+          : "Conecte para usar sua assinatura do ChatGPT no plano ChatGPT."
+      }
+      quiet={
+        status?.connected ? (
+          <Button variant="subtle" size="sm" onClick={() => void disconnect()}>
             Desconectar
           </Button>
-        ) : flowState === "waiting" ? null : (
+        ) : null
+      }
+      actions={
+        status?.connected || flowState === "waiting" ? null : (
           <Button size="sm" disabled={flowState === "starting"} onClick={() => void connect()}>
             {flowState === "starting" ? "Gerando código…" : "Conectar"}
           </Button>
-        )}
-      </div>
-
+        )
+      }
+    >
       {!status?.connected && device && flowState === "waiting" ? (
-        <div className="mt-3 rounded-lg border border-border bg-app p-4 text-center">
+        <div className="mt-3 ml-4.5 rounded-lg bg-inset p-4 text-center">
           <p className="text-body-sm text-text-3">
             Acesse{" "}
             <a
@@ -192,7 +180,7 @@ export function OpenAiConnectionRow() {
         </div>
       ) : null}
 
-      {flowError ? <p className="mt-2 text-body-sm text-destructive">{flowError}</p> : null}
-    </div>
+      {flowError ? <p className="mt-2 pl-4.5 text-body-sm text-destructive">{flowError}</p> : null}
+    </ProfileRow>
   );
 }

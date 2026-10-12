@@ -8,8 +8,9 @@ import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { tierOfPlan } from "../convex/billing/plans";
 import type { Id } from "../convex/_generated/dataModel";
 import { AppearanceControl } from "../components/profile/appearance";
-import { BrandFileCard, SectionCard } from "../components/profile/brand";
+import { BrandFileCard } from "../components/profile/brand";
 import { InstagramConnectionRow, OpenAiConnectionRow } from "../components/profile/connections";
+import { ProfileGroupLabel, ProfileSection } from "../components/profile/layout";
 import { ModelsCard } from "../components/profile/models";
 import { PlanSummary, PlansPicker } from "../components/profile/plan";
 import {
@@ -86,7 +87,7 @@ function ProfileContent({ marca }: { marca: string | undefined }) {
           </Button>
         </div>
       </header>
-      <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6">
+      <main className="mx-auto max-w-3xl space-y-11 px-4 pt-10 pb-18 sm:px-6">
         {business ? (
           <BrandPage accountId={business.id} name={business.name} />
         ) : marca && accounts !== undefined ? (
@@ -118,12 +119,13 @@ function Overview() {
     await navigate({ to: "/login/$", params: { _splat: "" } });
   };
 
+  // No boxes: sections are separated by space and a small title, rows light up
+  // on hover, and "Abrir conversa" is the only magenta on the page.
   return (
     <>
-      <h1 className="text-xl font-semibold tracking-tight">Perfil</h1>
-
-      <section aria-label="Conta" className="rounded-xl border border-border bg-surface p-5 sm:p-6">
-        <div className="flex flex-wrap items-center gap-4">
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight">Perfil</h1>
+        <section aria-label="Conta" className="mt-7 flex flex-wrap items-center gap-4">
           <Avatar size="lg">
             <AvatarImage src={user?.imageUrl} alt={name} />
             <AvatarFallback>{getInitials(name) || "MC"}</AvatarFallback>
@@ -132,8 +134,8 @@ function Overview() {
             <p className="truncate text-body font-medium">{name}</p>
             <p className="truncate text-body-sm text-text-3">{email ?? "E-mail não informado"}</p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => clerk.openUserProfile()}>
+          <div className="flex gap-1">
+            <Button variant="subtle" size="sm" onClick={() => clerk.openUserProfile()}>
               Editar
             </Button>
             <Button variant="subtle" size="sm" onClick={() => void signOut()}>
@@ -141,106 +143,125 @@ function Overview() {
               Sair
             </Button>
           </div>
-        </div>
-        <div className="mt-5 border-t border-border pt-5">
-          <PlanSummary
-            action={
-              <Button
-                variant="outline"
-                size="sm"
-                aria-expanded={plansOpen}
-                onClick={() => setPlansOpen((open) => !open)}
-              >
-                {plansOpen ? "Fechar planos" : "Gerenciar plano"}
-              </Button>
-            }
-          />
-          {plansOpen ? <PlansPicker /> : null}
-        </div>
+        </section>
+      </div>
+
+      <section aria-label="Plano">
+        <PlanSummary
+          action={
+            <Button
+              variant="subtle"
+              size="sm"
+              aria-expanded={plansOpen}
+              onClick={() => setPlansOpen((open) => !open)}
+            >
+              {plansOpen ? "Fechar planos" : "Gerenciar plano"}
+            </Button>
+          }
+        />
+        {plansOpen ? <PlansPicker /> : null}
       </section>
 
-      <SectionCard title="Conexões" caption="O que a Vanda e o Caetano usam para trabalhar.">
-        <div className="-my-3 divide-y divide-border">
+      <ProfileSection title="Conexões" caption="O que a Vanda e o Caetano usam para trabalhar.">
+        <div className="-mx-3">
           <runtime.WhatsAppSettings />
           {summary?.plan && tierOfPlan(summary.plan) === "conectado" ? (
             <OpenAiConnectionRow />
           ) : null}
-          {ready.map((account) => (
-            <InstagramConnectionRow key={account.id} accountId={account.id} name={account.name} />
-          ))}
+          {ready.length > 0 ? (
+            <div role="group" aria-label="Instagram">
+              <ProfileGroupLabel>Instagram</ProfileGroupLabel>
+              {ready.map((account) => (
+                <InstagramConnectionRow
+                  key={account.id}
+                  accountId={account.id}
+                  name={account.name}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
-      </SectionCard>
+      </ProfileSection>
 
-      <SectionCard
+      <ProfileSection
         title="Negócios"
         caption="Tudo o que a Vanda sabe sobre cada negócio fica no arquivo da marca."
       >
         {accounts === undefined ? (
-          <Skeleton className="h-12 w-full rounded-lg" />
+          <Skeleton className="h-10 w-full rounded-lg" />
         ) : (
-          <div className="-my-1 divide-y divide-border">
+          <div className="-mx-3">
             {ready.map((account) => (
-              <button
+              <BusinessRow
                 key={account.id}
-                type="button"
+                name={account.name}
+                hint="Ver arquivo da marca"
                 onClick={() => void navigate({ to: "/perfil", search: { marca: account.id } })}
-                className="flex w-full items-center justify-between gap-3 py-3 text-left transition-colors hover:text-text"
-              >
-                <span className="min-w-0">
-                  <span className="block truncate text-body-sm font-medium">{account.name}</span>
-                  <span className="block text-xs text-text-4">Ver arquivo da marca</span>
-                </span>
-                <ChevronRight className="size-4 shrink-0 text-text-4" />
-              </button>
+              />
             ))}
             {unfinished.map((account) => (
-              <button
+              <BusinessRow
                 key={account.id}
-                type="button"
+                name={account.name}
+                hint="Cadastro incompleto. Concluir"
                 onClick={() =>
                   void navigate({ to: "/onboarding", search: { accountId: account.id } })
                 }
-                className="flex w-full items-center justify-between gap-3 py-3 text-left"
-              >
-                <span className="min-w-0">
-                  <span className="block truncate text-body-sm font-medium">{account.name}</span>
-                  <span className="block text-xs text-text-4">Cadastro incompleto. Concluir</span>
-                </span>
-                <ChevronRight className="size-4 shrink-0 text-text-4" />
-              </button>
+              />
             ))}
           </div>
         )}
         <Button
           variant="subtle"
           size="sm"
-          className="mt-3"
+          className="mt-1 -ml-2.5"
           onClick={() => void navigate({ to: "/onboarding", search: { flow: "add" } })}
         >
           <Plus />
           Adicionar negócio
         </Button>
-      </SectionCard>
+      </ProfileSection>
 
-      <details className="group rounded-xl border border-border bg-surface p-5 sm:p-6">
-        <summary className="cursor-pointer list-none text-body font-semibold">
-          <span className="flex items-center justify-between">
-            Avançado
-            <ChevronRight className="size-4 text-text-4 transition-transform group-open:rotate-90" />
-          </span>
+      <details className="group">
+        <summary className="-ml-2.5 inline-flex h-7 cursor-pointer list-none items-center gap-1 rounded-md px-2.5 text-body text-text-3 transition-colors duration-150 ease-out hover:bg-accent hover:text-text">
+          Avançado
+          <ChevronRight className="size-3.5 transition-transform duration-150 ease-out group-open:rotate-90" />
         </summary>
-        <div className="mt-5 space-y-6">
-          <div>
-            <h2 className="mb-2 text-body-sm font-medium">Aparência</h2>
+        <div className="mt-6 space-y-9">
+          <ProfileSection title="Aparência">
             <AppearanceControl />
-          </div>
-          <div>
-            <h2 className="mb-2 text-body-sm font-medium">Modelos</h2>
+          </ProfileSection>
+          <ProfileSection title="Modelos">
             <ModelsCard />
-          </div>
+          </ProfileSection>
         </div>
       </details>
     </>
+  );
+}
+
+/** A business in the Negócios list: its name, then where the row goes, in muted text. */
+function BusinessRow({
+  name,
+  hint,
+  onClick,
+}: {
+  name: string;
+  hint: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-150 ease-out hover:bg-accent"
+    >
+      <span className="min-w-0 truncate">
+        <span className="text-body font-medium">{name}</span>
+        <span className="ml-2 text-body-sm text-text-4">{hint}</span>
+      </span>
+      <ChevronRight className="size-4 shrink-0 text-text-5" />
+    </button>
   );
 }
 
@@ -257,18 +278,21 @@ function BrandPage({ accountId, name }: { accountId: Id<"accounts">; name: strin
           O que a Vanda e o Caetano sabem sobre este negócio. Edite aqui ou peça na conversa.
         </p>
       </div>
-      {/* Keyed by business so an unsaved draft never carries over to another one. */}
-      <BrandFileCard key={accountId} accountId={accountId} />
-      <Button
-        variant="subtle"
-        onClick={() => {
-          selectAccount(accountId);
-          void navigate({ to: "/conversa", search: {} });
-        }}
-      >
-        Ajustar com a Vanda na conversa
-        <ChevronRight />
-      </Button>
+      <div>
+        {/* Keyed by business so an unsaved draft never carries over to another one. */}
+        <BrandFileCard key={accountId} accountId={accountId} />
+        <Button
+          variant="subtle"
+          className="mt-8 -ml-2.5"
+          onClick={() => {
+            selectAccount(accountId);
+            void navigate({ to: "/conversa", search: {} });
+          }}
+        >
+          Ajustar com a Vanda na conversa
+          <ChevronRight />
+        </Button>
+      </div>
     </>
   );
 }

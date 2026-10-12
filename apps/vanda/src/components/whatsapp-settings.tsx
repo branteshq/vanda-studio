@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { Button, buttonVariants } from "@vanda-studio/ui/components/button";
-import { cn } from "@vanda-studio/ui/lib/utils";
 import { api } from "../convex/_generated/api";
 import { showErrorToast } from "./error-feedback";
+import { ProfileRow } from "./profile/layout";
 
 type Link = { url: string; expiresAt: number };
 
@@ -86,53 +86,46 @@ export function WhatsAppSettingsView({ state, createLink, disconnect }: WhatsApp
             ? "O link expirou. Gere um novo para conectar."
             : "Converse com o Caetano pelo WhatsApp.";
 
+  // "Abrir conversa" is the one magenta button on Perfil; Desconectar waits for hover.
   return (
-    <div className="py-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span
-            aria-hidden
-            className={cn(
-              "inline-block size-2 shrink-0 rounded-full",
-              state?.connected ? "bg-green" : pending ? "bg-amber" : "bg-text-5",
-            )}
-          />
-          <div className="min-w-0">
-            <p className="text-body-sm font-medium">Caetano no WhatsApp</p>
-            <p className="text-xs text-text-4">{status}</p>
-          </div>
-        </div>
-        {state?.connected ? (
-          <div className="flex gap-2">
-            {state.chatUrl ? (
-              <a
-                className={buttonVariants({ size: "sm" })}
-                href={state.chatUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Abrir conversa
-              </a>
-            ) : null}
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={busy}
-              onClick={() => {
-                if (
-                  window.confirm(
-                    "Desconectar o WhatsApp? Novas mensagens não terão acesso à sua conta. Uma mensagem já em envio pode chegar.",
-                  )
+    <ProfileRow
+      tone={state?.connected ? "on" : pending ? "pending" : "off"}
+      title="Caetano no WhatsApp"
+      detail={status}
+      quiet={
+        state?.connected ? (
+          <Button
+            variant="subtle"
+            size="sm"
+            disabled={busy}
+            onClick={() => {
+              if (
+                window.confirm(
+                  "Desconectar o WhatsApp? Novas mensagens não terão acesso à sua conta. Uma mensagem já em envio pode chegar.",
                 )
-                  void run(async () => {
-                    await disconnect();
-                    setLink(null);
-                  });
-              }}
+              )
+                void run(async () => {
+                  await disconnect();
+                  setLink(null);
+                });
+            }}
+          >
+            Desconectar
+          </Button>
+        ) : null
+      }
+      actions={
+        state?.connected ? (
+          state.chatUrl ? (
+            <a
+              className={buttonVariants({ size: "sm" })}
+              href={state.chatUrl}
+              target="_blank"
+              rel="noreferrer"
             >
-              Desconectar
-            </Button>
-          </div>
+              Abrir conversa
+            </a>
+          ) : null
         ) : pending ? (
           <a
             className={buttonVariants({ size: "sm" })}
@@ -146,19 +139,20 @@ export function WhatsAppSettingsView({ state, createLink, disconnect }: WhatsApp
           <Button size="sm" disabled={busy || !state.configured} onClick={generate}>
             {busy ? "Gerando…" : link ? "Gerar novo link" : "Conectar"}
           </Button>
-        ) : null}
-      </div>
+        ) : null
+      }
+    >
       {state && !state.connected && !state.configured ? (
-        <p className="mt-2 text-xs text-text-4">
+        <p className="mt-2 pl-4.5 text-body-sm text-text-4">
           A conexão com o WhatsApp ainda não está disponível.
         </p>
       ) : null}
       {pending ? (
-        <p className="mt-2 text-xs text-text-3">
+        <p className="mt-2 pl-4.5 text-body-sm text-text-3">
           O WhatsApp abre com uma mensagem pronta: toque em enviar. Válido até{" "}
           {time(pending.expiresAt)}. Não compartilhe.
         </p>
       ) : null}
-    </div>
+    </ProfileRow>
   );
 }

@@ -211,9 +211,11 @@ it("shows the account, plan, connections and businesses on one page", () => {
   expect(container.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("37");
   expect(container.textContent).not.toContain("Escolha seu plano");
   expect(container.textContent).toContain("Caetano no WhatsApp");
-  expect(container.textContent).toContain("Instagram · Business A");
-  expect(container.textContent).toContain("Instagram · Business B");
-  expect(container.textContent).not.toContain("Instagram · Unfinished");
+  // Instagram accounts share one label; each row names only its business.
+  const instagram = container.querySelector('[role="group"][aria-label="Instagram"]');
+  expect(instagram?.textContent).toContain("Business A");
+  expect(instagram?.textContent).toContain("Business B");
+  expect(instagram?.textContent).not.toContain("Unfinished");
   expect(container.textContent).toContain("Cadastro incompleto");
   expect(container.textContent).not.toContain("Skills");
 });

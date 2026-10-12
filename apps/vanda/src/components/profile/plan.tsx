@@ -12,12 +12,12 @@ type Summary = NonNullable<ReturnType<ReturnType<typeof useProfileRuntime>["useU
 type Breakdown = Summary["breakdown"];
 
 const METER_TONE = {
-  brand: "bg-brand-accent",
+  plain: "bg-text-3",
   danger: "bg-destructive",
   muted: "bg-text-4",
 } as const;
 
-/** A share of the plan as a thin bar: the meter and each category use the same shape. */
+/** A share of the plan as a hairline bar: the meter and each category use the same shape. */
 function Meter({
   pct,
   tone,
@@ -29,7 +29,7 @@ function Meter({
 }) {
   return (
     <div
-      className="h-1.5 overflow-hidden rounded-full bg-muted"
+      className="h-0.75 overflow-hidden rounded-full bg-muted"
       role="progressbar"
       aria-valuenow={pct}
       aria-valuemin={0}
@@ -123,14 +123,13 @@ export function PlanSummary({ action }: { action: ReactNode }) {
   return (
     <div aria-label="Uso do plano">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium text-text-3">Plano</p>
-          {summary === undefined ? (
-            <Skeleton className="mt-1.5 h-4 w-36" />
-          ) : (
-            <p className="mt-1 text-body">{planLabel(summary?.plan ?? null)}</p>
-          )}
-        </div>
+        {summary === undefined ? (
+          <Skeleton className="h-4 w-36" />
+        ) : (
+          <h2 className="text-body font-medium text-text-2">
+            {summary?.plan ? `Plano ${planLabel(summary.plan)}` : planLabel(null)}
+          </h2>
+        )}
         {action}
       </div>
 
@@ -139,7 +138,8 @@ export function PlanSummary({ action }: { action: ReactNode }) {
       ) : (
         <>
           {conectado && openai?.connected === false ? (
-            <p className="mt-3 rounded-lg border border-amber/30 bg-amber/5 px-3 py-2 text-body-sm text-text-2">
+            <p className="mt-3 flex items-start gap-2 text-body-sm text-text-2">
+              <span aria-hidden className="mt-1.5 inline-block size-2 shrink-0 rounded-full bg-amber" />
               Sua conta OpenAI não está conectada, então conversas e imagens também saem do plano.
               Conecte em Conexões, logo abaixo.
             </p>
@@ -155,8 +155,8 @@ export function PlanSummary({ action }: { action: ReactNode }) {
                 : "Crédito de teste"}
             </span>
           </div>
-          <div className="mt-2">
-            <Meter pct={pct} tone={summary?.limited ? "danger" : "brand"} label="Uso do plano" />
+          <div className="mt-2.5">
+            <Meter pct={pct} tone={summary?.limited ? "danger" : "plain"} label="Uso do plano" />
           </div>
           {summary?.limited ? (
             <p className="mt-2 text-body-sm text-text-2">
@@ -301,7 +301,7 @@ export function PlansPicker() {
   };
 
   return (
-    <div className="mt-5 border-t border-border pt-5">
+    <div className="mt-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-body font-semibold">Escolha seu plano</h3>
         {currentTier ? (
@@ -317,7 +317,7 @@ export function PlansPicker() {
       </div>
 
       {error ? (
-        <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-body-sm text-destructive">
+        <p className="mt-3 text-body-sm text-destructive">
           {error}
         </p>
       ) : null}

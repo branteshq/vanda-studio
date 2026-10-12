@@ -184,7 +184,7 @@ export function ModelsCard() {
       ) : null}
 
       {error ? (
-        <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-body-sm text-destructive">
+        <p className="mt-3 text-body-sm text-destructive">
           {error}
         </p>
       ) : null}

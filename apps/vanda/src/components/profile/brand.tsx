@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useState, type CSSProperties } from "react";
 import { Ban } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
@@ -7,32 +7,8 @@ import type { BrandFileDesign } from "../../convex/brandFile";
 import type { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { errorMessage } from "../../errors";
+import { ProfileSection } from "./layout";
 import { useProfileRuntime } from "./runtime";
-
-export function SectionCard({
-  title,
-  caption,
-  action,
-  children,
-}: {
-  title: string;
-  caption?: string | undefined;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="min-w-0 rounded-xl border border-border bg-surface p-5 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-body font-semibold">{title}</h2>
-          {caption ? <p className="mt-0.5 text-body-sm text-text-3">{caption}</p> : null}
-        </div>
-        {action}
-      </div>
-      <div className="mt-5">{children}</div>
-    </section>
-  );
-}
 
 const formatUpdated = (updatedAt: number | null, updatedBy: string | null): string => {
   if (updatedAt === null) return "Montado a partir do que a Vanda já sabia. Ainda não editado.";
@@ -78,7 +54,7 @@ const originBadge = (origin: string): string => {
   return "Sugestão da Vanda";
 };
 
-/** Logo, palette and typeface of the Design section, above the section cards. */
+/** Logo, palette and typeface of the Design section, above the sections. */
 function BrandIdentity({ design }: { design: BrandFileDesign }) {
   const { palette, typography, logoUrl } = design;
 
@@ -91,9 +67,9 @@ function BrandIdentity({ design }: { design: BrandFileDesign }) {
     .trim();
 
   return (
-    <div className="mb-5 flex flex-wrap items-start gap-x-8 gap-y-5">
+    <div className="mb-8 flex flex-wrap items-start gap-x-8 gap-y-5">
       {logoUrl ? (
-        <div className="rounded-lg border border-border bg-inset p-3">
+        <div className="rounded-lg bg-inset p-3">
           <img src={logoUrl} alt="Logo" className="max-h-20 w-auto object-contain" />
         </div>
       ) : null}
@@ -132,55 +108,51 @@ function BrandIdentity({ design }: { design: BrandFileDesign }) {
   );
 }
 
-/** The brand file, read-only: the identity strip, then one card per section. */
+/**
+ * The brand file, read-only: the identity strip, then each filled section as a
+ * title over its items. Empty sections share one line instead of repeating the
+ * same empty state.
+ */
 function BrandFileView({ file }: { file: BrandFileRead }) {
-  return (
-    <>
-      <BrandIdentity design={file.design} />
-      <div className="grid gap-3 md:grid-cols-2">
-        {visibleSections(file.outline).map(({ section, items }) => {
-          if (items.length === 0 && section.items.length > 0) return null;
+  const sections = visibleSections(file.outline);
+  const filled = sections.filter(({ items }) => items.length > 0);
+  const empty = sections.filter(({ section }) => section.items.length === 0);
 
-          return (
-            <section
-              key={section.title}
-              className="min-w-0 rounded-lg border border-border bg-inset/40 p-4"
-            >
-              <h3 className="text-body-sm font-semibold">{section.title}</h3>
-              {section.items.length === 0 ? (
-                <p className="mt-2 text-body-sm text-text-5">
-                  Ainda vazio — o Caetano pergunta no guia da marca.
-                </p>
-              ) : (
-                <ul className="mt-3 space-y-3">
-                  {items.map((item) => (
-                    <li key={`${item.label ?? ""}:${item.text}`} className="min-w-0">
-                      {item.label ? (
-                        <p className="text-caption tracking-wide text-text-4 uppercase">
-                          {item.label}
-                        </p>
-                      ) : null}
-                      <p className="text-body-sm text-text-2">
-                        {section.title === NEVER ? (
-                          <Ban aria-hidden className="mr-1 inline size-3.5 text-destructive" />
-                        ) : null}
-                        {item.text}
-                        <span
-                          title={item.origin}
-                          className="ml-2 inline-block rounded-full border border-border px-1.5 text-caption text-text-4"
-                        >
-                          {originBadge(item.origin)}
-                        </span>
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          );
-        })}
+  return (
+    <div className="pt-4">
+      <BrandIdentity design={file.design} />
+      <div className="space-y-7">
+        {filled.map(({ section, items }) => (
+          <section key={section.title} className="min-w-0">
+            <h3 className="text-body font-medium">{section.title}</h3>
+            <ul className="mt-2.5 space-y-2.5">
+              {items.map((item) => (
+                <li key={`${item.label ?? ""}:${item.text}`} className="min-w-0">
+                  {item.label ? (
+                    <p className="text-caption tracking-wide text-text-4 uppercase">{item.label}</p>
+                  ) : null}
+                  <p className="text-body text-text-2">
+                    {section.title === NEVER ? (
+                      <Ban aria-hidden className="mr-1 inline size-3.5 text-destructive" />
+                    ) : null}
+                    {item.text}
+                    <span title={item.origin} className="ml-2 text-caption text-text-4">
+                      {originBadge(item.origin)}
+                    </span>
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+        {empty.length > 0 ? (
+          <p className="text-body-sm text-text-4">
+            Ainda vazio: {empty.map(({ section }) => section.title).join(", ")}. O Caetano pergunta
+            no guia da marca.
+          </p>
+        ) : null}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -213,17 +185,17 @@ export function BrandFileCard({ accountId }: { accountId: Id<"accounts"> }) {
   };
 
   return (
-    <SectionCard
+    <ProfileSection
       title="Arquivo da marca"
       caption={file ? formatUpdated(file.updatedAt, file.updatedBy) : undefined}
       action={
         file === undefined ? null : draft === null ? (
-          <Button variant="outline" size="sm" onClick={() => setDraft(file.content)}>
+          <Button variant="subtle" size="sm" onClick={() => setDraft(file.content)}>
             Editar
           </Button>
         ) : (
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={saving} onClick={() => setDraft(null)}>
+            <Button variant="subtle" size="sm" disabled={saving} onClick={() => setDraft(null)}>
               Cancelar
             </Button>
             <Button size="sm" disabled={saving || bytes > max} onClick={() => void submit()}>
@@ -257,10 +229,10 @@ export function BrandFileCard({ accountId }: { accountId: Id<"accounts"> }) {
         </>
       )}
       {error ? (
-        <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-body-sm text-destructive">
+        <p className="mt-3 text-body-sm text-destructive">
           {error}
         </p>
       ) : null}
-    </SectionCard>
+    </ProfileSection>
   );
 }
