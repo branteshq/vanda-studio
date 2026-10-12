@@ -1,15 +1,18 @@
 ---
 name: post-ad-notas-do-iphone
-description: "Formato de anúncio notas do iPhone — lista curta de recomendação pessoal e casual, como anotação do celular, para um item ou serviço."
+description: "Formato de anúncio notas do iPhone — lista curta de recomendação pessoal e casual, como anotação do celular, para qualquer negócio ou serviço."
 allowed-tools: paint create_post
 ---
 
 # Formato de anúncio: notas do iPhone
 
-- Objetivo: parecer anotação rápida de celular, recomendação pessoal e casual de um item (produto ou serviço).
-- Composição: uma nota genérica, de frente, ocupando 70% a 80% da peça, cantos arredondados, fundo claro. Sem moldura de aparelho, mão, barra de status ou ícones. Atrás, fundo liso, sem cena. Título no topo, à esquerda; abaixo, a lista com bolinhas simples. Item físico: pequeno (até 1/4 da peça), sem cobrir texto. Serviço: sem objeto.
-- Texto: título de até quatro palavras, o maior texto (cerca de duas vezes a lista); três a cinco itens de até cinco palavras, cada um numa linha; assinatura pequena com o nome da marca.
-- Revisão: Reprove e corrija com editOfImageId se: não parece nota de celular (é papel ou cena de mesa); a nota ocupa menos de 70%; mesa, paisagem ou objetos disputam a atenção; o título não é o maior texto; um item quebra linha ou fica cortado; aparecem @, horário, telefone, cidade ou palavra fora da copy; há moldura, barra de status, ícone, logo ou interface real; acentos diferem da copy.
-- Evite: captura de app real; interface, ícones ou logo de Apple ou de outro app; papel físico; local real; notificações, dados pessoais, texto longo; avaliações, estoque, preço ou eficácia não confirmados.
-- Fatos necessários: nome da marca, item e itens da lista, confirmados pelo dono. Em serviço ou B2B, a lista descreve a condição confirmada.
+- Objetivo: parecer anotação rápida de celular, recomendação pessoal e casual de qualquer oferta.
+- Herói: opcional. Item físico (produto, prato, peça, ferramenta) é o herói; serviço não tem herói. Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela. Sem foto, descreva só o que o dono confirmou.
+- Adaptação (título, itens e herói mudam com o negócio): café, "Pedidos favoritos", bebidas ou pratos confirmados, herói um copo real. Clínica, "Antes da consulta", orientações confirmadas, sem herói. Oficina, "Checklist do carro", serviços confirmados, herói uma peça pequena. Loja de roupas, "Looks da semana", peças e tamanhos, herói uma peça dobrada. Banco, "Dicas úteis", condições confirmadas, sem herói e sem cédulas.
+- Composição: uma nota genérica, de frente, ocupando 70% a 80% da peça, cantos arredondados, fundo claro. Sem moldura, mão, barra de status ou ícones. Fundo liso, sem cena. Título no topo, à esquerda; abaixo, a lista com bolinhas simples. [HERO] físico: pequeno (até 1/4 da peça), num canto, sem cobrir texto. Sem herói, apague a frase do herói no prompt.
+- Texto: título de até quatro palavras, o maior texto (o dobro da lista); três a cinco itens de até cinco palavras, uma por linha; assinatura pequena com o nome da marca.
+- Prompt-base: comece o prompt do paint por este texto, em inglês, preenchendo os campos entre colchetes com os fatos do pedido e do arquivo da marca (sem deixar colchetes): "[ASPECT_RATIO] flat, straight-on graphic of one generic digital note filling 75 percent of the canvas: no device frame, hands, status bar, app logo, icons, paper texture or table; plain light cream background. Softly rounded corners, matte off-white surface, thin muted rule under the title, small round bullet dots. Top-left, [TITLE] in a large bold serif, clearly the biggest text. Below, three to five short sans-serif lines, one per row, left aligned: [ITEM 1], [ITEM 2], [ITEM 3]. Small [HERO] in one corner, never covering text. Small muted [SIGNATURE] at bottom left. Soft even daylight, warm [BRAND COLOR] dots, crisp letters. Render exactly this text, nothing else: [TITLE], [ITEM 1], [ITEM 2], [ITEM 3], [SIGNATURE]."
+- Revisão: Reprove e corrija com editOfImageId se: não parece nota de celular (é papel ou cena); a nota ocupa menos de 70%; mesa ou paisagem disputam a atenção; o título não é o maior texto; um item quebra linha ou fica cortado; aparecem @, horário, telefone ou palavra fora da copy; há moldura, barra de status, ícone, logo ou interface real; acentos diferem da copy; o herói ou os elementos não combinam com o negócio.
+- Evite: captura de app real; interface, ícones ou logo de Apple ou de outro app; local real; notificações, dados pessoais, texto longo; avaliações, estoque, preço ou eficácia não confirmados.
+- Fatos necessários: marca, título, itens e herói, se houver, confirmados pelo dono. Em serviço, a lista descreve a condição confirmada.
 - Propósito comum: produto ou educacional.

@@ -1,0 +1,18 @@
+---
+name: post-ad-iridescente
+description: "Formato de anúncio iridescente — cena futurista e holográfica, com vidro fluido, fitas translúcidas, bolhas e reflexos prismáticos em volta do herói."
+allowed-tools: paint create_post
+---
+
+# Formato de anúncio: iridescente
+
+- Objetivo: estética futurista premium, com o herói envolto em vidro fluido holográfico.
+- Herói: o que representa a oferta neste post, escolhido pelo pedido e pelo arquivo da marca: produto, prato, pessoa, lugar ou um objeto físico que represente o serviço (cartão, chave, ferramenta, documento). Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela. Sem foto, descreva só o que o dono confirmou.
+- Mundo do herói (os elementos no vidro): bebida ou comida, copo, xícara ou prato, com vapor e ingredientes reais; moda e beleza, tecidos, pétalas e gotas; reparos e tecnologia, peças, ferramentas e aparelhos; saúde, escovas e instrumentos de consultório; finanças, cartões, chaves e documentos, sem cédulas nem gráficos; educação, livros, lápis e formas. Use só o que cabe no herói.
+- Composição: [HERO] inclinado em três quartos, 55% a 65% da peça, nítido e com cores reais. Em volta, curvas grossas de vidro fluido e fitas translúcidas iridescentes (lilás, ciano, rosa), bolhas de sabão e cáusticas prismáticas preenchendo o fundo. Sem fundo chapado; os elementos passam na frente e atrás do herói, sem cobrir o detalhe principal.
+- Texto: é um key visual. Nenhuma faixa, título ou CTA; se o herói tem nome ou rótulo, ele assina. Só se o dono pedir uma frase: até 5 palavras, pequena, num canto livre sem cobrir o herói. Sem nome no herói, assinatura pequena com a marca.
+- Prompt-base: comece o prompt do paint por este texto, em inglês, preenchendo os campos entre colchetes com os fatos do pedido e do arquivo da marca (sem deixar colchetes): "Premium futuristic key visual of [HERO], faithful to the reference photo when given, tilted at a three-quarter angle and filling about 60% of the frame, [HERO'S KEY DETAIL] sharp and unchanged. Wrap it in thick translucent fluid-glass curves and holographic ribbons in lavender, cyan and blush, with [ELEMENTS FROM THE HERO'S WORLD] floating among soap-film refractions and iridescent bubbles, prismatic caustics passing in front of and behind the hero on a polished reflective surface. Soft studio key light, crisp specular highlights, shallow bokeh, [BRAND COLOR] accent in the spectral palette, premium commercial finish, no flat overlays, no empty solid background, no added scenery, no arbitrary text. [ASPECT_RATIO]."
+- Revisão: Reprove e corrija com editOfImageId se: o vidro parece adesivo plano ou um traço fino; o herói mudou de cor ou forma, ou ficou pequeno; o brilho cobre o detalhe principal; o fundo é liso ou vazio; o herói ou os elementos não combinam com o negócio; há texto além do nome do herói e da frase pedida; a anatomia ou a grafia do nome estão erradas.
+- Evite: inventar ingredientes, sabores, peças, certificações, números, avaliações, depoimentos, ofertas, estoque ou alegações de saúde; marcas ou interfaces de terceiros.
+- Fatos necessários: o herói e os elementos reais do mundo dele, do pedido ou do arquivo da marca; foto do herói, se houver.
+- Propósito comum: produto ou anuncio.

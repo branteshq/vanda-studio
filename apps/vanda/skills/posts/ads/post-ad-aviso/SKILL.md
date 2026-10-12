@@ -1,15 +1,18 @@
 ---
 name: post-ad-aviso
-description: "Formato de anúncio aviso — selo AVISO com mensagem curta para avisar mudança de horário, dia ou data de funcionamento."
+description: "Formato de anúncio aviso — selo AVISO com mensagem curta para mudança de horário, feriado, fechamento ou data de funcionamento."
 allowed-tools: paint create_post
 ---
 
 # Formato de anúncio: aviso
 
-- Objetivo: hierarquia de aviso para uma mensagem curta da marca, legível no feed. Ordem: selo, mensagem, item. Tom comercial, nunca oficial.
-- Composição: fundo opaco, margem de 7%. Topo: selo "AVISO" centralizado, pílula de cor forte (cerca de 30% da largura), texto escuro sobre cor clara ou branco sobre cor escura. Centro: mensagem em 2 a 3 linhas, o maior texto, 60% da largura; apoio menor abaixo. Lateral ou base: item (produto ou serviço), cerca de 25% da área, sem tocar texto. Serviço: balcão ou mesa de atendimento, sem telas nem logos.
+- Objetivo: hierarquia de aviso para uma mensagem curta da marca. Ordem: selo, mensagem, herói. Tom comercial, nunca oficial.
+- Herói: o que representa a oferta neste post, escolhido pelo pedido e pelo arquivo da marca: produto, prato, pessoa, lugar ou um objeto-símbolo do serviço (cartão, chave, ferramenta, documento). Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela. Sem foto, descreva só o que o dono confirmou.
+- Mundo do herói (superfície por negócio): comida e bebida, mesa clara com o prato ou copo; beleza, superfície neutra com a peça real; reparos, bancada limpa com a ferramenta ou peça; finanças, cartão ou pasta com formas na cor da marca (nunca cédulas, moedas ou gráficos); educação, caderno ou livro aberto; saúde, objeto do atendimento numa bancada limpa.
+- Composição: fundo opaco, margem de 7%. Topo: selo "AVISO" centralizado, pílula de cor forte (cerca de 30% da largura). Centro: mensagem em 2 a 3 linhas, o maior texto, 60% da largura; apoio menor abaixo. Lateral ou base: [HERO] sobre a superfície do seu mundo, cerca de 25% da área, sem tocar texto. Serviço: balcão, sem telas nem logos.
 - Texto: "AVISO" (a maior palavra do selo); mensagem exata da copy aprovada, até 12 palavras; apoio com dia ou horário exatos; assinatura com o nome da marca. Nenhum outro texto.
-- Revisão: reprove e corrija com editOfImageId se: mensagem ou apoio difere da copy em palavra, acento ou número; aparece cidade, endereço, preço ou dado não informado; o selo é difícil de ler; a mensagem não é o maior texto; a assinatura não se lê a 360 px; há sirene, triângulo ou cara de comunicado oficial; o item está cortado, deformado ou com rótulo estranho; há tela ou moldura de celular; texto encosta no item ou na borda.
-- Evite: sirenes, triângulos, "perigo", linguagem de recall ou risco, escassez ou urgência inventadas; cidade, endereço ou telefone não informados; depoimentos, estoque, marcas ou interfaces de terceiros.
-- Fatos necessários: a mensagem aprovada pela marca, com dia e horário exatos; o item (produto ou serviço) e o nome da marca.
+- Prompt-base: comece o prompt do paint por este texto, em inglês, preenchendo os campos entre colchetes com os fatos do pedido e do arquivo da marca (sem deixar colchetes): "Opaque matte background in a calm [BRAND TONE], straight-on vertical frame with a 7% margin. Top: a solid [BRAND COLOR] pill about 30% of the width holding the seal [SEAL] in bold high-contrast letters, never a siren, triangle or official sign. Centre: the approved message [HEADLINE] as the largest text, 2 to 3 lines, about 60% of the width, with support line [SUPPORT LINE] smaller beneath. Lower side: [HERO] resting on [SURFACE FROM THE HERO'S WORLD], about 25% of the area, never touching text. Matte finish, no mockup frame, no phone or screen. Render exactly this text, nothing else: [SEAL], [HEADLINE], [SUPPORT LINE], [SIGNATURE]. [ASPECT_RATIO]."
+- Revisão: Reprove e corrija com editOfImageId se: a mensagem ou o apoio difere da copy em palavra, acento ou número; aparece cidade, endereço, preço ou dado não informado; o selo é difícil de ler; a mensagem não é o maior texto; há sirene, triângulo ou cara oficial; o herói está cortado, deformado ou com marca inventada; o herói ou os elementos não combinam com o negócio; há tela ou moldura de celular; texto encosta no herói ou na borda.
+- Evite: sirenes, triângulos, "perigo", linguagem de recall ou risco, escassez ou urgência inventadas; cidade, endereço ou telefone não informados; depoimentos, estoque, marcas ou interfaces de terceiros; ingredientes, certificações ou alegações de saúde inventadas.
+- Fatos necessários: a mensagem aprovada pela marca, com dia e horário exatos; o herói e o nome da marca.
 - Propósito comum: informativo ou anuncio.

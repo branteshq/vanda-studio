@@ -1,15 +1,18 @@
 ---
 name: post-ad-story-do-instagram
-description: "Formato de anúncio story do Instagram — story de anúncio vertical em tela cheia, com foto, chamada curta e áreas livres."
+description: "Formato de anúncio story do Instagram — stories verticais 9:16 em tela cheia, herói fotografado no seu mundo, chamada curta e áreas livres."
 allowed-tools: paint create_post
 ---
 
 # Formato de anúncio: story do Instagram
 
-- Objetivo: story de anúncio 9:16 com foto espontânea do item em uso e uma chamada curta.
-- Composição: foto de tela cheia, sem moldura de celular nem tela de app. Topo livre até 14%; base livre abaixo de 80%. Chamada começa abaixo de 14%, no terço superior, em letra grande; apoio logo abaixo, menor. Item (produto ou serviço) no terço central, cerca de 40% da altura, reconhecível; serviço aparece em cena de uso. Preço ou condição em texto puro, acima de 80%, sem pílula ou botão. Assinatura (marca) é o menor texto, acima de 80%. Siga post-type-story.
-- Texto: chamada de 2 a 5 palavras, a maior letra; apoio até 8; preço e condição em uma linha cada; CTA opcional com verbo, até 4 palavras; assinatura só com a marca. Total até 15 palavras.
-- Revisão: Reprove e corrija com editOfImageId se: assinatura, preço, condição ou CTA começam abaixo de 80%; a chamada começa acima de 14%; algum texto parece botão, pílula, campo ou selo da interface; apoio, condição ou assinatura não se leem a 360 px; há moldura, barra de progresso, avatar ou mockup; o item está cortado; há palavra fora da copy aprovada. Ao corrigir, mova o texto com folga.
-- Evite: logo do Instagram, barra de progresso, avatar, botões ou pílulas que imitem a interface, moldura de celular, promessa de sucesso, urgência ou oferta não aprovadas.
+- Objetivo: story 9:16 em tela cheia com o herói em uso no seu mundo e uma chamada curta, lida em segundos.
+- Herói: o que representa a oferta neste post, pelo pedido e pelo arquivo da marca: produto, prato, pessoa, lugar ou objeto-símbolo do serviço (cartão, chave, ferramenta). Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela.
+- Adaptação (a cena muda com o negócio): café, xícara ou prato sobre mesa de madeira com luz de janela; loja de roupa, peça pendurada ou dobrada; oficina, peça ou ferramenta sobre bancada; clínica, objeto limpo sobre tecido claro, sem corpo nem diagnóstico; banco, cartão ou documento sobre mesa clara, sem cédulas nem gráficos; escola, caderno e lápis; app, aparelho ou objeto físico em uso, sem tela visível.
+- Composição: foto de tela cheia, sem moldura de celular nem tela de app. Faixa livre: 14% no topo e 20% na base (conteúdo acima de 80%). Chamada abaixo de 14%, no terço superior, em letra grande; apoio logo abaixo, menor. [HERO] no terço central, inteiro, cerca de 40% da altura. Preço ou condição em texto puro. Assinatura da marca é o menor texto. Siga post-type-story.
+- Texto: chamada de 2 a 5 palavras, a maior letra; apoio até 8; preço e condição em uma linha cada; CTA opcional, até 4 palavras; assinatura só com a marca. Total até 15 palavras.
+- Prompt-base: comece o prompt do paint por este texto, em inglês, preenchendo os campos entre colchetes com os fatos do pedido e do arquivo da marca (sem deixar colchetes); com foto do herói, passe-a em referenceImageIds: "Photoreal vertical 9:16 story ad, full-bleed spontaneous photo, no phone frame, no app screen. [HERO], whole and recognizable in the middle third, about 40 percent of the frame height, in use within [SCENE FROM THE HERO'S WORLD]. Eye-level camera, shallow depth of field. Natural window light from one side, warm soft shadows, honest materials in [BRAND COLOR] tones, candid finish. Headline [HEADLINE] largest, just below the top 14 percent; support [SUPPORT] smaller beneath; [PRICE] and [CONDITION] as plain text above 80 percent; brand [BRAND] smallest at the bottom. No buttons, pills or boxes behind text, no logos. Render exactly this text, nothing else."
+- Revisão: Reprove e corrija com editOfImageId se: assinatura, preço, condição ou CTA começam abaixo de 80%; a chamada começa acima de 14%; algum texto parece botão, pílula ou campo; apoio ou assinatura não se leem a 360 px; há moldura, barra de progresso, avatar ou mockup; o herói está cortado ou tem cópias; o herói ou os elementos não combinam com o negócio (cédula num banco, peça num café); há palavra fora da copy aprovada.
+- Evite: logo do Instagram, barra de progresso, avatar, botões que imitem a interface, moldura de celular, tela de app, promessa de sucesso, urgência, resultado de saúde ou oferta não aprovados.
 - Fatos necessários: chamada, apoio e CTA aprovados; preço, condição e canal de compra, se aparecerem.
 - Propósito comum: promocional ou produto.

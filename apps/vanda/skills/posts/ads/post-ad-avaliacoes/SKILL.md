@@ -1,15 +1,18 @@
 ---
 name: post-ad-avaliacoes
-description: "Formato de anúncio avaliações — avaliação de cliente com estrelas e nota, em cartão ao lado do item avaliado."
+description: "Formato de anúncio avaliações — avaliação real de cliente, com estrelas e nota, em cartão ao lado do herói."
 allowed-tools: paint create_post
 ---
 
 # Formato de anúncio: avaliações
 
-- Objetivo: prova social: uma avaliação real e autorizada, em cartão, ao lado do item (produto ou serviço) avaliado.
-- Composição: cartão de cor sólida contrastante, cerca de 60% da altura, com de cima para baixo: cinco estrelas cheias e a nota ao lado; citação grande e centralizada; identificação menor; assinatura. O item ocupa cerca de 40%, de um lado ou abaixo do cartão. Serviço sem objeto físico: ambiente neutro ou só o nome do serviço em texto. Nunca invente objeto ou pessoa.
-- Texto: só estes slots: nota (ex.: 5/5), médio; citação, o maior texto, até 20 palavras; identificação (nome e bairro ou cidade, como autorizados), menor; nome do item, médio, se houver; assinatura (marca), pequena. Palavras do cliente literalmente; se passar de 20, corte com reticências. Sem título, selo, data ou chamada.
-- Revisão: Reprove e corrija com editOfImageId se: a citação muda palavra, acento ou pontuação; a nota e as estrelas não batem; há texto fora dos slots; a citação não é o maior texto; o cartão não se separa do fundo; o cartão imita app ou logo de plataforma; aparece pessoa não fornecida pelo dono; o item está cortado ou deformado; algum texto fica ilegível em 360 px ou encosta na borda.
+- Objetivo: prova social: avaliação real e autorizada, em cartão, ao lado do herói.
+- Herói: o que foi avaliado, escolhido pelo pedido e pelo arquivo da marca: produto, prato, lugar ou objeto-símbolo do serviço. Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela. Sem foto, use só o que o dono confirmou.
+- Adaptação (só o herói e a superfície mudam; cartão, estrelas e citação não): café e restaurante, prato ou bebida real sobre mesa clara; loja de roupas, peça dobrada sobre tecido liso; oficina, peça trocada ou ferramenta usada; clínica, instrumento sem marca sobre superfície clínica; banco, bloco de notas em branco na cor da marca; escola, caderno e lápis; app, aparelho sem marca, tela apagada.
+- Composição: cartão sólido e contrastante, cerca de 60% da altura, de cima a baixo: cinco estrelas cheias e a nota ao lado; citação grande e centralizada; identificação menor; assinatura. O [HERO] ocupa cerca de 40%, ao lado ou abaixo do cartão. Serviço sem objeto: ambiente neutro. Nunca invente objeto ou pessoa.
+- Texto: só estes slots: nota (ex.: 5/5), médio; citação, o maior texto, até 20 palavras; identificação (nome e bairro, como autorizados), menor; nome do herói, médio, se houver; assinatura (marca), pequena. Palavras do cliente, literais; acima de 20, corte com reticências. Sem título, selo, data ou chamada.
+- Prompt-base: comece o prompt do paint por este texto, em inglês, preenchendo os campos entre colchetes com os fatos do pedido e da marca (sem deixar colchetes): "[ASPECT_RATIO] customer-review card, flat editorial style. A solid [CARD_COLOR] card fills about 60% of the frame on a calm [BACKGROUND_COLOR] backdrop. Top to bottom: five solid filled [STAR_COLOR] stars with the score beside them, a large centered quote in heavy [TEXT_COLOR] serif as the dominant text, small attribution. [HERO] sits beside or below the card at about 40% of the frame, on [HERO'S WORLD SURFACE], faithful to the reference photo when given, crisp still life in soft daylight, no people. Matte flat colors, no platform UI, no logos. Render exactly this text, nothing else: score [NOTA], quote [CITACAO], attribution [IDENTIFICACAO], item name [NOME_DO_HEROI] (omit if none), signature [MARCA]."
+- Revisão: Reprove e corrija com editOfImageId se: a citação muda palavra, acento ou pontuação; a nota e as estrelas não batem; há texto fora dos slots; a citação não é o maior texto; o cartão não se separa do fundo; o cartão imita app ou logo de plataforma; aparece pessoa não fornecida pelo dono; o herói ou os elementos não combinam com o negócio; o herói está cortado ou deformado; texto ilegível em 360 px ou colado na borda.
 - Evite: interface ou logo de plataformas reais; nota, estrelas ou avaliador inventados; avaliação além da enviada pelo dono; meia estrela.
-- Fatos necessários: avaliação real e autorizada, com nota, citação exata e identificação. Sem isso, não crie este formato.
+- Fatos necessários: avaliação real e autorizada, com nota, citação exata e identificação; o herói e, se houver, o mundo dele. Sem avaliação real, não crie este formato.
 - Propósito comum: prova_social.

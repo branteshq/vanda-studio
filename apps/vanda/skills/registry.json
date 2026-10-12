@@ -195,7 +195,19 @@
   "post-ad-nos-vs-nos": {
     "alwaysApply": false
   },
-  "post-ad-diagrama-de-venn": {
+  "post-ad-scroll-stopper": {
+    "alwaysApply": false
+  },
+  "post-ad-sunbeam": {
+    "alwaysApply": false
+  },
+  "post-ad-tiny-planet": {
+    "alwaysApply": false
+  },
+  "post-ad-floating-3d": {
+    "alwaysApply": false
+  },
+  "post-ad-iridescente": {
     "alwaysApply": false
   }
 }

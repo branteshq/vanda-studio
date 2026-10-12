@@ -1,15 +1,18 @@
 ---
 name: post-ad-nos-vs-nos
-description: "Formato de anúncio nós vs nós — o mesmo item em duas situações de uso, lado a lado."
+description: "Formato de anúncio nós vs nós — o mesmo item em duas situações de uso, lado a lado, com cenário e luz diferentes."
 allowed-tools: paint create_post
 ---
 
 # Formato de anúncio: nós vs nós
 
-- Objetivo: mostrar o mesmo item (produto ou serviço) em duas situações de uso, lado a lado.
-- Composição: 4:5 dividido em duas metades iguais, com linha fina ao centro. O mesmo item aparece nas duas, idêntico, na mesma posição e escala, como centro de cada metade. Só cenário e luz mudam. Título no topo; rótulo no terço superior de cada metade, em área limpa; assinatura no rodapé. Em serviço, o item é um objeto que o representa, igual nos dois lados (cartão, caderno), nunca tela de app. Descreva o item igual nas duas metades.
-- Texto: título (até 4 palavras, o maior); um rótulo por metade (até 6 palavras); assinatura com o nome da marca. Nada mais: sem preço, promessa ou CTA. Copy aprovada, literal.
-- Revisão: Reprove e corrija com editOfImageId se: o item difere entre as metades (forma, cor, tamanho, posição); um lado tem objeto que o outro não tem; uma metade está vazia e a outra lotada; pessoa ou objeto cortado de forma estranha; rótulo cobre o item ou não se lê em 360 px; texto faltando, repetido ou sem acento; logo, marca de terceiros ou tela de app; sugere antes/depois, seta ou melhoria.
-- Evite: competição com outra marca ou grupo externo; versão melhorada ou falsa do item; setas ou ranking que indiquem vencedor; depoimentos, números ou benefícios não confirmados; rostos reais sem foto fornecida.
-- Fatos necessários: nome do item e os dois contextos de uso, confirmados pelo dono. Sem eles, proponha contextos genéricos e diga que são propostas.
+- Objetivo: mostrar o mesmo herói em duas situações de uso, lado a lado.
+- Herói: o que representa a oferta neste post, escolhido pelo pedido e pelo arquivo da marca: produto, prato, pessoa, lugar ou um objeto-símbolo do serviço (cartão, caderno, chave, ferramenta). Em serviço, o herói é esse objeto, nunca tela de app. Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela.
+- Adaptação (o cenário muda, o herói não): café, a mesma xícara na mesa de trabalho pela manhã e na mesa de casa no fim da tarde; clínica ou dentista, o mesmo cartão de consulta no balcão e na bolsa; oficina, a mesma ferramenta na bancada limpa e no porta-malas; loja de roupas, a mesma peça no cabide do dia e no sofá à noite; escola, o mesmo caderno na mesa de estudo e na mochila; banco, o mesmo cartão da marca no escritório e na mesa de casa.
+- Composição: 4:5 dividido em duas metades iguais, com linha fina ao centro. [HERO] aparece nas duas, idêntico, no centro exato de cada metade, na mesma posição, ângulo e escala. Só cenário e luz mudam. Título no topo; legenda no terço superior de cada metade; assinatura no rodapé.
+- Texto: título (até 4 palavras, o maior); uma legenda por metade (até 6 palavras); assinatura com o nome da marca. Nada mais: sem preço, promessa ou CTA. Copy aprovada, literal.
+- Prompt-base: comece o prompt do paint por este texto, em inglês, preenchendo os campos entre colchetes com os fatos do pedido e do arquivo da marca (sem deixar colchetes): "[ASPECT_RATIO] editorial split key visual: the same [HERO] sits at the exact centre of two equal halves divided by a thin line in [BRAND_COLOR], identical in angle, scale, position, colour and finish. Only setting and light change: left half [SCENE_LEFT] under [LIGHT_LEFT]; right half [SCENE_RIGHT] under [LIGHT_RIGHT]. Natural photo finish, shallow depth of field, clean opaque background, [HERO] sharp and fully visible, no extra copies. Title [TITLE], the largest text, across the top; one short caption per half, [CAPTION_LEFT] and [CAPTION_RIGHT], in a clean upper area; signature [BRAND] at the bottom. Render exactly this text, nothing else."
+- Revisão: Reprove e corrija com editOfImageId se: o herói difere entre as metades (forma, tamanho); um lado tem objeto que o outro não tem; uma metade está vazia e a outra lotada; pessoa ou objeto cortado de forma estranha; legenda cobre o herói ou não se lê; texto faltando, repetido ou sem acento; o herói ou os cenários não combinam com o negócio; logo, marca de terceiros ou tela de app; sugere antes/depois, seta ou melhoria.
+- Evite: competição com outra marca ou grupo externo; versão melhorada ou falsa do herói; setas ou ranking que indiquem vencedor; depoimentos, números ou benefícios não confirmados; rostos reais sem foto fornecida.
+- Fatos necessários: o nome do herói e os dois contextos de uso, confirmados pelo dono. Sem eles, proponha contextos genéricos do negócio e diga que são propostas.
 - Propósito comum: produto ou storytelling.

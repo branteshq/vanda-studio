@@ -1,0 +1,18 @@
+---
+name: post-ad-sunbeam
+description: "Formato de anúncio sunbeam — fotografia acolhedora com luz de sol de janela, golden hour, sombras de folhas e clima editorial lifestyle."
+allowed-tools: paint create_post
+---
+
+# Formato de anúncio: sunbeam
+
+- Objetivo: mostrar o herói com calor e sofisticação, em luz de fim de tarde entrando pela janela.
+- Herói: o que representa a oferta neste post, escolhido pelo pedido e pelo arquivo da marca: produto, prato, pessoa, lugar ou um objeto-símbolo do serviço. Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela. Sem foto, descreva só o que o dono confirmou.
+- Adaptação (a luz, as sombras e a poeira ficam; o adereço e a superfície mudam): comida e bebida, o ingrediente real (grão, fruta, erva) sobre madeira; moda e beleza, tecido, flor seca ou pedra sobre linho ou mármore; reparos e serviços técnicos, ferramenta ou peça limpa sobre bancada de madeira; finanças e B2B, caderno fechado, caneta ou planta sobre madeira clara (nunca cédulas ou gráficos); educação, livro aberto ou lápis sobre mesa de madeira; tecnologia, um dispositivo ou cabo sobre pedra escura. Use o que faz sentido.
+- Composição: herói em pé, de frente, cerca de 50% a 60% da altura da peça, levemente fora do centro, sobre bancada de pedra ou madeira. Janela desfocada ao fundo, luz dourada lateral, sombras longas, poeira no ar. Um ou dois adereços ligados ao herói junto da base.
+- Texto: é um key visual. O nome ou logo do herói, se houver, já assina a peça; não acrescente faixa, bloco de título ou CTA. Só se o dono pedir uma frase: até 5 palavras, pequena, num canto do espaço livre, sem cobrir o herói.
+- Prompt-base: comece o prompt do paint por este texto, em inglês, preenchendo os campos entre colchetes com os fatos do pedido e do arquivo da marca (sem deixar colchetes): "Premium editorial lifestyle photography of [HERO], faithful to the reference photo when given, about 60% of the frame height and slightly off-centre, its name or logo sharp and legible, shot straight on at eye level, placed on a [SURFACE] in a refined [SETTING]. One warm late-afternoon sunbeam enters through a window from camera-left, casting long soft leaf shadows across the surface, with subtle dust motes in the light. A single [RELEVANT PROP] as a restrained accent beside the base, warm tones leaning to [BRAND COLOR]. Shallow depth of field with the window softly blurred behind, realistic light falloff, natural materials, opaque background, inviting cinematic mood, [ASPECT_RATIO] frame, clean hierarchy, no arbitrary text."
+- Revisão: Reprove e corrija com editOfImageId se: a luz vem de mais de uma direção; o herói está pequeno, cortado ou se mistura ao fundo; o herói ou os elementos não combinam com o negócio; há mais de dois adereços; a cena parece catálogo genérico ou escritório; há texto além do nome e da frase pedida. Confira também grafia do nome e anatomia.
+- Evite: inventar ingredientes, peças, certificações, números, avaliações ou alegações; marcas ou interfaces de terceiros.
+- Fatos necessários: o herói e os elementos reais do negócio, do pedido ou do arquivo da marca; foto do herói, de preferência.
+- Propósito comum: produto ou institucional.

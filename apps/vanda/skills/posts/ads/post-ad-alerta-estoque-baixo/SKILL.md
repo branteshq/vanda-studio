@@ -1,15 +1,18 @@
 ---
 name: post-ad-alerta-estoque-baixo
-description: "Formato de anúncio alerta de estoque baixo — restam poucas unidades, último lote ou saindo de linha; só com estoque confirmado."
+description: "Formato de anúncio alerta de estoque baixo — restam poucas unidades, último lote, vagas restantes ou saindo de linha; só com estoque confirmado."
 allowed-tools: paint create_post
 ---
 
 # Formato de anúncio: alerta de estoque baixo
 
-- Objetivo: disponibilidade real com cara de última chance; o alerta lê primeiro.
-- Composição: fundo chapado, saturado, de alto contraste. Faixa de alerta de largura total, sem cantos arredondados, no terço superior (25% da altura). Item inteiro e nítido no centro (40% da altura), sem cenário, com o rótulo real e nenhum texto extra nele. Na base: apoio, CTA isolado e assinatura. Formas simples em cor de alerta.
-- Texto: cada trecho uma vez. Faixa, a maior (até 6 palavras: quantidade ou condição confirmada). Apoio, menor (até 10 palavras: item, lote ou prazo, preço exato). CTA com verbo, até 4 palavras.
-- Revisão: Reprove e corrija com editOfImageId se: a faixa não é a leitura mais forte ou falta o dado confirmado; algum trecho aparece duas vezes, até num rótulo; o item está cortado ou não é o da foto ou do briefing; o fundo é pálido; há cronômetro, selo ou número não confirmado; há texto extra ou logo inventado; apoio ou CTA ilegível a 360 px; há acento ou número errado.
-- Evite: contadores, datas, quantidades ou prazos não confirmados; "últimas unidades" sem estoque real; pressão enganosa; selos, benefícios, depoimentos, apps, lojas ou marcas de terceiros. Sem estoque limitado confirmado, não crie este formato; ofereça outro.
-- Fatos necessários: quantidade exata, fim de linha ou prazo confirmados pelo dono; nome, preço e canal do CTA. Serviço: vagas ou limite restantes; símbolo ou ambiente, sem pessoa real não fornecida.
+- Objetivo: disponibilidade real com cara de última chance; a faixa lê primeiro.
+- Herói: o que representa a oferta limitada, escolhido pelo pedido e pelo arquivo da marca: produto, prato, pessoa ou objeto-símbolo do serviço (cartão, chave, vaga). Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela. Sem foto, descreva só o que o dono confirmou.
+- Adaptação: roupa, a peça ou tamanho que sobrou; café e padaria, o pacote do lote; bebida, a garrafa do lote; oficina, a ferramenta e as vagas da semana; escola, o caderno da turma e as vagas; banco, o cartão físico, com limite confirmado. Em todos, faixa e CTA na cor de alerta; fundo na cor da marca.
+- Composição: fundo chapado e saturado. Faixa de largura total, sem cantos arredondados, no terço superior (25% da altura). [HERO] inteiro e nítido no centro (40% da altura), sem cenário, sobre superfície lisa. Na base: apoio, CTA isolado em barra e assinatura.
+- Texto: cada trecho uma vez. Faixa, a maior (até 6 palavras: quantidade ou condição confirmada). Apoio, menor (até 10 palavras: item, lote ou prazo, preço exato). CTA com verbo, até 4 palavras. Assinatura: a marca.
+- Prompt-base: comece o prompt do paint por este texto, em inglês, preenchendo os campos entre colchetes com os fatos do pedido e do arquivo da marca (sem deixar colchetes): "Bold alert key visual on a flat, saturated [BRAND COLOR] background, at eye level. A full-width band with sharp square corners fills the top quarter in [ALERT_COLOR], holding the headline "[HEADLINE]" in heavy cream sans-serif. [HERO], faithful to the reference photo when given, sits centred, whole and sharp, about 40% of frame height, its key detail facing camera, on a plain surface with no scene, props or plants. Soft even studio light, one short shadow, matte finish, flat graphic shapes, no gradients. Bottom: supporting line "[SUPPORT_LINE]" in dark ink, a square [ALERT_COLOR] CTA bar reading "[CTA]", and a small signature "[BRAND]". [ASPECT_RATIO]. Render exactly this text, nothing else."
+- Revisão: Reprove e corrija com editOfImageId se: a faixa não é a leitura mais forte ou falta o dado confirmado; algum trecho aparece duas vezes; o herói está cortado, não é o da foto ou do briefing, ou o herói ou os elementos não combinam com o negócio; o fundo é pálido; há cronômetro, selo ou número não confirmado; há texto extra ou logo inventado; apoio ou CTA ilegível a 360 px; há acento ou número errado.
+- Evite: contadores, datas, quantidades ou prazos não confirmados; "últimas unidades" ou "últimas vagas" sem estoque ou limite real; pressão enganosa; selos, benefícios, depoimentos, apps, lojas ou marcas de terceiros. Sem estoque limitado confirmado, não crie este formato; ofereça outro.
+- Fatos necessários: quantidade exata, fim de linha ou prazo confirmados pelo dono; nome, preço e canal do CTA. Serviço: vagas restantes confirmadas; símbolo ou ambiente, sem pessoa real não fornecida.
 - Propósito comum: promocional.

@@ -1,15 +1,18 @@
 ---
 name: post-ad-podcast-de-ia
-description: "Formato de anúncio podcast de IA — apresentador ao microfone num estúdio de entrevista, com o item na mesa e legenda curta."
+description: "Formato de anúncio podcast de IA — conversa gravada: apresentador ao microfone num estúdio, herói na mesa e legenda curta."
 allowed-tools: paint create_post
 ---
 
 # Formato de anúncio: podcast de IA
 
-- Objetivo: conversa gravada em estúdio, com o item na cena.
-- Composição: pessoa adulta fictícia (ou o dono, com a foto) de frente ao microfone de haste, plano médio, cabeça inteira. Microfone lateral, sem logotipo, longe do item. Item (produto ou serviço) no centro da mesa, em primeiro plano, com um quarto da altura da peça; produto inteiro e de frente; serviço: cartão impresso com o nome. Luz quente, margem de 7%, faixa inferior creme e sólida.
-- Texto: do maior ao menor. (1) Legenda, até 12 palavras, sem aspas, travessão ou nome de quem fala: a fala aprovada pelo dono. Sem fala aprovada, o nome da marca vira título, nunca citação, sem assinatura. (2) Nome do item com volume ou preço, até 6 palavras. (3) Assinatura da marca. Sem outro texto.
-- Revisão: Reprove e corrija com editOfImageId se: a legenda tiver aspas, travessão ou autor; texto com grafia, número ou preço diferentes do aprovado, ou repetido; o microfone cobrir o item; cabeça ou mãos cortadas; o item fora do centro, menor que um quarto da peça ou sem nome legível; legenda ilegível a 360 px; logotipo, tela de app, nome de estúdio ou fabricante; rosto deformado.
-- Evite: imitar rostos ou programas conhecidos; nome de podcast, logotipo de estúdio ou fabricante; interface de app; depoimento ou endosso; números, estoque ou promessas de saúde não informados.
-- Fatos necessários: fala aprovada pela marca; nome, volume e preço do item como no pedido ou no arquivo da marca.
+- Objetivo: conversa gravada em estúdio, com o herói na cena.
+- Herói: o que representa a oferta neste post: produto, prato, pessoa, lugar ou objeto-símbolo do serviço (cartão, chave, ferramenta). Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela. Sem foto, use só o que o dono confirmou.
+- Mundo do herói (objetos da mesa): café, xícara e grãos na madeira; clínica, cartão com o nome do serviço e modelo de dente; banco ou contabilidade, pasta, caneta e cartão, sem cédulas, moedas ou gráficos; conserto, a peça ou ferramenta limpa; loja de roupas, a peça dobrada, sem marca de terceiros; escola, caderno e lápis; app, cartão com o nome, sem tela.
+- Composição: apresentador fictício (ou o dono, com a foto) de frente ao microfone de haste, plano médio, cabeça e mãos no quadro. Microfone lateral, sem logotipo. [HERO] no centro da mesa, em primeiro plano, com um quarto da altura da peça, inteiro e de frente. Luz quente, margem de 7%, faixa inferior creme e sólida.
+- Texto: do maior ao menor. (1) Legenda, até 12 palavras, sem aspas, travessão ou autor: a fala aprovada pelo dono. Sem fala aprovada, o nome da marca vira título, nunca citação. (2) Nome do herói com o detalhe aprovado (volume, preço ou prazo), até 6 palavras. (3) Assinatura da marca.
+- Prompt-base: comece o prompt do paint por este texto, em inglês, preenchendo os campos entre colchetes com os fatos do pedido e do arquivo da marca (sem deixar colchetes): "[ASPECT_RATIO] podcast-style ad frame, warm studio interview look. A [HOST] sits behind a stand microphone, medium eye-level shot, head and hands in frame, microphone aside and never covering [HERO]. On the wooden table, in sharp foreground, [HERO] stands whole and front-facing, about a quarter of the frame height, its [HERO'S KEY DETAIL] legible, with [ELEMENTS FROM THE HERO'S WORLD] beside it. Soft warm light, matte linen and ceramic, neutral palette with a [BRAND_COLOR] accent. Bottom third: solid cream band, caption in large serif type, hero line small beneath. Clean editorial finish, no logo, no screens. Render exactly this text, nothing else: caption [CAPTION]; hero line [HERO_LINE]; signature [BRAND]."
+- Revisão: Reprove e corrija com editOfImageId se: legenda com aspas, travessão ou autor; texto diferente do aprovado ou repetido; microfone cobrindo o herói; cabeça ou mãos cortadas; herói fora do centro, menor que um quarto da peça ou sem nome legível; legenda ilegível a 360 px; logotipo, tela de app, estúdio ou fabricante; rosto deformado; o herói ou objetos não combinam com o negócio.
+- Evite: inventar ingredientes, peças, certificações, números ou alegações; rostos ou programas conhecidos; nome de podcast, logotipo, fabricante, interface de app ou marca de terceiros; depoimento, endosso ou promessa de saúde.
+- Fatos necessários: fala aprovada pela marca; nome do herói e o detalhe aprovado (volume, preço ou prazo) como no pedido ou na marca; foto do dono, se ele aparecer.
 - Propósito comum: produto, anuncio ou editorial.

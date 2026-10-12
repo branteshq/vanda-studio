@@ -1,15 +1,18 @@
 ---
 name: post-ad-problema-vs-solucao
-description: "Formato de anúncio problema vs solução — dois painéis lado a lado: a situação do dia a dia e a solução da marca."
+description: "Formato de anúncio problema vs solução — dois painéis lado a lado: a situação do dia a dia e a solução da marca, na mesma cena."
 allowed-tools: paint create_post
 ---
 
 # Formato de anúncio: problema vs solução
 
-- Objetivo: mostrar num olhar o problema e a cena resolvida pela marca.
-- Composição: dois painéis iguais (4:5 ou 1:1), divisória nítida. Mesmo ambiente, enquadramento e luz; muda só o estado do item (produto ou serviço). Topo de cada painel: faixa com o rótulo; frase abaixo. Problema: item desmontado ou fora do lugar. Solução: o mesmo item inteiro e limpo, no centro. Serviço sem objeto: efeito concreto na mesma cena. Assinatura pequena no rodapé.
-- Texto: rótulos "PROBLEMA" e "SOLUÇÃO" (maior); frase de cada lado, até 8 palavras; ressalva e assinatura nunca abaixo da metade da frase. Use as palavras do dono.
-- Revisão: Reprove e corrija com editOfImageId se: não há divisória nítida; um lado ocupa bem mais área; ambiente, luz ou enquadramento mudam; o item não é o mesmo nos dois lados; rótulo falta, repete ou está fora do topo; frase trocada, cortada ou com erro de acento; há asterisco, ressalva, preço, prazo ou horário que o dono não forneceu; texto ilegível a 360 px; faixa escura pesada no rodapé; bagunça exagerada, pessoa frustrada ou ferramenta perigosa; logo, interface ou marca alheia.
-- Evite: narrativas médicas, transformação sem base, promessa de resolver tudo, depoimentos, números, garantias, interface de app; preço, prazo ou horário não confirmados, na arte ou na legenda.
-- Fatos necessários: problema e solução confirmados pela marca. Se a solução prometer tempo ou resultado, use a frase sem ressalva acrescentada.
-- Propósito comum: produto.
+- Objetivo: mostrar num olhar o problema do dia a dia e a solução da marca.
+- Herói: o item cujo estado muda entre os painéis, escolhido pelo pedido e pelo arquivo da marca: prato, objeto do dia a dia ou objeto-símbolo do serviço (aparelho, documento, chave). Com foto, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela.
+- Adaptação: café ou restaurante, prato derramado, depois servido inteiro; reparos, aparelho aberto com peças soltas, depois montado; finanças, papéis espalhados, depois organizados numa pasta na cor da marca (nunca cédulas); roupas, peça amassada, depois passada num cabide; escola, caderno com folhas soltas, depois organizado; tecnologia, cabos emaranhados, depois o aparelho limpo (nunca tela de app).
+- Composição: dois painéis iguais (4:5 ou 1:1), divisória vertical nítida. Mesma cena e luz; muda só o estado do [HERO]. Faixa no topo de cada painel; frase abaixo. Problema: [HERO] desmontado ou fora do lugar. Solução: o mesmo [HERO] inteiro e limpo, no centro, cerca de 60% do painel.
+- Texto: faixas "PROBLEMA" e "SOLUÇÃO" (maiores); frase de cada lado, até 8 palavras; ressalva e assinatura nunca abaixo da metade da frase.
+- Prompt-base: comece o prompt do paint por este texto, em inglês, preenchendo os campos entre colchetes com os fatos do pedido e do arquivo da marca (sem deixar colchetes); com foto, passe-a em referenceImageIds e gere uma imagem nova: "[ASPECT_RATIO] ad in two equal side-by-side panels, crisp vertical divider, same room and soft daylight on both sides; only the state of [HERO] changes. Left: [HERO] broken or out of place, [ELEMENTS FROM THE HERO'S WORLD] lying around, everyday and slightly messy. Right: the same [HERO] complete and clean, centred, filling about 60% of the panel; for a service, its concrete result in the same scene. Solid [BRAND COLOR] header band atop each panel. Realistic matte materials, no logos. Render exactly this text, nothing else: left band 'PROBLEMA', left headline '[PROBLEMA_FRASE]'; right band 'SOLUÇÃO', right headline '[SOLUCAO_FRASE]'; small footer '[BRAND]'."
+- Revisão: Reprove e corrija com editOfImageId se: não há divisória nítida; um lado ocupa bem mais área; ambiente, luz ou enquadramento mudam; o herói não é o mesmo nos dois lados; o herói ou os elementos não combinam com o negócio; a faixa falta, repete ou está fora do topo; frase trocada, cortada ou com erro de acento; há asterisco, ressalva, preço, prazo ou horário que o dono não forneceu; texto ilegível a 360 px; bagunça exagerada, pessoa frustrada ou ferramenta perigosa; logo, interface ou marca alheia.
+- Evite: narrativas médicas, transformação sem base, promessa de resolver tudo, depoimentos, números, garantias, interface de app; preço, prazo ou horário não confirmados.
+- Fatos necessários: problema e solução confirmados pela marca, e o herói e os elementos reais do negócio. Se a solução prometer tempo ou resultado, use a frase sem ressalva acrescentada.
+- Propósito comum: produto ou educacional.

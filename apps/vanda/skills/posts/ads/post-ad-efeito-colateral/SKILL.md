@@ -1,15 +1,18 @@
 ---
 name: post-ad-efeito-colateral
-description: "Formato de anúncio efeito colateral — brincadeira com cara de aviso de efeito colateral, mostrando uma consequência engraçada de usar o item."
+description: "Formato de anúncio efeito colateral — aviso bem-humorado com consequência leve e engraçada do herói: brincadeira, humor, aviso."
 allowed-tools: paint create_post
 ---
 
 # Formato de anúncio: efeito colateral
 
-- Objetivo: gancho de humor com linguagem de aviso. A consequência leve de usar o item (produto ou serviço) é piada, nunca alerta.
-- Composição: 4:5 (ou 1:1), fundo opaco claro e liso. Pessoa adulta fictícia em meio-busto, ~60% da altura à esquerda, expressão divertida, olhando para o título. Item embaixo, nítido, ~um quarto da largura, sem letras. Título no terço superior direito, nunca sobre rosto ou item. Assinatura pequena no canto inferior. Serviço: mostre o item em uso.
-- Texto: título, o maior, até 8 palavras: "Efeito colateral: <consequência leve>." Apoio, menor, até 6 palavras, só com fato confirmado ou nenhum. Assinatura: marca, pequena. Nenhum outro texto.
-- Revisão: Reprove e corrija com editOfImageId se: há preço, horário, endereço, desconto ou número fora da copy aprovada; título com mais de 8 palavras ou que não é a maior letra; apoio ou assinatura ilegível numa miniatura de 360 px; item borrado ou coberto pelo texto; rosto ou mãos deformados; parece bula, remédio, tarja, selo ou ícone médico; formas grandes disputam com o título; palavra extra ou acento faltando.
-- Evite: sintomas, linguagem médica, conteúdo chocante, close grotesco, sensualização, promessa de efeito ou saúde, interface ou marca de terceiros.
-- Fatos necessários: frase de humor e nome do item aprovados pelo dono. Preço, horário, endereço, oferta ou prazo só se confirmados; sem eles, não escreva.
+- Objetivo: gancho de humor com cara de aviso; a consequência leve é piada, nunca alerta.
+- Herói: o que representa a oferta, pelo pedido e pelo arquivo da marca: produto, prato, pessoa, lugar ou objeto-símbolo do serviço. Com foto do dono, passe-a em referenceImageIds e gere uma imagem nova (editOfImageId só corrige a peça gerada). Pessoa real só com foto dela. Sem foto, descreva só o confirmado.
+- Adaptação (detalhe cômico do mundo do herói): café, calda respingada na lapela e guardanapo em forma de chapéu; clínica, sorriso exagerado com escova ou cartão de agenda, sem sintomas; loja de roupas, etiqueta de provador na manga e cabide no casaco; reparo, faísca de solda em forma de confete e serragem no ombro; finanças, folhas de papel e bilhetes na cor da marca, nunca cédulas.
+- Composição: 4:5, fundo opaco claro e liso. Pessoa fictícia adulta em meio-busto, ~60% da altura à esquerda, expressão divertida, olhando para o título. [HERO] embaixo, nítido, ~um quarto da largura. Título no terço superior direito, nunca sobre rosto ou herói. Assinatura pequena embaixo. Serviço: objeto-símbolo em uso.
+- Texto: título, o maior, até 8 palavras: "Efeito colateral: <consequência leve>." Apoio, menor, até 6 palavras, só se confirmado ou nenhum. Assinatura: marca, pequena. Nenhum outro texto.
+- Prompt-base: comece o prompt do paint por este texto, em inglês, preenchendo os campos entre colchetes com os fatos do pedido e do arquivo da marca (sem deixar colchetes): "Playful side-effect notice key visual for [HERO], [ASPECT_RATIO]. Fictional adult person in medium bust close-up on the left, about 60% of frame height, wry expression glancing at the headline. [HERO] sharp and whole in the lower band, about a quarter of frame width, faithful to the reference photo when given. [ELEMENTS FROM THE HERO'S WORLD] as a harmless comic consequence, never gore or alarm. Flat opaque light background, no colour blocks. Soft window light, shallow depth of field, clean editorial finish. Headline large bold serif in the upper right third under a thin rule, notice-like but never a medical pill or warning icon. Render exactly this text, nothing else: headline [HEADLINE], support [SUPPORT] if confirmed, signature [BRAND]."
+- Revisão: Reprove e corrija com editOfImageId se: há preço, horário, endereço ou número fora da copy aprovada; título com mais de 8 palavras ou que não é a maior letra; apoio ou assinatura ilegível em miniatura de 360 px; herói borrado ou coberto pelo texto; herói ou elementos não combinam com o negócio; rosto ou mãos deformados; parece bula, remédio, tarja ou ícone médico; formas grandes disputam com o título; palavra extra ou acento faltando.
+- Evite: sintomas, linguagem médica, conteúdo chocante, close grotesco, sensualização, promessa de efeito ou saúde, depoimento ou número inventado, interface ou marca de terceiros.
+- Fatos necessários: frase de humor e nome do herói aprovados pelo dono. Preço, horário, endereço, oferta ou prazo só se confirmados; sem eles, não escreva.
 - Propósito comum: produto ou comunidade.
