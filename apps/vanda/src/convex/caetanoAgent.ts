@@ -3,7 +3,7 @@ import { components } from "./_generated/api";
 import type { AgentCtx } from "./agentContext";
 import { resolveCaetanoModel } from "./agentModels";
 import { chatUsageHandler, openrouterChatModel } from "./chatModel";
-import { BRAND_FILE_PATH, type BrandGuideSection } from "./brandFile";
+import { BRAND_FILE_PATH } from "./brandFile";
 import { systemPrompt, vanda, vandaToolDiscovery } from "./vanda";
 
 export const caetanoSystemPrompt = (): string => systemPrompt("caetano");
@@ -26,14 +26,11 @@ export const WHATSAPP_CHANNEL_PROMPT = `Este turno veio do WhatsApp do dono.
 const JARGON = "tipo de post, persona, paleta, engajamento, branding, público-alvo";
 
 /**
- * Appended to turns in the brand guide thread: Caetano fills /brand/marca.md
- * in conversation, writing each answer as it lands. The guide card above the
- * thread shows each section lighting up as its first item lands.
+ * Appended to turns in the brand guide thread: Caetano reads the connected
+ * Instagram, then fills /brand/marca.md in conversation, writing each answer as
+ * it lands. He judges what is missing from the file itself.
  */
-export const brandGuidePrompt = (sections: ReadonlyArray<BrandGuideSection>): string => {
-  const open = sections.filter((section) => !section.filled);
-
-  return `Esta é a conversa do guia da marca. Você está preenchendo ${BRAND_FILE_PATH} com o dono, para que a Vanda e você criem os posts dele sozinhos. O dono tem um pequeno negócio e não é profissional de marketing: use linguagem simples, nunca jargão (${JARGON}).
+export const BRAND_GUIDE_PROMPT = `Esta é a conversa do guia da marca. Você está preenchendo ${BRAND_FILE_PATH} com o dono, para que a Vanda e você criem os posts dele sozinhos. O dono tem um pequeno negócio e não é profissional de marketing: use linguagem simples, nunca jargão (${JARGON}).
 
 Primeiro turno: a conversa começa com uma mensagem da plataforma, não do dono. Antes de escrever qualquer coisa, leia a conta conectada:
 - use tool_search para achar read_instagram_profile e read_instagram_posts; leia o perfil e os últimos posts, sempre com scope "connected" (nunca leia perfis públicos no guia), os posts com limit 12 e images true, e olhe cada imagem;
@@ -65,14 +62,7 @@ Cada pergunta pede UM fato específico, ancorado no Instagram ou no que o dono d
 - Logo: opcional. Pergunte uma vez, levemente, e nunca insista. Sem logo, grave "- Logo: sem logo por enquanto; usar o nome em texto (dono)". Se a imagem chegar, confira se é um logo e como ele funciona sobre fundo claro e escuro, e grave "- Logo: ![logo](image:<imageId do anexo>) — <versão>; <posição> (dono)".
 - Quando o assunto for logo, fotos ou o visual, diga que dá para mandar pelo botão **Enviar foto ou logo**, aqui embaixo.
 - Nunca mostre a estrutura: nada de nomes de seções, contagens, etapas ou "✔", e não diga "próxima pergunta".
-- Não declare o guia pronto só porque cada parte tem um item: antes de encerrar, confirme com o dono a postura e a voz, o objetivo no Instagram e os limites do setor. Conduza a conversa até o fim: quando faltar pouco, avise que está quase acabando; quando não faltar nada importante, resuma em 2 ou 3 linhas o que agora sabe e diga que ele já pode finalizar no botão **Começar a criar**, aqui embaixo. Sem checklist.
-
-${
-  open.length > 0
-    ? `Ainda falta saber (sem ordem):\n${open.map((section) => `- ${section.title}: ${section.discover}`).join("\n")}`
-    : "Não falta nada importante: encerre com o resumo e proponha criar o primeiro post."
-}`;
-};
+- Você decide o que falta: releia o arquivo e compare com o que você precisa saber. Antes de encerrar, confirme com o dono as cores que você viu, a postura e a voz, o objetivo no Instagram e os limites do setor; o que ficou como (Vanda) nessas partes ainda não está confirmado. Quando faltar pouco, avise que está quase acabando. Quando não faltar nada importante, resuma em 2 ou 3 linhas o que agora sabe e diga que ele já pode finalizar no botão **Começar a criar**, aqui embaixo (ele aparece quando cada parte tem um item e o Design tem a paleta). Sem checklist.`;
 
 /**
  * Appended to posts automáticos work turns (caetanoInbox.autopilotJob): the

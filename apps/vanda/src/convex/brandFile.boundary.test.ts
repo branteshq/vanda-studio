@@ -94,6 +94,19 @@ describe("brand file facts, kinds and composition", () => {
   });
 });
 
+describe("brand guide", () => {
+  it("counts Design as answered only once it has the colors", () => {
+    const designOf = (lines: string) =>
+      brandGuide(`# Marca\n\n## Design\n${lines}\n`).find((s) => s.title === "Design")?.filled;
+
+    expect(designOf("- Logo: sem logo por enquanto; usar o nome em texto (dono)")).toBe(false);
+    expect(designOf("- Tipografia: serifada nos títulos (Vanda)")).toBe(false);
+    expect(designOf("- Paleta: #c99a9a rosa antigo (fundo); #6b3f45 vinho (títulos) (Vanda)")).toBe(
+      true,
+    );
+  });
+});
+
 describe("brand file outline and design", () => {
   it("keeps labels, origins and empty sections in file order, and stops at the legacy notes", () => {
     const outline = brandFileOutline(`# Marca · Teste

@@ -456,38 +456,45 @@ export async function brandFileContent(ctx: QueryCtx, accountId: Id<"accounts">)
   return (await loadBrandFile(ctx, accountId)).content;
 }
 
-/** The brand guide: the interview sections and whether each already has an item. */
+/** The sections the guide counts as answered. Design needs its colors: a logo alone leaves posts guessing. */
+const answeredTitles = (content: string) =>
+  new Set(
+    walk(content)
+      .filter((section) =>
+        section.title === DESIGN_SECTION
+          ? section.items.some((item) => item.startsWith(`${DESIGN_LABELS.palette}:`))
+          : section.items.length > 0,
+      )
+      .map((section) => section.title),
+  );
+
+/** The brand guide: the interview sections and whether each is answered, for the guide card. */
 export const brandGuide = (content: string) => {
-  const filled = filledTitles(content);
+  const filled = answeredTitles(content);
 
   return SECTIONS.flatMap(({ title, discover }) =>
     discover ? [{ title, discover, filled: filled.has(title) }] : [],
   );
 };
 
-export type BrandGuideSection = ReturnType<typeof brandGuide>[number];
-
-/** The guide thread and the guide sections. */
-const guideTurnOf = async (ctx: QueryCtx, accountId: Id<"accounts">, content: string) => ({
-  threadId: (await ctx.db.get(accountId))?.brandGuideThreadId ?? null,
-  sections: brandGuide(content),
-});
-
 /** The guide card above Caetano's thread: which thread, and how far it got. */
 export const guide = query({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }) => {
-    await requireOwnedAccount(ctx, accountId);
+    const account = await requireOwnedAccount(ctx, accountId);
 
-    return guideTurnOf(ctx, accountId, (await loadBrandFile(ctx, accountId)).content);
+    return {
+      threadId: account.brandGuideThreadId ?? null,
+      sections: brandGuide((await loadBrandFile(ctx, accountId)).content),
+    };
   },
 });
 
-/** What a chat turn needs to know: is this Caetano's guide thread, and what is left. */
-export const guideTurn = internalQuery({
+/** The account's brand guide thread: a chat turn there is Caetano's. */
+export const guideThread = internalQuery({
   args: { accountId: v.id("accounts") },
-  handler: async (ctx, { accountId }) =>
-    guideTurnOf(ctx, accountId, (await loadBrandFile(ctx, accountId)).content),
+  handler: async (ctx, { accountId }): Promise<string | null> =>
+    (await ctx.db.get(accountId))?.brandGuideThreadId ?? null,
 });
 
 /** The owner's view of a business's brand file. */
