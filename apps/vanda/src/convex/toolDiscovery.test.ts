@@ -3,7 +3,8 @@ import { convertArrayToReadableStream, MockLanguageModelV3 } from "ai/test";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { caetano, caetanoToolDiscovery } from "./caetanoAgent";
-import { vanda, vandaToolDiscovery } from "./vanda";
+import { installedSkills } from "./skills/catalog";
+import { systemPrompt, vanda, vandaToolDiscovery } from "./vanda";
 import { toolDiscovery } from "./toolDiscovery";
 
 const usage = {
@@ -446,6 +447,22 @@ describe("ad format skill ranking", () => {
       "post-production post tipo image propósito produto formato de anúncio notas do iPhone",
       "post-ad-notas-do-iphone",
     ],
+    [
+      "post-production post tipo image propósito produto formato de anúncio scrollstopper",
+      "post-ad-scroll-stopper",
+    ],
+    [
+      "post-production post tipo image propósito produto formato de anúncio floating 3D",
+      "post-ad-floating-3d",
+    ],
+    [
+      "post-production post tipo image propósito produto formato de anúncio tiny planet",
+      "post-ad-tiny-planet",
+    ],
+    [
+      "post-production post tipo image propósito produto luz de sol de janela sunbeam",
+      "post-ad-sunbeam",
+    ],
   ])("offers the named ad format for %s", async (query, format) => {
     const result = await vandaToolDiscovery.search.execute!(
       { query },
@@ -460,5 +477,53 @@ describe("ad format skill ranking", () => {
     expect(names).toContain(format);
     expect(names.find((name) => name.startsWith("post-ad-"))).toBe(format);
     expect(names).toContain("post-production");
+  });
+});
+
+describe("every ad format skill is reachable", () => {
+  const formats = installedSkills().flatMap((skill) => {
+    const title = skill.body.match(/^# Formato de anúncio: (.+)$/m)?.[1];
+
+    return title ? [{ name: skill.name, title }] : [];
+  });
+
+  const skillNames = async (query: string) =>
+    z
+      .object({ skills: z.array(z.object({ name: z.string() })) })
+      .parse(
+        await vandaToolDiscovery.search.execute!({ query }, { toolCallId: "search", messages: [] }),
+      )
+      .skills.map((skill) => skill.name);
+
+  it("names every format in Vanda's instructions", () => {
+    expect(formats.length).toBeGreaterThan(0);
+
+    for (const { title } of formats) expect(systemPrompt()).toContain(title);
+  });
+
+  it.each(formats.map(({ name, title }) => [name, title] as const))(
+    "%s is found by the post search Vanda is told to make",
+    async (name, title) => {
+      const names = await skillNames(
+        `post-production post tipo image post propósito produto formato de anúncio ${title}`,
+      );
+
+      expect(names).toContain(name);
+      expect(names).toContain("post-production");
+    },
+  );
+
+  // Real queries where the format word lost its slot to the production, type and purpose skills.
+  it.each([
+    [
+      "post-production post tipo image formato aviso informativo lançamento novidade embalagem tamanho novo formato produto",
+      "post-ad-aviso",
+    ],
+    [
+      "habilidades produção post Instagram post-production e post propósito promocional, post de oferta combo promocional tipo image ou carousel",
+      "post-ad-combo",
+    ],
+  ])("keeps the named format in a crowded search: %s", async (query, name) => {
+    expect(await skillNames(query)).toContain(name);
   });
 });

@@ -31,8 +31,9 @@ const searchResultSchema = z.object({
 });
 
 // Per search: enough tools to cover a task, and the skills worth reading. A post
-// search asks for three at once (production, type, purpose), so three is too tight.
-const RESULTS = { tool: 4, skill: 5 } as const;
+// search asks for up to five at once (production, type, purpose, a second
+// purpose, ad format), and a format word must not lose its slot to the rest.
+const RESULTS = { tool: 4, skill: 7 } as const;
 
 // Name words every skill of a family shares; only the rest identify one skill.
 const FAMILY_WORDS = new Set(["post", "purpose", "type", "ad"]);
