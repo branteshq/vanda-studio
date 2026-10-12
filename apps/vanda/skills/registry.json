@@ -71,5 +71,131 @@
   },
   "instagram-caption": {
     "alwaysApply": false
+  },
+  "post-ad-noticia-urgente": {
+    "alwaysApply": false
+  },
+  "post-ad-avaliacoes": {
+    "alwaysApply": false
+  },
+  "post-ad-oferta": {
+    "alwaysApply": false
+  },
+  "post-ad-roteiro": {
+    "alwaysApply": false
+  },
+  "post-ad-quadro-branco": {
+    "alwaysApply": false
+  },
+  "post-ad-nos-vs-eles": {
+    "alwaysApply": false
+  },
+  "post-ad-podcast-de-ia": {
+    "alwaysApply": false
+  },
+  "post-ad-rabisco": {
+    "alwaysApply": false
+  },
+  "post-ad-alerta-estoque-baixo": {
+    "alwaysApply": false
+  },
+  "post-ad-mito-vs-verdade": {
+    "alwaysApply": false
+  },
+  "post-ad-notas-do-iphone": {
+    "alwaysApply": false
+  },
+  "post-ad-transformacao": {
+    "alwaysApply": false
+  },
+  "post-ad-zero-estrelas": {
+    "alwaysApply": false
+  },
+  "post-ad-pesquisa-no-google": {
+    "alwaysApply": false
+  },
+  "post-ad-combo": {
+    "alwaysApply": false
+  },
+  "post-ad-nao-seja-burro": {
+    "alwaysApply": false
+  },
+  "post-ad-estilo-reddit": {
+    "alwaysApply": false
+  },
+  "post-ad-efeito-colateral": {
+    "alwaysApply": false
+  },
+  "post-ad-pedimos-desculpas": {
+    "alwaysApply": false
+  },
+  "post-ad-tier-list": {
+    "alwaysApply": false
+  },
+  "post-ad-story-do-instagram": {
+    "alwaysApply": false
+  },
+  "post-ad-x-sinais": {
+    "alwaysApply": false
+  },
+  "post-ad-problema-vs-solucao": {
+    "alwaysApply": false
+  },
+  "post-ad-aviso": {
+    "alwaysApply": false
+  },
+  "post-ad-massinha": {
+    "alwaysApply": false
+  },
+  "post-ad-voce-pode-evitar": {
+    "alwaysApply": false
+  },
+  "post-ad-motivos": {
+    "alwaysApply": false
+  },
+  "post-ad-print-de-e-mail": {
+    "alwaysApply": false
+  },
+  "post-ad-mensagem-de-texto": {
+    "alwaysApply": false
+  },
+  "post-ad-problemas-riscados": {
+    "alwaysApply": false
+  },
+  "post-ad-nativo": {
+    "alwaysApply": false
+  },
+  "post-ad-truque-101": {
+    "alwaysApply": false
+  },
+  "post-ad-emergencia": {
+    "alwaysApply": false
+  },
+  "post-ad-depoimento": {
+    "alwaysApply": false
+  },
+  "post-ad-tela-verde": {
+    "alwaysApply": false
+  },
+  "post-ad-nao-compre-isso": {
+    "alwaysApply": false
+  },
+  "post-ad-manchete-com-dado": {
+    "alwaysApply": false
+  },
+  "post-ad-meme": {
+    "alwaysApply": false
+  },
+  "post-ad-novo-vs-antigo": {
+    "alwaysApply": false
+  },
+  "post-ad-texto-na-pele": {
+    "alwaysApply": false
+  },
+  "post-ad-nos-vs-nos": {
+    "alwaysApply": false
+  },
+  "post-ad-diagrama-de-venn": {
+    "alwaysApply": false
   }
 }
