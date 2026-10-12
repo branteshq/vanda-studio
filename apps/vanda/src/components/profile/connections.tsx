@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
+import { ChevronRight, RefreshCw, Unplug } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@vanda-studio/ui/components/dropdown-menu";
+import { OpenAiIcon } from "@vanda-studio/ui/components/model-marks";
 import { Spinner } from "@vanda-studio/ui/components/spinner";
 import type { Id } from "../../convex/_generated/dataModel";
 import { errorMessage } from "../../errors";
-import { ProfileRow } from "./layout";
+import { ServiceTile, SettingsRow, StatusMenu } from "./layout";
 import { useProfileRuntime } from "./runtime";
 
 /**
@@ -45,30 +48,41 @@ export function InstagramConnectionRow({
     }
   };
 
-  // Listed under an "Instagram" label, so the row names only the business.
-  // Reconectar stays visible: it is what the owner reaches for when posting breaks.
+  // Listed under the Instagram card's header, so the row names only the business.
   return (
-    <ProfileRow
-      tone={status?.connected ? "on" : "off"}
+    <SettingsRow
+      inset
       title={name}
       detail={
         status?.connected
-          ? `Conectado${status.handle ? ` como @${status.handle}` : ""}`
-          : "Conecte para a Vanda publicar e ler as métricas deste negócio."
+          ? `${status.handle ? `@${status.handle} · ` : ""}publica e lê métricas`
+          : "Conecte para a Vanda publicar e ler as métricas"
       }
-      actions={
+      footer={error ? <p className="mt-2 text-body-sm text-destructive">{error}</p> : null}
+    >
+      {status?.connected ? (
+        <StatusMenu
+          tone="on"
+          label="Conectado"
+          meta={status.handle ? `@${status.handle}` : name}
+        >
+          <DropdownMenuItem disabled={busy} onClick={() => void connect()}>
+            <RefreshCw />
+            Reconectar
+          </DropdownMenuItem>
+        </StatusMenu>
+      ) : (
         <Button
-          variant={status?.connected ? "subtle" : "default"}
+          variant="secondary"
           size="sm"
           disabled={busy || status === undefined}
           onClick={() => void connect()}
         >
-          {busy ? "Abrindo…" : status?.connected ? "Reconectar" : "Conectar"}
+          {busy ? "Abrindo…" : "Conectar"}
+          <ChevronRight className="text-text-4" />
         </Button>
-      }
-    >
-      {error ? <p className="mt-2 pl-4.5 text-body-sm text-destructive">{error}</p> : null}
-    </ProfileRow>
+      )}
+    </SettingsRow>
   );
 }
 
@@ -136,51 +150,81 @@ export function OpenAiConnectionRow() {
   };
 
   return (
-    <ProfileRow
-      tone={status?.connected ? "on" : flowState === "waiting" ? "pending" : "off"}
-      title="Conta OpenAI"
+    <SettingsRow
+      icon={
+        <ServiceTile>
+          <OpenAiIcon className="size-4" />
+        </ServiceTile>
+      }
+      title="OpenAI"
       detail={
         status?.connected
-          ? "Conectada. Conversas e imagens usam sua assinatura do ChatGPT."
-          : "Conecte para usar sua assinatura do ChatGPT no plano ChatGPT."
+          ? "Pela sua assinatura do ChatGPT, sem custo extra"
+          : "Conecte para usar sua assinatura do ChatGPT"
       }
-      quiet={
-        status?.connected ? (
-          <Button variant="subtle" size="sm" onClick={() => void disconnect()}>
-            Desconectar
-          </Button>
-        ) : null
-      }
-      actions={
-        status?.connected || flowState === "waiting" ? null : (
-          <Button size="sm" disabled={flowState === "starting"} onClick={() => void connect()}>
-            {flowState === "starting" ? "Gerando código…" : "Conectar"}
-          </Button>
-        )
+      footer={
+        <>
+          {!status?.connected && device && flowState === "waiting" ? (
+            <div className="mt-3.5 ml-11.5 rounded-lg border border-line bg-app p-4 text-center shadow-sunken">
+              <p className="text-body-sm text-text-3">
+                Acesse{" "}
+                <a
+                  href={device.verificationUri}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-text underline underline-offset-2"
+                >
+                  {device.verificationUri.replace("https://", "")}
+                </a>{" "}
+                e digite o código:
+              </p>
+              <p className="mt-2 font-mono text-2xl font-semibold tracking-widest">
+                {device.userCode}
+              </p>
+              <p className="mt-2 flex items-center justify-center gap-2 text-xs text-text-4">
+                <Spinner className="size-3" /> aguardando aprovação…
+              </p>
+            </div>
+          ) : null}
+          {flowError ? (
+            <p className="mt-2 ml-11.5 text-body-sm text-destructive">{flowError}</p>
+          ) : null}
+        </>
       }
     >
-      {!status?.connected && device && flowState === "waiting" ? (
-        <div className="mt-3 ml-4.5 rounded-lg bg-inset p-4 text-center">
-          <p className="text-body-sm text-text-3">
-            Acesse{" "}
-            <a
-              href={device.verificationUri}
-              target="_blank"
-              rel="noreferrer"
-              className="font-medium text-text underline underline-offset-2"
-            >
-              {device.verificationUri.replace("https://", "")}
-            </a>{" "}
-            e digite o código:
-          </p>
-          <p className="mt-2 font-mono text-2xl font-semibold tracking-widest">{device.userCode}</p>
-          <p className="mt-2 flex items-center justify-center gap-2 text-xs text-text-4">
-            <Spinner className="size-3" /> aguardando aprovação…
-          </p>
-        </div>
-      ) : null}
-
-      {flowError ? <p className="mt-2 pl-4.5 text-body-sm text-destructive">{flowError}</p> : null}
-    </ProfileRow>
+      {status?.connected ? (
+        <StatusMenu tone="on" label="Conectado" meta="Usada em conversas e imagens">
+          <DropdownMenuItem variant="destructive" onClick={() => void disconnect()}>
+            <Unplug />
+            Desconectar
+          </DropdownMenuItem>
+        </StatusMenu>
+      ) : flowState === "waiting" ? (
+        <StatusMenu tone="pending" label="Aguardando" meta="Digite o código em openai.com">
+          <DropdownMenuItem onClick={() => void connect()}>
+            <RefreshCw />
+            Gerar outro código
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => {
+              setDevice(null);
+              setFlowState("idle");
+            }}
+          >
+            Cancelar
+          </DropdownMenuItem>
+        </StatusMenu>
+      ) : (
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={flowState === "starting"}
+          onClick={() => void connect()}
+        >
+          {flowState === "starting" ? "Gerando código…" : "Conectar"}
+        </Button>
+      )}
+    </SettingsRow>
   );
 }

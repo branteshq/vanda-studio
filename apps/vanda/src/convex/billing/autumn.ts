@@ -20,7 +20,7 @@ import {
  * after checkout or a plan change.
  */
 
-// Trailing slashes are stripped so `${BASE_URL}/perfil` never doubles up —
+// Trailing slashes are stripped so `${BASE_URL}/perfil/plano` never doubles up —
 // a stray "https://host/" in the env once 404'd every checkout return.
 const BASE_URL = (
   process.env.PUBLIC_APP_URL ||
@@ -225,10 +225,10 @@ export const startCheckout = action({
 
     const result = await autumn.checkout(ctx, {
       productId: args.planId,
-      successUrl: `${BASE_URL}/perfil`,
+      successUrl: `${BASE_URL}/perfil/plano`,
       forceCheckout: current.planId === null,
       checkoutSessionParams: {
-        cancel_url: `${BASE_URL}/perfil`,
+        cancel_url: `${BASE_URL}/perfil/plano`,
       },
     });
 
@@ -363,7 +363,7 @@ export const changePlan = action({
         const result = AttachResponseSchema.parse(
           await billingRequest("attach", {
             ...params,
-            success_url: `${BASE_URL}/perfil`,
+            success_url: `${BASE_URL}/perfil/plano`,
             redirect_mode: "if_required",
           }),
         );
@@ -420,7 +420,7 @@ export const getBillingPortalUrl = action({
     const identity = await ctx.auth.getUserIdentity();
 
     if (!identity) throw new Error("Not authenticated");
-    const result = await autumn.customers.billingPortal(ctx, { returnUrl: `${BASE_URL}/perfil` });
+    const result = await autumn.customers.billingPortal(ctx, { returnUrl: `${BASE_URL}/perfil/plano` });
 
     if (result.error) throw new Error(result.error.message || "Failed to open billing portal");
 

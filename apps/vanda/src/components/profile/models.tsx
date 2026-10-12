@@ -29,6 +29,7 @@ import {
   type ImageModel,
 } from "../../convex/imageModels";
 import { errorMessage } from "../../errors";
+import { SettingsCard, SettingsRow } from "./layout";
 import { useProfileRuntime } from "./runtime";
 
 /**
@@ -71,11 +72,7 @@ export function ModelsCard() {
 
   return (
     <div>
-      <p className="text-body-sm text-text-3">
-        A Vanda escolhe bons padrões. Mude aqui, ou peça na conversa, se preferir outro modelo.
-      </p>
-
-      <div className="mt-4 space-y-4">
+      <SettingsCard label="Modelos">
         {[
           {
             label: "Vanda",
@@ -174,10 +171,10 @@ export function ModelsCard() {
             </SelectContent>
           </Select>
         </ModelRow>
-      </div>
+      </SettingsCard>
 
       {conectado ? (
-        <p className="mt-4 text-xs text-text-4">
+        <p className="mt-3 text-body-sm text-text-4">
           No plano ChatGPT, Vanda, Caetano e imagens usam sua assinatura da OpenAI. Apenas modelos
           compatíveis com essa conexão ficam disponíveis.
         </p>
@@ -192,7 +189,7 @@ export function ModelsCard() {
   );
 }
 
-/** One labelled choice: name + why it matters on the left, control on the right. */
+/** One labelled choice in the card: name + why it matters on the left, control on the right. */
 function ModelRow({
   label,
   description,
@@ -205,13 +202,9 @@ function ModelRow({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-      <div className="min-w-0">
-        <p className="text-body-sm font-medium">{label}</p>
-        <p className="mt-0.5 text-xs text-text-4">{description}</p>
-      </div>
-      {loading ? <Skeleton className="h-9 w-56 rounded-md" /> : children}
-    </div>
+    <SettingsRow title={label} detail={description}>
+      {loading ? <Skeleton className="h-8 w-56 rounded-md" /> : children}
+    </SettingsRow>
   );
 }
 

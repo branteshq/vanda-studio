@@ -1,175 +1,247 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
-import { Check } from "lucide-react";
+import { Check, Sparkles, TriangleAlert } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { PLAN_TIERS, planLabel, tierOfPlan } from "../../convex/billing/plans";
 import { errorMessage } from "../../errors";
+import { Pill, Segmented, ServiceTile, SettingsCard, SettingsHeading, SettingsRow } from "./layout";
 import { useProfileRuntime } from "./runtime";
 
 type Summary = NonNullable<ReturnType<ReturnType<typeof useProfileRuntime>["useUsageSummary"]>>;
 
 type Breakdown = Summary["breakdown"];
 
-const METER_TONE = {
-  plain: "bg-text-3",
-  danger: "bg-destructive",
-  muted: "bg-text-4",
-} as const;
+/** Category colors on the meter and its legend, in order of how much each used. */
+const SEGMENT_TONES = ["bg-peri", "bg-brand-soft", "bg-amber", "bg-green", "bg-text-3"] as const;
 
-/** A share of the plan as a hairline bar: the meter and each category use the same shape. */
-function Meter({
-  pct,
-  tone,
-  label,
-}: {
-  pct: number;
-  tone: keyof typeof METER_TONE;
-  label: string;
-}) {
+/** A share as a CSS width, clamped to the track. */
+const share = (pct: number) => `${Math.max(0, Math.min(100, pct))}%`;
+
+/**
+ * The plan's meter: one track, a segment per category that used it (colored
+ * like the legend), or one plain fill when there is no breakdown.
+ */
+function Meter({ pct, summary }: { pct: number; summary: Summary }) {
+  const used = usedCategories(summary.breakdown);
+
   return (
     <div
-      className="h-0.75 overflow-hidden rounded-full bg-muted"
+      className="flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-line-strong"
       role="progressbar"
       aria-valuenow={pct}
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-label={label}
+      aria-label="Uso do plano"
     >
-      <div
-        className={cn(
-          "h-full w-(--progress) rounded-full transition-all duration-300 ease-out",
-          METER_TONE[tone],
-        )}
-        style={
-          // SAFETY: React forwards CSS variables; the progress value includes its percentage unit.
-          { "--progress": `${Math.min(100, pct)}%` } as CSSProperties
-        }
-      />
+      {used.length > 0 ? (
+        used.map((category, index) => (
+          <span
+            key={category.id}
+            className={cn(
+              "block h-full w-(--progress) transition-all duration-300 ease-out",
+              SEGMENT_TONES[index % SEGMENT_TONES.length],
+            )}
+            style={
+              // SAFETY: React forwards CSS variables; the value includes its percentage unit.
+              { "--progress": share(category.pct) } as CSSProperties
+            }
+          />
+        ))
+      ) : (
+        <span
+          className={cn(
+            "block h-full w-(--progress) rounded-full transition-all duration-300 ease-out",
+            summary.limited ? "bg-destructive" : "bg-text-3",
+          )}
+          style={
+            // SAFETY: React forwards CSS variables; the value includes its percentage unit.
+            { "--progress": share(pct) } as CSSProperties
+          }
+        />
+      )}
     </div>
   );
 }
 
-/** Where the plan went, in the owner's words; ChatGPT-covered work listed as covered. */
-function UsageBreakdown({ breakdown }: { breakdown: Breakdown }) {
-  const used = breakdown.categories
+const usedCategories = (breakdown: Breakdown | undefined) =>
+  (breakdown?.categories ?? [])
     .filter((category) => !category.viaChatGpt && category.pct > 0)
     .toSorted((a, b) => b.pct - a.pct);
 
-  const covered = breakdown.categories.filter((category) => category.viaChatGpt);
-  const webClose = breakdown.web.used >= breakdown.web.limit / 2;
-
-  const remaining = breakdown.remaining.filter((item) => item.count > 0);
-
-  return (
-    <div className="mt-4 space-y-2.5">
-      {used.length === 0 && covered.length === 0 ? (
-        <p className="text-body-sm text-text-3">Nada usado ainda neste período.</p>
-      ) : null}
-      {used.map((category) => (
-        <div key={category.id} className="flex items-center gap-3">
-          <span className="min-w-0 flex-1 truncate text-body-sm text-text-2">{category.label}</span>
-          <span className="w-28 shrink-0">
-            <Meter pct={category.pct} tone="muted" label={category.label} />
-          </span>
-          <span className="w-10 shrink-0 text-right text-note text-text-3 tabular-nums">
-            {category.pct}%
-          </span>
-        </div>
-      ))}
-      {covered.map((category) => (
-        <div key={category.id} className="flex items-center justify-between gap-3">
-          <span className="truncate text-body-sm text-text-2">{category.label}</span>
-          <span className="inline-flex shrink-0 items-center gap-1 text-note text-text-3">
-            <Check className="size-3.5 text-green" aria-hidden />
-            pela sua assinatura do ChatGPT
-          </span>
-        </div>
-      ))}
-      {remaining.length > 0 ? (
-        <p className="pt-1 text-body-sm text-text-3">
-          Ainda dá para{" "}
-          {remaining.map((item, index) => (
-            <span key={item.label}>
-              {index > 0 ? " ou " : ""}~{item.count} {item.label}
-            </span>
-          ))}
-          .
-        </p>
-      ) : null}
-      {webClose ? (
-        <p className="text-body-sm text-text-3">
-          Pesquisa na web nas últimas 24 horas: {breakdown.web.used} de {breakdown.web.limit}.
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
 /**
- * The plan in one block: its name, how much of it is used, and on what. Every
- * plan shows the same meter: on the ChatGPT plan, conversations and images are
+ * Plano e uso. The plan card: its name and renewal, how much is used and on
+ * what, and what is still possible; "Ver planos" turns magenta only when the
+ * plan runs low. Below it, what the ChatGPT subscription covers. Every plan
+ * shows the same meter: on the ChatGPT plan, conversations and images are
  * covered by the subscription, and everything Vanda pays for (Instagram
  * research, the radar, web search) still draws from the plan. The owner sees
  * percentages and examples, never the underlying money.
  */
-export function PlanSummary({ action }: { action: ReactNode }) {
+export function PlanOverview() {
   const runtime = useProfileRuntime();
+  const navigate = runtime.useProfileNavigate();
   const summary = runtime.useUsageSummary();
   const openai = runtime.useOpenAiConnection().status;
+  const [plansOpen, setPlansOpen] = useState(false);
+
+  if (summary === undefined)
+    return (
+      <SettingsCard>
+        <div className="space-y-4 p-4" aria-hidden>
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-1.5 w-full rounded-full" />
+        </div>
+      </SettingsCard>
+    );
+
   const pct = summary?.usedPct ?? 0;
   const conectado = summary?.plan ? tierOfPlan(summary.plan) === "conectado" : false;
+  const breakdown = summary?.breakdown;
+  const used = usedCategories(breakdown);
+  const covered = breakdown?.categories.filter((category) => category.viaChatGpt) ?? [];
+  const remaining = breakdown?.remaining.filter((item) => item.count > 0) ?? [];
+  const webClose = breakdown ? breakdown.web.used >= breakdown.web.limit / 2 : false;
+  const low = Boolean(summary?.limited) || pct >= 80;
 
   return (
-    <div aria-label="Uso do plano">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {summary === undefined ? (
-          <Skeleton className="h-4 w-36" />
-        ) : (
-          <h2 className="text-body font-medium text-text-2">
-            {summary?.plan ? `Plano ${planLabel(summary.plan)}` : planLabel(null)}
-          </h2>
-        )}
-        {action}
-      </div>
-
-      {summary === undefined ? (
-        <Skeleton className="mt-4 h-2 w-full rounded-full" />
-      ) : (
-        <>
-          {conectado && openai?.connected === false ? (
-            <p className="mt-3 flex items-start gap-2 text-body-sm text-text-2">
-              <span aria-hidden className="mt-1.5 inline-block size-2 shrink-0 rounded-full bg-amber" />
-              Sua conta OpenAI não está conectada, então conversas e imagens também saem do plano.
-              Conecte em Conexões, logo abaixo.
-            </p>
-          ) : null}
-          <div className="mt-4 flex items-baseline justify-between gap-3">
-            <p className="flex items-baseline gap-2">
-              <span className="text-2xl font-medium tracking-tight tabular-nums">{pct}%</span>
-              <span className="text-body-sm text-text-3">do plano usado</span>
-            </p>
-            <span className="text-note text-text-4">
-              {summary?.renewsAt
+    <>
+      <SettingsCard label="Uso do plano">
+        <div>
+          <SettingsRow
+            icon={
+              <ServiceTile>
+                <Sparkles className="size-4" />
+              </ServiceTile>
+            }
+            title={
+              <span className="flex items-center gap-2">
+                {summary?.plan ? `Plano ${planLabel(summary.plan)}` : planLabel(null)}
+                {summary?.renewsAt ? null : <Pill>Crédito de teste</Pill>}
+              </span>
+            }
+            detail={
+              summary?.renewsAt
                 ? `Renova em ${new Date(summary.renewsAt).toLocaleDateString("pt-BR")}`
-                : "Crédito de teste"}
+                : "Um crédito único para experimentar tudo"
+            }
+          >
+            <Button
+              variant="secondary"
+              size="sm"
+              aria-expanded={plansOpen}
+              onClick={() => setPlansOpen((open) => !open)}
+            >
+              {plansOpen ? "Fechar planos" : "Gerenciar plano"}
+            </Button>
+          </SettingsRow>
+
+          <div className="px-4 pt-1 pb-4">
+            <div className="mb-2.5 flex items-baseline gap-2">
+              <span className="text-3xl font-semibold tracking-tight tabular-nums">{pct}%</span>
+              <span className="text-body text-text-3">do plano usado</span>
+              <span className="ml-auto text-body-sm text-text-4 tabular-nums">
+                {Math.max(0, 100 - pct)}% restantes
+              </span>
+            </div>
+            {summary ? <Meter pct={pct} summary={summary} /> : null}
+            {used.length > 0 ? (
+              <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-body-sm text-text-3">
+                {used.map((category, index) => (
+                  <li key={category.id} className="inline-flex items-center gap-1.5">
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "size-1.75 rounded-xs",
+                        SEGMENT_TONES[index % SEGMENT_TONES.length],
+                      )}
+                    />
+                    <span>{category.label}</span>
+                    <span className="text-text-4 tabular-nums">{category.pct}%</span>
+                  </li>
+                ))}
+              </ul>
+            ) : breakdown ? (
+              <p className="mt-3 text-body-sm text-text-3">Nada usado ainda neste período.</p>
+            ) : null}
+            {webClose && breakdown ? (
+              <p className="mt-2 text-body-sm text-text-3">
+                Pesquisa na web nas últimas 24 horas: {breakdown.web.used} de {breakdown.web.limit}.
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        {conectado && openai?.connected === false ? (
+          <div className="flex items-center gap-2.5 px-4 py-3 text-body text-text-2">
+            <TriangleAlert aria-hidden className="size-3.5 shrink-0 text-amber" />
+            <span className="min-w-0 flex-1">
+              Sua conta OpenAI não está conectada, então conversas e imagens também saem do plano.
             </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void navigate({ to: "/perfil/conexoes" })}
+            >
+              Conectar
+            </Button>
           </div>
-          <div className="mt-2.5">
-            <Meter pct={pct} tone={summary?.limited ? "danger" : "plain"} label="Uso do plano" />
+        ) : null}
+
+        {summary?.limited || remaining.length > 0 || low ? (
+          <div className="flex items-center gap-2.5 px-4 py-3 text-body text-text-2">
+            {low ? <TriangleAlert aria-hidden className="size-3.5 shrink-0 text-amber" /> : null}
+            <span className="min-w-0 flex-1">
+              {summary?.limited ? (
+                summary.chatLimited ? (
+                  "Limite atingido. Mude de plano ou aguarde a renovação."
+                ) : (
+                  "Limite atingido para pesquisa no Instagram, radar e web. Conversas e imagens pela sua assinatura do ChatGPT continuam."
+                )
+              ) : remaining.length > 0 ? (
+                <>
+                  Ainda dá para{" "}
+                  {remaining.map((item, index) => (
+                    <span key={item.label}>
+                      {index > 0 ? " ou " : ""}~{item.count} {item.label}
+                    </span>
+                  ))}
+                  .
+                </>
+              ) : (
+                "O plano está quase no fim."
+              )}
+            </span>
+            {low && !plansOpen ? (
+              <Button size="sm" onClick={() => setPlansOpen(true)}>
+                Ver planos
+              </Button>
+            ) : null}
           </div>
-          {summary?.limited ? (
-            <p className="mt-2 text-body-sm text-text-2">
-              {summary.chatLimited
-                ? "Limite atingido. Mude de plano ou aguarde a renovação."
-                : "Limite atingido para pesquisa no Instagram, radar e web. Conversas e imagens pela sua assinatura do ChatGPT continuam."}
-            </p>
-          ) : null}
-          {summary?.breakdown ? <UsageBreakdown breakdown={summary.breakdown} /> : null}
-          <p className="mt-3 text-note text-text-4">O plano é compartilhado entre seus negócios.</p>
+        ) : null}
+      </SettingsCard>
+
+      {plansOpen ? <PlansPicker /> : null}
+
+      {covered.length > 0 ? (
+        <>
+          <SettingsHeading title="Fora do plano" caption="Isso não gasta seu crédito." />
+          <SettingsCard>
+            {covered.map((category) => (
+              <div key={category.id} className="flex items-center gap-3 px-4 py-3">
+                <span className="min-w-0 flex-1 truncate text-body text-text-2">
+                  {category.label}
+                </span>
+                <span className="inline-flex shrink-0 items-center gap-1.5 text-body-sm text-text-3">
+                  <Check className="size-3.5 text-green" aria-hidden />
+                  pela sua assinatura do ChatGPT
+                </span>
+              </div>
+            ))}
+          </SettingsCard>
         </>
-      )}
-    </div>
+      ) : null}
+    </>
   );
 }
 
@@ -301,12 +373,12 @@ export function PlansPicker() {
   };
 
   return (
-    <div className="mt-8">
+    <div className="mt-9">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-body font-semibold">Escolha seu plano</h3>
+        <h3 className="text-sm font-semibold">Escolha seu plano</h3>
         {currentTier ? (
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             disabled={busy !== null}
             onClick={() => void manage()}
@@ -349,7 +421,7 @@ export function PlansPicker() {
       ) : null}
       {preview ? (
         <section
-          className="mt-4 rounded-lg border border-border bg-app p-4"
+          className="mt-4 rounded-lg border border-line bg-tile p-4"
           aria-label="Confirmar mudança de plano"
         >
           <h4 className="font-semibold">Confirmar mudança de plano</h4>
@@ -378,33 +450,23 @@ export function PlansPicker() {
             <Button disabled={busy !== null} onClick={() => void confirmChange()}>
               Confirmar mudança
             </Button>
-            <Button variant="outline" disabled={busy !== null} onClick={() => setPreview(null)}>
+            <Button variant="secondary" disabled={busy !== null} onClick={() => setPreview(null)}>
               Cancelar
             </Button>
           </div>
         </section>
       ) : null}
 
-      <div className="mt-4 flex w-fit gap-1 rounded-lg border border-border bg-app p-1">
-        {(
-          [
-            { key: "monthly", label: "Mensal" },
-            { key: "annual", label: "Anual · 12x" },
-          ] as const
-        ).map(({ key, label }) => (
-          <button
-            key={key}
-            type="button"
-            aria-pressed={interval === key}
-            onClick={() => setInterval(key)}
-            className={cn(
-              "rounded-md px-3.5 py-1.5 text-body-sm font-medium transition-colors duration-150 ease-out",
-              interval === key ? "bg-muted text-text" : "text-text-3 hover:text-text",
-            )}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="mt-4">
+        <Segmented
+          label="Cobrança"
+          value={interval}
+          options={[
+            { value: "monthly", label: "Mensal" },
+            { value: "annual", label: "Anual · 12x" },
+          ]}
+          onChange={setInterval}
+        />
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -414,7 +476,7 @@ export function PlansPicker() {
           features={TIER_FEATURES.trial}
           action={
             currentTier === null ? (
-              <Button variant="outline" size="sm" className="w-full" disabled>
+              <Button variant="secondary" size="sm" className="w-full" disabled>
                 Plano atual
               </Button>
             ) : null
@@ -450,14 +512,14 @@ export function PlansPicker() {
               features={TIER_FEATURES[tier.tier]}
               action={
                 current ? (
-                  <Button variant="outline" size="sm" className="w-full" disabled>
+                  <Button variant="secondary" size="sm" className="w-full" disabled>
                     Plano atual
                   </Button>
                 ) : scheduled ? (
                   // A downgrade Autumn deferred: it activates at the renewal.
                   <div className="text-center">
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       className="w-full"
                       disabled={busy !== null}
@@ -474,6 +536,7 @@ export function PlansPicker() {
                   </div>
                 ) : (
                   <Button
+                    variant={tier.tier === "profissional" ? "default" : "secondary"}
                     size="sm"
                     className="w-full"
                     disabled={busy !== null}
@@ -513,8 +576,8 @@ function PlanCard({
   return (
     <div
       className={cn(
-        "relative flex flex-col rounded-xl border bg-app p-4",
-        highlight ? "border-brand-accent/50" : "border-border",
+        "relative flex flex-col rounded-lg border bg-tile p-4",
+        highlight ? "border-brand-accent/40" : "border-line",
       )}
     >
       <div className="flex min-h-6 items-start justify-between gap-2">

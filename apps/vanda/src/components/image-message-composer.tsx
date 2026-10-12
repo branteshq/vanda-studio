@@ -393,7 +393,7 @@ export function ImageMessageComposer({
                 {agentName} pausa por aqui até a renovação — ou faça upgrade para continuar agora.
               </p>
             </div>
-            <Button size="sm" onClick={() => void navigate({ to: "/perfil" })}>
+            <Button size="sm" onClick={() => void navigate({ to: "/perfil/plano" })}>
               Ver planos
             </Button>
           </div>

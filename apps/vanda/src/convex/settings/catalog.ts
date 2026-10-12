@@ -85,7 +85,7 @@ export const SETTINGS = [
     description:
       "Modelo de linguagem que pensa como a Vanda nas conversas do aplicativo. Vale a partir do próximo turno.",
     where: "Perfil › Avançado › Modelos",
-    route: "/perfil",
+    route: "/perfil/modelos",
     access: "write",
     options: textModelOptions,
     doc: "modelos",
@@ -98,7 +98,7 @@ export const SETTINGS = [
     description:
       "Modelo de linguagem do Caetano no WhatsApp, independente do modelo da Vanda. Vale a partir do próximo turno.",
     where: "Perfil › Avançado › Modelos",
-    route: "/perfil",
+    route: "/perfil/modelos",
     access: "write",
     options: textModelOptions,
     doc: "modelos",
@@ -111,7 +111,7 @@ export const SETTINGS = [
     description:
       "Modelo padrão para gerar e editar imagens. No plano ChatGPT, as imagens rodam pela assinatura conectada.",
     where: "Perfil › Avançado › Modelos",
-    route: "/perfil",
+    route: "/perfil/modelos",
     access: "write",
     options: imageModelOptions,
     doc: "modelos",
@@ -123,8 +123,8 @@ export const SETTINGS = [
     title: "Tema",
     description:
       "Tema claro ou escuro do aplicativo, ou o mesmo do dispositivo. Vale em todos os aparelhos do dono.",
-    where: "Perfil › Avançado › Aparência",
-    route: "/perfil",
+    where: "Perfil › Conta › Aparência",
+    route: "/perfil/conta",
     access: "write",
     options: themeOptions,
     doc: "visao-geral",
@@ -150,11 +150,11 @@ export const SETTINGS = [
     title: "Plano e uso",
     description:
       "Plano atual, percentual da cota usada no período, renovação e mudança de plano agendada. A cota é compartilhada entre os negócios do dono.",
-    where: "Perfil › Gerenciar plano",
-    route: "/perfil",
+    where: "Perfil › Plano e uso",
+    route: "/perfil/plano",
     access: "read",
     change:
-      "Só o dono muda de plano ou paga, em Perfil › Gerenciar plano. Envie esse caminho em vez de tentar mudar.",
+      "Só o dono muda de plano ou paga, em Perfil › Plano e uso › Gerenciar plano. Envie esse caminho em vez de tentar mudar.",
     doc: "planos-e-uso",
     uiFunctions: [
       "usage.summary",
@@ -172,7 +172,7 @@ export const SETTINGS = [
     description:
       "Se o Instagram do negócio ativo está conectado para publicar e ler métricas, e com qual @.",
     where: "Perfil › Conexões",
-    route: "/perfil",
+    route: "/perfil/conexoes",
     access: "read",
     change:
       "O dono conecta ou reconecta em Perfil › Conexões; a conexão passa pelo login do Instagram.",
@@ -189,11 +189,11 @@ export const SETTINGS = [
     title: "Conta OpenAI (plano ChatGPT)",
     description:
       "Se a assinatura do ChatGPT do dono está conectada. No plano ChatGPT, conversas e imagens rodam por ela.",
-    where: "Perfil › Conexões › Conta OpenAI",
-    route: "/perfil",
+    where: "Perfil › Conexões › OpenAI",
+    route: "/perfil/conexoes",
     access: "read",
     change:
-      "O dono assina o plano ChatGPT e conecta com o código exibido em Perfil › Conexões › Conta OpenAI.",
+      "O dono assina o plano ChatGPT e conecta com o código exibido em Perfil › Conexões › OpenAI.",
     doc: "conexoes",
     uiFunctions: [
       "openaiSub.connectionStatus",
@@ -208,7 +208,7 @@ export const SETTINGS = [
     title: "WhatsApp do Caetano",
     description: "Se o WhatsApp do dono está vinculado ao Caetano, e por qual número.",
     where: "Perfil › Conexões › Caetano no WhatsApp",
-    route: "/perfil",
+    route: "/perfil/conexoes",
     access: "read",
     change:
       "O dono gera o vínculo em Perfil › Conexões › Caetano no WhatsApp e envia a mensagem pronta pelo próprio WhatsApp.",

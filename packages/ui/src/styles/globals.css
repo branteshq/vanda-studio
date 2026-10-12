@@ -53,6 +53,18 @@
   --shadow: 0 1px 3px rgba(20, 16, 22, 0.06), 0 8px 24px rgba(20, 16, 22, 0.06);
   --shadow-lg: 0 16px 40px rgba(20, 16, 22, 0.12), 0 2px 8px rgba(20, 16, 22, 0.06);
 
+  /* Settings surfaces: a tile sits on the panel with a faint line; raised fills
+   * a secondary button or the active segment so it reads as pressable. */
+  --tile: #fcfbfc;
+  --tile-hover: #f6f4f6;
+  --raised: #ffffff;
+  --raised-hover: #f8f6f8;
+  --line: rgba(20, 16, 22, 0.08);
+  --line-strong: rgba(20, 16, 22, 0.13);
+  --raised-shadow: 0 1px 2px rgba(20, 16, 22, 0.07);
+  --primary-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 1px 2px rgba(20, 16, 22, 0.16);
+  --sunken-shadow: inset 0 1px 2px rgba(20, 16, 22, 0.06);
+
   /* Motion curves (design-eng: strong custom easings, never ease-in for UI) */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
@@ -140,6 +152,16 @@
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 24px 56px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.35);
 
+  --tile: #100e12;
+  --tile-hover: #141117;
+  --raised: #1a171e;
+  --raised-hover: #221e27;
+  --line: rgba(255, 236, 250, 0.06);
+  --line-strong: rgba(255, 236, 250, 0.1);
+  --raised-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.5);
+  --primary-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 1px 2px rgba(0, 0, 0, 0.5);
+  --sunken-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+
   --destructive: #e26d6d;
 }
 
@@ -206,6 +228,15 @@
   --color-needs-border: var(--needs-border);
   --color-creating-bg: var(--creating-bg);
   --color-creating-border: var(--creating-border);
+  --color-tile: var(--tile);
+  --color-tile-hover: var(--tile-hover);
+  --color-raised: var(--raised);
+  --color-raised-hover: var(--raised-hover);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --shadow-raised: var(--raised-shadow);
+  --shadow-primary: var(--primary-shadow);
+  --shadow-sunken: var(--sunken-shadow);
 
   /* Radii — the spec ladder (chips 7 · buttons 9 · cards 12 · large 16 · pill ∞) */
   --radius-sm: 7px;

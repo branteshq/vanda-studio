@@ -7,12 +7,17 @@ const buttonVariants = cva(
   "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all duration-150 ease-out outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 active:not-aria-[haspopup]:scale-97 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
-      // Solid magenta is the only filled brand treatment — never a gradient.
+      // Solid magenta is the only filled brand treatment — never a gradient. A
+      // 1px top highlight gives it (and secondary) a surface you can press.
       variant: {
-        default: "bg-primary font-semibold text-primary-foreground hover:brightness-110",
-        brand: "bg-primary font-semibold text-primary-foreground hover:brightness-110",
+        default:
+          "bg-primary font-semibold text-primary-foreground shadow-primary hover:brightness-110 active:shadow-none",
+        brand:
+          "bg-primary font-semibold text-primary-foreground shadow-primary hover:brightness-110 active:shadow-none",
         outline: "border-border bg-transparent text-text hover:bg-accent",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-accent",
+        // The everyday action: a raised fill, a faint line and the same highlight.
+        secondary:
+          "border-line-strong bg-raised text-text shadow-raised hover:bg-raised-hover active:shadow-sunken data-popup-open:bg-raised-hover",
         ghost: "text-text hover:bg-accent",
         subtle: "text-text-3 hover:bg-accent hover:text-text",
         sidebar:

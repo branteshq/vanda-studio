@@ -13,7 +13,7 @@ O Caetano é o assistente do Vanda Studio no WhatsApp. Ele trabalha em todos os 
 
 1. Abra **Perfil › Conexões › Caetano no WhatsApp**.
 2. Toque em **Conectar**. O botão vira **Abrir WhatsApp**: toque nele e envie a mensagem que aparece pronta no WhatsApp. O link vale 10 minutos; não compartilhe. Se expirar, toque em **Gerar novo link**.
-3. Enquanto espera sua mensagem, a linha mostra "Aguardando sua mensagem no WhatsApp…". Quando ela chega, passa a mostrar **Conectado**, com **Abrir conversa** e **Desconectar**.
+3. Enquanto espera sua mensagem, a linha mostra "Aguardando sua mensagem no WhatsApp…". Quando ela chega, a linha mostra o seu número, o botão **Abrir conversa** e o status **● Conectado**. Para desligar, clique no status e escolha **Desconectar**.
 
 ## O que dá para fazer
 

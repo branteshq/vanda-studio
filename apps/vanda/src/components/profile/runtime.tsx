@@ -1,6 +1,6 @@
 import { createContext, useContext, type ComponentType } from "react";
 import { useClerk, useUser } from "@clerk/tanstack-react-start";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useAction, useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
 import { api } from "../../convex/_generated/api";
@@ -83,6 +83,8 @@ export type ProfileRuntime = typeof profileHooks & {
   };
   useClerkActions: () => Pick<ReturnType<typeof useClerk>, "signOut" | "openUserProfile">;
   useProfileNavigate: () => ReturnType<typeof useNavigate>;
+  /** The current pathname, so the sidebar can mark the open page. */
+  useProfilePath: () => string;
   useProfileAccounts: () => {
     accounts: ProfileAccount[] | undefined;
     activeAccount: ProfileAccount | undefined;
@@ -96,6 +98,7 @@ export const defaultProfileRuntime: ProfileRuntime = {
   useProfileUser: useUser,
   useClerkActions: useClerk,
   useProfileNavigate: useNavigate,
+  useProfilePath: () => useRouterState({ select: (state) => state.location.pathname }),
   useProfileAccounts: useActiveAccount,
   WhatsAppSettings,
 };

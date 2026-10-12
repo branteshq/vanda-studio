@@ -20,9 +20,9 @@ export type ErrorCode = (typeof errorCodes)[number];
 export const errorCopy = {
   USAGE_LIMIT: {
     title: "Limite do plano atingido",
-    message: "Seu limite de uso foi atingido. Confira seu plano em Perfil para continuar.",
+    message: "Seu limite de uso foi atingido. Confira seu plano em Perfil › Plano e uso para continuar.",
     action: "Ver plano",
-    href: "/perfil",
+    href: "/perfil/plano",
   },
   WEB_LIMIT: {
     title: "Limite de pesquisa web atingido",
@@ -35,9 +35,9 @@ export const errorCopy = {
   },
   RECONNECT_REQUIRED: {
     title: "Reconecte sua conta",
-    message: "Sua conexão expirou. Reconecte sua conta em Perfil para continuar.",
+    message: "Sua conexão expirou. Reconecte sua conta em Perfil › Conexões para continuar.",
     action: "Reconectar",
-    href: "/perfil",
+    href: "/perfil/conexoes",
   },
   UNAUTHENTICATED: {
     title: "Entre novamente",

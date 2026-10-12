@@ -87,7 +87,9 @@ it("shows the connection once the message lands", async () => {
     chatUrl: "https://wa.me/5511999999999",
   });
 
-  expect(container.textContent).toContain("Conectado: +5511988887777");
+  // The number sits in the detail line; the status menu says Conectado.
+  expect(container.textContent).toContain("+5511988887777 · manda os posts");
+  expect(container.textContent).toContain("Conectado");
   expect(control("Abrir conversa")).toBeDefined();
   expect(control("Abrir WhatsApp")).toBeUndefined();
 });

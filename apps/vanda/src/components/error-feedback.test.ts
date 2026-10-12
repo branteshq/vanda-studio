@@ -20,7 +20,7 @@ describe("error feedback", () => {
   it("offers a safe reconnect action instead of retrying a mutation automatically", () => {
     const error = publicError("RECONNECT_REQUIRED");
     const html = renderToStaticMarkup(createElement(ErrorNotice, { error }));
-    expect(html).toContain('href="/perfil"');
+    expect(html).toContain('href="/perfil/conexoes"');
     expect(html).toContain("Reconectar");
     expect(createErrorToast(error)).toEqual(
       expect.objectContaining({

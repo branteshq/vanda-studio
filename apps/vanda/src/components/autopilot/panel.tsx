@@ -244,7 +244,7 @@ function StatusLine({
     return (
       <>
         O Caetano cuida dos seus posts toda semana.{" "}
-        <Link to="/perfil" className="outline-none">
+        <Link to="/perfil/conexoes" className="outline-none">
           <span className={linkClass}>Conectar o Instagram</span>
         </Link>
       </>

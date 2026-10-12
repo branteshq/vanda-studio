@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from "react";
-import { Ban } from "lucide-react";
+import { Ban, Pencil } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import type { FunctionReturnType } from "convex/server";
@@ -7,7 +7,7 @@ import type { BrandFileDesign } from "../../convex/brandFile";
 import type { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { errorMessage } from "../../errors";
-import { ProfileSection } from "./layout";
+import { SettingsCard, SettingsHeading } from "./layout";
 import { useProfileRuntime } from "./runtime";
 
 const formatUpdated = (updatedAt: number | null, updatedBy: string | null): string => {
@@ -67,7 +67,7 @@ function BrandIdentity({ design }: { design: BrandFileDesign }) {
     .trim();
 
   return (
-    <div className="mb-8 flex flex-wrap items-start gap-x-8 gap-y-5">
+    <div className="mb-3 flex flex-wrap items-start gap-x-8 gap-y-5">
       {logoUrl ? (
         <div className="rounded-lg bg-inset p-3">
           <img src={logoUrl} alt="Logo" className="max-h-20 w-auto object-contain" />
@@ -119,40 +119,42 @@ function BrandFileView({ file }: { file: BrandFileRead }) {
   const empty = sections.filter(({ section }) => section.items.length === 0);
 
   return (
-    <div className="pt-4">
-      <BrandIdentity design={file.design} />
-      <div className="space-y-7">
-        {filled.map(({ section, items }) => (
-          <section key={section.title} className="min-w-0">
-            <h3 className="text-body font-medium">{section.title}</h3>
-            <ul className="mt-2.5 space-y-2.5">
-              {items.map((item) => (
-                <li key={`${item.label ?? ""}:${item.text}`} className="min-w-0">
-                  {item.label ? (
-                    <p className="text-caption tracking-wide text-text-4 uppercase">{item.label}</p>
+    <SettingsCard label="Conteúdo do arquivo da marca">
+      {hasIdentity(file.design) ? (
+        <div className="px-4 pt-4 pb-1">
+          <BrandIdentity design={file.design} />
+        </div>
+      ) : null}
+      {filled.map(({ section, items }) => (
+        <section key={section.title} className="min-w-0 px-4 py-3.5">
+          <h3 className="text-body font-medium">{section.title}</h3>
+          <ul className="mt-2 space-y-2">
+            {items.map((item) => (
+              <li key={`${item.label ?? ""}:${item.text}`} className="min-w-0">
+                {item.label ? (
+                  <p className="text-caption tracking-wide text-text-4 uppercase">{item.label}</p>
+                ) : null}
+                <p className="text-body text-text-2">
+                  {section.title === NEVER ? (
+                    <Ban aria-hidden className="mr-1 inline size-3.5 text-destructive" />
                   ) : null}
-                  <p className="text-body text-text-2">
-                    {section.title === NEVER ? (
-                      <Ban aria-hidden className="mr-1 inline size-3.5 text-destructive" />
-                    ) : null}
-                    {item.text}
-                    <span title={item.origin} className="ml-2 text-caption text-text-4">
-                      {originBadge(item.origin)}
-                    </span>
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
-        {empty.length > 0 ? (
-          <p className="text-body-sm text-text-4">
-            Ainda vazio: {empty.map(({ section }) => section.title).join(", ")}. O Caetano pergunta
-            no guia da marca.
-          </p>
-        ) : null}
-      </div>
-    </div>
+                  {item.text}
+                  <span title={item.origin} className="ml-2 text-caption text-text-4">
+                    {originBadge(item.origin)}
+                  </span>
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+      {empty.length > 0 ? (
+        <p className="px-4 py-3.5 text-body-sm text-text-4">
+          Ainda vazio: {empty.map(({ section }) => section.title).join(", ")}. O Caetano pergunta
+          no guia da marca.
+        </p>
+      ) : null}
+    </SettingsCard>
   );
 }
 
@@ -185,26 +187,29 @@ export function BrandFileCard({ accountId }: { accountId: Id<"accounts"> }) {
   };
 
   return (
-    <ProfileSection
-      title="Arquivo da marca"
-      caption={file ? formatUpdated(file.updatedAt, file.updatedBy) : undefined}
-      action={
-        file === undefined ? null : draft === null ? (
-          <Button variant="subtle" size="sm" onClick={() => setDraft(file.content)}>
-            Editar
-          </Button>
-        ) : (
+    <div>
+      <SettingsHeading
+        first
+        title="Arquivo da marca"
+        caption={file ? formatUpdated(file.updatedAt, file.updatedBy) : undefined}
+        action={
+          file === undefined ? null : draft === null ? (
+            <Button variant="secondary" size="sm" onClick={() => setDraft(file.content)}>
+              <Pencil />
+              Editar
+            </Button>
+          ) : (
           <div className="flex gap-2">
-            <Button variant="subtle" size="sm" disabled={saving} onClick={() => setDraft(null)}>
+            <Button variant="secondary" size="sm" disabled={saving} onClick={() => setDraft(null)}>
               Cancelar
             </Button>
             <Button size="sm" disabled={saving || bytes > max} onClick={() => void submit()}>
               {saving ? "Salvando…" : "Salvar"}
             </Button>
           </div>
-        )
-      }
-    >
+          )
+        }
+      />
       {file === undefined ? (
         <div className="space-y-2" aria-hidden>
           <Skeleton className="h-3.5 w-3/5" />
@@ -220,7 +225,7 @@ export function BrandFileCard({ accountId }: { accountId: Id<"accounts"> }) {
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             spellCheck
-            className="min-h-96 w-full resize-y rounded-lg border border-border bg-inset p-3.5 font-mono text-body-sm leading-relaxed text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+            className="min-h-96 w-full resize-y rounded-lg border border-line bg-tile p-4 shadow-sunken font-mono text-body-sm leading-relaxed text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
           />
           <p className={bytes > max ? "mt-2 text-xs text-destructive" : "mt-2 text-xs text-text-4"}>
             {Math.ceil(bytes / 1000)} de {Math.round(max / 1000)} KB. Marque o que vem de você com
@@ -233,6 +238,6 @@ export function BrandFileCard({ accountId }: { accountId: Id<"accounts"> }) {
           {error}
         </p>
       ) : null}
-    </ProfileSection>
+    </div>
   );
 }

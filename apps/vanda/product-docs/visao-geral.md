@@ -21,7 +21,7 @@ Os dois usam as mesmas ferramentas: criar imagens e posts, pesquisar o mercado, 
 - **Conversa**: onde se pede trabalho à Vanda.
 - **Galeria**: imagens geradas e enviadas do negócio.
 - **Calendário**: posts em rascunho, agendados, publicados ou com falha.
-- **Perfil**: sua conta e plano, as conexões e o arquivo da marca de cada negócio.
+- **Perfil**: os ajustes, com uma barra lateral própria. Em **Você** ficam Conta, Plano e uso e Conexões; em **Negócios**, cada negócio com o seu arquivo da marca; em **Avançado**, os Modelos. No celular, as páginas aparecem numa faixa no topo.
 
 No celular, toque no **ícone de menu (três linhas)** no topo da Conversa, Galeria ou Calendário para abrir a barra lateral. Ali você acessa as conversas, alterna entre Conversa e Galeria pelo ícone no topo, abre o Calendário e entra no Perfil pelo avatar no rodapé. Ao escolher um destino, o menu fecha para mostrar a tela; o ícone de menu continua disponível. Para fechar sem navegar, toque no **X** ou fora da barra lateral.
 
@@ -31,4 +31,4 @@ Um dono pode ter vários negócios. Em **Barra lateral › seletor de negócio**
 
 ## Aparência
 
-O Vanda Studio tem tema escuro e claro. Escolha em **Perfil › Avançado › Aparência**: Escuro, Claro ou Sistema (segue o dispositivo). A escolha vale em todos os seus aparelhos, e também dá para pedir à Vanda ou ao Caetano ("muda para o tema claro").
+O Vanda Studio tem tema escuro e claro. Escolha em **Perfil › Conta › Aparência**: Escuro, Claro ou Sistema (segue o dispositivo). A escolha vale em todos os seus aparelhos, e também dá para pedir à Vanda ou ao Caetano ("muda para o tema claro").

@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, createElement } from "react";
+import { act, createElement, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { getFunctionName } from "convex/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -7,6 +7,14 @@ import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { brandFileDesign, brandFileOutline } from "../convex/brandFile";
 import { ProfilePage } from "../routes/_dashboard.perfil";
+import {
+  AccountPage,
+  BusinessPage,
+  BusinessesPage,
+  ConnectionsPage,
+  ModelsPage,
+  PlanPage,
+} from "./profile/pages";
 
 // SAFETY: test IDs model opaque identifiers without pretending to be account records.
 const businessA = "business-a" as Id<"accounts">;
@@ -27,12 +35,14 @@ const mocks = {
   setTheme: vi.fn().mockResolvedValue(undefined),
   // SAFETY: the mutable fixture intentionally models Clerk's nullable first name.
   user: { fullName: "Test Owner", firstName: "Test" as string | null },
+  path: "/perfil/conta",
 };
 
 const runtime = {
   useProfileUser: () => ({ user: mocks.user }),
   useClerkActions: () => ({ signOut: mocks.action, openUserProfile: mocks.openUserProfile }),
   useProfileNavigate: () => mocks.navigate,
+  useProfilePath: () => mocks.path,
   useProfileAccounts: () => ({
     accounts: [
       { id: businessA, name: "Business A", onboardedAt: 1 },
@@ -96,6 +106,25 @@ let root: Root;
 
 let container: HTMLDivElement;
 
+/** Renders one Perfil page inside the shell, as the router does at `path`. */
+const show = async (page: ReactElement, path: string) => {
+  mocks.path = path;
+  await act(async () => root.render(createElement(ProfilePage, { runtime }, page)));
+};
+
+/**
+ * Follows the first link whose text ends with `label` (the sidebar and the phone bar
+ * both list pages; a business's link starts with its monogram letter).
+ */
+const follow = async (label: string) => {
+  const link = [...container.querySelectorAll("a")].find((item) =>
+    item.textContent?.endsWith(label),
+  );
+
+  expect(link, label).toBeDefined();
+  await act(async () => link!.click());
+};
+
 const click = async (label: string) => {
   const button = [...container.querySelectorAll("button")].find(
     (item) => (item.getAttribute("aria-label") ?? item.textContent) === label,
@@ -130,7 +159,7 @@ beforeEach(async () => {
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  await act(async () => root.render(createElement(ProfilePage, { runtime })));
+  await show(createElement(AccountPage), "/perfil/conta");
 });
 
 afterEach(async () => {
@@ -146,7 +175,7 @@ it.each([
     "users:modelPreferences",
     { conectado: true, orchestrator: "openai/gpt-6-astra", caetano: "openai/gpt-6-astra", image },
   ]);
-  await act(async () => root.render(createElement(ProfilePage, { runtime })));
+  await show(createElement(ModelsPage), "/perfil/modelos");
   const picker = container.querySelector('[aria-label="Modelo de imagens"]');
 
   expect(picker).not.toBeNull();
@@ -183,7 +212,7 @@ it.each(["Modelo de conversa", "Modelo do Caetano"])(
     };
 
     answer(["users:modelPreferences", preferences]);
-    await act(async () => root.render(createElement(ProfilePage, { runtime })));
+    await show(createElement(ModelsPage), "/perfil/modelos");
     await click(label);
 
     const muse = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((option) =>
@@ -196,33 +225,45 @@ it.each(["Modelo de conversa", "Modelo do Caetano"])(
     expect(mocks.action).toHaveBeenLastCalledWith({ modelId: "meta/muse-spark-1.3-contributor" });
     preferences.orchestrator = "meta/muse-spark-1.3-contributor";
     preferences.caetano = "meta/muse-spark-1.3-contributor";
-    await act(async () => root.render(createElement(ProfilePage, { runtime })));
+    await show(createElement(ModelsPage), "/perfil/modelos");
     const trigger = container.querySelector(`[aria-label="${label}"]`);
     expect(trigger?.textContent).toContain("Muse Spark 1.3 Contributor");
     expect(trigger?.querySelector("svg path")?.getAttribute("d")).toMatch(/^M6\.915 4\.03/);
   },
 );
 
-it("shows the account, plan, connections and businesses on one page", () => {
-  // Billing refreshes once on arrival (no args); Instagram rows sync per business.
+it("lists Perfil's pages in a sidebar and opens Conta", async () => {
+  // Billing refreshes once on arrival (no args).
   expect(mocks.action.mock.calls.filter((call) => call.length === 0)).toHaveLength(1);
-  expect(container.querySelector("h1")?.textContent).toBe("Perfil");
+  expect(container.querySelector("h1")?.textContent).toBe("Conta");
   expect(container.textContent).toContain("Test Owner");
-  expect(container.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("37");
-  expect(container.textContent).not.toContain("Escolha seu plano");
-  expect(container.textContent).toContain("Caetano no WhatsApp");
-  // Instagram accounts share one label; each row names only its business.
-  const instagram = container.querySelector('[role="group"][aria-label="Instagram"]');
-  expect(instagram?.textContent).toContain("Business A");
-  expect(instagram?.textContent).toContain("Business B");
-  expect(instagram?.textContent).not.toContain("Unfinished");
-  expect(container.textContent).toContain("Cadastro incompleto");
+  const sidebar = container.querySelector('aside[aria-label="Ajustes"]');
+  expect(sidebar?.querySelector('[aria-current="page"]')?.textContent).toBe("Conta");
+  expect(sidebar?.textContent).toContain("Plano e uso37%");
+  expect(sidebar?.textContent).toContain("Business A");
+  expect(sidebar?.textContent).toContain("UnfinishedIncompleto");
   expect(container.textContent).not.toContain("Skills");
+
+  await follow("Plano e uso37%");
+  expect(mocks.navigate).toHaveBeenLastCalledWith({ to: "/perfil/plano" });
+  await follow("Business B");
+  expect(mocks.navigate).toHaveBeenLastCalledWith({
+    to: "/perfil/negocios/$accountId",
+    params: { accountId: "business-b" },
+  });
+  await follow("Voltar à Vanda");
+  expect(mocks.navigate).toHaveBeenLastCalledWith({ to: "/conversa", search: {} });
 });
 
-it("opens the profile editor and toggles plan management in place", async () => {
-  await click("Editar");
+it("opens the profile editor from Conta", async () => {
+  await click("Editar perfil");
   expect(mocks.openUserProfile).toHaveBeenCalledTimes(1);
+});
+
+it("toggles plan management in place on Plano e uso", async () => {
+  await show(createElement(PlanPage), "/perfil/plano");
+  expect(container.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("37");
+  expect(container.textContent).not.toContain("Escolha seu plano");
   await click("Gerenciar plano");
   expect(container.textContent).toContain("Escolha seu plano");
   expect(container.textContent).toContain("Cobrança e faturas");
@@ -230,13 +271,41 @@ it("opens the profile editor and toggles plan management in place", async () => 
   expect(container.textContent).not.toContain("Escolha seu plano");
 });
 
+it("lists connections with one Instagram row per finished business", async () => {
+  answer(
+    ["usage:summary", { plan: "profissional", usedPct: 37 }],
+    ["publisherConnect:connectionStatus", { connected: true, handle: "biz" }],
+  );
+  await show(createElement(ConnectionsPage), "/perfil/conexoes");
+  expect(container.textContent).toContain("Caetano no WhatsApp");
+  // Instagram accounts share one card; each row names only its business.
+  const instagram = container.querySelector('[role="group"][aria-label="Instagram"]');
+  expect(instagram?.textContent).toContain("Business A");
+  expect(instagram?.textContent).toContain("Business B");
+  expect(instagram?.textContent).not.toContain("Unfinished");
+  expect(instagram?.textContent).toContain("@biz · publica e lê métricas");
+  // Connected rows show a status that opens Reconectar, not a bare button.
+  expect(instagram?.textContent).toContain("Conectado");
+  expect(container.textContent).not.toContain("Reconectar");
+  // OpenAI only appears on the ChatGPT plan.
+  expect(container.textContent).not.toContain("OpenAI");
+});
+
 it("opens a business's brand file and the onboarding for unfinished ones", async () => {
-  await click("Business AVer arquivo da marca");
+  await show(createElement(BusinessesPage), "/perfil/negocios");
+  expect(container.textContent).toContain("Cadastro incompleto");
+
+  const main = container.querySelector("main")!;
+
+  const row = (label: string) =>
+    [...main.querySelectorAll("a")].find((item) => item.textContent?.includes(label));
+
+  await act(async () => row("Business A")!.click());
   expect(mocks.navigate).toHaveBeenLastCalledWith({
-    to: "/perfil",
-    search: { marca: "business-a" },
+    to: "/perfil/negocios/$accountId",
+    params: { accountId: "business-a" },
   });
-  await click("UnfinishedCadastro incompleto. Concluir");
+  await act(async () => row("Unfinished")!.click());
   expect(mocks.navigate).toHaveBeenLastCalledWith({
     to: "/onboarding",
     search: { accountId: "unfinished" },
@@ -246,8 +315,11 @@ it("opens a business's brand file and the onboarding for unfinished ones", async
 });
 
 it("reads and edits the brand file, then hands off to the conversation", async () => {
-  await act(async () => root.render(createElement(ProfilePage, { runtime, marca: "business-a" })));
+  await show(createElement(BusinessPage, { accountId: "business-a" }), "/perfil/negocios/business-a");
   expect(container.querySelector("h1")?.textContent).toBe("Business A");
+  expect(container.querySelector('aside [aria-current="page"]')?.textContent).toContain(
+    "Business A",
+  );
   expect(container.textContent).toContain("Sem gírias");
   expect(container.textContent).toContain("Você");
   expect(container.textContent).toContain("#3860BE");
@@ -280,7 +352,7 @@ it("reads and edits the brand file, then hands off to the conversation", async (
 });
 
 it("does not open the brand file of a business that has not finished onboarding", async () => {
-  await act(async () => root.render(createElement(ProfilePage, { runtime, marca: "unfinished" })));
+  await show(createElement(BusinessPage, { accountId: "unfinished" }), "/perfil/negocios/unfinished");
   expect(container.textContent).toContain("Negócio não encontrado");
   expect(container.textContent).not.toContain("Arquivo da marca");
 });
@@ -290,10 +362,14 @@ it("warns when the ChatGPT plan runs without a connected OpenAI account", async 
     ["usage:summary", { plan: "conectado", usedPct: 12 }],
     ["openaiSub:connectionStatus", { connected: false }],
   );
-  await act(async () => root.render(createElement(ProfilePage, { runtime })));
+  await show(createElement(PlanPage), "/perfil/plano");
   expect(container.textContent).toContain("Sua conta OpenAI não está conectada");
   expect(container.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("12");
-  expect(container.textContent).toContain("Conta OpenAI");
+  await click("Conectar");
+  expect(mocks.navigate).toHaveBeenLastCalledWith({ to: "/perfil/conexoes" });
+  await show(createElement(ConnectionsPage), "/perfil/conexoes");
+  expect(container.textContent).toContain("OpenAI");
+  expect(container.textContent).toContain("Conecte para usar sua assinatura do ChatGPT");
 });
 
 it("shows where the plan went, with ChatGPT work as covered", async () => {
@@ -331,12 +407,13 @@ it("shows where the plan went, with ChatGPT work as covered", async () => {
 
     return undefined;
   });
-  await act(async () => root.render(createElement(ProfilePage, { runtime })));
+  await show(createElement(PlanPage), "/perfil/plano");
 
   expect(container.textContent).toContain("31%do plano usado");
   expect(container.textContent).toContain("Pesquisa no Instagram21%");
   // Unused paid categories stay out; ChatGPT-covered ones say so.
   expect(container.textContent).not.toContain("Pesquisa na web0%");
+  expect(container.textContent).toContain("Fora do plano");
   expect(container.textContent).toContain("Criação de imagenspela sua assinatura do ChatGPT");
   expect(container.textContent).toContain(
     "Ainda dá para ~140 pesquisas de perfil ou ~6 varreduras do radar.",
@@ -357,7 +434,7 @@ it("applies a theme at once and saves it to the account", async () => {
 
 it("does not claim zero usage or a trial plan while the summary is loading", async () => {
   mocks.query.mockReturnValue(undefined);
-  await act(async () => root.render(createElement(ProfilePage, { runtime })));
+  await show(createElement(PlanPage), "/perfil/plano");
   expect(container.querySelector('[role="progressbar"]')).toBeNull();
   expect(container.textContent).not.toContain("Teste grátis");
 });

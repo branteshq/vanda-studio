@@ -90,7 +90,7 @@ describe("platform settings registry", () => {
 
     await expect(
       t.mutation(internal.settingsData.set, { userId, id: "billing.plan", value: "profissional" }),
-    ).rejects.toThrow("Perfil › Gerenciar plano");
+    ).rejects.toThrow("Perfil › Plano e uso › Gerenciar plano");
     await expect(
       t.mutation(internal.settingsData.set, { userId, id: "nope", value: "x" }),
     ).rejects.toThrow("configuração desconhecida");

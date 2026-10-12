@@ -248,7 +248,7 @@ function AccountMenu() {
         aria-label="Abrir minha conta"
         onClick={() => {
           setOpenMobile(false);
-          void navigate({ to: "/perfil" });
+          void navigate({ to: "/perfil/conta" });
         }}
         className="shrink-0"
       >
@@ -666,7 +666,7 @@ function CaetanoNav() {
             setOpenMobile(false);
 
             if (chatUrl) window.open(chatUrl, "_blank", "noopener,noreferrer");
-            else void navigate({ to: "/perfil" });
+            else void navigate({ to: "/perfil/conexoes" });
           }}
           className="h-10"
         >

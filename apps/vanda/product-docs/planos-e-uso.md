@@ -9,14 +9,14 @@ keywords: plano planos uso cota limite renovacao assinatura cobranca pagamento t
 
 ## Onde ver
 
-No topo do **Perfil**: o plano atual, quanto dele já foi usado, quando renova e em quê o uso foi:
+Em **Perfil › Plano e uso**: o plano atual, quanto dele já foi usado, quando renova e em quê o uso foi:
 
-- uma barra por tipo de trabalho, como **Pesquisa no Instagram**, **Radar de mercado e análises** e **Pesquisa na web**, com a parte do plano que cada um usou;
-- no plano ChatGPT, **Conversas com a Vanda e o Caetano** e **Criação de imagens** aparecem como "pela sua assinatura do ChatGPT", porque não usam o plano;
-- uma linha com o que ainda dá para fazer, por exemplo "Ainda dá para ~140 pesquisas de perfil ou ~6 varreduras do radar";
+- uma barra dividida por tipo de trabalho, como **Pesquisa no Instagram**, **Radar de mercado e análises** e **Pesquisa na web**, com uma legenda que mostra a parte do plano que cada um usou;
+- no plano ChatGPT, **Conversas com a Vanda e o Caetano** e **Criação de imagens** aparecem em **Fora do plano** como "pela sua assinatura do ChatGPT", porque não usam o plano;
+- uma linha com o que ainda dá para fazer, por exemplo "Ainda dá para ~140 pesquisas de perfil ou ~6 varreduras do radar". Quando o plano passa de 80% ou chega ao limite, a linha ganha o botão **Ver planos**;
 - quando a pesquisa na web chega perto do limite diário, quantas foram usadas nas últimas 24 horas.
 
-Em **Perfil › Gerenciar plano** ficam os planos, as mudanças agendadas e a cobrança. A tela não mostra custo interno em dinheiro. A Vanda e o Caetano conseguem dizer o mesmo: quanto do plano foi usado, em quê, e o que ainda dá para fazer.
+Em **Perfil › Plano e uso › Gerenciar plano** ficam os planos, as mudanças agendadas e a cobrança. A tela não mostra custo interno em dinheiro. A Vanda e o Caetano conseguem dizer o mesmo: quanto do plano foi usado, em quê, e o que ainda dá para fazer.
 
 ## Como a cota funciona
 
@@ -29,8 +29,8 @@ Em **Perfil › Gerenciar plano** ficam os planos, as mudanças agendadas e a co
 ## Planos
 
 - **Básico** e **Profissional**, mensais ou anuais.
-- **ChatGPT**: usa a assinatura do ChatGPT do dono para conversas e imagens enquanto a conta OpenAI está conectada. O resto (pesquisa no Instagram, radar, pesquisa na web) usa o saldo do plano, que aparece no Perfil como nos outros planos. Sem a conexão, conversas e imagens usam o saldo do plano e param quando ele acaba; **Perfil › Plano e uso** mostra o aviso "Conta OpenAI desconectada" com o botão para conectar de novo. Veja [Conexões](/docs/conexoes).
+- **ChatGPT**: usa a assinatura do ChatGPT do dono para conversas e imagens enquanto a conta OpenAI está conectada. O resto (pesquisa no Instagram, radar, pesquisa na web) usa o saldo do plano, que aparece no Perfil como nos outros planos. Sem a conexão, conversas e imagens usam o saldo do plano e param quando ele acaba; **Perfil › Plano e uso** mostra o aviso "Sua conta OpenAI não está conectada" com o botão **Conectar**, que leva a Conexões. Veja [Conexões](/docs/conexoes).
 
 ## Mudar de plano
 
-Só o dono muda de plano ou paga, em **Perfil › Gerenciar plano**. A Vanda e o Caetano podem dizer o plano e o uso atuais, mas não alteram a assinatura.
+Só o dono muda de plano ou paga, em **Perfil › Plano e uso › Gerenciar plano**. A Vanda e o Caetano podem dizer o plano e o uso atuais, mas não alteram a assinatura.

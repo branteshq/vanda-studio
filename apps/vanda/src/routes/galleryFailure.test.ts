@@ -11,7 +11,7 @@ describe("gallery failure rendering", () => {
 
     expect(html).toContain("Sua conexão expirou");
     expect(html).toContain("Reconectar");
-    expect(html).toContain('href="/perfil"');
+    expect(html).toContain('href="/perfil/conexoes"');
   });
 
   it("renders curated fallback copy without a raw legacy diagnostic", () => {

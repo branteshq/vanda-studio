@@ -23,6 +23,13 @@ import { Route as DashboardPerfilRouteImport } from './routes/_dashboard.perfil'
 import { Route as DashboardGaleriaRouteImport } from './routes/_dashboard.galeria'
 import { Route as DashboardConversaRouteImport } from './routes/_dashboard.conversa'
 import { Route as DashboardCalendarioRouteImport } from './routes/_dashboard.calendario'
+import { Route as DashboardPerfilIndexRouteImport } from './routes/_dashboard.perfil.index'
+import { Route as DashboardPerfilPlanoRouteImport } from './routes/_dashboard.perfil.plano'
+import { Route as DashboardPerfilModelosRouteImport } from './routes/_dashboard.perfil.modelos'
+import { Route as DashboardPerfilContaRouteImport } from './routes/_dashboard.perfil.conta'
+import { Route as DashboardPerfilConexoesRouteImport } from './routes/_dashboard.perfil.conexoes'
+import { Route as DashboardPerfilNegociosIndexRouteImport } from './routes/_dashboard.perfil.negocios.index'
+import { Route as DashboardPerfilNegociosAccountIdRouteImport } from './routes/_dashboard.perfil.negocios.$accountId'
 
 const SsoCallbackRoute = SsoCallbackRouteImport.update({
   id: '/sso-callback',
@@ -94,6 +101,43 @@ const DashboardCalendarioRoute = DashboardCalendarioRouteImport.update({
   path: '/calendario',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardPerfilIndexRoute = DashboardPerfilIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DashboardPerfilRoute,
+} as any)
+const DashboardPerfilPlanoRoute = DashboardPerfilPlanoRouteImport.update({
+  id: '/plano',
+  path: '/plano',
+  getParentRoute: () => DashboardPerfilRoute,
+} as any)
+const DashboardPerfilModelosRoute = DashboardPerfilModelosRouteImport.update({
+  id: '/modelos',
+  path: '/modelos',
+  getParentRoute: () => DashboardPerfilRoute,
+} as any)
+const DashboardPerfilContaRoute = DashboardPerfilContaRouteImport.update({
+  id: '/conta',
+  path: '/conta',
+  getParentRoute: () => DashboardPerfilRoute,
+} as any)
+const DashboardPerfilConexoesRoute = DashboardPerfilConexoesRouteImport.update({
+  id: '/conexoes',
+  path: '/conexoes',
+  getParentRoute: () => DashboardPerfilRoute,
+} as any)
+const DashboardPerfilNegociosIndexRoute =
+  DashboardPerfilNegociosIndexRouteImport.update({
+    id: '/negocios/',
+    path: '/negocios/',
+    getParentRoute: () => DashboardPerfilRoute,
+  } as any)
+const DashboardPerfilNegociosAccountIdRoute =
+  DashboardPerfilNegociosAccountIdRouteImport.update({
+    id: '/negocios/$accountId',
+    path: '/negocios/$accountId',
+    getParentRoute: () => DashboardPerfilRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof DashboardIndexRoute
@@ -104,11 +148,18 @@ export interface FileRoutesByFullPath {
   '/calendario': typeof DashboardCalendarioRoute
   '/conversa': typeof DashboardConversaRoute
   '/galeria': typeof DashboardGaleriaRoute
-  '/perfil': typeof DashboardPerfilRoute
+  '/perfil': typeof DashboardPerfilRouteWithChildren
   '/posts-automaticos': typeof DashboardPostsAutomaticosRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/login/$': typeof LoginSplatRoute
   '/docs/': typeof DocsIndexRoute
+  '/perfil/conexoes': typeof DashboardPerfilConexoesRoute
+  '/perfil/conta': typeof DashboardPerfilContaRoute
+  '/perfil/modelos': typeof DashboardPerfilModelosRoute
+  '/perfil/plano': typeof DashboardPerfilPlanoRoute
+  '/perfil/': typeof DashboardPerfilIndexRoute
+  '/perfil/negocios/$accountId': typeof DashboardPerfilNegociosAccountIdRoute
+  '/perfil/negocios/': typeof DashboardPerfilNegociosIndexRoute
 }
 export interface FileRoutesByTo {
   '/error-preview': typeof ErrorPreviewRoute
@@ -117,12 +168,18 @@ export interface FileRoutesByTo {
   '/calendario': typeof DashboardCalendarioRoute
   '/conversa': typeof DashboardConversaRoute
   '/galeria': typeof DashboardGaleriaRoute
-  '/perfil': typeof DashboardPerfilRoute
   '/posts-automaticos': typeof DashboardPostsAutomaticosRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/login/$': typeof LoginSplatRoute
   '/': typeof DashboardIndexRoute
   '/docs': typeof DocsIndexRoute
+  '/perfil/conexoes': typeof DashboardPerfilConexoesRoute
+  '/perfil/conta': typeof DashboardPerfilContaRoute
+  '/perfil/modelos': typeof DashboardPerfilModelosRoute
+  '/perfil/plano': typeof DashboardPerfilPlanoRoute
+  '/perfil': typeof DashboardPerfilIndexRoute
+  '/perfil/negocios/$accountId': typeof DashboardPerfilNegociosAccountIdRoute
+  '/perfil/negocios': typeof DashboardPerfilNegociosIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -134,12 +191,19 @@ export interface FileRoutesById {
   '/_dashboard/calendario': typeof DashboardCalendarioRoute
   '/_dashboard/conversa': typeof DashboardConversaRoute
   '/_dashboard/galeria': typeof DashboardGaleriaRoute
-  '/_dashboard/perfil': typeof DashboardPerfilRoute
+  '/_dashboard/perfil': typeof DashboardPerfilRouteWithChildren
   '/_dashboard/posts-automaticos': typeof DashboardPostsAutomaticosRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/login/$': typeof LoginSplatRoute
   '/_dashboard/': typeof DashboardIndexRoute
   '/docs/': typeof DocsIndexRoute
+  '/_dashboard/perfil/conexoes': typeof DashboardPerfilConexoesRoute
+  '/_dashboard/perfil/conta': typeof DashboardPerfilContaRoute
+  '/_dashboard/perfil/modelos': typeof DashboardPerfilModelosRoute
+  '/_dashboard/perfil/plano': typeof DashboardPerfilPlanoRoute
+  '/_dashboard/perfil/': typeof DashboardPerfilIndexRoute
+  '/_dashboard/perfil/negocios/$accountId': typeof DashboardPerfilNegociosAccountIdRoute
+  '/_dashboard/perfil/negocios/': typeof DashboardPerfilNegociosIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -157,6 +221,13 @@ export interface FileRouteTypes {
     | '/docs/$slug'
     | '/login/$'
     | '/docs/'
+    | '/perfil/conexoes'
+    | '/perfil/conta'
+    | '/perfil/modelos'
+    | '/perfil/plano'
+    | '/perfil/'
+    | '/perfil/negocios/$accountId'
+    | '/perfil/negocios/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/error-preview'
@@ -165,12 +236,18 @@ export interface FileRouteTypes {
     | '/calendario'
     | '/conversa'
     | '/galeria'
-    | '/perfil'
     | '/posts-automaticos'
     | '/docs/$slug'
     | '/login/$'
     | '/'
     | '/docs'
+    | '/perfil/conexoes'
+    | '/perfil/conta'
+    | '/perfil/modelos'
+    | '/perfil/plano'
+    | '/perfil'
+    | '/perfil/negocios/$accountId'
+    | '/perfil/negocios'
   id:
     | '__root__'
     | '/_dashboard'
@@ -187,6 +264,13 @@ export interface FileRouteTypes {
     | '/login/$'
     | '/_dashboard/'
     | '/docs/'
+    | '/_dashboard/perfil/conexoes'
+    | '/_dashboard/perfil/conta'
+    | '/_dashboard/perfil/modelos'
+    | '/_dashboard/perfil/plano'
+    | '/_dashboard/perfil/'
+    | '/_dashboard/perfil/negocios/$accountId'
+    | '/_dashboard/perfil/negocios/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -298,14 +382,87 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardCalendarioRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/_dashboard/perfil/': {
+      id: '/_dashboard/perfil/'
+      path: '/'
+      fullPath: '/perfil/'
+      preLoaderRoute: typeof DashboardPerfilIndexRouteImport
+      parentRoute: typeof DashboardPerfilRoute
+    }
+    '/_dashboard/perfil/plano': {
+      id: '/_dashboard/perfil/plano'
+      path: '/plano'
+      fullPath: '/perfil/plano'
+      preLoaderRoute: typeof DashboardPerfilPlanoRouteImport
+      parentRoute: typeof DashboardPerfilRoute
+    }
+    '/_dashboard/perfil/modelos': {
+      id: '/_dashboard/perfil/modelos'
+      path: '/modelos'
+      fullPath: '/perfil/modelos'
+      preLoaderRoute: typeof DashboardPerfilModelosRouteImport
+      parentRoute: typeof DashboardPerfilRoute
+    }
+    '/_dashboard/perfil/conta': {
+      id: '/_dashboard/perfil/conta'
+      path: '/conta'
+      fullPath: '/perfil/conta'
+      preLoaderRoute: typeof DashboardPerfilContaRouteImport
+      parentRoute: typeof DashboardPerfilRoute
+    }
+    '/_dashboard/perfil/conexoes': {
+      id: '/_dashboard/perfil/conexoes'
+      path: '/conexoes'
+      fullPath: '/perfil/conexoes'
+      preLoaderRoute: typeof DashboardPerfilConexoesRouteImport
+      parentRoute: typeof DashboardPerfilRoute
+    }
+    '/_dashboard/perfil/negocios/': {
+      id: '/_dashboard/perfil/negocios/'
+      path: '/negocios'
+      fullPath: '/perfil/negocios/'
+      preLoaderRoute: typeof DashboardPerfilNegociosIndexRouteImport
+      parentRoute: typeof DashboardPerfilRoute
+    }
+    '/_dashboard/perfil/negocios/$accountId': {
+      id: '/_dashboard/perfil/negocios/$accountId'
+      path: '/negocios/$accountId'
+      fullPath: '/perfil/negocios/$accountId'
+      preLoaderRoute: typeof DashboardPerfilNegociosAccountIdRouteImport
+      parentRoute: typeof DashboardPerfilRoute
+    }
   }
 }
+
+interface DashboardPerfilRouteChildren {
+  DashboardPerfilConexoesRoute: typeof DashboardPerfilConexoesRoute
+  DashboardPerfilContaRoute: typeof DashboardPerfilContaRoute
+  DashboardPerfilModelosRoute: typeof DashboardPerfilModelosRoute
+  DashboardPerfilPlanoRoute: typeof DashboardPerfilPlanoRoute
+  DashboardPerfilIndexRoute: typeof DashboardPerfilIndexRoute
+  DashboardPerfilNegociosAccountIdRoute: typeof DashboardPerfilNegociosAccountIdRoute
+  DashboardPerfilNegociosIndexRoute: typeof DashboardPerfilNegociosIndexRoute
+}
+
+const DashboardPerfilRouteChildren: DashboardPerfilRouteChildren = {
+  DashboardPerfilConexoesRoute: DashboardPerfilConexoesRoute,
+  DashboardPerfilContaRoute: DashboardPerfilContaRoute,
+  DashboardPerfilModelosRoute: DashboardPerfilModelosRoute,
+  DashboardPerfilPlanoRoute: DashboardPerfilPlanoRoute,
+  DashboardPerfilIndexRoute: DashboardPerfilIndexRoute,
+  DashboardPerfilNegociosAccountIdRoute: DashboardPerfilNegociosAccountIdRoute,
+  DashboardPerfilNegociosIndexRoute: DashboardPerfilNegociosIndexRoute,
+}
+
+const DashboardPerfilRouteWithChildren = DashboardPerfilRoute._addFileChildren(
+  DashboardPerfilRouteChildren,
+)
 
 interface DashboardRouteChildren {
   DashboardCalendarioRoute: typeof DashboardCalendarioRoute
   DashboardConversaRoute: typeof DashboardConversaRoute
   DashboardGaleriaRoute: typeof DashboardGaleriaRoute
-  DashboardPerfilRoute: typeof DashboardPerfilRoute
+  DashboardPerfilRoute: typeof DashboardPerfilRouteWithChildren
   DashboardPostsAutomaticosRoute: typeof DashboardPostsAutomaticosRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
 }
@@ -314,7 +471,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardCalendarioRoute: DashboardCalendarioRoute,
   DashboardConversaRoute: DashboardConversaRoute,
   DashboardGaleriaRoute: DashboardGaleriaRoute,
-  DashboardPerfilRoute: DashboardPerfilRoute,
+  DashboardPerfilRoute: DashboardPerfilRouteWithChildren,
   DashboardPostsAutomaticosRoute: DashboardPostsAutomaticosRoute,
   DashboardIndexRoute: DashboardIndexRoute,
 }

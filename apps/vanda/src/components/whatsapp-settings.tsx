@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
+import { ExternalLink, MessageCircle, Unplug } from "lucide-react";
 import { Button, buttonVariants } from "@vanda-studio/ui/components/button";
+import { DropdownMenuItem } from "@vanda-studio/ui/components/dropdown-menu";
 import { api } from "../convex/_generated/api";
 import { showErrorToast } from "./error-feedback";
-import { ProfileRow } from "./profile/layout";
+import { ServiceTile, SettingsRow, StatusMenu } from "./profile/layout";
 
 type Link = { url: string; expiresAt: number };
 
@@ -74,85 +76,105 @@ export function WhatsAppSettingsView({ state, createLink, disconnect }: WhatsApp
 
   const generate = () => void run(async () => setLink(await createLink()));
 
-  // While a link is live, the one thing left is sending it: that is the button.
-  const status =
+  const detail =
     state === undefined
       ? "Carregando…"
       : state.connected
-        ? `Conectado${state.sender ? `: +${state.sender}` : ""}`
+        ? `${state.sender ? `+${state.sender} · ` : ""}manda os posts para você aprovar`
         : pending
           ? "Aguardando sua mensagem no WhatsApp…"
           : link
             ? "O link expirou. Gere um novo para conectar."
             : "Converse com o Caetano pelo WhatsApp.";
 
-  // "Abrir conversa" is the one magenta button on Perfil; Desconectar waits for hover.
+  const confirmDisconnect = () => {
+    if (
+      window.confirm(
+        "Desconectar o WhatsApp? Novas mensagens não terão acesso à sua conta. Uma mensagem já em envio pode chegar.",
+      )
+    )
+      void run(async () => {
+        await disconnect();
+        setLink(null);
+      });
+  };
+
+  // Connected: the chat is a secondary button and the status opens Desconectar.
+  // Not yet: connecting is the one magenta action on the page.
   return (
-    <ProfileRow
-      tone={state?.connected ? "on" : pending ? "pending" : "off"}
-      title="Caetano no WhatsApp"
-      detail={status}
-      quiet={
-        state?.connected ? (
-          <Button
-            variant="subtle"
-            size="sm"
-            disabled={busy}
-            onClick={() => {
-              if (
-                window.confirm(
-                  "Desconectar o WhatsApp? Novas mensagens não terão acesso à sua conta. Uma mensagem já em envio pode chegar.",
-                )
-              )
-                void run(async () => {
-                  await disconnect();
-                  setLink(null);
-                });
-            }}
-          >
-            Desconectar
-          </Button>
-        ) : null
+    <SettingsRow
+      icon={
+        <ServiceTile>
+          <MessageCircle className="size-4" />
+        </ServiceTile>
       }
-      actions={
-        state?.connected ? (
-          state.chatUrl ? (
+      title="Caetano no WhatsApp"
+      detail={detail}
+      footer={
+        <>
+          {state && !state.connected && !state.configured ? (
+            <p className="mt-2 ml-11.5 text-body-sm text-text-4">
+              A conexão com o WhatsApp ainda não está disponível.
+            </p>
+          ) : null}
+          {pending ? (
+            <p className="mt-2 ml-11.5 text-body-sm text-text-3">
+              O WhatsApp abre com uma mensagem pronta: toque em enviar. Válido até{" "}
+              {time(pending.expiresAt)}. Não compartilhe.
+            </p>
+          ) : null}
+        </>
+      }
+    >
+      {state?.connected ? (
+        <>
+          {state.chatUrl ? (
             <a
-              className={buttonVariants({ size: "sm" })}
+              className={buttonVariants({
+                variant: "secondary",
+                size: "sm",
+                className: "max-sm:hidden",
+              })}
               href={state.chatUrl}
               target="_blank"
               rel="noreferrer"
             >
               Abrir conversa
             </a>
-          ) : null
-        ) : pending ? (
-          <a
-            className={buttonVariants({ size: "sm" })}
-            href={pending.url}
-            target="_blank"
-            rel="noreferrer"
+          ) : null}
+          <StatusMenu
+            tone="on"
+            label="Conectado"
+            meta={state.sender ? `+${state.sender}` : "WhatsApp conectado"}
           >
-            Abrir WhatsApp
-          </a>
-        ) : state ? (
-          <Button size="sm" disabled={busy || !state.configured} onClick={generate}>
-            {busy ? "Gerando…" : link ? "Gerar novo link" : "Conectar"}
-          </Button>
-        ) : null
-      }
-    >
-      {state && !state.connected && !state.configured ? (
-        <p className="mt-2 pl-4.5 text-body-sm text-text-4">
-          A conexão com o WhatsApp ainda não está disponível.
-        </p>
+            {state.chatUrl ? (
+              <DropdownMenuItem
+                onClick={() => window.open(state.chatUrl ?? "", "_blank", "noopener,noreferrer")}
+              >
+                <ExternalLink />
+                Abrir conversa
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem variant="destructive" disabled={busy} onClick={confirmDisconnect}>
+              <Unplug />
+              Desconectar
+            </DropdownMenuItem>
+          </StatusMenu>
+        </>
+      ) : pending ? (
+        <a
+          className={buttonVariants({ size: "sm" })}
+          href={pending.url}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Abrir WhatsApp
+        </a>
+      ) : state ? (
+        <Button size="sm" disabled={busy || !state.configured} onClick={generate}>
+          {busy ? "Gerando…" : link ? "Gerar novo link" : "Conectar"}
+        </Button>
       ) : null}
-      {pending ? (
-        <p className="mt-2 pl-4.5 text-body-sm text-text-3">
-          O WhatsApp abre com uma mensagem pronta: toque em enviar. Válido até{" "}
-          {time(pending.expiresAt)}. Não compartilhe.
-        </p>
-      ) : null}
-    </ProfileRow>
+    </SettingsRow>
   );
 }
