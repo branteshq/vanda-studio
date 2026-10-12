@@ -1,12 +1,14 @@
 import { Jimp } from "jimp";
 import { describe, expect, it } from "vitest";
 import {
+  assertFeedReferenced,
   assertImagesWereInspected,
   assertProtectedPixelsPreserved,
   assertRejectedPaintWasReported,
   type EvalTraceStep,
 } from "../../evals/assertions";
-import { referenceImage } from "../../evals/references";
+import { brands } from "../../evals/fixtures";
+import { feedImage, referenceImage } from "../../evals/references";
 
 /** An extend result; the strip comes only with the call that closes the loop. */
 const chain = (slides: string[], strip?: string) => {
@@ -25,6 +27,10 @@ const chain = (slides: string[], strip?: string) => {
     },
   };
 };
+
+const paint = (referenceImageIds: string[]) => ({
+  calls: [{ toolName: "paint", input: { prompt: "no estilo do feed", referenceImageIds } }],
+});
 
 describe("evaluation guards", () => {
   it("counts an infinite carousel as inspected only once its strip came back", () => {
@@ -166,5 +172,40 @@ describe("evaluation guards", () => {
         await changed.getBuffer("image/png"),
       ),
     ).rejects.toThrow("protected pixel changed");
+  });
+  it("counts feed posts only when one paint call conditions on enough of them", () => {
+    const feed = ["feed-1", "feed-2", "feed-3", "feed-4"];
+
+    // Saying "feed" in prose, unrelated references, or one post per call are not enough.
+    const trace: EvalTraceStep[] = [
+      { text: "Usei os posts do feed como referência." },
+      paint(["logo"]),
+      paint(["feed-1"]),
+      paint(["feed-2", "painted-cover"]),
+      { calls: [{ toolName: "read", input: { path: "/images/feed-3.png" } }] },
+    ];
+
+    expect(() => assertFeedReferenced(trace, feed)).toThrow("best: 1");
+    trace.push(paint(["feed-3", "feed-1"]));
+    expect(() => assertFeedReferenced(trace, feed)).not.toThrow();
+  });
+
+  it("renders the feed-fit brand's posts in one deterministic layout", async () => {
+    const brand = brands.find((candidate) => candidate.id === "tabua-contabil")!;
+    const [first, second] = brand.feed!;
+    const a = feedImage(brand, first!);
+    expect(Buffer.from(feedImage(brand, first!)).equals(Buffer.from(a))).toBe(true);
+
+    const [one, two] = await Promise.all(
+      [a, feedImage(brand, second!)].map((bytes) => Jimp.read(Buffer.from(bytes))),
+    );
+
+    for (const image of [one!, two!]) {
+      expect([image.width, image.height]).toEqual([1024, 1280]);
+      // Ink ground, mustard quarter circle top right, mustard rule under the title.
+      expect(image.getPixelColor(40, 640).toString(16).slice(0, 6)).toBe("14213d");
+      expect(image.getPixelColor(1000, 20).toString(16).slice(0, 6)).toBe("f2b134");
+      expect(image.getPixelColor(150, 905).toString(16).slice(0, 6)).toBe("f2b134");
+    }
   });
 });

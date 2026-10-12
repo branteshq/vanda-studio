@@ -12,8 +12,9 @@ import { expandedSkillCases, skillCaseFor } from "../../evals/skillBenchmark";
 import { brands, cases } from "../../evals/fixtures";
 import { benchmarkMethods, imageBenchmarkCases } from "../../evals/imageBenchmark";
 import { professionalBrands, professionalCases } from "../../evals/professionalBenchmark";
-import { referenceImage } from "../../evals/references";
+import { feedImage, referenceImage } from "../../evals/references";
 import {
+  assertFeedReferenced,
   assertImagesWereInspected,
   assertProtectedPixelsPreserved,
   assertRejectedPaintWasReported,
@@ -397,6 +398,22 @@ it.skipIf(!enabled).each(suite)(
         attachments.push({ imageId, url, mimeType: metadata.mimeType });
       }
 
+      // The brand's published feed, as gallery copies: what a feed-fit post must match.
+      const feedImageIds: Id<"images">[] = [];
+
+      for (const [index, post] of (brand.feed ?? []).entries()) {
+        const bytes = feedImage(brand, post);
+        await writeFile(resolve(directory, `feed-${index + 1}.png`), bytes);
+
+        feedImageIds.push(
+          await insertUpload(
+            `Feed publicado · ${post.tag} ${post.title}`,
+            `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`,
+            { mimeType: "image/png", width: 1024, height: 1280 },
+          ),
+        );
+      }
+
       let referenceBytes: Uint8Array | undefined;
       let referenceImageId: Id<"images"> | undefined;
 
@@ -654,6 +671,8 @@ it.skipIf(!enabled).each(suite)(
 
       if (entry.kind === "creative" || entry.kind === "revision")
         assertImagesWereInspected(trace, finalImageIds);
+
+      if (feedImageIds.length > 0) assertFeedReferenced(trace, feedImageIds);
 
       if (entry.agent === "caetano")
         expect(trace.some((step) => step.agent === "vanda")).toBe(false);

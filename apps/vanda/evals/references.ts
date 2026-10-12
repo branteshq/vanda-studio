@@ -1,4 +1,5 @@
 import { Resvg } from "@resvg/resvg-js";
+import type { EvalBrand } from "./fixtures";
 
 /** Deliberately synthetic, deterministic reference art: never a claimed customer photo. */
 export function referenceImage(caseId: string): Uint8Array {
@@ -50,6 +51,36 @@ export function referenceImage(caseId: string): Uint8Array {
     <g text-anchor="middle" font-family="DejaVu Sans">
     <text x="512" y="180" font-size="60" font-weight="bold" fill="white">${title}</text>
     ${art}</g></svg>`)
+    .render()
+    .asPng();
+}
+
+type FeedPost = NonNullable<EvalBrand["feed"]>[number];
+
+const escapeXml = (text: string): string =>
+  text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+
+/**
+ * One already-published post of a fictional brand's feed. Every post shares the
+ * layout the feed-fit case judges against: a mustard quarter circle top right, a
+ * numbered pill top left, a white caps title over a mustard rule, a subtitle and
+ * the handle at the foot. Synthetic and deterministic: never a customer's post.
+ */
+export function feedImage(brand: EvalBrand, post: FeedPost): Uint8Array {
+  const [ink, mustard, paper] = brand.design.colors.map((color) => color.hex);
+
+  return new Resvg(`<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1280">
+    <rect width="1024" height="1280" fill="${ink}"/>
+    <circle cx="1024" cy="0" r="330" fill="${mustard}"/>
+    <g font-family="DejaVu Sans" font-weight="bold">
+    <rect x="80" y="96" width="236" height="68" rx="34" fill="${mustard}"/>
+    <text x="198" y="143" font-size="34" text-anchor="middle" fill="${ink}">${escapeXml(post.tag)}</text>
+    <text x="80" y="860" font-size="104" fill="white">${escapeXml(post.title)}</text></g>
+    <rect x="80" y="900" width="180" height="12" fill="${mustard}"/>
+    <g font-family="DejaVu Sans">
+    <text x="80" y="985" font-size="42" fill="${paper}">${escapeXml(post.subtitle)}</text>
+    <text x="80" y="1200" font-size="30" fill="white">${escapeXml(brand.handle)}</text></g>
+    </svg>`)
     .render()
     .asPng();
 }

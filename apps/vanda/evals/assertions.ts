@@ -64,6 +64,39 @@ export function assertImagesWereInspected(
     throw new Error("each final image must have a successful paint, weave or read pixel result");
 }
 
+/**
+ * Feed fit starts with looking: some paint call must condition on at least
+ * `minimum` of the brand's published posts. Whether the pixels then fit the grid
+ * is for the reviewer; this only proves the feed reached the image model.
+ */
+export function assertFeedReferenced(
+  trace: readonly EvalTraceStep[],
+  feedImageIds: readonly string[],
+  minimum = 2,
+): void {
+  const feed = new Set(feedImageIds);
+
+  const best = Math.max(
+    0,
+    ...trace.flatMap((step) =>
+      (step.calls ?? []).flatMap((call) => {
+        if (call.toolName !== "paint") return [];
+
+        const input = z
+          .object({ referenceImageIds: z.array(z.string()).optional() })
+          .safeParse(call.input ?? call.args);
+
+        return input.success
+          ? [(input.data.referenceImageIds ?? []).filter((id) => feed.has(id)).length]
+          : [];
+      }),
+    ),
+  );
+
+  if (best < minimum)
+    throw new Error(`no paint call referenced ${minimum} feed posts (best: ${best})`);
+}
+
 /** Checks execution plus a conservative disclosure signal, not semantic truthfulness. */
 export function assertRejectedPaintWasReported(
   trace: readonly EvalTraceStep[],

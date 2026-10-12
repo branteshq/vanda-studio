@@ -10,6 +10,12 @@ export type EvalBrand = {
   };
   preferences: string;
   facts: string[];
+  /**
+   * Posts already on the brand's Instagram, all in one layout. The harness renders
+   * them (references.ts) into the gallery as published-feed copies; the brand file
+   * describes no layout, as after a real onboarding.
+   */
+  feed?: { tag: string; title: string; subtitle: string }[];
 };
 
 export type EvalCase = {
@@ -131,6 +137,38 @@ export const brands: EvalBrand[] = [
       "O Kit Rabisco custa R$ 32 e contém três canetas: rosa, roxa e verde.",
       "A loja física fica em Belo Horizonte e funciona de segunda a sábado, das 10h às 19h.",
       "Pedidos online são enviados para todo o Brasil; frete e prazo dependem do CEP.",
+    ],
+  },
+  {
+    id: "tabua-contabil",
+    name: "Tábua Contabilidade",
+    handle: "@tabua.contabil",
+    notes:
+      "Escritório fictício de contabilidade para MEIs e pequenas empresas em Fortaleza, atendimento online.",
+    design: {
+      colors: [
+        { hex: "#14213D", name: "Azul-tinta" },
+        { hex: "#F2B134", name: "Mostarda" },
+        { hex: "#F5EFE0", name: "Papel" },
+      ],
+      fonts: [
+        { family: "Anton", role: "títulos" },
+        { family: "Work Sans", role: "texto" },
+      ],
+      tagline: "Conta certa, cabeça leve.",
+    },
+    preferences:
+      "Voz direta e calma, sem juridiquês. Dicas práticas numeradas; nunca prometer restituição, redução de imposto ou prazo de órgão público.",
+    facts: [
+      "O plano MEI custa R$ 89 por mês e inclui emissão de notas e lembrete do DAS.",
+      "Atende online todo o Ceará, de segunda a sexta, das 9h às 18h.",
+      "Não faz planejamento tributário para empresas do Lucro Real.",
+    ],
+    feed: [
+      { tag: "DICA 01", title: "DAS EM DIA", subtitle: "Pague até o dia 20 e evite multa." },
+      { tag: "DICA 02", title: "NOTA FISCAL", subtitle: "Venda para empresa? Emita sempre." },
+      { tag: "DICA 03", title: "LIMITE DO MEI", subtitle: "Some o faturamento todo mês." },
+      { tag: "DICA 04", title: "CONTA PJ", subtitle: "Dinheiro da empresa fica na empresa." },
     ],
   },
 ];
@@ -427,5 +465,16 @@ export const cases: EvalCase[] = [
       "Caetano inspeciona os pixels via paint ou read antes de endossar a saída.",
     ],
     kind: "revision",
+  },
+  {
+    id: "tabua-feed-fit",
+    brandId: "tabua-contabil",
+    prompt: "faz um post ai pra mim, pode ser qualquer coisa",
+    expectations: [
+      "Encontra os quatro posts do feed na galeria e passa ao menos dois em referenceImageIds como direção de arte.",
+      "A arte nova cabe na grade: fundo Azul-tinta, quarto de círculo Mostarda no canto superior direito, pílula Mostarda no alto à esquerda seguindo a numeração (DICA 05), título branco em caixa alta alinhado à esquerda com um fio Mostarda embaixo, apoio em Papel e @tabua.contabil no rodapé.",
+      "Não repete título nem texto de um post antigo e não inventa preço, prazo ou promessa de restituição.",
+    ],
+    kind: "creative",
   },
 ];
