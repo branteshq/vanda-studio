@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from "react";
-import { Ban, Pencil } from "lucide-react";
+import { ArrowRight, Ban, Pencil } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import type { FunctionReturnType } from "convex/server";
@@ -7,6 +7,7 @@ import type { BrandFileDesign } from "../../convex/brandFile";
 import type { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { errorMessage } from "../../errors";
+import { referenceLabelNames, referenceLabels } from "../../convex/pipeline/constants";
 import { SettingsCard, SettingsHeading } from "./layout";
 import { useProfileRuntime } from "./runtime";
 
@@ -108,12 +109,89 @@ function BrandIdentity({ design }: { design: BrandFileDesign }) {
   );
 }
 
+/** How many thumbnails the Referências row shows before "Ver na galeria". */
+const REFERENCE_PREVIEW = 6;
+
+/**
+ * The Design part the brand file can't hold: the images Vanda and Caetano follow
+ * (feed layout, faces, logo, what to avoid). Read-only here; the gallery edits.
+ */
+function BrandReferences({ accountId }: { accountId: Id<"accounts"> }) {
+  const runtime = useProfileRuntime();
+  const references = runtime.useReferences(accountId);
+  const { selectAccount } = runtime.useProfileAccounts();
+  const navigate = runtime.useProfileNavigate();
+
+  if (references === undefined) return null;
+
+  const counts = referenceLabels.flatMap((label) => {
+    const count = references.counts[label] ?? 0;
+
+    return count > 0 ? [`${count} ${referenceLabelNames[label].toLocaleLowerCase("pt-BR")}`] : [];
+  });
+
+  // Avoid references last: the preview shows what the posts follow.
+  const preview = references.items
+    .toSorted(
+      (a, b) =>
+        Number(a.reference?.labels.includes("avoid")) -
+        Number(b.reference?.labels.includes("avoid")),
+    )
+    .slice(0, REFERENCE_PREVIEW);
+
+  const openGallery = () => {
+    selectAccount(accountId);
+    void navigate({ to: "/galeria", search: { origem: "referencias" } });
+  };
+
+  return (
+    <section className="min-w-0 px-4 py-3.5">
+      <div className="flex items-baseline gap-3">
+        <h3 className="text-body font-medium">Referências</h3>
+        <p className="min-w-0 flex-1 truncate text-body-sm text-text-4">
+          {counts.length > 0 ? counts.join(" · ") : "Nenhuma ainda"}
+        </p>
+        <Button variant="ghost" size="sm" className="-mr-2 shrink-0" onClick={openGallery}>
+          Ver na galeria
+          <ArrowRight />
+        </Button>
+      </div>
+      {preview.length > 0 ? (
+        <ul className="mt-2.5 flex gap-2 overflow-x-auto">
+          {preview.map((item) => (
+            <li key={item.id} className="shrink-0">
+              {item.url ? (
+                <img
+                  src={item.url}
+                  alt={item.reference?.note ?? item.name ?? "Referência"}
+                  title={item.reference?.note ?? undefined}
+                  loading="lazy"
+                  className={
+                    item.reference?.labels.includes("avoid")
+                      ? "h-24 w-20 rounded-md object-cover opacity-60 ring-1 ring-destructive"
+                      : "h-24 w-20 rounded-md object-cover"
+                  }
+                />
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-1 text-body-sm text-text-4">
+          Posts e fotos que a Vanda segue ao criar. O Caetano guarda os do seu Instagram no guia da
+          marca; você marca outros na Galeria.
+        </p>
+      )}
+    </section>
+  );
+}
+
 /**
  * The brand file, read-only: the identity strip, then each filled section as a
  * title over its items. Empty sections share one line instead of repeating the
  * same empty state.
  */
-function BrandFileView({ file }: { file: BrandFileRead }) {
+function BrandFileView({ file, accountId }: { file: BrandFileRead; accountId: Id<"accounts"> }) {
   const sections = visibleSections(file.outline);
   const filled = sections.filter(({ items }) => items.length > 0);
   const empty = sections.filter(({ section }) => section.items.length === 0);
@@ -125,6 +203,7 @@ function BrandFileView({ file }: { file: BrandFileRead }) {
           <BrandIdentity design={file.design} />
         </div>
       ) : null}
+      <BrandReferences accountId={accountId} />
       {filled.map(({ section, items }) => (
         <section key={section.title} className="min-w-0 px-4 py-3.5">
           <h3 className="text-body font-medium">{section.title}</h3>
@@ -150,8 +229,8 @@ function BrandFileView({ file }: { file: BrandFileRead }) {
       ))}
       {empty.length > 0 ? (
         <p className="px-4 py-3.5 text-body-sm text-text-4">
-          Ainda vazio: {empty.map(({ section }) => section.title).join(", ")}. O Caetano pergunta
-          no guia da marca.
+          Ainda vazio: {empty.map(({ section }) => section.title).join(", ")}. O Caetano pergunta no
+          guia da marca.
         </p>
       ) : null}
     </SettingsCard>
@@ -199,14 +278,19 @@ export function BrandFileCard({ accountId }: { accountId: Id<"accounts"> }) {
               Editar
             </Button>
           ) : (
-          <div className="flex gap-2">
-            <Button variant="secondary" size="sm" disabled={saving} onClick={() => setDraft(null)}>
-              Cancelar
-            </Button>
-            <Button size="sm" disabled={saving || bytes > max} onClick={() => void submit()}>
-              {saving ? "Salvando…" : "Salvar"}
-            </Button>
-          </div>
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={saving}
+                onClick={() => setDraft(null)}
+              >
+                Cancelar
+              </Button>
+              <Button size="sm" disabled={saving || bytes > max} onClick={() => void submit()}>
+                {saving ? "Salvando…" : "Salvar"}
+              </Button>
+            </div>
           )
         }
       />
@@ -217,7 +301,7 @@ export function BrandFileCard({ accountId }: { accountId: Id<"accounts"> }) {
           <Skeleton className="h-3.5 w-2/5" />
         </div>
       ) : draft === null ? (
-        <BrandFileView file={file} />
+        <BrandFileView file={file} accountId={accountId} />
       ) : (
         <>
           <textarea
@@ -233,11 +317,7 @@ export function BrandFileCard({ accountId }: { accountId: Id<"accounts"> }) {
           </p>
         </>
       )}
-      {error ? (
-        <p className="mt-3 text-body-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
+      {error ? <p className="mt-3 text-body-sm text-destructive">{error}</p> : null}
     </div>
   );
 }

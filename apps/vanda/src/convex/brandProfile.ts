@@ -7,6 +7,7 @@ import { requireOwnedAccount } from "./authz";
 import { brandFileContent, brandGuide, writeOnboardingBrandFile } from "./brandFile";
 import { startThreadActivity } from "./chat";
 import { isPlatformTurn, platformTurn } from "./platformTurn";
+import { loadReferences } from "./references";
 
 /** The brand guide's sections, read from the account's brand file. */
 const guideSections = async (ctx: QueryCtx, accountId: Id<"accounts">) =>
@@ -166,12 +167,18 @@ export const addReferencePhoto = mutation({
 
     if (existing !== null) return existing._id;
 
+    const now = Date.now();
+
     return ctx.db.insert("images", {
       accountId,
       origin: "uploaded",
       purpose: "reference",
       storageId,
-      createdAt: Date.now(),
+      createdAt: now,
+      referenceLabels: [kind ?? "style"],
+      referenceAddedBy: "owner",
+      referenceAddedAt: now,
+      referenceSource: "enviada",
       ...(kind !== undefined && { referenceKind: kind }),
       ...(width !== undefined && { width }),
       ...(height !== undefined && { height }),
@@ -185,12 +192,9 @@ export const listReferencePhotos = query({
   handler: async (ctx, { accountId }) => {
     await requireOwnedAccount(ctx, accountId);
 
-    const images = await ctx.db
-      .query("images")
-      .withIndex("by_account", (q) => q.eq("accountId", accountId))
-      .collect();
-
-    const references = images.filter((image) => image.purpose === "reference");
+    const references = (await loadReferences(ctx, accountId)).filter(
+      (image) => image.purpose === "reference",
+    );
 
     return Promise.all(
       references.map(async (image) => ({

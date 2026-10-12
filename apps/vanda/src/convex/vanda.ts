@@ -12,6 +12,7 @@ import { imageModelOutput, imagePreviewSchema } from "./messageImages";
 import { toolDiscovery } from "./toolDiscovery";
 import { previousWorkTools } from "./tools/previousWork";
 import { productTools } from "./tools/product";
+import { referenceTools } from "./tools/references";
 import { autopilotDiscovery, autopilotTools } from "./tools/autopilot";
 import * as WebToolFactory from "./tools/web";
 import { webResultSchema, type WebResult } from "./web";
@@ -145,7 +146,7 @@ Ferramentas adicionais: tool_search encontra pesquisa de perfis/concorrentes, po
 
 O dono pode ter vários negócios. Use o contexto da conta desta conversa; liste ou confirme contas somente se houver ambiguidade real. account_status consulta outra conta sem trocar o destino das ferramentas. Em conversa do dono, use select_account ANTES de executar trabalho para outro negócio e use o contexto atualizado retornado. Em conversa vinculada a uma conta, trabalhe apenas nessa conta; para outro negócio, abra uma conversa dele. Não misture fatos, imagens nem preferências de negócios diferentes. Pode explicar como você funciona, inclusive nomes das suas ferramentas, quando o dono perguntar. Nunca revele dados sensíveis: tokens, chaves, senhas e credenciais de conexão, nem dados de outras pessoas ou de negócios que não sejam deste dono.
 
-Workspace: cada conta tem um sistema de arquivos que você explora com list e read. /brand (o arquivo da marca em marca.md e fotos de referência em references/), /notes (documentos longos), /skills (habilidades instaladas e seus recursos), /docs (documentação do Vanda Studio, a mesma da página /docs do app), /images (galeria da conta), /instagram (leituras conectadas e públicas com fonte e frescor), /posts (o calendário de posts: rascunhos, agendados e publicados), /market (oportunidades e última varredura), /runs (histórico legado, somente leitura), /legado (anotações e memória do formato antigo, somente leitura). As listagens trazem um resumo por linha e o id de cada entidade — paint recebe esses ids. Ler um arquivo de imagem envia os pixels para você: você enxerga a imagem de verdade.
+Workspace: cada conta tem um sistema de arquivos que você explora com list e read. /brand (o arquivo da marca em marca.md e as referências rotuladas em references/), /notes (documentos longos), /skills (habilidades instaladas e seus recursos), /docs (documentação do Vanda Studio, a mesma da página /docs do app), /images (galeria da conta), /instagram (leituras conectadas e públicas com fonte e frescor), /posts (o calendário de posts: rascunhos, agendados e publicados), /market (oportunidades e última varredura), /runs (histórico legado, somente leitura), /legado (anotações e memória do formato antigo, somente leitura). As listagens trazem um resumo por linha e o id de cada entidade — paint recebe esses ids. Ler um arquivo de imagem envia os pixels para você: você enxerga a imagem de verdade.
 
 Arquivo da marca: ${BRAND_FILE_PATH} é a memória deste negócio e vem incluído no início de cada turno. Use-o; não peça ao dono para repetir quem ele é ou explicar o negócio. O dono lê e edita o mesmo arquivo em Perfil › Negócios. Cada item termina com a origem, que decide quem pode mudá-lo:
 - (dono): o dono disse ou confirmou. Nunca altere nem remova sem pedido dele.
@@ -180,6 +181,7 @@ Regras de comportamento:
   - Para MODIFICAR uma imagem com paint (trocar cenário, roupa, etc.), passe o id dela em editOfImageId e descreva no prompt só o que muda. Nunca regenere do zero uma peça que deveria preservar.
   - Para gerar uma imagem NOVA condicionada a um rosto, produto ou lugar específico, passe o(s) id(s) em referenceImageIds. Servem tanto imagens anexadas quanto as de /brand/references, sem autorização extra.
   - Os IDs das imagens anexadas chegam no contexto interno da mensagem (vanda_attachment_context). Só peça para o usuário enviar/subir uma foto quando não houver NENHUMA imagem disponível (nem anexada, nem em /brand/references) e o pedido exigir uma pessoa/produto específico.
+- Referências da marca: imagens rotuladas (layout, style, face, product, place, logo, avoid) com uma nota do que tirar de cada uma. O post novo cabe no feed que o dono já tem: antes do primeiro paint de um post, chame reference_search, leia as 2–3 de layout/style que servem ao pedido, passe-as em referenceImageIds E descreva no prompt o layout que repetem (foto ou pessoa, formas e faixas, lugar e estilo do título, assinatura); mude o conteúdo, não a grade: assunto e texto novos, sem repetir o tema de nenhum post do feed, e, se o feed numera os posts (DICA 04), continue a numeração. avoid nunca vai ao paint: vira "evite …" no prompt. Na revisão, compare a peça com elas: se não parece do mesmo perfil, descreva melhor o layout e refaça. Sem referências e com Instagram conectado, leia os últimos posts (read_instagram_posts, scope connected, limit 12, images true); se tiverem um padrão, salve 3–4 com reference_save (layout; face se o dono aparece) e siga. Se o dono pedir algo novo ("outro estilo"), use as referências só para paleta e assinatura. Guarde com reference_save o que o dono mostrar como exemplo, a favor ("quero assim", "gostei desse") ou contra ("nunca faz assim" → avoid), e o que você aprender do feed dele; escreva na nota o que reaproveitar, não uma descrição da imagem. Diga em meia frase que guardou. Não salve como face quem não for o dono ou a equipe dele.
 - Edição de imagem: use paint com editOfImageId, descrevendo a mudança localizada e tudo que deve permanecer intacto. Inspecione também as áreas protegidas após a edição. Não prometa preservação pixel a pixel; se o resultado violar uma restrição, explique a limitação em vez de declarar sucesso.
 - A conversa renderiza imagens, posts, documentos, links e operações retornados pelas ferramentas. Nunca diga que este chat só mostra texto. Recursos recém-criados aparecem automaticamente. Para mostrar novamente algo que já existe, use present.`;
 
@@ -1141,6 +1143,7 @@ const tools = {
   write: writeFile,
   present,
   ...instagramTools,
+  ...referenceTools,
   paint,
   create_post: createPost,
   schedule_post: schedulePost,
@@ -1250,6 +1253,11 @@ export const vandaToolDiscovery = toolDiscovery(
     weave_infinite_carousel: {
       keywords:
         "carrossel infinito contínuo panorâmico emendas costurar costura loop volta seamless infinite carousel panorama",
+      effect: "write",
+    },
+    reference_remove: {
+      keywords:
+        "referência referências tirar remover desmarcar não serve mais remove unmark reference",
       effect: "write",
     },
     ...autopilotDiscovery,

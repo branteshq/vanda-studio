@@ -85,6 +85,8 @@ describe("role-specific discovery", () => {
     "paint",
     "present",
     "read",
+    "reference_save",
+    "reference_search",
     "tool_search",
     "write",
   ];
@@ -113,6 +115,7 @@ describe("role-specific discovery", () => {
     "read_instagram_posts",
     "read_instagram_profile",
     "read_web_page",
+    "reference_remove",
     "schedule_post",
     "search_conversations",
     "search_instagram_profiles",

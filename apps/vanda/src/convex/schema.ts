@@ -29,6 +29,8 @@ import {
   brandKinds,
   imageOrigins,
   imagePurposes,
+  referenceAuthors,
+  referenceLabels,
   inputAssessmentDecisions,
   inputAssessmentStages,
   inputRejectionCodes,
@@ -738,6 +740,17 @@ export default defineSchema({
     referenceKind: v.optional(
       v.union(v.literal("face"), v.literal("product"), v.literal("place"), v.literal("style")),
     ),
+    // A reference: what Vanda and Caetano look up before painting. Labels make
+    // the row one (any purpose); note says what to take from it, source where it
+    // came from ("@handle", a link, "galeria"). Legacy rows have only
+    // purpose "reference" + referenceKind until migrations:referenceLabels runs.
+    referenceLabels: v.optional(v.array(v.union(...referenceLabels.map((l) => v.literal(l))))),
+    referenceNote: v.optional(v.string()),
+    referenceSource: v.optional(v.string()),
+    referenceAddedBy: v.optional(v.union(...referenceAuthors.map((a) => v.literal(a)))),
+    referenceAddedAt: v.optional(v.number()),
+    referenceUseCount: v.optional(v.number()),
+    referenceLastUsedAt: v.optional(v.number()),
     mimeType: v.optional(v.string()),
     description: v.optional(v.string()),
     altText: v.optional(v.string()),
@@ -782,6 +795,7 @@ export default defineSchema({
   })
     .index("by_account", ["accountId"])
     .index("by_account_created", ["accountId", "createdAt"])
+    .index("by_account_reference", ["accountId", "referenceAddedAt"])
     .index("by_storage", ["storageId"]),
 
   // Bounded, normalized reads produced by the Instagram provider router.

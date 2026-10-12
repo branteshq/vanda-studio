@@ -439,6 +439,12 @@ async function paintImage(
     if (activityId) savedImage.activityId = activityId;
     const imageId = await ctx.runMutation(internal.imagesData.savePaintedImage, savedImage);
 
+    if (resolved.references.length > 0)
+      await ctx.runMutation(internal.references.recordUse, {
+        accountId,
+        imageIds: resolved.references.map((reference) => reference.imageId),
+      });
+
     const url = await ctx.storage.getUrl(storageId);
 
     if (!url) throw new Error("stored image URL is unavailable");

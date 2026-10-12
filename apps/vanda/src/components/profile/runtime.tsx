@@ -48,6 +48,7 @@ const profileHooks = {
       disconnect: () => disconnect(),
     };
   },
+  useReferences: (accountId: Id<"accounts">) => useQuery(api.gallery.references, { accountId }),
   useBrandFile: (accountId: Id<"accounts">) => {
     const save = useMutation(api.brandFile.save);
 

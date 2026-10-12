@@ -13,6 +13,19 @@ import { requireOwnedAccount } from "./authz";
 import { isConnectedImageModel, isKnownImageModel } from "./imageModels";
 import { isConnectedSubscriber } from "./openaiSub";
 import { isErrorCode, type ErrorCode } from "../errors";
+import type { ReferenceLabel } from "./pipeline/constants";
+import {
+  applyReference,
+  clearReference,
+  countLabels,
+  isReference,
+  loadReferences,
+  normalizeLabels,
+  referenceLabelValidator,
+  referenceLabelsOf,
+  type ReferenceAuthor,
+  type ReferenceCounts,
+} from "./references";
 
 /**
  * The account's creative gallery. Every generated or uploaded image lands here
@@ -47,6 +60,17 @@ export interface GalleryItem {
   /** Generation lifecycle: "generating" placeholder, "failed", or null = ready. */
   status: "generating" | "failed" | null;
   generationErrorCode: ErrorCode | null;
+  /** Set when the image is a reference: what Vanda and Caetano take from it. */
+  reference: GalleryReference | null;
+}
+
+export interface GalleryReference {
+  labels: ReferenceLabel[];
+  note: string | null;
+  source: string | null;
+  addedBy: ReferenceAuthor | null;
+  addedAt: number;
+  useCount: number;
 }
 
 export interface GalleryItemDetail extends GalleryItem {
@@ -81,6 +105,16 @@ const toItem = async (ctx: QueryCtx, image: Doc<"images">): Promise<GalleryItem>
       ? (image.generationErrorCode ??
         (isErrorCode(image.generationError) ? image.generationError : "UNEXPECTED"))
       : null,
+  reference: isReference(image)
+    ? {
+        labels: referenceLabelsOf(image),
+        note: image.referenceNote ?? null,
+        source: image.referenceSource ?? null,
+        addedBy: image.referenceAddedBy ?? null,
+        addedAt: image.referenceAddedAt ?? image.createdAt,
+        useCount: image.referenceUseCount ?? 0,
+      }
+    : null,
 });
 
 /** The account's gallery, newest first. Reference photos stay in the profile. */
@@ -100,6 +134,87 @@ export const list = query({
     );
 
     return { ...page, page: items };
+  },
+});
+
+/**
+ * Every reference of the account, newest first, with counts per label. Unlike
+ * `list` it includes the photos only references hold (Instagram copies, Perfil
+ * photos), which the ordinary gallery views leave out.
+ */
+export const references = query({
+  args: { accountId: v.id("accounts") },
+  handler: async (
+    ctx,
+    { accountId },
+  ): Promise<{ counts: ReferenceCounts; items: GalleryItem[] }> => {
+    await requireOwnedAccount(ctx, accountId);
+    const images = await loadReferences(ctx, accountId);
+
+    return {
+      counts: countLabels(images),
+      items: await Promise.all(images.map((image) => toItem(ctx, image))),
+    };
+  },
+});
+
+/** Set an image's reference labels and note; no labels takes it out of the references. */
+export const setReference = mutation({
+  args: {
+    accountId: v.id("accounts"),
+    imageId: v.id("images"),
+    labels: v.array(referenceLabelValidator),
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, { accountId, imageId, labels, note }): Promise<void> => {
+    await requireOwnedAccount(ctx, accountId);
+    const image = await ctx.db.get(imageId);
+
+    if (!image || image.accountId !== accountId) throw new Error("image not found");
+
+    if (normalizeLabels(labels).length === 0) {
+      await clearReference(ctx, image);
+
+      return;
+    }
+
+    await applyReference(ctx, image, {
+      labels,
+      note,
+      addedBy: "owner",
+      source: image.referenceSource ?? "galeria",
+    });
+  },
+});
+
+/** Bulk "Marcar como referência": adds the labels to each image, keeping the ones it had. */
+export const markReferences = mutation({
+  args: {
+    accountId: v.id("accounts"),
+    imageIds: v.array(v.id("images")),
+    labels: v.array(referenceLabelValidator),
+  },
+  handler: async (ctx, { accountId, imageIds, labels }): Promise<number> => {
+    await requireOwnedAccount(ctx, accountId);
+
+    if (imageIds.length > 100) throw new Error("too many images");
+
+    if (normalizeLabels(labels).length === 0) throw new Error("no labels");
+    let marked = 0;
+
+    for (const imageId of imageIds) {
+      const image = await ctx.db.get(imageId);
+
+      if (!image || image.accountId !== accountId || image.status !== undefined) continue;
+      await applyReference(ctx, image, {
+        labels: [...referenceLabelsOf(image), ...labels],
+        addedBy: "owner",
+        source: image.referenceSource ?? "galeria",
+      });
+      marked++;
+    }
+
+    return marked;
   },
 });
 

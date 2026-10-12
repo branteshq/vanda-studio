@@ -1,6 +1,7 @@
-import type { Id } from "../../_generated/dataModel";
+import type { Doc, Id } from "../../_generated/dataModel";
 import type { QueryCtx } from "../../_generated/server";
 import { loadBrandFile, saveBrandFile } from "../../brandFile";
+import { loadReferences, referenceLabelsOf } from "../../references";
 import {
   entityName,
   imageFileParts,
@@ -11,24 +12,7 @@ import {
   type WorkspaceMount,
 } from "../types";
 
-const loadReferences = async (ctx: QueryCtx, accountId: Id<"accounts">) => {
-  const images = await ctx.db
-    .query("images")
-    .withIndex("by_account", (q) => q.eq("accountId", accountId))
-    .collect();
-
-  return images.filter((image) => image.purpose === "reference");
-};
-
-const REFERENCE_LABELS = {
-  face: "rosto",
-  product: "produto",
-  place: "lugar",
-  style: "estilo",
-};
-
-const referenceLabel = (image: { referenceKind?: keyof typeof REFERENCE_LABELS | undefined }) =>
-  image.referenceKind ? REFERENCE_LABELS[image.referenceKind] : "referencia";
+const labelsText = (image: Doc<"images">) => referenceLabelsOf(image).join(", ");
 
 // The brand writes: the file and its long-form notes. The workspace's write help shares it.
 export const BRAND_WRITABLE =
@@ -36,7 +20,7 @@ export const BRAND_WRITABLE =
 
 export const brandMount: WorkspaceMount = {
   root: "brand",
-  summary: "arquivo da marca (memória do negócio, com a seção Design) e fotos de referência",
+  summary: "arquivo da marca (memória do negócio, com a seção Design) e referências rotuladas",
   writeHint: `gravável aqui: ${BRAND_WRITABLE}`,
   list: async (ctx, accountId, segments): Promise<WorkspaceEntry[] | null> => {
     if (segments.length === 0) {
@@ -47,7 +31,12 @@ export const brandMount: WorkspaceMount = {
           summary:
             "arquivo da marca: fatos, tom, preferências e aprendizados, com origem (gravável)",
         },
-        { name: "references", kind: "dir", summary: "fotos de referência (rosto, produto, lugar)" },
+        {
+          name: "references",
+          kind: "dir",
+          summary:
+            "referências rotuladas (layout, style, face, product, place, logo, avoid); reference_search filtra por rótulo",
+        },
       ];
     }
 
@@ -55,11 +44,12 @@ export const brandMount: WorkspaceMount = {
       const references = await loadReferences(ctx, accountId);
 
       return references.map((image) => ({
-        name: `${entityName(referenceLabel(image), image._id)}.${imageFileParts(image.mimeType).extension}`,
+        name: `${entityName(referenceLabelsOf(image)[0] ?? "referencia", image._id)}.${imageFileParts(image.mimeType).extension}`,
         kind: "file",
         summary:
-          `${referenceLabel(image)}${image.width && image.height ? ` · ${image.width}×${image.height}` : ""}` +
-          `${image.description ? ` · ${image.description.slice(0, 60)}` : ""} · id ${image._id}`,
+          `${labelsText(image)}${image.width && image.height ? ` · ${image.width}×${image.height}` : ""}` +
+          `${image.referenceNote ? ` · ${image.referenceNote.slice(0, 90)}` : ""}` +
+          `${image.referenceSource ? ` · de ${image.referenceSource}` : ""} · id ${image._id}`,
       }));
     }
 
@@ -77,18 +67,22 @@ export const brandMount: WorkspaceMount = {
 
       if (!image || !url) return null;
 
-      const authorized =
-        image.referenceKind === "face"
-          ? "AUTORIZADA para condicionar geração de imagens com essa pessoa."
+      const labels = referenceLabelsOf(image);
+
+      const use = labels.includes("face")
+        ? "AUTORIZADA para condicionar geração de imagens com essa pessoa."
+        : labels.includes("avoid")
+          ? "O que a marca NÃO quer: guia o prompt, nunca vai em referenceImageIds."
           : "Disponível como referência para geração.";
 
       return {
         kind: "image",
         imageId: image._id,
         header:
-          `Referência de marca (${referenceLabel(image)}) · imageId ${image._id}` +
-          `${image.width && image.height ? ` · ${image.width}×${image.height}` : ""}\n` +
-          `${image.description ?? ""}\n${authorized}`,
+          `Referência de marca (${labels.join(", ")}) · imageId ${image._id}` +
+          `${image.width && image.height ? ` · ${image.width}×${image.height}` : ""}` +
+          `${image.referenceSource ? ` · de ${image.referenceSource}` : ""}\n` +
+          `${image.referenceNote ?? image.description ?? ""}\n${use}`,
         url,
         mimeType: imageFileParts(image.mimeType).mimeType,
       };

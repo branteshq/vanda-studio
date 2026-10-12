@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalQuery } from "./_generated/server";
+import { countLabels, countsLine, loadReferences, type ReferenceCounts } from "./references";
 import {
   BRAND_FILE_PATH,
   DESIGN_LABELS,
@@ -24,6 +25,15 @@ export const designDirection = (content: string): BrandDesign => {
     palette: designText(outline, DESIGN_LABELS.palette),
     typography: designText(outline, DESIGN_LABELS.typography),
   };
+};
+
+/** Two lines on the saved references, so a post starts from them; empty when none. */
+export const referencesLine = (counts: ReferenceCounts): string => {
+  const line = countsLine(counts);
+
+  return line
+    ? `Referências salvas da marca: ${line}. Antes de pintar um post, busque-as com reference_search (layout e style primeiro) e passe 2–3 em referenceImageIds; avoid só orienta o prompt.`
+    : "";
 };
 
 /** Brand identity is turn context, not an optional tool lookup. Media stays discoverable. */
@@ -51,7 +61,10 @@ export const conversation = internalQuery({
           ]
         : []),
       `<arquivo path="${BRAND_FILE_PATH}">\n${brand.content}\n</arquivo>`,
-    ].join("\n\n");
+      referencesLine(countLabels(await loadReferences(ctx, target))),
+    ]
+      .filter((part) => part.length > 0)
+      .join("\n\n");
   },
 });
 

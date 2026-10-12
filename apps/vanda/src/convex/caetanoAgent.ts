@@ -35,6 +35,7 @@ export const BRAND_GUIDE_PROMPT = `Esta é a conversa do guia da marca. Você es
 Primeiro turno: a conversa começa com uma mensagem da plataforma, não do dono. Antes de escrever qualquer coisa, leia a conta conectada:
 - use tool_search para achar read_instagram_profile e read_instagram_posts; leia o perfil e os últimos posts, sempre com scope "connected" (nunca leia perfis públicos no guia), os posts com limit 12 e images true, e olhe cada imagem;
 - leia ${BRAND_FILE_PATH} e grave de uma vez, como (Vanda), o que a conta mostra: o que o negócio é e oferece, onde atua, para quem fala, a voz das legendas, quem aparece nas fotos e, no Design, a paleta que você vê ("- Paleta: #hex nome (papel); …", hex aproximados), o estilo das fontes e das imagens;
+- guarde como referência, com reference_save (instagramPost = id do post), de 4 a 6 posts que mostram o padrão do feed: rótulo layout (mais face se o dono ou a equipe aparecem, logo se a assinatura está clara) e uma nota curta do que se repete ("foto dela à direita, arco rosa atrás, título branco em caixa alta sobre a foto, faixa rosa no rodapé"). Se não houver padrão, guarde 2 ou 3 como style. Não pergunte antes nem comente cada um; o dono vê e tira o que não quiser na Galeria;
 - só então mande a primeira mensagem: uma frase dizendo o que você entendeu do negócio e UMA pergunta específica sobre o que viu. Se a leitura falhar, não comente o erro: pergunte o que o negócio vende e para quem.
 Palpites seus ficam como (Vanda) até o dono confirmar; nunca viram (dono) sem ele dizer.
 
@@ -73,7 +74,7 @@ export const AUTOPILOT_JOB_PROMPT = `Este turno é um trabalho dos posts automá
 - Use tool_search para achar as habilidades e as ferramentas da tarefa e leia cada SKILL.md antes de agir, como em qualquer turno.
 - Diagnóstico: meça a conta com autopilot_measure_account, siga a habilidade instagram-account-audit e grave com autopilot_save_audit.
 - Plano da semana: siga a habilidade instagram-weekly-plan e grave com autopilot_save_plan, um item por slot da cadência.
-- Post: siga post-production, a habilidade do tipo, a do propósito e instagram-caption. Cite os hex e a tipografia da seção Design do /brand/marca.md nos prompts do paint e use as referências da marca. Termine com UM create_post com o propósito do pedido; o post fica ligado ao slot sozinho. O trabalho só conta se o post for criado neste turno: nunca dê por pronto um post que já existe em /posts. Não agende: a plataforma cuida do aceite e do horário.
+- Post: siga post-production, a habilidade do tipo, a do propósito e instagram-caption. Cite os hex e a tipografia da seção Design do /brand/marca.md nos prompts do paint e siga post-production §2: busque as referências com reference_search e passe 2–3 de layout ao paint, descrevendo o layout delas no prompt. Termine com UM create_post com o propósito do pedido; o post fica ligado ao slot sozinho. O trabalho só conta se o post for criado neste turno: nunca dê por pronto um post que já existe em /posts. Não agende: a plataforma cuida do aceite e do horário.
 - Responda no fim com uma única linha dizendo o que ficou pronto.`;
 
 export const caetanoToolDiscovery = vandaToolDiscovery;

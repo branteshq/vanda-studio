@@ -47,6 +47,8 @@ export const NON_SETTING_UI_FUNCTIONS = [
   // The brand file is what Vanda knows, edited as a document, not a setting.
   "brandFile.get",
   "brandFile.save",
+  // References are gallery images with labels; Perfil only summarizes them (the gallery edits).
+  "gallery.references",
   // The Calendário's posts are content, not settings.
   "calendar.range",
   // Autopilot posts are content, not settings: the agents change them with autopilot_* tools.

@@ -15,7 +15,7 @@ Descreva o que quer na Conversa ("crie um carrossel sobre a promoção de sexta"
 
 - A Vanda gera cada imagem completa, incluindo texto e layout, seguindo a identidade visual da marca.
 - Imagens anexadas na conversa já pertencem ao negócio e podem ser usadas direto, inclusive para editar ("troque o fundo desta foto").
-- Para usar o rosto do dono, um produto ou um lugar, envie a foto ou deixe-a nas referências da marca.
+- Para usar o rosto do dono, um produto ou um lugar, envie a foto ou deixe-a nas [referências da marca](/docs/arquivo-da-marca). Os posts novos seguem o layout das referências do seu feed.
 
 ## Tipos de post
 

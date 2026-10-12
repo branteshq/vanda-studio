@@ -398,20 +398,29 @@ it.skipIf(!enabled).each(suite)(
         attachments.push({ imageId, url, mimeType: metadata.mimeType });
       }
 
-      // The brand's published feed, as gallery copies: what a feed-fit post must match.
+      // The brand's published feed, saved as layout references the way the brand
+      // guide saves Instagram posts (no note: Vanda has to look at them).
       const feedImageIds: Id<"images">[] = [];
 
       for (const [index, post] of (brand.feed ?? []).entries()) {
         const bytes = feedImage(brand, post);
         await writeFile(resolve(directory, `feed-${index + 1}.png`), bytes);
 
-        feedImageIds.push(
-          await insertUpload(
-            `Feed publicado · ${post.tag} ${post.title}`,
-            `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`,
-            { mimeType: "image/png", width: 1024, height: 1280 },
-          ),
+        const imageId = await insertUpload(
+          `Feed publicado · ${post.tag} ${post.title}`,
+          `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`,
+          { mimeType: "image/png", width: 1024, height: 1280 },
         );
+
+        await t.mutation(internal.references.mark, {
+          accountId: ids.accountId,
+          imageId,
+          labels: ["layout"],
+          source: `${brand.handle} · feed`,
+          addedBy: "caetano",
+        });
+
+        feedImageIds.push(imageId);
       }
 
       let referenceBytes: Uint8Array | undefined;

@@ -29,6 +29,37 @@ export const imagePurposes = ["reference", "post"] as const;
 
 export const imageOrigins = ["generated", "uploaded", "gallery"] as const;
 
+/**
+ * What a reference is for. Any account image can be a reference: a label list on
+ * the row makes it one. `face` is the only label that lets paint depict a real
+ * person; `avoid` marks what the brand never wants, so it guides prompts and is
+ * never passed to paint.
+ */
+export const referenceLabels = [
+  "layout",
+  "style",
+  "face",
+  "product",
+  "place",
+  "logo",
+  "avoid",
+] as const;
+
+export type ReferenceLabel = (typeof referenceLabels)[number];
+
+/** Owner-facing names, singular. */
+export const referenceLabelNames: Record<ReferenceLabel, string> = {
+  layout: "Layout",
+  style: "Estilo",
+  face: "Rosto",
+  product: "Produto",
+  place: "Lugar",
+  logo: "Logo",
+  avoid: "Evitar",
+};
+
+export const referenceAuthors = ["owner", "vanda", "caetano"] as const;
+
 // `feed` is legacy (it meant carousel); migrations:feedToCarousel rewrites it, then it goes.
 export const postTypes = ["image", "carousel", "story", "reel", "tweet", "feed"] as const;
 

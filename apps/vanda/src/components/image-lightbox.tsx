@@ -67,6 +67,7 @@ export function ImageLightbox({
   onDelete,
   copyImage = copyImageToClipboard,
   downloadImage = downloadImageFile,
+  extra,
 }: {
   open: boolean;
   onClose: () => void;
@@ -79,6 +80,8 @@ export function ImageLightbox({
   onDelete?: (() => void) | undefined;
   copyImage?: typeof copyImageToClipboard;
   downloadImage?: typeof downloadImageFile;
+  /** Surface-specific details under the chips (the gallery's reference section). */
+  extra?: ReactNode;
 }) {
   return (
     <Lightbox open={open} onOpenChange={(next) => !next && onClose()}>
@@ -107,6 +110,7 @@ export function ImageLightbox({
                 onDelete={onDelete}
                 copyImage={copyImage}
                 downloadImage={downloadImage}
+                extra={extra}
               />
             ) : (
               <div className="flex flex-1 items-center justify-center p-8">
@@ -127,6 +131,7 @@ function ImageDetails({
   onDelete,
   copyImage,
   downloadImage,
+  extra,
 }: {
   image: ImageLightboxData;
   loading: boolean;
@@ -134,6 +139,7 @@ function ImageDetails({
   onDelete?: (() => void) | undefined;
   copyImage: typeof copyImageToClipboard;
   downloadImage: typeof downloadImageFile;
+  extra?: ReactNode;
 }) {
   const uploaded = image.origin === "uploaded";
   const generated = !uploaded;
@@ -194,6 +200,8 @@ function ImageDetails({
           {uploaded && <MetaChip icon={<Upload />}>Enviada por você</MetaChip>}
           {image.edited && <MetaChip icon={<SquarePen />}>Editada</MetaChip>}
         </div>
+
+        {extra}
 
         {generated && (
           <div>

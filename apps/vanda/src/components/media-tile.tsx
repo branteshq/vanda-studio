@@ -186,6 +186,30 @@ export function MediaTileBadge({ label, children }: { label: string; children: R
   );
 }
 
+/**
+ * A quiet always-on text tag in the bottom-left corner, for categorical state
+ * the owner scans the grid for (a reference's label). Bows out on hover like
+ * the badge, when the caption takes the corner.
+ */
+export function MediaTileTag({
+  children,
+  tone = "neutral",
+}: {
+  children: ReactNode;
+  tone?: "neutral" | "avoid";
+}) {
+  return (
+    <span
+      className={cn(
+        "pointer-events-none absolute bottom-2 left-2 z-1 flex h-5 items-center gap-1 rounded-md px-1.5 text-note font-medium backdrop-blur-md transition-opacity duration-200 ease-out group-hover/tile:opacity-0 group-data-[selecting]/tile:opacity-0 motion-reduce:transition-none [&_svg]:size-3",
+        tone === "avoid" ? "bg-destructive/85 text-white" : "bg-black/50 text-white",
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
 /** Bottom caption over a soft scrim — name, model, whatever the caller stacks.
  *  Mirrors the top reveal but rises from below, so the tile "opens" outward. */
 export function MediaTileCaption({ children }: { children: ReactNode }) {

@@ -8,6 +8,7 @@ import type { CSSProperties } from "react";
 import { z } from "zod";
 import {
   ArrowDownWideNarrow,
+  Bookmark,
   ArrowUpNarrowWide,
   CalendarDays,
   Copy,
@@ -36,6 +37,13 @@ import { FilterMenu, type FilterOption } from "../components/filter-menu";
 import { ImageLightbox, type ImageLightboxData } from "../components/image-lightbox";
 import { PostPreviewDialog } from "../components/post-preview";
 import { useWorkRail } from "../components/work-rail";
+import {
+  MarkReferenceMenu,
+  ReferenceLabelFilter,
+  ReferenceSection,
+  referenceTagText,
+} from "../components/references";
+import type { ReferenceLabel } from "../convex/pipeline/constants";
 import { errorCopy, type ErrorCode } from "../errors";
 import {
   ActionStateIcon,
@@ -46,12 +54,15 @@ import {
   MediaTileCaption,
   MediaTileMedia,
   MediaTileSelect,
+  MediaTileTag,
   copyImageToClipboard,
   downloadImageFile,
   useMediaAction,
 } from "../components/media-tile";
 
 export const Route = createFileRoute("/_dashboard/galeria")({
+  // Perfil links straight to the references ("Ver na galeria").
+  validateSearch: z.object({ origem: z.enum(["referencias"]).optional() }),
   component: GalleryPage,
 });
 
@@ -72,11 +83,18 @@ function GalleryPage() {
   return <GalleryStudio key={activeAccount.id} accountId={activeAccount.id} />;
 }
 
-type OriginFilter = "all" | "generated" | "edited" | "uploaded" | "posts";
+type OriginFilter = "all" | "generated" | "edited" | "uploaded" | "posts" | "references";
 
 type OrderFilter = "recent" | "oldest";
 
-const originFilterSchema = z.enum(["all", "generated", "edited", "uploaded", "posts"]);
+const originFilterSchema = z.enum([
+  "all",
+  "generated",
+  "edited",
+  "uploaded",
+  "posts",
+  "references",
+]);
 
 const orderFilterSchema = z.enum(["recent", "oldest"]);
 
@@ -86,8 +104,14 @@ function galleryImageId(id: string): Id<"images"> {
 }
 
 function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
+  const search = Route.useSearch();
   const [query, setQuery] = useState("");
-  const [origin, setOrigin] = useState<OriginFilter>("all");
+
+  const [origin, setOrigin] = useState<OriginFilter>(
+    search.origem === "referencias" ? "references" : "all",
+  );
+
+  const [label, setLabel] = useState<ReferenceLabel | "all">("all");
   const [order, setOrder] = useState<OrderFilter>("recent");
   const [model, setModel] = useState<string>("all");
   const [selectedId, setSelectedId] = useState<Id<"images"> | null>(null);
@@ -95,6 +119,7 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
   const [checked, setChecked] = useState<ReadonlySet<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const removeMany = useMutation(api.gallery.removeMany);
+  const markReferences = useMutation(api.gallery.markReferences);
 
   const { results, status, loadMore } = usePaginatedQuery(
     api.gallery.list,
@@ -104,10 +129,26 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
 
   const posts = useQuery(api.posts.listForRail, { accountId });
 
+  // References include photos only references hold (Instagram copies, Perfil
+  // photos), so they come from their own query rather than the paged list.
+  const references = useQuery(
+    api.gallery.references,
+    origin === "references" ? { accountId } : "skip",
+  );
+
+  const showingReferences = origin === "references";
+
+  const source = useMemo(
+    () => (showingReferences ? (references?.items ?? []) : results),
+    [showingReferences, references, results],
+  );
+
   const normalized = query.trim().toLocaleLowerCase("pt-BR");
 
   const matchesOrigin = (item: GalleryItem): boolean => {
     switch (origin) {
+      case "references":
+        return label === "all" || (item.reference?.labels.includes(label) ?? false);
       case "uploaded":
         return item.origin === "uploaded";
       case "edited":
@@ -121,7 +162,7 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
     }
   };
 
-  const filtered = results.filter(
+  const filtered = source.filter(
     (item) =>
       matchesOrigin(item) &&
       (model === "all" || item.model === model) &&
@@ -175,12 +216,12 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
   useEffect(() => {
     setChecked((prev) => {
       if (prev.size === 0) return prev;
-      const alive = new Set(results.map((item) => item.id));
+      const alive = new Set(source.map((item) => item.id));
       const next = new Set([...prev].filter((id) => alive.has(id)));
 
       return next.size === prev.size ? prev : next;
     });
-  }, [results]);
+  }, [source]);
 
   useEffect(() => {
     if (!selecting) return;
@@ -193,6 +234,30 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
 
     return () => window.removeEventListener("keydown", onKey);
   }, [selecting]);
+
+  const [marking, setMarking] = useState(false);
+
+  const markChecked = async (referenceLabel: ReferenceLabel) => {
+    // SAFETY: `checked` is populated exclusively from Convex image document ids.
+    const ids = [...checked] as Id<"images">[];
+    setMarking(true);
+
+    try {
+      for (let i = 0; i < ids.length; i += 100) {
+        await markReferences({
+          accountId,
+          imageIds: ids.slice(i, i + 100),
+          labels: [referenceLabel],
+        });
+      }
+
+      setChecked(new Set());
+    } finally {
+      setMarking(false);
+    }
+  };
+
+  const loadingFirst = showingReferences ? references === undefined : status === "LoadingFirstPage";
 
   const deleteChecked = async () => {
     // SAFETY: `checked` is populated exclusively from Convex image document ids.
@@ -226,10 +291,22 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
-        {status === "LoadingFirstPage" ? (
+        {showingReferences && references && references.items.length > 0 && (
+          <ReferenceLabelFilter
+            counts={references.counts}
+            total={references.items.length}
+            value={label}
+            onChange={setLabel}
+          />
+        )}
+        {loadingFirst ? (
           <MasonrySkeleton />
         ) : entries.length === 0 ? (
-          <EmptyGallery hasQuery={normalized.length > 0 || origin !== "all" || model !== "all"} />
+          showingReferences && normalized.length === 0 && label === "all" && model === "all" ? (
+            <EmptyReferences />
+          ) : (
+            <EmptyGallery hasQuery={normalized.length > 0 || origin !== "all" || model !== "all"} />
+          )
         ) : (
           <>
             <MasonryGrid
@@ -254,14 +331,14 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
                 )
               }
             />
-            {status === "CanLoadMore" && (
+            {!showingReferences && status === "CanLoadMore" && (
               <div className="mt-6 flex justify-center">
                 <Button variant="outline" onClick={() => loadMore(40)}>
                   Carregar mais
                 </Button>
               </div>
             )}
-            {status === "LoadingMore" && (
+            {!showingReferences && status === "LoadingMore" && (
               <div className="mt-6 flex justify-center">
                 <Spinner className="size-5 text-text-4" />
               </div>
@@ -275,7 +352,9 @@ function GalleryStudio({ accountId }: { accountId: Id<"accounts"> }) {
           count={checked.size}
           allSelected={checked.size === readyItems.length}
           deleting={deleting}
+          marking={marking}
           onSelectAll={() => setChecked(new Set(readyItems.map((item) => item.id)))}
+          onMark={(referenceLabel) => void markChecked(referenceLabel)}
           onDelete={() => void deleteChecked()}
           onClear={() => setChecked(new Set())}
         />
@@ -304,14 +383,18 @@ function SelectionBar({
   count,
   allSelected,
   deleting,
+  marking,
   onSelectAll,
+  onMark,
   onDelete,
   onClear,
 }: {
   count: number;
   allSelected: boolean;
   deleting: boolean;
+  marking: boolean;
   onSelectAll: () => void;
+  onMark: (label: ReferenceLabel) => void;
   onDelete: () => void;
   onClear: () => void;
 }) {
@@ -324,6 +407,7 @@ function SelectionBar({
         <Button variant="ghost" size="sm" onClick={onSelectAll} disabled={allSelected}>
           Selecionar todas
         </Button>
+        <MarkReferenceMenu disabled={marking} onMark={onMark} />
         <Button variant="destructive" size="sm" onClick={onDelete} disabled={deleting}>
           {deleting ? <Spinner className="size-3.5" /> : <Trash2 className="size-3.5" />}
           Excluir
@@ -453,6 +537,7 @@ const ORIGIN_FILTERS: ReadonlyArray<FilterOption<OriginFilter>> = [
   { value: "edited", label: "Editadas", icon: <SquarePen /> },
   { value: "uploaded", label: "Enviadas", icon: <Upload /> },
   { value: "posts", label: "Posts", icon: <Send /> },
+  { value: "references", label: "Referências", icon: <Bookmark /> },
 ];
 
 const ORDER_FILTERS: ReadonlyArray<FilterOption<OrderFilter>> = [
@@ -673,7 +758,12 @@ function GalleryCard({
         label={selected ? "Remover da seleção" : "Selecionar imagem"}
       />
 
-      {item.origin === "uploaded" ? (
+      {item.reference ? (
+        <MediaTileTag tone={item.reference.labels.includes("avoid") ? "avoid" : "neutral"}>
+          <Bookmark />
+          {referenceTagText(item.reference.labels)}
+        </MediaTileTag>
+      ) : item.origin === "uploaded" ? (
         <MediaTileBadge label="Enviada por você">
           <Upload />
         </MediaTileBadge>
@@ -870,6 +960,21 @@ function EmptyGallery({ hasQuery }: { hasQuery: boolean }) {
   );
 }
 
+function EmptyReferences() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center text-center">
+      <span className="mx-auto flex size-11 items-center justify-center rounded-xl border border-border bg-surface text-text-3">
+        <Bookmark className="size-5" />
+      </span>
+      <h2 className="mt-4 text-card-title font-semibold text-text">Nenhuma referência ainda</h2>
+      <p className="mt-1.5 max-w-sm text-body text-text-4">
+        Selecione imagens e use Marcar como referência, ou mande um post para o Caetano e diga
+        &ldquo;quero assim&rdquo;. A Vanda segue as referências em cada post novo.
+      </p>
+    </div>
+  );
+}
+
 // --- Detail lightbox --------------------------------------------------------
 
 /**
@@ -948,6 +1053,15 @@ function ImageDetailDialog({
         if (!selectedId) return;
         void remove({ accountId, imageId: selectedId }).then(onClose);
       }}
+      extra={
+        selectedId && source ? (
+          <ReferenceSection
+            accountId={accountId}
+            imageId={selectedId}
+            reference={source.reference}
+          />
+        ) : null
+      }
     />
   );
 }

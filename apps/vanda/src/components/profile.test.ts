@@ -77,6 +77,7 @@ const runtime = {
     pollDeviceAuth: mocks.action,
     disconnect: mocks.action,
   }),
+  useReferences: (accountId: string) => mocks.query(api.gallery.references, { accountId }),
   useBrandFile: (accountId: string) => ({
     file: mocks.query(api.brandFile.get, { accountId }),
     save: mocks.saveBrandFile,
@@ -315,7 +316,10 @@ it("opens a business's brand file and the onboarding for unfinished ones", async
 });
 
 it("reads and edits the brand file, then hands off to the conversation", async () => {
-  await show(createElement(BusinessPage, { accountId: "business-a" }), "/perfil/negocios/business-a");
+  await show(
+    createElement(BusinessPage, { accountId: "business-a" }),
+    "/perfil/negocios/business-a",
+  );
   expect(container.querySelector("h1")?.textContent).toBe("Business A");
   expect(container.querySelector('aside [aria-current="page"]')?.textContent).toContain(
     "Business A",
@@ -352,7 +356,10 @@ it("reads and edits the brand file, then hands off to the conversation", async (
 });
 
 it("does not open the brand file of a business that has not finished onboarding", async () => {
-  await show(createElement(BusinessPage, { accountId: "unfinished" }), "/perfil/negocios/unfinished");
+  await show(
+    createElement(BusinessPage, { accountId: "unfinished" }),
+    "/perfil/negocios/unfinished",
+  );
   expect(container.textContent).toContain("Negócio não encontrado");
   expect(container.textContent).not.toContain("Arquivo da marca");
 });

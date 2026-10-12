@@ -5,6 +5,7 @@ import { internal } from "./_generated/api";
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { ensureBrandFile } from "./brandFile";
 import { currentPostType } from "./pipeline/constants";
+import { referenceLabelsOf } from "./references";
 
 /**
  * Data migrations. Each one is a mutation that migrates one page and returns
@@ -36,6 +37,7 @@ const MIGRATIONS: ReadonlyArray<{ name: string; page: MigrationPage }> = [
   { name: "feedToCarousel", page: internal.migrations.feedToCarousel },
   { name: "brandFiles", page: internal.migrations.brandFiles },
   { name: "usageCategories", page: internal.migrations.usageCategories },
+  { name: "referenceLabels", page: internal.migrations.referenceLabels },
 ];
 
 /** Legacy `feed` meant carousel: rewrite it to `carousel` (2+ images) or `image` (1 image). */
@@ -85,6 +87,31 @@ export const usageCategories = internalMutation({
       }
 
       await ctx.db.patch(period._id, { byCategory });
+      migrated++;
+    }
+
+    return { migrated, cursor: page.isDone ? null : page.continueCursor };
+  },
+});
+
+/**
+ * Perfil reference photos predate labels: give each its old kind as a label and
+ * a save time, so the reference index (and every search) finds it.
+ */
+export const referenceLabels = internalMutation({
+  args: { cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, { cursor }): Promise<{ migrated: number; cursor: string | null }> => {
+    const page = await ctx.db.query("images").paginate({ cursor, numItems: BATCH });
+    let migrated = 0;
+
+    for (const image of page.page) {
+      if (image.purpose !== "reference" || image.referenceAddedAt !== undefined) continue;
+      await ctx.db.patch(image._id, {
+        referenceLabels: referenceLabelsOf(image),
+        referenceAddedAt: image.createdAt,
+        referenceAddedBy: "owner",
+        referenceSource: "enviada",
+      });
       migrated++;
     }
 
