@@ -4,13 +4,12 @@ import { cn } from "@vanda-studio/ui/lib/utils";
 import { OrchidAperture } from "../orchid-aperture";
 import { VandaMark } from "../vanda-mark";
 
-type OnboardingStep = "conectar" | "conhecer" | "conversar";
+type OnboardingStep = "conectar" | "conversar";
 
 type RingState = "done" | "active" | "pending";
 
 const STEPS: { key: OnboardingStep; label: string }[] = [
   { key: "conectar", label: "Conectar" },
-  { key: "conhecer", label: "Conhecer" },
   { key: "conversar", label: "Conversar" },
 ];
 
@@ -33,7 +32,7 @@ export function OnboardingHeader() {
   );
 }
 
-/** Conectar · Conhecer · Conversar, with rings: done / active / pending. */
+/** Conectar · Conversar, with rings: done / active / pending. */
 export function StepIndicator({ current }: { current: OnboardingStep }) {
   const currentIndex = STEPS.findIndex((step) => step.key === current);
 
@@ -59,8 +58,7 @@ export function StepIndicator({ current }: { current: OnboardingStep }) {
 
 /**
  * The login-continuity split: a calm content column on the left, the orchid
- * aperture blooming on the right. Used by Connect, Observing, and Mode (Confirm
- * uses its own centered layout). The aperture caption labels the moment.
+ * aperture blooming on the right. Used by Connect. The aperture caption labels the moment.
  */
 export function OnboardingSplit({
   current,

@@ -6,7 +6,6 @@ import { OpenRouterClient, OpenRouterLanguageModel } from "@effect/ai-openrouter
 
 /** Models are stage-addressable so quality can be evaluated and upgraded independently. */
 export const PIPELINE_MODELS = {
-  brandProfile: "openai/gpt-5-nano",
   consolidate: "openai/gpt-5-nano",
   plan: "openai/gpt-5-nano",
   create: "openai/gpt-5-nano",
@@ -29,7 +28,6 @@ export const PIPELINE_MODELS = {
 export const DEFAULT_MODEL = PIPELINE_MODELS.consolidate;
 
 export const PROMPT_VERSIONS = {
-  brandProfile: "brand-profile/pt-br-v4",
   consolidate: "consolidate/batch-brand-v1",
   plan: "plan/brand-grounded-pt-br-v1",
   create: "create/brand-grounded-pt-br-v1",

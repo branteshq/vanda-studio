@@ -1,77 +1,36 @@
 import { createThread, saveMessage, updateThreadMetadata } from "@convex-dev/agent";
 import { v } from "convex/values";
-import { components } from "./_generated/api";
+import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import {
-  internalMutation,
-  internalQuery,
-  mutation,
-  query,
-  type MutationCtx,
-  type QueryCtx,
-} from "./_generated/server";
+import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
 import { brandFileContent, brandGuide, writeOnboardingBrandFile } from "./brandFile";
-import { brandFactArg, brandKindValidator } from "./pipeline/storage";
-import { saveDocument } from "./workspace/documents";
+import { startThreadActivity } from "./chat";
+import { isPlatformTurn, platformTurn } from "./platformTurn";
 
-/**
- * Resolve the connected Instagram handle (or null), whether the account is onboarded, and
- * whether its brand guide is empty, for an account the caller owns. `brandProfileNode.onboard`
- * passes its verified Clerk id; ownership is checked again here before first-party account
- * data is read through the publisher profile.
- */
 /** The brand guide's sections, read from the account's brand file. */
 const guideSections = async (ctx: QueryCtx, accountId: Id<"accounts">) =>
   brandGuide(await brandFileContent(ctx, accountId));
 
-export const resolveOwnedHandle = internalQuery({
-  args: { accountId: v.id("accounts"), clerkId: v.string() },
-  handler: async (
-    ctx,
-    { accountId, clerkId },
-  ): Promise<{ handle: string | null; onboarded: boolean; guideEmpty: boolean }> => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
-      .unique();
+/** The hidden message that starts the guide: Caetano reads the account, then asks. */
+export const GUIDE_START = platformTurn(
+  "O dono acabou de abrir o guia da marca. Leia o Instagram conectado e comece a conversa.",
+);
 
-    const account = await ctx.db.get(accountId);
-
-    if (!user || account === null || account.ownerUserId !== user._id) {
-      throw new Error("account not found");
-    }
-
-    return {
-      handle: account.handle ?? null,
-      onboarded: account.onboardedAt !== undefined,
-      guideEmpty: (await guideSections(ctx, accountId)).every((s) => !s.filled),
-    };
-  },
-});
-
-/** Caetano's greeting, opening every message he sends first in a conversation. */
-export const CAETANO_HELLO = "Oi! Eu sou o Caetano.";
-
-/** Without an Instagram read, Caetano opens the guide with the basics. */
-const FALLBACK_OPENER = `${CAETANO_HELLO} Não consegui ler seu Instagram agora, mas a gente monta seu guia da marca aqui mesmo, rapidinho. Me conta: o que você vende, e pra quem?`;
-
-/** Open Caetano's brand guide thread with his first message and link it to the account. */
-const openGuideThread = async (
-  ctx: MutationCtx,
-  accountId: Id<"accounts">,
-  opener: string,
-): Promise<string> => {
+/**
+ * Open Caetano's brand guide thread and link it to the account. The first turn is
+ * Caetano's: he reads the connected Instagram with his tools and writes the first message.
+ */
+const openGuideThread = async (ctx: MutationCtx, accountId: Id<"accounts">): Promise<string> => {
   // Threads are keyed by the account id (multi-thread model, see chat.ts).
   const threadId = await createThread(ctx, components.agent, {
     userId: String(accountId),
     title: "Guia da marca",
   });
 
-  await saveMessage(ctx, components.agent, {
+  const { messageId } = await saveMessage(ctx, components.agent, {
     threadId,
-    agentName: "caetano",
-    message: { role: "assistant", content: opener },
+    message: { role: "user", content: GUIDE_START },
   });
 
   // The replaced guide is archived so it leaves the conversation list.
@@ -86,51 +45,33 @@ const openGuideThread = async (
 
   await ctx.db.patch(accountId, { brandGuideThreadId: threadId });
 
+  const activityId = await startThreadActivity(ctx, accountId, threadId, messageId);
+  await ctx.scheduler.runAfter(0, internal.chat.generateResponse, {
+    accountId,
+    threadId,
+    promptMessageId: messageId,
+    activityId,
+  });
+
   return threadId;
 };
 
 /**
- * The end of onboarding (`brandProfileNode.onboard`): the Instagram read opens
- * the brand file, the account is marked onboarded, and Caetano opens the brand
- * guide thread with his first question (written from the posts); that
- * conversation fills the file. A business already onboarded only gets this again
- * while its brand guide is empty (a cleared file reconnected): the read refills
- * the file and a fresh guide thread opens. `note` is the read's evidence for Caetano.
- * Idempotent: a retry after finishing is a no-op.
+ * The end of onboarding, once Instagram is connected: the account gets an empty
+ * brand file and becomes the owner's active business. Caetano's guide (`openGuide`)
+ * fills the file from there. Idempotent.
  */
-export const completeOnboarding = internalMutation({
-  args: {
-    accountId: v.id("accounts"),
-    kind: v.union(brandKindValidator, v.null()),
-    facts: v.array(brandFactArg),
-    opener: v.union(v.string(), v.null()),
-    note: v.union(v.string(), v.null()),
-  },
-  handler: async (ctx, { accountId, kind, facts, opener, note }) => {
-    const account = await ctx.db.get(accountId);
-
-    if (account === null) return;
-
-    const guideEmpty = (await guideSections(ctx, accountId)).every((s) => !s.filled);
-
-    if (account.onboardedAt !== undefined && !guideEmpty) return;
-
-    await writeOnboardingBrandFile(ctx, accountId, facts);
-
-    if (note) await saveDocument(ctx, accountId, "/notes/leitura-instagram.md", note);
-    // One question per message: the model sometimes asks two, so the opener ends at its first "?".
-    const firstQuestion = opener?.trim().replace(/\?[\s\S]*$/, "?");
-
-    await openGuideThread(ctx, accountId, firstQuestion || FALLBACK_OPENER);
+export const onboard = mutation({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }): Promise<void> => {
+    const account = await requireOwnedAccount(ctx, accountId);
 
     if (account.onboardedAt !== undefined) return;
 
+    await writeOnboardingBrandFile(ctx, accountId, []);
+
     const now = Date.now();
-    await ctx.db.patch(accountId, {
-      kind: kind ?? "negocio",
-      onboardedAt: now,
-      updatedAt: now,
-    });
+    await ctx.db.patch(accountId, { onboardedAt: now, updatedAt: now });
 
     if (account.ownerUserId !== undefined) {
       await ctx.db.patch(account.ownerUserId, { activeAccountId: accountId, updatedAt: now });
@@ -139,9 +80,9 @@ export const completeOnboarding = internalMutation({
 });
 
 /**
- * Caetano's brand guide thread for a business whose brand file still has gaps,
- * opened on first need for businesses onboarded before the guide existed. Null
- * when the file is complete.
+ * Caetano's brand guide thread for a business whose brand file still has gaps:
+ * opened on first need, and again when the file was cleared after the owner
+ * answered. Null when the file is complete.
  */
 export const openGuide = mutation({
   args: { accountId: v.id("accounts") },
@@ -161,16 +102,21 @@ export const openGuide = mutation({
         ? await ctx.runQuery(components.agent.messages.listMessagesByThreadId, {
             threadId,
             order: "desc",
-            paginationOpts: { cursor: null, numItems: 2 },
+            // Caetano's reading turn is a few tool steps; an answer shows up within these.
+            paginationOpts: { cursor: null, numItems: 50 },
           })
         : null;
 
-      if (page === null || page.page.length <= 1) return threadId;
+      const answered =
+        page?.page.some(
+          (message) =>
+            message.message?.role === "user" && !isPlatformTurn(message.text ?? GUIDE_START),
+        ) ?? false;
+
+      if (!answered) return threadId;
     }
 
-    const opener = `${CAETANO_HELLO} Quero entender bem o seu negócio para cuidar do seu Instagram do jeito certo. Me conta: o que vocês fazem de melhor?`;
-
-    return openGuideThread(ctx, accountId, opener);
+    return openGuideThread(ctx, accountId);
   },
 });
 

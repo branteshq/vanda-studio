@@ -11,9 +11,9 @@ Cada negócio tem um **arquivo da marca**: um documento único com tudo o que a 
 
 ## Como começa
 
-Ao conectar o Instagram, a Vanda lê seus posts e comentários e abre o arquivo com o que encontrou, marcado como **(observado)**.
+Depois de conectar o Instagram, a configuração termina na conversa **Guia da marca** com o Caetano. Antes de falar, ele lê seu perfil e seus posts recentes, olhando as imagens, e anota no arquivo o que viu, marcado como **(Vanda)**: o que você oferece, a voz das legendas, as cores, as fontes e o estilo das fotos. Isso leva alguns segundos, e o chat mostra **Caetano está lendo seu Instagram…**.
 
-Depois vem a conversa **Guia da marca** com o Caetano, a última etapa da configuração. É um papo sobre o que o Instagram não mostra: o que você faz, para quem, a voz, o design, o que nunca fazer e as provas que você tem. Enquanto vocês conversam, o Caetano anota no arquivo (aparece **Anotado no seu guia da marca** no chat).
+Depois vem o papo sobre o que o Instagram não mostra e a confirmação do que ele viu: o que você faz, para quem, a voz, o design, o que nunca fazer e as provas que você tem. Enquanto vocês conversam, o Caetano anota no arquivo (aparece **Anotado no seu guia da marca** no chat).
 
 **Fotos e o logo são opcionais, e você pode enviá-los a qualquer momento.** Use o botão **Enviar foto ou logo**, aqui embaixo, ou arraste a imagem para o campo da mensagem (PNG, JPG ou WebP, até 10 MB). Sem logo, a Vanda usa o nome da marca em texto, e o guia segue sem ficar pendente.
 

@@ -7,7 +7,6 @@ import { z } from "zod";
 import { Spinner } from "@vanda-studio/ui/components/spinner";
 import { ConnectStep } from "../components/onboarding/connect-step";
 import { GuideStep } from "../components/onboarding/guide-step";
-import { ObservingStep } from "../components/onboarding/observing-step";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 
@@ -61,7 +60,7 @@ function OnboardingFlow() {
 
   if (requested) {
     return requested.connected ? (
-      <ObservingStep accountId={requested.id} />
+      <GuideGate accountId={requested.id} refresh={false} />
     ) : (
       <SyncConnection accountId={requested.id} />
     );
@@ -84,12 +83,12 @@ function OnboardingFlow() {
   return <ResumePending account={pending} />;
 }
 
-/** An unfinished account resumes where it stopped: the analysis once connected, else the connect step. */
+/** An unfinished account resumes where it stopped: the guide once connected, else the connect step. */
 function ResumePending({ account }: { account: Pending | undefined }) {
   if (account === undefined) return <ConnectStep />;
 
   return account.connected ? (
-    <ObservingStep accountId={account.id} />
+    <GuideGate accountId={account.id} refresh={false} />
   ) : (
     <ConnectStep accountId={account.id} />
   );
@@ -98,7 +97,7 @@ function ResumePending({ account }: { account: Pending | undefined }) {
 /**
  * Landing spot after the publisher's connect page redirects back: pull the
  * profile (retrying briefly) and cache the connection. On success the reactive accounts
- * query flips `connected` and the parent advances to the observing step; on failure
+ * query flips `connected` and the parent advances to the guide; on failure
  * (customer bailed out of the OAuth page) we offer the connect button again.
  */
 function SyncConnection({ accountId }: { accountId: Id<"accounts"> }) {
@@ -138,9 +137,10 @@ function SyncConnection({ accountId }: { accountId: Id<"accounts"> }) {
 }
 
 /**
- * Connect, reconnect and the finished onboarding land here. An incomplete brand
- * file keeps the owner on Caetano's guide screen; otherwise the app opens.
- * `refresh` re-syncs the connection first; the just-onboarded account is already connected.
+ * Connect, reconnect and the finished onboarding land here. A connected business
+ * is onboarded, then an incomplete brand file keeps the owner on Caetano's guide
+ * screen, where Caetano reads the account first; otherwise the app opens.
+ * `refresh` re-syncs the connection first; a just-connected account is already in sync.
  */
 function GuideGate({
   accountId,
@@ -150,7 +150,7 @@ function GuideGate({
   refresh?: boolean;
 }) {
   const sync = useAction(api.publisherConnect.syncConnection);
-  const onboard = useAction(api.brandProfileNode.onboard);
+  const onboard = useMutation(api.brandProfile.onboard);
   const selectActive = useMutation(api.accounts.selectActive);
   const openGuide = useMutation(api.brandProfile.openGuide);
   const navigate = useNavigate();
@@ -160,12 +160,9 @@ function GuideGate({
     let cancelled = false;
 
     const run = async () => {
-      if (refresh) {
-        await sync({ accountId }).catch(() => null);
-        // Re-reads Instagram when the brand file was cleared; a no-op otherwise.
-        await onboard({ accountId }).catch(() => null);
-      }
+      if (refresh) await sync({ accountId }).catch(() => null);
 
+      await onboard({ accountId });
       await selectActive({ accountId });
       const guide = await openGuide({ accountId });
 

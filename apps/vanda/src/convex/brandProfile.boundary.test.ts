@@ -3,11 +3,10 @@ import agentTest from "@convex-dev/agent/test";
 import { saveMessage } from "@convex-dev/agent";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
-import { api, components, internal } from "./_generated/api";
+import { api, components } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { brandFileFacts } from "./brandFile";
-import { analysisFacts } from "./pipeline/brandProfile";
-import { cafeLumiarAnalysis } from "./pipeline/brandProfile.testing";
+import { isPlatformTurn } from "./platformTurn";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -29,14 +28,6 @@ const setup = async (clerkId = "c1") => {
   return { t, accountId };
 };
 
-const readArgs = (accountId: Id<"accounts">) => ({
-  accountId,
-  kind: "negocio" as const,
-  facts: analysisFacts(cafeLumiarAnalysis, Date.UTC(2026, 9, 11, 12)),
-  opener: "Oi! Eu sou o Caetano 🐒 Quanto custa o combo de inverno?",
-  note: "# Leitura do Instagram",
-});
-
 type Harness = ReturnType<typeof convexTest>;
 
 const storePhoto = (t: Harness) =>
@@ -48,120 +39,35 @@ const addPhoto = (t: Harness, accountId: Id<"accounts">, storageId: Id<"_storage
     storageId,
   });
 
-describe("completeOnboarding", () => {
-  it("opens the brand file from the Instagram read and Caetano's guide thread", async () => {
+describe("onboard", () => {
+  it("marks the business onboarded with an empty brand file, once", async () => {
     const { t, accountId } = await setup();
-    await t.mutation(internal.brandProfile.completeOnboarding, readArgs(accountId));
+    const owner = t.withIdentity({ subject: "c1" });
+
+    await owner.mutation(api.brandProfile.onboard, { accountId });
 
     const account = await t.run((ctx) => ctx.db.get(accountId));
     expect(account?.onboardedAt).toBeTypeOf("number");
-    expect(account?.kind).toBe("negocio");
 
-    const brandFile = await t
-      .withIdentity({ subject: "c1" })
-      .query(api.brandFile.get, { accountId });
+    const user = await t.run((ctx) => ctx.db.get(account!.ownerUserId!));
+    expect(user?.activeAccountId).toBe(accountId);
 
+    const brandFile = await owner.query(api.brandFile.get, { accountId });
     expect(brandFile.persisted).toBe(true);
-    expect(brandFile.content).toContain(
-      "- O que é: Café Lumiar — cafeteria pet-friendly em Pinheiros (observado: Do perfil e bio, 11/10/2026)",
-    );
-    // Low-confidence cards are asked in the conversation, not written.
-    expect(brandFile.content).not.toContain("golden retriever");
+    expect(brandFileFacts(brandFile.content)).toEqual([]);
 
-    const threads = await t.run((ctx) =>
-      ctx.runQuery(components.agent.threads.listThreadsByUserId, {
-        userId: String(accountId),
-        paginationOpts: { cursor: null, numItems: 5 },
-      }),
-    );
-
-    expect(threads.page).toHaveLength(1);
-    expect(account?.brandGuideThreadId).toBe(threads.page[0]!._id);
-
-    const guide = await t.withIdentity({ subject: "c1" }).query(api.brandFile.guide, { accountId });
-    // The read filled the business and the voice; the rest is the interview.
-    expect(guide.sections.map((section) => section.filled)).toEqual([
-      true,
-      false,
-      true,
-      false,
-      false,
-      false,
-    ]);
+    // A retry leaves the first onboarding alone.
+    await owner.mutation(api.brandProfile.onboard, { accountId });
+    const again = await t.run((ctx) => ctx.db.get(accountId));
+    expect(again?.onboardedAt).toBe(account?.onboardedAt);
   });
 
-  it("is a no-op once onboarded (a retried read)", async () => {
-    const { t, accountId } = await setup();
-    await t.mutation(internal.brandProfile.completeOnboarding, readArgs(accountId));
-    await t.mutation(internal.brandProfile.completeOnboarding, {
-      ...readArgs(accountId),
-      facts: [],
-    });
-
-    const brandFile = await t
-      .withIdentity({ subject: "c1" })
-      .query(api.brandFile.get, { accountId });
-
-    expect(brandFileFacts(brandFile.content).length).toBeGreaterThan(0);
-  });
-});
-
-describe("completeOnboarding restart", () => {
-  it("refills an empty brand file of an onboarded business and opens a fresh guide", async () => {
-    const { t, accountId } = await setup();
-    const read = readArgs(accountId);
-
-    await t.mutation(internal.brandProfile.completeOnboarding, {
-      accountId,
-      kind: null,
-      facts: [],
-      opener: null,
-      note: null,
-    });
-
-    const first = (await t.run((ctx) => ctx.db.get(accountId)))?.brandGuideThreadId;
-
-    await t.mutation(internal.brandProfile.completeOnboarding, read);
-
-    const brandFile = await t
-      .withIdentity({ subject: "c1" })
-      .query(api.brandFile.get, { accountId });
-
-    expect(brandFile.content).toContain("Café Lumiar");
-
-    const note = await t.run((ctx) =>
-      ctx.db
-        .query("workspaceFiles")
-        .withIndex("by_account_path", (q) =>
-          q.eq("accountId", accountId).eq("path", "/notes/leitura-instagram.md"),
-        )
-        .unique(),
-    );
-
-    expect(note?.content).toBe("# Leitura do Instagram");
-
-    const account = await t.run((ctx) => ctx.db.get(accountId));
-    expect(account?.brandGuideThreadId).not.toBe(first);
-
-    // A file with content is left alone: no new thread, no new facts.
-    await t.mutation(internal.brandProfile.completeOnboarding, { ...read, facts: [] });
-
-    const after = await t.run((ctx) => ctx.db.get(accountId));
-    expect(after?.brandGuideThreadId).toBe(account?.brandGuideThreadId);
-    expect(brandFileFacts(brandFile.content).length).toBeGreaterThan(0);
-  });
-});
-
-describe("resolveOwnedHandle", () => {
-  it("returns a null handle for the owner when no Instagram is connected", async () => {
+  it("rejects a caller who does not own the account", async () => {
     const { t, accountId } = await setup();
 
     await expect(
-      t.query(internal.brandProfile.resolveOwnedHandle, { accountId, clerkId: "c1" }),
-    ).resolves.toEqual({ handle: null, onboarded: false, guideEmpty: true });
-    await expect(
-      t.query(internal.brandProfile.resolveOwnedHandle, { accountId, clerkId: "c2" }),
-    ).rejects.toThrow("account not found");
+      t.withIdentity({ subject: "c2" }).mutation(api.brandProfile.onboard, { accountId }),
+    ).rejects.toThrow();
   });
 });
 
@@ -231,6 +137,32 @@ describe("openGuide", () => {
     expect(account?.brandGuideThreadId).toBe(threadId);
 
     await expect(owner.mutation(api.brandProfile.openGuide, { accountId })).resolves.toBe(threadId);
+  });
+
+  it("starts the guide with Caetano's turn, not a canned question", async () => {
+    const { t, accountId } = await setup();
+
+    const threadId = (await t
+      .withIdentity({ subject: "c1" })
+      .mutation(api.brandProfile.openGuide, { accountId }))!;
+
+    const messages = await t.run((ctx) =>
+      ctx.runQuery(components.agent.messages.listMessagesByThreadId, {
+        threadId,
+        order: "asc",
+        paginationOpts: { cursor: null, numItems: 5 },
+      }),
+    );
+
+    // Only the hidden start: Caetano writes the first message after reading the account.
+    expect(messages.page.map((message) => message.message?.role)).toEqual(["user"]);
+    expect(isPlatformTurn(messages.page[0]!.text ?? "")).toBe(true);
+
+    const activity = await t.run((ctx) => ctx.db.query("chatThreadActivity").collect());
+    expect(activity.map((row) => row.threadId)).toEqual([threadId]);
+
+    const scheduled = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+    expect(scheduled.map((job) => job.name)).toContain("chat:generateResponse");
   });
 
   it("restarts a cleared guide only once the owner has answered in it", async () => {

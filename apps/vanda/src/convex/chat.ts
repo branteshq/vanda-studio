@@ -77,7 +77,7 @@ async function requireAccountThread(
   return meta;
 }
 
-async function startThreadActivity(
+export async function startThreadActivity(
   ctx: MutationCtx,
   accountId: Id<"accounts">,
   threadId: string,

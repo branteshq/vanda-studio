@@ -49,7 +49,7 @@ export function GuideStep({
                 Vamos montar o guia da sua marca
               </h1>
               <p className="mt-3 text-sm text-text-3">
-                Converse com o Caetano: ele já leu seu Instagram e pergunta só o que falta.
+                Converse com o Caetano: ele lê seu Instagram primeiro e pergunta só o que falta.
               </p>
               <p className="mt-2 text-caption text-text-5">
                 Leva uns 5 minutos · dá para terminar depois

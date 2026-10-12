@@ -47,6 +47,7 @@ import { resourcesForMessage, ThreadResourceList } from "./thread-resources";
 import { VandaMark } from "./vanda-mark";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+import { isPlatformTurn } from "../convex/platformTurn";
 import type { ThreadResource } from "../convex/resourceRefs";
 
 const TOOL_LABEL = {
@@ -304,12 +305,20 @@ function GuideMobileBar({ accountId }: { accountId: Id<"accounts"> }) {
 }
 
 /** The shared thinking state: a breathing orb where the answer will appear. */
-function ThinkingMarker({ guide = false }: { guide?: boolean }) {
+function ThinkingMarker({
+  guide = false,
+  reading = false,
+}: {
+  guide?: boolean;
+  reading?: boolean;
+}) {
   if (guide) {
     return (
       <SpeechBubble>
         <Marker role="status">
-          <MarkerContent loading>Caetano está pensando…</MarkerContent>
+          <MarkerContent loading>
+            {reading ? "Caetano está lendo seu Instagram…" : "Caetano está pensando…"}
+          </MarkerContent>
         </Marker>
       </SpeechBubble>
     );
@@ -555,6 +564,18 @@ function isDefaultWelcome(message: UIMessage): boolean {
   return text.startsWith("Oi! Eu sou a Vanda, sua operadora de crescimento no Instagram.");
 }
 
+/** A turn the platform started (the guide's first reading turn): never shown. */
+function isPlatformMessage(message: UIMessage): boolean {
+  if (message.role !== "user") return false;
+
+  return isPlatformTurn(
+    message.parts
+      .filter((part) => part.type === "text")
+      .map((part) => part.text)
+      .join("\n"),
+  );
+}
+
 export function NewConversationHero() {
   const { user } = useUser();
 
@@ -674,7 +695,10 @@ export function Conversation({
     if (!loading && handoff !== null) firstSendHandoff = null;
   }, [loading, handoff]);
 
-  const visibleMessages = messages.results.filter((message) => !isDefaultWelcome(message));
+  const visibleMessages = messages.results.filter(
+    (message) => !isDefaultWelcome(message) && !isPlatformMessage(message),
+  );
+
   const empty = !loading && visibleMessages.length === 0;
   const streaming = visibleMessages.at(-1)?.status === "streaming";
   const working = processing || streaming;
@@ -747,7 +771,7 @@ export function Conversation({
                         ) : (
                           <ConversationSkeleton />
                         )
-                      ) : empty ? (
+                      ) : empty && !guide ? (
                         <MessageScrollerItem
                           messageId="new-conversation"
                           className="flex flex-1 items-center justify-center"
@@ -778,6 +802,16 @@ export function Conversation({
                               />
                             </MessageScrollerItem>
                           ))}
+                          {guide && working && lastMessage?.role !== "assistant" ? (
+                            <MessageScrollerItem messageId="caetano-pending">
+                              <Message align="start">
+                                <CaetanoAvatar state="thinking" />
+                                <MessageContent>
+                                  <ThinkingMarker guide reading={visibleMessages.length === 0} />
+                                </MessageContent>
+                              </Message>
+                            </MessageScrollerItem>
+                          ) : null}
                         </>
                       )}
                     </MessageScrollerContent>
@@ -972,6 +1006,7 @@ function ChatMessage({
   }
 
   const nothingYet = streaming && answers.length === 0 && traceRows.length === 0;
+  const readingInstagram = toolRows.some((part) => toolNameOf(part).startsWith("read_instagram_"));
 
   const manifestResources = resources.filter(
     (resource) =>
@@ -1019,7 +1054,7 @@ function ChatMessage({
             onClose={() => setLightboxId(null)}
           />
         ) : null}
-        {nothingYet ? <ThinkingMarker guide={guide} /> : null}
+        {nothingYet ? <ThinkingMarker guide={guide} reading={readingInstagram} /> : null}
       </MessageContent>
     </Message>
   );
