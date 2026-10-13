@@ -1,6 +1,6 @@
 # Propósitos
 
-O propósito é o objetivo do post e decide a hierarquia. Escolha um id (é o valor de `purpose` no create_post); um secundário só com dois objetivos reais. Produto novo: `produto` se a peça mostra o produto e seus benefícios; `anuncio` se a notícia é a data, o evento ou a mudança. Na dúvida, veja o mix recente em /posts e não repita o mesmo propósito seguidas vezes.
+O propósito é o objetivo do post e decide a hierarquia. Escolha um id (é o valor de `purpose` no create_post); um secundário só com dois objetivos reais. Produto ou linha nova que a peça mostra: `produto`, mesmo dito "novo"; `anuncio` só quando a notícia é a data, o evento ou a mudança. Não repita o propósito do post anterior em /posts.
 
 ## institucional
 
@@ -104,7 +104,7 @@ O propósito é o objetivo do post e decide a hierarquia. Escolha um id (é o va
 
 ## anuncio
 
-- Quando: lançamento com data, parceria, evento, inauguração, mudança.
+- Quando: data, parceria, evento, inauguração, mudança de funcionamento. Produto novo mostrado é `produto`.
 - Objetivo: comunicar uma mudança.
 - Estrutura: a novidade primeiro, depois quando e o que fazer; em sequência, um slide para cada.
 - Visual: a novidade é o maior elemento; data ou condição em segundo nível; nenhum elemento decorativo competindo.

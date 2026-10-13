@@ -12,10 +12,15 @@
   "instagram-weekly-plan": {
     "alwaysApply": false
   },
-  "instagram-caption": {
+  "post": {
     "alwaysApply": false
   },
-  "post": {
+  "design": {
+    "sourceUrl": "https://github.com/anthropics/skills/blob/dbd4588f9e1033efb41dad4bef2f7947c8993d44/skills/frontend-design/SKILL.md",
+    "alwaysApply": false
+  },
+  "copy": {
+    "sourceUrl": "https://github.com/coreyhaines31/marketingskills/tree/0f8d89961cdf782dd02644b9df3ddc671c21a7f0/skills/copywriting",
     "alwaysApply": false
   }
 }

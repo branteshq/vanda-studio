@@ -38,14 +38,32 @@ describe("post purposes", () => {
 
     for (const type of ["image", "carousel", "story"]) expect(post?.body).toContain(type);
     // SKILL.md is read on every post; the rest only when the post asks for it.
-    expect(bytes(post?.files["SKILL.md"] ?? "")).toBeLessThanOrEqual(9_000);
     expect(bytes(post?.files["purposes.md"] ?? "")).toBeLessThanOrEqual(9_000);
     expect(bytes(post?.files["formats.md"] ?? "")).toBeLessThanOrEqual(10_000);
   });
 
-  it("separates identity from execution", () => {
-    expect(post?.body).toContain("Manter");
-    expect(post?.body).toContain("Evoluir");
-    expect(post?.body).toContain("melhor que o post típico do feed");
+  it("splits production, art direction and copy into three skills read on every post", () => {
+    const design = findInstalledSkill("design");
+    const copy = findInstalledSkill("copy");
+
+    // post produces and points at the other two; each one does one job.
+    expect(post?.body).toContain("/skills/design/SKILL.md");
+    expect(post?.body).toContain("/skills/copy/SKILL.md");
+    // Identity stays, execution improves: the art direction owns it.
+    expect(design?.body).toContain("Manter");
+    expect(design?.body).toContain("Evoluir");
+    expect(design?.body).toContain("melhor que o post típico do feed");
+    expect(design?.body).toContain("Sinais de imagem genérica de IA");
+    expect(copy?.body).toContain("Sinais de texto de IA");
+    expect(copy?.body).toContain("Linha 1");
+    // The upstream AI-tells list ships unchanged, with its license.
+    expect(copy?.files["ai-tells.md"]).toContain("# AI Tells: The Copy Blacklist");
+    expect(copy?.files["LICENSE"]).toContain("MIT License");
+    expect(design?.files["LICENSE.txt"]).toContain("Apache License");
+    // A new product the post shows is produto, not anuncio.
+    expect(post?.body).toContain('mesmo dito "novo" ou "lançamento"');
+
+    for (const skill of [post, design, copy])
+      expect(bytes(skill?.files["SKILL.md"] ?? "")).toBeLessThanOrEqual(7_500);
   });
 });

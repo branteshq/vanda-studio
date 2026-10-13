@@ -15,6 +15,10 @@ O plano decide o que é produzido. Ele parte do diagnóstico da conta (`instagra
 3. As duas últimas semanas planejadas: não repita tema nem ângulo.
 4. Resultados dos posts automáticos da semana anterior: reforce o que superou a mediana e corte o que ficou abaixo.
 
+## Pilares
+
+Antes dos slots, fixe 3 a 5 pilares: os temas que só esta marca pode falar, tirados do /brand/marca.md (o que vende, o que sabe, para quem, o que defende). Ex. de uma confeitaria: encomendas de festa, bastidores da cozinha, dicas de conservação, clientes. Cada post serve um pilar; gire os pilares na semana e mantenha os mesmos de semana a semana, para o público saber o que esperar. Cite os pilares na estratégia da semana.
+
 ## Cadência
 
 - 3 a 5 posts de feed por semana. Para manter a conta ativa, 3 bem feitos valem mais que 5 fracos.
@@ -34,23 +38,23 @@ Sábado  12h · carrossel 3 slides
 
 Nunca dois posts seguidos com o mesmo propósito.
 
-| papel | propósito no Vanda | frequência | função |
-| --- | --- | --- | --- |
-| Prova | prova_social / dados | 1 por semana | algo que aconteceu, com número |
-| Ensinar | educacional | 1 a 2 por semana | uma coisa que o público pode fazer hoje |
-| Opinião | editorial | 1 por semana | uma posição clara da marca |
-| História | storytelling / bastidores | 1 a cada 2 semanas | uma cena real, com custo ou virada |
-| Oferta | produto / promocional | 1 a cada 2 semanas | o que a marca vende, dito sem rodeio |
-| Comunidade | comunidade | quando fizer sentido | convite para responder ou participar |
+| papel      | propósito no Vanda        | frequência           | função                                  |
+| ---------- | ------------------------- | -------------------- | --------------------------------------- |
+| Prova      | prova_social / dados      | 1 por semana         | algo que aconteceu, com número          |
+| Ensinar    | educacional               | 1 a 2 por semana     | uma coisa que o público pode fazer hoje |
+| Opinião    | editorial                 | 1 por semana         | uma posição clara da marca              |
+| História   | storytelling / bastidores | 1 a cada 2 semanas   | uma cena real, com custo ou virada      |
+| Oferta     | produto / promocional     | 1 a cada 2 semanas   | o que a marca vende, dito sem rodeio    |
+| Comunidade | comunidade                | quando fizer sentido | convite para responder ou participar    |
 
 ## Cada slot leva
 
 - dia e hora, tipo (image ou carousel) e número de slides;
-- propósito (um dos ids acima);
+- pilar e propósito (um dos ids acima);
 - tema e **ângulo** — ângulo, não assunto. "Bolo" não é plano; "o bolo que voltou porque o recheio vazou na entrega" é;
-- gancho da capa (até 6 palavras) e da primeira linha da legenda;
+- gancho da capa (até 6 palavras) e da primeira linha da legenda, pelos moldes da skill `copy`;
 - roteiro curto por slide (função de cada slide);
-- briefing da legenda (pedido único, termos de busca).
+- briefing da legenda (pedido único, termos de busca; skill `copy`).
 
 Use fatos reais da marca. Quando faltar um número ou fato, escreva `{{dado do dono}}` em vez de inventar.
 

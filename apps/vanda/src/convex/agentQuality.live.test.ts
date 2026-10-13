@@ -757,10 +757,16 @@ it.skipIf(!enabled).each(suite)(
           ),
         );
 
-        for (const file of ["SKILL.md", skillCase.typeFile, "purposes.md"])
+        for (const file of [
+          "post/SKILL.md",
+          `post/${skillCase.typeFile}`,
+          "post/purposes.md",
+          "design/SKILL.md",
+          "copy/SKILL.md",
+        ])
           expect(
-            readSkills.some((input) => input.includes(`/skills/post/${file}`)),
-            `read /skills/post/${file}`,
+            readSkills.some((input) => input.includes(`/skills/${file}`)),
+            `read /skills/${file}`,
           ).toBe(true);
 
         const post = state.posts[0]!;

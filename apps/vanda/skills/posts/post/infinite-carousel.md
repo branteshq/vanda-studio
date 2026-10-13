@@ -146,7 +146,7 @@ As chamadas intermediárias devolvem só a cadeia e a nota do corte (perto de 0 
 
 ## 7. Entrega
 
-`create_post` com type carousel, o format usado e os imageIds da **última cadeia devolvida**, na ordem (nunca a prévia), conforme o SKILL.md §6. Legenda com o essencial nos primeiros 125 caracteres. A mensagem ao dono tem no máximo 3 frases curtas (tema, número de slides, rascunho salvo, a escolha de tipo, propósito e format, e que a publicação é na ordem numérica), sem repetir a legenda nem listar etapas.
+`create_post` com type carousel, o format usado e os imageIds da **última cadeia devolvida**, na ordem (nunca a prévia), conforme o §4 (Entrega) do SKILL.md. Legenda com o essencial nos primeiros 125 caracteres. A mensagem ao dono tem no máximo 3 frases curtas (tema, número de slides, rascunho salvo, a escolha de tipo, propósito e format, e que a publicação é na ordem numérica), sem repetir a legenda nem listar etapas.
 
 ## Método manual (Canva, Figma, Photoshop)
 

@@ -239,6 +239,26 @@ describe("role-specific discovery", () => {
     );
   });
 
+  it.each([
+    ["escrever legenda do post", "copy"],
+    ["gancho e hashtags", "copy"],
+    ["copy da capa do carrossel", "copy"],
+    ["direção de arte da imagem", "design"],
+    ["design da arte", "design"],
+    ["capa de destaque", "design"],
+  ])("finds %s in the %s skill", async (query, name) => {
+    const result = await vandaToolDiscovery.search.execute!(
+      { query },
+      { toolCallId: "search", messages: [] },
+    );
+
+    expect(result).toMatchObject({
+      skills: expect.arrayContaining([
+        expect.objectContaining({ name, location: `/skills/${name}/SKILL.md` }),
+      ]),
+    });
+  });
+
   it("finds the post skill together with the infinite carousel tool", async () => {
     const result = await vandaToolDiscovery.search.execute!(
       { query: "carrossel infinito" },

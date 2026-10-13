@@ -6,7 +6,10 @@ import { systemPrompt, vanda } from "./vanda";
 describe("Vanda routing prompt", () => {
   it.each(["vanda", "caetano"] as const)("routes %s to the post skill", (role) => {
     const prompt = systemPrompt(role);
-    expect(prompt).toContain("leia /skills/post/SKILL.md com read e siga-o");
+
+    for (const skill of ["post", "design", "copy"])
+      expect(prompt).toContain(`/skills/${skill}/SKILL.md`);
+    expect(prompt).not.toContain("instagram-caption");
     // Identity stays, execution improves: the feed is evidence, not a spec.
     expect(prompt).toContain("melhor que o post típico do feed");
     expect(prompt).not.toContain("mude o conteúdo, não a grade:");

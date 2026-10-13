@@ -13,13 +13,15 @@ To install a skill:
 
 Builds and type checks run `skills:check`, so stale generated output fails CI.
 
-## The post skill (`posts/post`)
+## Post skills: `post`, `design`, `copy`
 
-Everything about making a post is one skill, `post`, so Vanda never has to pick between overlapping ones. `SKILL.md` is read on every post (keep it under 9 KB): the role (an agency art director improving the client's Instagram), identity versus execution (the brand file's `Manter` and `Evoluir`), type, purpose and format, references, the plan, the review and `create_post`. The rest is read only when the post needs it:
+A post is made by three skills, each doing one job and covering all of it. Vanda reads the three `SKILL.md` files before the first `paint` of a new post; the system prompt and `post` both point at them.
 
-- `purposes.md`: the 14 purposes, one `## <id>` entry each.
-- `carousel.md`, `infinite-carousel.md`, `story.md`: the type-specific flows.
-- `formats.md`: the index of ad formats, with the rules every format shares, and `formats/<name>.md`, one file per format.
+- `posts/post`: production. Type, purpose, format, references, real people, the order of work and `create_post`. Its other files are read only when the post needs them: `purposes.md` (the 14 purposes, one `## <id>` entry each), `carousel.md`, `infinite-carousel.md`, `story.md`, and `formats.md` with `formats/<name>.md`, one file per ad format.
+- `design`: art direction for every image Vanda paints. Adapted from Anthropic's `frontend-design` (Apache-2.0, `LICENSE.txt`) for images instead of web pages: start from the client's subject, identity stays and execution improves (the brand file's `Manter` and `Evoluir`), a plan reviewed against the brief before painting, a concrete paint prompt, the tells of generated images, boldness in one place, and the pixel critique.
+- `copy`: every word Vanda publishes: captions, text on the image, carousel slides, hooks, awareness-level headlines and the tells of generated text. Adapted from `coreyhaines31/marketingskills` (MIT, `LICENSE`); `ai-tells.md` is that repo's list copied unchanged, so upstream updates can be pulled as they are.
+
+Keep each `SKILL.md` under 7.5 KB (`postPurposes.test.ts`).
 
 ### Ad formats (`posts/post/formats/*.md`)
 

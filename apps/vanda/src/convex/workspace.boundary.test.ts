@@ -133,6 +133,8 @@ describe("workspace navigation", () => {
         expect.arrayContaining([
           expect.objectContaining({ name: "instagram-market-research", kind: "dir" }),
           expect.objectContaining({ name: "post", kind: "dir" }),
+          expect.objectContaining({ name: "design", kind: "dir" }),
+          expect.objectContaining({ name: "copy", kind: "dir" }),
           expect.objectContaining({ name: "unslop", kind: "dir" }),
         ]),
       );
@@ -171,7 +173,7 @@ describe("workspace navigation", () => {
 
     if (production.ok && production.file.kind === "text") {
       expect(production.file.text).not.toContain("disable-model-invocation");
-      expect(production.file.text).toContain("## 1. Identidade fica, execução melhora");
+      expect(production.file.text).toContain("## 3. Ordem de produção");
       expect(production.file.text).toContain("editOfImageId");
     }
 
