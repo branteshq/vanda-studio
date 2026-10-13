@@ -52,6 +52,7 @@ import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { useActiveAccount } from "./active-account";
 import { GalleryComposer } from "./gallery-composer";
+import { CaetanoZapCard } from "./caetano-zap";
 import { useModeNav } from "./mode-nav";
 import { VandaMark } from "./vanda-mark";
 
@@ -787,6 +788,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="px-2 pb-2">
+        <CaetanoZapCard />
         <ProfileDock />
       </SidebarFooter>
     </Sidebar>
