@@ -55,6 +55,38 @@ export function referenceImage(caseId: string): Uint8Array {
     .asPng();
 }
 
+/**
+ * A plain product photo the owner attaches: the new planner line on a desk, three
+ * covers (purple, pink, lime) with white spirals, no text. Synthetic and
+ * deterministic, so the reviewer can check the painted covers against it.
+ */
+export function productPhoto(id: "pimba-planner-line"): Uint8Array {
+  if (id !== "pimba-planner-line") throw new Error(`No product photo for ${id}`);
+
+  const planners = ["#5B2EFF", "#FF4F8B", "#C7FF3D"]
+    .map((color, i) => {
+      const spiral = Array.from(
+        { length: 9 },
+        (_, ring) =>
+          `<ellipse cx="0" cy="${40 + ring * 46}" rx="16" ry="9" fill="none" stroke="white" stroke-width="7"/>`,
+      ).join("");
+
+      return `<g transform="translate(${150 + i * 255},${300 + (i % 2) * 40}) rotate(${(i - 1) * 4})">
+        <rect x="6" y="10" width="220" height="430" rx="14" fill="#00000022"/>
+        <rect width="220" height="430" rx="14" fill="${color}"/>
+        <rect x="60" y="150" width="120" height="70" rx="8" fill="white" opacity="0.85"/>
+        ${spiral}</g>`;
+    })
+    .join("");
+
+  return new Resvg(`<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024">
+    <rect width="1024" height="1024" fill="#E8DCC8"/>
+    <rect y="760" width="1024" height="264" fill="#D2BE9E"/>
+    ${planners}</svg>`)
+    .render()
+    .asPng();
+}
+
 type FeedPost = NonNullable<EvalBrand["feed"]>[number];
 
 const escapeXml = (text: string): string =>

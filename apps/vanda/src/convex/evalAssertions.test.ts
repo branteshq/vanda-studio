@@ -1,16 +1,18 @@
 import { Jimp } from "jimp";
 import { describe, expect, it } from "vitest";
 import {
+  assertAskedFirst,
   assertFeedReferenced,
   assertIdentityKeptExecutionImproved,
   assertImagesWereInspected,
   assertKeepAndEvolveWritten,
+  assertProductReferenced,
   assertProtectedPixelsPreserved,
   assertRejectedPaintWasReported,
   type EvalTraceStep,
 } from "../../evals/assertions";
 import { brands } from "../../evals/fixtures";
-import { feedImage, referenceImage } from "../../evals/references";
+import { feedImage, productPhoto, referenceImage } from "../../evals/references";
 
 /** An extend result; the strip comes only with the call that closes the loop. */
 const chain = (slides: string[], strip?: string) => {
@@ -282,5 +284,35 @@ describe("evaluation guards", () => {
 
     expect(hex(10, 500)).toBe("00999e");
     expect(hex(22, 500)).toBe("ffffff");
+  });
+
+  it("requires the attached product photo in a paint or extend call", () => {
+    expect(() => assertProductReferenced([paint(["photo-1", "feed-1"])], "photo-1")).not.toThrow();
+    expect(() => assertProductReferenced([paint(["feed-1"])], "photo-1")).toThrow(/product photo/);
+    expect(() =>
+      assertProductReferenced(
+        [{ calls: [{ toolName: "read", input: { path: "photo-1" } }] }],
+        "photo-1",
+      ),
+    ).toThrow();
+  });
+
+  it("passes asking for a photo and fails painting or drafting", () => {
+    const ask = "Pra mostrar a linha nova sem inventar, me manda uma foto dos planners?";
+
+    expect(() => assertAskedFirst([], ask, 0)).not.toThrow();
+    expect(() => assertAskedFirst([{ calls: [{ toolName: "paint" }] }], ask, 0)).toThrow(/asking/);
+    expect(() => assertAskedFirst([], ask, 1)).toThrow(/asking/);
+    expect(() => assertAskedFirst([], "Pronto, criei o rascunho.", 0)).toThrow(/photo/);
+  });
+
+  it("renders the planner line photo as three covers on a desk", async () => {
+    const image = await Jimp.read(Buffer.from(productPhoto("pimba-planner-line")));
+
+    const hex = (x: number, y: number) =>
+      image.getPixelColor(x, y).toString(16).padStart(8, "0").slice(0, 6);
+
+    expect([image.width, image.height]).toEqual([1024, 1024]);
+    expect(hex(20, 20)).toBe("e8dcc8");
   });
 });

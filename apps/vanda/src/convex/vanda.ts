@@ -934,7 +934,7 @@ const extendInfiniteCarousel = createTool({
       .string()
       .min(3)
       .describe(
-        "conteúdo do novo slide: textos exatos (título, corpo, progresso em %), evidência (print, gráfico) e onde fica em relação à cena",
+        "conteúdo do novo slide: textos exatos (título, corpo; sem contador de progresso), evidência (print, gráfico) e onde fica em relação à cena",
       ),
     style: z
       .string()

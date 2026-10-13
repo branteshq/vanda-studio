@@ -156,7 +156,7 @@ export const completePrompt = (
     `This image is ONE Instagram carousel slide. Its left ${known}% is finished scenery — it continues from the previous slide — and the rest is an empty placeholder of flat color streaks.`,
     `Keep the ${keep} exactly as it is. Paint the placeholder as the seamless continuation of the same scene (same environment, horizon height, light, palette and technique), with no visible line or color step.`,
     `Then complete the slide with: ${content.trim()}.`,
-    `Place every text element inside the column between ${from}% and ${to}% of the width, on a calm area of background or a soft scrim; write the text exactly as given and nothing else. The brand signature, any progress marker and any small footer text also go inside that same column, never in the corners or within the outer quarter near either edge.`,
+    `Place every text element inside the column between ${from}% and ${to}% of the width, on a calm area of background or a soft scrim; write the text exactly as given and nothing else. The brand signature and any small footer text also go inside that same column, never in the corners or within the outer quarter near either edge. No slide counter, percentage progress marker or pagination dots.`,
     "Text never overlaps the hero, the bridge objects, people or any other subject: keep a clear gap of at least 4% of the width between every letter and every object. If the column is not clear, make the text smaller or move it up or down inside the column; never move an object behind or under the text.",
     last
       ? "The right quarter is only the environment continuing to the edge: it flows back into the first slide."

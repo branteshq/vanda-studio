@@ -12,13 +12,15 @@ import { expandedSkillCases, skillCaseFor } from "../../evals/skillBenchmark";
 import { brands, cases } from "../../evals/fixtures";
 import { benchmarkMethods, imageBenchmarkCases } from "../../evals/imageBenchmark";
 import { professionalBrands, professionalCases } from "../../evals/professionalBenchmark";
-import { feedImage, ownerFaceImage, referenceImage } from "../../evals/references";
+import { feedImage, ownerFaceImage, productPhoto, referenceImage } from "../../evals/references";
 import {
+  assertAskedFirst,
   assertFaceReferenced,
   assertIdentityKeptExecutionImproved,
   assertKeepAndEvolveWritten,
   assertFeedReferenced,
   assertImagesWereInspected,
+  assertProductReferenced,
   assertProtectedPixelsPreserved,
   assertRejectedPaintWasReported,
   type EvalTraceStep,
@@ -448,6 +450,23 @@ it.skipIf(!enabled).each(suite)(
         });
       }
 
+      // A product photo the owner attaches to the request.
+      let productPhotoId: Id<"images"> | undefined;
+
+      if (entry.productPhoto) {
+        const bytes = productPhoto(entry.productPhoto);
+        await writeFile(resolve(directory, "product-photo.png"), bytes);
+        const url = `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`;
+
+        productPhotoId = await insertUpload("Foto do produto", url, {
+          mimeType: "image/png",
+          width: 1024,
+          height: 1024,
+        });
+
+        attachments.push({ imageId: productPhotoId, url, mimeType: "image/png" });
+      }
+
       let referenceBytes: Uint8Array | undefined;
       let referenceImageId: Id<"images"> | undefined;
 
@@ -662,7 +681,8 @@ it.skipIf(!enabled).each(suite)(
       expect(response).not.toContain("Algo deu errado");
       expect(network.filter((request) => request.status >= 400)).toEqual([]);
 
-      if (entry.kind === "creative" || entry.id === "caju-date-is-brief") {
+      if (entry.asksFirst) assertAskedFirst(trace, response, state.posts.length);
+      else if (entry.kind === "creative" || entry.id === "caju-date-is-brief") {
         expect(state.posts).toHaveLength(1);
         expect(state.posts[0]?.status).toBe("draft");
         expect(state.posts[0]?.imageIds.length).toBeGreaterThan(0);
@@ -714,6 +734,8 @@ it.skipIf(!enabled).each(suite)(
 
       if (entry.kind === "creative" || entry.kind === "revision")
         assertImagesWereInspected(trace, finalImageIds);
+
+      if (productPhotoId) assertProductReferenced(trace, productPhotoId);
 
       if (faceImageId) assertFaceReferenced(trace, faceImageId, feedImageIds);
       else if (feedImageIds.length > 0 && brand.feedStyle !== "weak")

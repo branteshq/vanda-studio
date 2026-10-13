@@ -163,8 +163,9 @@ export const skillCases: readonly SkillCase[] = [
     typeFile: "infinite-carousel.md",
     purpose: "produto",
     repeats: 3,
+    productPhoto: "pimba-planner-line",
     prompt:
-      "Faz um carrossel infinito de 4 slides mostrando a nova linha de planners numa mesa contínua, um planner atravessando cada corte.",
+      "Faz um carrossel infinito de 4 slides mostrando a nova linha de planners 2027 (foto em anexo: capas roxa, rosa e verde-adesivo, espiral branca, R$ 49 cada) numa mesa contínua, um planner atravessando cada corte.",
   }),
   creative({
     id: "skill-infinite-storytelling",

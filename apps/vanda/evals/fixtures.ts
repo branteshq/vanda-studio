@@ -49,6 +49,13 @@ export type EvalCase = {
     | "caju-background-revision"
     | "orvalho-product-identity-revision"
     | "pimba-kit-revision";
+  /** A product photo the owner attaches to the request (references.ts `productPhoto`). */
+  productPhoto?: "pimba-planner-line";
+  /**
+   * The request lacks what the post needs (a new product with no photo and no
+   * description): the right turn asks for it and paints nothing.
+   */
+  asksFirst?: boolean;
 };
 
 export const brands: EvalBrand[] = [
@@ -529,6 +536,17 @@ export const cases: EvalCase[] = [
       "Distingue a conexão ChatGPT da conexão para publicar no Instagram.",
     ],
     kind: "help",
+  },
+  {
+    id: "pimba-new-product-no-photo",
+    brandId: "pimba-papelaria",
+    prompt: "Faz um post mostrando a nova linha de planners 2027 que chegou na loja.",
+    asksFirst: true,
+    expectations: [
+      "A linha nova não está em marca.md nem anexada: pede uma foto dos planners ou os detalhes das capas antes de pintar.",
+      "Não chama paint e não cria rascunho; não inventa capas, cores ou preço.",
+    ],
+    kind: "creative",
   },
   {
     id: "pimba-caetano-draft",

@@ -77,14 +77,14 @@ O carrossel é da marca, não deste arquivo. O contexto da marca já está na co
 1. **Herói no corte 1→2:** um só por carrossel, nascido no slide 1 e continuado no slide 2 pela ferramenta.
 2. **Toda costura tem uma ponte:** o herói no 1→2 e um satélite em cada um dos outros cortes, inclusive a volta. Satélites conforme a tabela, sem texto nem logo. **Numa cena com chão ou mesa, todo satélite está apoiado em algo visível** (a mesa, o piso, uma prateleira, um parapeito) ou pendurado (um galho, uma luminária). Só flutua em cena de céu, espaço ou água. Escreva o apoio na ponte: _"xícara de cerâmica apoiada na mesa, no terço inferior"_, nunca só _"no terço superior"_.
 3. **Ambiente contínuo:** o fundo encosta nas quatro bordas de todo slide. Proibido: moldura, vinheta, recorte de papel, mapa ou silhueta fechada, figura isolada no centro. Mudança de ambiente só em diagonal, dentro de um slide.
-4. **Ordem de profundidade** (de trás para a frente): ambiente → véu → brilho → plano médio desfocado → herói → satélites → cartões de evidência → texto → progresso e @perfil. Quanto mais longe, mais desfoque; o herói é nítido.
+4. **Ordem de profundidade** (de trás para a frente): ambiente → véu → brilho → plano médio desfocado → herói → satélites → cartões de evidência → texto → @perfil. Quanto mais longe, mais desfoque; o herói é nítido.
 5. **Colunas de texto** (fora das faixas repintadas):
    - slide 1: entre 24% e 60% da largura (a direita é do herói, a esquerda recebe a volta);
    - slide 2: entre 40% e 72% (a esquerda é do herói);
    - demais slides: entre 24% e 72%.
      A ferramenta já posiciona o texto dos slides 2…N. Você só escreve o conteúdo.
 6. **Evidência** (prints, gráficos, telas de celular): na coluna de texto, em cartão com sombra, com uma seta desenhada ou uma nota curta em letra cursiva.
-7. **Progresso e marca:** "0%", "33%", "67%", "100%" (4 slides; com 5, "0%", "25%", "50%", "75%", "100%"), pequeno, embaixo e centralizado; @perfil pequeno em cima, centralizado.
+7. **Marca:** @perfil pequeno em cima, centralizado. Sem contador de progresso ("0%", "33%", "1/4") nem bolinhas de página: o Instagram já mostra a posição, e o contador só polui a cena.
 8. **Miniatura da grade:** o slide 1 é recortado em 3:4 no perfil; o gancho fica longe das laterais.
 
 ### Direções de estilo
@@ -102,7 +102,7 @@ O carrossel é da marca, não deste arquivo. O contexto da marca já está na co
 Um prompt com a ficha de estilo (hex e fontes da seção Design, ou a proposta), as referências da marca em `referenceImageIds`, `aspectRatio` no format escolhido e:
 
 - **o herói com o centro visual exatamente na borda direita**, cortado por ela: só a metade esquerda dele aparece, ocupando no máximo os 35% da direita do slide (de 65% a 100% da largura). A outra metade fica para o slide 2. Ele tem ~55–70% da altura, apoiado embaixo, e o corte passa pelo tronco ou pela lateral, nunca pelo rosto;
-- o gancho e "arraste →" na coluna de 24% a 60%, progresso "0%" embaixo no centro, @perfil em cima no centro;
+- o gancho e "arraste →" na coluna de 24% a 60%, @perfil em cima no centro, sem contador de progresso;
 - **texto nunca sobre o herói, pessoas ou objetos:** escreva no prompt que entre a última letra e o herói fica um vão livre de pelo menos 4% da largura, e que, se faltar espaço, o texto diminui ou sobe (o herói nunca vai para trás do texto);
 - os 20% da esquerda só com o ambiente continuando (a volta repinta ali);
 - o fundo encostando nas quatro bordas, sem moldura nem cartão.
@@ -115,7 +115,7 @@ Uma chamada por slide, em ordem:
 
 - `imageIds`: a cadeia devolvida pela chamada anterior (na primeira, só o slide 1);
 - `bridge`: no corte 1→2, o herói descrito exatamente como no slide 1; nos outros, o satélite do mapa, com cor, material, brilho, sombra e altura (_"esfera laranja brilhante, reflexo branco no alto à esquerda, halo suave, no terço superior"_);
-- `content`: os textos exatos do slide (título, corpo, progresso em %) e a evidência, se houver;
+- `content`: os textos exatos do slide (título e corpo; nada de contador de progresso) e a evidência, se houver;
 - `style`: a ficha de estilo;
 - `total`: quantos slides o carrossel terá (3 a 5), igual em toda chamada;
 - `loopBridge`: o satélite da volta N→1, igual em toda chamada. A ferramenta só o pinta quando o novo slide é o último, e então fecha a volta sozinha.
@@ -156,6 +156,6 @@ Se o dono quiser montar sozinho:
 2. Réguas e uma guia vertical a cada 1080 px.
 3. Um fundo só para a tela inteira (para uma foto em loop: duplicar, espelhar na horizontal e colocar lado a lado).
 4. Herói sem fundo com o centro numa guia; uma esfera ou objeto em cada outra guia, alternando cima e baixo; para a volta, um objeto meio para fora da borda direita e uma cópia meio para fora da borda esquerda, na mesma altura.
-5. Texto dentro de cada slide, a 80 px das guias; progresso em % embaixo; @perfil em cima.
+5. Texto dentro de cada slide, a 80 px das guias; @perfil em cima, sem contador de progresso.
 6. Baixar em PNG e dividir em N colunas iguais (divisor de imagem: colunas = N, linhas = 1; no Figma, N frames sem espaço).
 7. Publicar na ordem, num único carrossel.

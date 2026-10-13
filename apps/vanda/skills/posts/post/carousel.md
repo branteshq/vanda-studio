@@ -26,6 +26,6 @@ Prova, resultado e número só se forem reais e confirmados (purposes.md, Fatos 
 2. Format: o MESMO em todos os slides (o Instagram recorta a série pela proporção do primeiro), passado em `aspectRatio` em cada paint.
 3. Gere a capa primeiro, inspecione e só siga quando ela estiver aprovada: ela fixa paleta, família tipográfica, assinatura e acabamento da série.
 4. Nos slides seguintes, passe o imageId da capa (ou de outro slide aprovado) em `referenceImageIds` como referência de estilo, com as referências de identidade necessárias. Repita o estilo, não a copy nem a composição da capa. Faça o mesmo ao refazer um único slide numa revisão.
-5. Um modelo visual para os slides internos (mesmo layout, mesma escala de texto); a variedade vem do conteúdo. A capa e o fechamento podem ser diferentes.
+5. Um modelo visual para os slides internos (mesmo layout, mesma escala de texto); a variedade vem do conteúdo. A capa e o fechamento podem ser diferentes. Sem contador de slides ("1/4", "33%") nem bolinhas de página: o Instagram já mostra a posição. Número só quando é conteúdo (DICA 3 de 5 numa lista).
 6. Revisão: a série inteira, com identidade, ordem, ritmo, ausência de repetição acidental e o mesmo format. Corrija só o slide com defeito.
 7. create_post: type carousel, o format usado e 2 a 10 imageIds na ordem dos slides.

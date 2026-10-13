@@ -125,6 +125,44 @@ export function assertFaceReferenced(
   if (!found) throw new Error("no paint call passed the owner's face photo with a feed post");
 }
 
+/** The owner's attached product photo reached the image model: some paint (or carousel extend) passed it. */
+export function assertProductReferenced(trace: readonly EvalTraceStep[], photoId: string): void {
+  const painters = new Set(["paint", "extend_infinite_carousel", "weave_infinite_carousel"]);
+
+  const found = trace.some((step) =>
+    (step.calls ?? []).some(
+      (call) =>
+        painters.has(call.toolName ?? "") &&
+        JSON.stringify(call.input ?? call.args ?? {}).includes(photoId),
+    ),
+  );
+
+  if (!found) throw new Error("no paint call passed the owner's product photo");
+}
+
+/**
+ * A request missing what the post needs ends in a question, not a picture: no
+ * paint, no draft, and a reply that asks for a photo or the product's details.
+ */
+export function assertAskedFirst(
+  trace: readonly EvalTraceStep[],
+  response: string,
+  postCount: number,
+): void {
+  const painted = trace.some((step) =>
+    (step.calls ?? []).some((call) =>
+      ["paint", "extend_infinite_carousel", "weave_infinite_carousel", "create_post"].includes(
+        call.toolName ?? "",
+      ),
+    ),
+  );
+
+  if (painted || postCount > 0) throw new Error("painted or drafted instead of asking first");
+
+  if (!/\b(fotos?|imagens?|detalhes|capas?)\b/i.test(response) || !response.includes("?"))
+    throw new Error("the reply does not ask for a photo or the product's details");
+}
+
 /**
  * The brand file's Design section carries both decisions after a post on a brand
  * with a feed: `Manter` (identity every post keeps) and `Evoluir` (the execution
