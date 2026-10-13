@@ -132,8 +132,7 @@ describe("workspace navigation", () => {
       expect(listing.entries).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ name: "instagram-market-research", kind: "dir" }),
-          expect.objectContaining({ name: "post-production", kind: "dir" }),
-          expect.objectContaining({ name: "post-type-carousel", kind: "dir" }),
+          expect.objectContaining({ name: "post", kind: "dir" }),
           expect.objectContaining({ name: "unslop", kind: "dir" }),
         ]),
       );
@@ -162,19 +161,29 @@ describe("workspace navigation", () => {
       expect(license.file.text).toContain("MIT License");
     }
 
-    // Hidden sub-skills stay readable on demand for the router.
+    // The post skill's resources stay readable on demand.
     const production = await t.query(internal.workspaceData.read, {
       accountId,
-      path: "/skills/post-production/SKILL.md",
+      path: "/skills/post/SKILL.md",
     });
 
     expect(production.ok).toBe(true);
 
     if (production.ok && production.file.kind === "text") {
       expect(production.file.text).not.toContain("disable-model-invocation");
-      expect(production.file.text).toContain("## 0. Tipo → propósito → format");
+      expect(production.file.text).toContain("## 1. Identidade fica, execução melhora");
       expect(production.file.text).toContain("editOfImageId");
     }
+
+    const format = await t.query(internal.workspaceData.read, {
+      accountId,
+      path: "/skills/post/formats/tier-list.md",
+    });
+
+    expect(format.ok).toBe(true);
+
+    if (format.ok && format.file.kind === "text")
+      expect(format.file.text).toContain("# Formato de anúncio: tier list");
   });
 
   it("does not expose retired template paths even when old documents remain", async () => {

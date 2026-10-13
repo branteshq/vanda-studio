@@ -17,6 +17,15 @@ export type EvalBrand = {
    */
   feed?: { tag: string; title: string; subtitle: string }[];
   /**
+   * How the feed is made. "strong" (default): one clean, repeated grid worth keeping.
+   * "weak": the turquoise, the signature and the humour are the brand, but the
+   * execution is dated (double frame, clip art, crammed shadowed title); the posts
+   * should keep the first and improve on the second.
+   */
+  feedStyle?: "strong" | "weak";
+  /** Design lines the guide wrote before Manter and Evoluir existed ("Imagens: …"). */
+  designNotes?: string[];
+  /**
    * The owner, who appears in the posts. The harness draws her (references.ts) in
    * every feed post and once as a plain face photo, saved as a `face` reference;
    * the brand file names her under Quem aparece.
@@ -33,6 +42,8 @@ export type EvalCase = {
   kind: "creative" | "revision" | "retrieval" | "help" | "safety";
   holdout?: boolean;
   agent?: "vanda" | "caetano";
+  /** The ad format file of the post skill the agent must read ("tier-list.md"). */
+  formatFile?: string;
   /** Reference artwork to attach when the case id differs from the reference id. */
   referenceId?:
     | "caju-background-revision"
@@ -212,6 +223,44 @@ export const brands: EvalBrand[] = [
         "em todos os posts: retrato dela de frente, sorrindo, à direita do título, da cintura para cima",
     },
   },
+  {
+    id: "plugue-eletronicos",
+    name: "Plugue Eletrônicos",
+    handle: "@plugue.loja",
+    notes:
+      "Loja online fictícia de eletrônicos baratos (fones, carregadores, caixas de som) em Goiânia, com entrega para todo o Brasil e voz de meme.",
+    design: {
+      colors: [
+        { hex: "#00999E", name: "Turquesa" },
+        { hex: "#111111", name: "Preto" },
+        { hex: "#FFFFFF", name: "Branco" },
+        { hex: "#FF7A00", name: "Laranja" },
+      ],
+      fonts: [{ family: "Montserrat", role: "texto" }],
+      tagline: "Tecnologia que cabe no bolso.",
+    },
+    preferences:
+      "Voz casual e animada, humor de meme, gírias leves; nunca prometer garantia estendida nem frete grátis sem condição.",
+    facts: [
+      "O Fone Bluetooth Pulse X custa R$ 129,90, é preto fosco e tem bateria de até 30 horas.",
+      "Entrega para todo o Brasil; frete e prazo dependem do CEP.",
+      "Site: plugue.com.br.",
+    ],
+    feedStyle: "weak",
+    designNotes: [
+      "Imagens: artes quadradas com fundo turquesa, moldura fina dupla branca, título preto grande com sombra, selo laranja de oferta, desenho do produto e assinatura @plugue.loja · plugue.com.br no rodapé (dono)",
+    ],
+    feed: [
+      { tag: "OFERTA!", title: "FONE NOVO NA ÁREA!", subtitle: "Som que estoura, preço que não!!" },
+      { tag: "CORRE!", title: "CARREGADOR TURBO", subtitle: "Bateria cheia antes do café esfriar" },
+      {
+        tag: "SÓ HOJE",
+        title: "CAIXINHA DE SOM",
+        subtitle: "Leva a festa no bolso, meu consagrado",
+      },
+      { tag: "OFERTA!", title: "CABO QUE NÃO QUEBRA", subtitle: "Dobra, puxa, pisa: aguenta tudo" },
+    ],
+  },
 ];
 
 export const cases: EvalCase[] = [
@@ -333,7 +382,7 @@ export const cases: EvalCase[] = [
     prompt:
       "Preciso que gere um carrossel infinito sobre o impacto da escala 6x1 nos pequenos negócios de serviço, com tom favorável à mudança.",
     expectations: [
-      "Encontra e segue a habilidade post-type-infinite-carousel.",
+      "Lê e segue /skills/post/infinite-carousel.md.",
       "Tem um herói grande no corte 1→2 e um objeto atravessando cada outro corte, inclusive a volta do último para o primeiro.",
       "O texto fica longe dos cortes e o rascunho usa os slides costurados.",
     ],
@@ -527,6 +576,32 @@ export const cases: EvalCase[] = [
       "Passa ao paint a foto de rosto e ao menos um post do feed, e diz no prompt qual é o rosto e qual é o layout.",
       "A arte mostra a Rafaela reconhecível (cabelo ruivo cacheado, óculos redondos verdes, blusa amarela) à direita, acima do título, na grade do feed: fundo Musgo, pílula Pêssego com DICA 04, título branco em caixa alta sobre um traço Pêssego.",
       "Não promete perda de peso, cura nem resultado garantido.",
+    ],
+    kind: "creative",
+  },
+  {
+    id: "plugue-weak-feed",
+    brandId: "plugue-eletronicos",
+    prompt: "faz um post do fone Pulse X pra mim",
+    expectations: [
+      "Grava no Design do arquivo da marca as linhas Manter e Evoluir como (Vanda), sem apagar a linha Imagens.",
+      "Mantém a identidade: Turquesa #00999E e a assinatura @plugue.loja · plugue.com.br, com a voz de meme.",
+      "Melhora a execução: sem moldura dupla, sem selo de oferta, sem desenho de fone e sem título espremido com sombra; o fone aparece como produto de verdade (preto fosco).",
+      "A arte é claramente da mesma marca e melhor que o post típico do feed.",
+      "Não inventa desconto, frete grátis nem garantia; preço R$ 129,90 se aparecer.",
+    ],
+    kind: "creative",
+  },
+  {
+    id: "caju-tier-list-format",
+    brandId: "cafe-caju",
+    prompt:
+      "Faz um post tier list dos jeitos de tomar o coado da casa: puro no S, com leite no A e com rapadura no B. É a preferência da equipe.",
+    formatFile: "tier-list.md",
+    expectations: [
+      "Lê /skills/post/formats.md e /skills/post/formats/tier-list.md, e o prompt do paint começa pelo prompt-base do formato.",
+      "Três faixas S, A e B na ordem pedida, cada uma com o nome do jeito de tomar e uma mini foto do coado.",
+      "Diz que é a preferência da equipe e não inventa nota, preço novo ou avaliação.",
     ],
     kind: "creative",
   },

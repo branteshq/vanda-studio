@@ -67,6 +67,7 @@ const escapeXml = (text: string): string =>
  * the handle at the foot. Synthetic and deterministic: never a customer's post.
  */
 export function feedImage(brand: EvalBrand, post: FeedPost): Uint8Array {
+  if (brand.feedStyle === "weak") return weakFeedImage(brand, post);
   const [ink, mustard, paper] = brand.design.colors.map((color) => color.hex);
   const owner = brand.owner ? person(800, 440, 0.75) : "";
 
@@ -126,6 +127,49 @@ export function ownerFaceImage(): Uint8Array {
   return new Resvg(`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000">
     <rect width="800" height="1000" fill="#E9E4DC"/>
     ${person(400, 520, 1.5)}</svg>`)
+    .render()
+    .asPng();
+}
+
+/**
+ * One post of a feed with a clear identity and dated execution, like many small
+ * shops' feeds: turquoise square, thin double white frame, a crammed black serif
+ * title with a hard shadow, an orange starburst, a clip-art headphone and the
+ * signature in a black footer band. Synthetic and deterministic.
+ */
+function weakFeedImage(brand: EvalBrand, post: FeedPost): Uint8Array {
+  const [turquoise, black, white, orange] = brand.design.colors.map((color) => color.hex);
+  const site = brand.facts.find((fact) => fact.startsWith("Site: "))?.slice(6, -1) ?? "";
+
+  const star = Array.from({ length: 24 }, (_, i) => {
+    const angle = (Math.PI * i) / 12;
+    const radius = i % 2 === 0 ? 150 : 110;
+
+    return `${Math.round(Math.cos(angle) * radius)},${Math.round(Math.sin(angle) * radius)}`;
+  }).join(" ");
+
+  return new Resvg(`<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024">
+    <rect width="1024" height="1024" fill="${turquoise}"/>
+    <rect x="22" y="22" width="980" height="980" fill="none" stroke="${white}" stroke-width="5"/>
+    <rect x="38" y="38" width="948" height="948" fill="none" stroke="${white}" stroke-width="2"/>
+    <g font-family="DejaVu Serif" font-weight="bold" font-size="86" text-anchor="middle">
+    <text x="518" y="176" fill="#5A5A5A">${escapeXml(post.title)}</text>
+    <text x="512" y="170" fill="${black}">${escapeXml(post.title)}</text></g>
+    <g transform="translate(470,560)">
+      <path d="M-170 40 Q-170 -190 0 -190 Q170 -190 170 40" fill="none" stroke="${black}" stroke-width="34"/>
+      <rect x="-215" y="10" width="90" height="170" rx="40" fill="${black}"/>
+      <rect x="125" y="10" width="90" height="170" rx="40" fill="${black}"/>
+      <ellipse cx="-185" cy="60" rx="14" ry="38" fill="${white}" opacity="0.8"/>
+      <ellipse cx="155" cy="60" rx="14" ry="38" fill="${white}" opacity="0.8"/>
+    </g>
+    <g transform="translate(800,330) rotate(-14)">
+      <polygon points="${star}" fill="${orange}" stroke="${black}" stroke-width="4"/>
+      <text y="14" font-family="DejaVu Sans" font-weight="bold" font-size="40" text-anchor="middle" fill="${white}">${escapeXml(post.tag)}</text>
+    </g>
+    <text x="512" y="850" font-family="DejaVu Sans Mono" font-size="40" text-anchor="middle" fill="${white}">${escapeXml(post.subtitle)}</text>
+    <rect x="38" y="900" width="948" height="86" fill="${black}"/>
+    <text x="512" y="956" font-family="DejaVu Sans" font-size="34" text-anchor="middle" fill="${white}">${escapeXml(`${brand.handle} · ${site}`)}</text>
+  </svg>`)
     .render()
     .asPng();
 }

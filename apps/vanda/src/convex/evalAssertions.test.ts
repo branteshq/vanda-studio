@@ -2,7 +2,9 @@ import { Jimp } from "jimp";
 import { describe, expect, it } from "vitest";
 import {
   assertFeedReferenced,
+  assertIdentityKeptExecutionImproved,
   assertImagesWereInspected,
+  assertKeepAndEvolveWritten,
   assertProtectedPixelsPreserved,
   assertRejectedPaintWasReported,
   type EvalTraceStep,
@@ -207,5 +209,69 @@ describe("evaluation guards", () => {
       expect(image.getPixelColor(1000, 20).toString(16).slice(0, 6)).toBe("f2b134");
       expect(image.getPixelColor(150, 905).toString(16).slice(0, 6)).toBe("f2b134");
     }
+  });
+
+  it("requires Manter and Evoluir in the Design section", () => {
+    const file = (design: string) =>
+      `# Marca\n\n## Voz\n\n- Manter: fora do Design (dono)\n\n## Design\n\n${design}\n## Provas\n`;
+
+    expect(() => assertKeepAndEvolveWritten(file("- Paleta: #00999E (dono)\n"))).toThrow("Manter");
+    expect(() =>
+      assertKeepAndEvolveWritten(file("- Manter: turquesa e assinatura (Vanda)\n")),
+    ).toThrow("Evoluir");
+    expect(() =>
+      assertKeepAndEvolveWritten(
+        file("- Manter: turquesa (Vanda)\n- Evoluir: sem moldura, foto do produto (Vanda)\n"),
+      ),
+    ).not.toThrow();
+  });
+
+  it("keeps identity in the paint prompt and only names dated elements to exclude them", () => {
+    const options = {
+      hex: "#00999E",
+      signature: "@plugue.loja",
+      dated:
+        /moldura (fina )?dupla|double[- ](thin )?(white )?(frame|border)|starburst|clip[- ]?art/i,
+    };
+
+    const prompt = (text: string): EvalTraceStep[] => [
+      { calls: [{ toolName: "paint", input: { prompt: text } }] },
+    ];
+
+    expect(() => assertIdentityKeptExecutionImproved([], options)).toThrow("no paint");
+    expect(() =>
+      assertIdentityKeptExecutionImproved(prompt("teal #00999e, footer @plugue.loja"), options),
+    ).not.toThrow();
+    expect(() =>
+      assertIdentityKeptExecutionImproved(prompt("orange ground, footer @plugue.loja"), options),
+    ).toThrow("#00999E");
+    expect(() =>
+      assertIdentityKeptExecutionImproved(prompt("teal #00999E background"), options),
+    ).toThrow("signature");
+    expect(() =>
+      assertIdentityKeptExecutionImproved(
+        prompt("teal #00999E, thin double white frame around it, @plugue.loja"),
+        options,
+      ),
+    ).toThrow("dated element");
+    expect(() =>
+      assertIdentityKeptExecutionImproved(
+        prompt("teal #00999E, no double frame, no clip art, real product photo, @plugue.loja"),
+        options,
+      ),
+    ).not.toThrow();
+  });
+
+  it("renders the weak feed as a square with the brand's turquoise and a double frame", async () => {
+    const brand = brands.find((candidate) => candidate.id === "plugue-eletronicos")!;
+    const image = await Jimp.read(Buffer.from(feedImage(brand, brand.feed![0]!)));
+
+    expect([image.width, image.height]).toEqual([1024, 1024]);
+
+    const hex = (x: number, y: number) =>
+      image.getPixelColor(x, y).toString(16).padStart(8, "0").slice(0, 6);
+
+    expect(hex(10, 500)).toBe("00999e");
+    expect(hex(22, 500)).toBe("ffffff");
   });
 });

@@ -889,7 +889,7 @@ export default defineSchema({
     // Why the post exists (design-theory category); optional for legacy posts.
     purpose: v.optional(postPurposeValidator),
     secondaryPurpose: v.optional(postPurposeValidator),
-    // Why this format and purpose were chosen (post-production justification).
+    // Why this format and purpose were chosen (the post skill's rationale).
     rationale: v.optional(v.string()),
     imageIds: v.array(v.id("images")),
     caption: v.string(),

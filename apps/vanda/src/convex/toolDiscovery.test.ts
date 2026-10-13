@@ -3,7 +3,7 @@ import { convertArrayToReadableStream, MockLanguageModelV3 } from "ai/test";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { caetano, caetanoToolDiscovery } from "./caetanoAgent";
-import { installedSkills } from "./skills/catalog";
+import { findInstalledSkill } from "./skills/catalog";
 import { systemPrompt, vanda, vandaToolDiscovery } from "./vanda";
 import { toolDiscovery } from "./toolDiscovery";
 
@@ -221,16 +221,13 @@ describe("role-specific discovery", () => {
   );
 
   it.each([
-    ["promoção com desconto no bolo", "post-purpose-promocional"],
-    ["post tipo story", "post-type-story"],
-    ["post tipo carrossel", "post-type-carousel"],
-    ["post tipo carrossel infinito", "post-type-infinite-carousel"],
-    ["carrossel contínuo panorâmico em loop", "post-type-infinite-carousel"],
-    ["carrossel com mais apelo visual", "post-type-infinite-carousel"],
-    ["carrossel para transmitir mais informação", "post-type-carousel"],
-    ["criar arte de post", "post-production"],
-    ["post-purpose-prova-social", "post-purpose-prova-social"],
-  ])("finds the %s skill with its location", async (query, name) => {
+    "post tipo story",
+    "post tipo carrossel",
+    "carrossel contínuo panorâmico em loop",
+    "criar arte de post",
+    "formato de anúncio tier list",
+    "post",
+  ])("finds the post skill with its location for %s", async (query) => {
     const result = await vandaToolDiscovery.search.execute!(
       { query },
       { toolCallId: "search", messages: [] },
@@ -238,20 +235,18 @@ describe("role-specific discovery", () => {
 
     expect(result).toHaveProperty(
       "skills.0",
-      expect.objectContaining({ name, location: `/skills/${name}/SKILL.md` }),
+      expect.objectContaining({ name: "post", location: "/skills/post/SKILL.md" }),
     );
   });
 
-  it("finds the infinite carousel skill together with its seam tool", async () => {
+  it("finds the post skill together with the infinite carousel tool", async () => {
     const result = await vandaToolDiscovery.search.execute!(
       { query: "carrossel infinito" },
       { toolCallId: "search", messages: [] },
     );
 
     expect(result).toMatchObject({
-      skills: expect.arrayContaining([
-        expect.objectContaining({ name: "post-type-infinite-carousel" }),
-      ]),
+      skills: expect.arrayContaining([expect.objectContaining({ name: "post" })]),
       tools: expect.arrayContaining([
         expect.objectContaining({ name: "extend_infinite_carousel" }),
       ]),
@@ -281,9 +276,9 @@ describe("role-specific discovery", () => {
                 tools: [],
                 skills: [
                   {
-                    name: "post-type-story",
-                    description: "story",
-                    location: "/skills/post-type-story/SKILL.md",
+                    name: "post",
+                    description: "post",
+                    location: "/skills/post/SKILL.md",
                   },
                 ],
                 message: "",
@@ -393,169 +388,29 @@ describe("discovery execution", () => {
   );
 });
 
-describe("post skill ranking", () => {
-  // Queries Vanda actually sent in the skill benchmark; a plain word count tied
-  // every purpose and the alphabet (or "produção") handed the slot to bastidores.
-  it.each([
-    [
-      "habilidades post-production carrossel infinito contínuo panorâmico e propósito post produto; produção carrossel Instagram",
-      "post-purpose-produto",
-    ],
-    [
-      "habilidade produção carrossel infinito contínuo panorâmico post-production propósito educacional prevenção mofo",
-      "post-purpose-educacional",
-    ],
-    [
-      "post-production carrossel infinito contínuo panorâmico loop; post propósito storytelling; skill produção carrossel infinito",
-      "post-purpose-storytelling",
-    ],
-    ["carrossel propósito dados enquete resultado", "post-purpose-dados"],
-  ])("returns production, type and the named purpose for %s", async (query, purpose) => {
-    const result = await vandaToolDiscovery.search.execute!(
-      { query },
-      { toolCallId: "search", messages: [] },
-    );
+describe("ad formats in the post skill", () => {
+  const post = findInstalledSkill("post");
 
-    const names = z
-      .object({ skills: z.array(z.object({ name: z.string() })) })
-      .parse(result)
-      .skills.map((skill) => skill.name);
+  const formats = Object.entries(post?.files ?? {}).flatMap(([path, text]) => {
+    const title = text.match(/^# Formato de anúncio: (.+)$/m)?.[1];
 
-    expect(names).toContain(purpose);
-    // The named purpose outranks every other purpose.
-    expect(names.find((name) => name.startsWith("post-purpose-"))).toBe(purpose);
-    expect(names).not.toContain("post-purpose-bastidores");
-
-    if (query.includes("post-production")) expect(names[0]).toBe("post-production");
-
-    if (query.includes("infinito")) expect(names).toContain("post-type-infinite-carousel");
-  });
-});
-
-describe("ad format skill ranking", () => {
-  // "nós" is a stop word, so without the name phrase "nós vs nós" only searched "vs".
-  it.each([
-    [
-      "post-production post tipo image propósito storytelling nós vs nós cafeteria",
-      "post-ad-nos-vs-nos",
-    ],
-    [
-      "post-production post tipo image propósito produto formato nós vs eles",
-      "post-ad-nos-vs-eles",
-    ],
-    [
-      "post-production post tipo image propósito educacional formato de anúncio tier list",
-      "post-ad-tier-list",
-    ],
-    [
-      "post-production post tipo image propósito produto formato de anúncio notas do iPhone",
-      "post-ad-notas-do-iphone",
-    ],
-    [
-      "post-production post tipo image propósito produto formato de anúncio scrollstopper",
-      "post-ad-scroll-stopper",
-    ],
-    [
-      "post-production post tipo image propósito produto formato de anúncio floating 3D",
-      "post-ad-floating-3d",
-    ],
-    [
-      "post-production post tipo image propósito produto formato de anúncio tiny planet",
-      "post-ad-tiny-planet",
-    ],
-    [
-      "post-production post tipo image propósito produto luz de sol de janela sunbeam",
-      "post-ad-sunbeam",
-    ],
-  ])("offers the named ad format for %s", async (query, format) => {
-    const result = await vandaToolDiscovery.search.execute!(
-      { query },
-      { toolCallId: "search", messages: [] },
-    );
-
-    const names = z
-      .object({ skills: z.array(z.object({ name: z.string() })) })
-      .parse(result)
-      .skills.map((skill) => skill.name);
-
-    expect(names).toContain(format);
-    expect(names.find((name) => name.startsWith("post-ad-"))).toBe(format);
-    expect(names).toContain("post-production");
-  });
-});
-
-describe("every ad format skill is reachable", () => {
-  const formats = installedSkills().flatMap((skill) => {
-    const title = skill.body.match(/^# Formato de anúncio: (.+)$/m)?.[1];
-
-    return title ? [{ name: skill.name, title }] : [];
+    return path.startsWith("formats/") && title ? [{ path, title, text }] : [];
   });
 
-  const skillNames = async (query: string) =>
-    z
-      .object({ skills: z.array(z.object({ name: z.string() })) })
-      .parse(
-        await vandaToolDiscovery.search.execute!({ query }, { toolCallId: "search", messages: [] }),
-      )
-      .skills.map((skill) => skill.name);
+  it("names every format in Vanda's instructions and in the index", () => {
+    expect(formats.length).toBeGreaterThan(40);
 
-  it("names every format in Vanda's instructions", () => {
-    expect(formats.length).toBeGreaterThan(0);
-
-    for (const { title } of formats) expect(systemPrompt()).toContain(title);
+    for (const { path, title } of formats) {
+      expect(systemPrompt()).toContain(title);
+      expect(post?.files["formats.md"]).toContain(`\`${path}\``);
+    }
   });
 
-  it.each(formats.map(({ name, title }) => [name, title] as const))(
-    "%s is found by the post search Vanda is told to make",
-    async (name, title) => {
-      const names = await skillNames(
-        `post-production post tipo image post propósito produto formato de anúncio ${title}`,
-      );
-
-      expect(names).toContain(name);
-      expect(names).toContain("post-production");
+  it.each(formats.map(({ path, text }) => [path, text] as const))(
+    "%s carries its prompt-base and an observable review",
+    (_path, text) => {
+      expect(text).toContain("- Prompt-base:");
+      expect(text).toContain("- Revisão: Reprove e corrija com editOfImageId se:");
     },
   );
-
-  // Real queries where the format word lost its slot to the production, type and purpose skills.
-  it.each([
-    [
-      "post-production post tipo image formato aviso informativo lançamento novidade embalagem tamanho novo formato produto",
-      "post-ad-aviso",
-    ],
-    [
-      "habilidades produção post Instagram post-production e post propósito promocional, post de oferta combo promocional tipo image ou carousel",
-      "post-ad-combo",
-    ],
-  ])("keeps the named format in a crowded search: %s", async (query, name) => {
-    expect(await skillNames(query)).toContain(name);
-  });
-});
-
-describe("ad formats don't crowd out the core post skills", () => {
-  const skillNames = async (query: string) =>
-    z
-      .object({ skills: z.array(z.object({ name: z.string() })) })
-      .parse(
-        await vandaToolDiscovery.search.execute!({ query }, { toolCallId: "search", messages: [] }),
-      )
-      .skills.map((skill) => skill.name);
-
-  // Every format is described as "Formato de anúncio …"; counted as a word, "anuncio"
-  // stopped identifying the anuncio purpose once "Instagram" competed in the query.
-  it.each([
-    "post-production post tipo image propósito anuncio criar arte Instagram",
-    "habilidade post-production, post tipo story, post propósito anuncio para story do Instagram",
-  ])("keeps the named purpose and leaves story ads out of %s", async (query) => {
-    const names = await skillNames(query);
-
-    expect(names).toContain("post-purpose-anuncio");
-    expect(names).not.toContain("post-ad-story-do-instagram");
-  });
-
-  it("finds the story ad format when it is asked for by name", async () => {
-    expect(
-      await skillNames("post-production post tipo story formato de anúncio story do Instagram"),
-    ).toContain("post-ad-story-do-instagram");
-  });
 });

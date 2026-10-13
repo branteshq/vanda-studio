@@ -38,8 +38,19 @@ export type BrandFact = { kind: BrandFactKind; text: string; origin?: string };
 /** The section that holds the palette, the typography and the logo. */
 const DESIGN_SECTION = "Design";
 
-/** Labels of the Design items: "- Paleta: #hex nome (papel); …", "- Logo: ![…](image:id)". */
-export const DESIGN_LABELS = { palette: "Paleta", typography: "Tipografia", logo: "Logo" } as const;
+/**
+ * Labels of the Design items: "- Paleta: #hex nome (papel); …", "- Logo: ![…](image:id)".
+ * `Manter` is the brand's identity, what every post keeps (colours, signature, a recurring
+ * person or element, humour); `Evoluir` is the execution the feed shows today and how the
+ * next posts improve on it. Caetano writes both in the guide; Vanda when they are missing.
+ */
+export const DESIGN_LABELS = {
+  palette: "Paleta",
+  typography: "Tipografia",
+  logo: "Logo",
+  keep: "Manter",
+  evolve: "Evoluir",
+} as const;
 
 /**
  * The people who appear in the posts, one item each: who they are, how often and
@@ -78,7 +89,7 @@ const SECTIONS: { title: string; kinds: readonly BrandFactKind[]; discover?: str
     title: DESIGN_SECTION,
     kinds: [],
     discover:
-      "cores e o papel de cada uma, se tem logo (e onde ele vai), a fonte se souber, o estilo das imagens e o que evitar",
+      "cores e o papel de cada uma, se tem logo (e onde ele vai), a fonte se souber, o estilo das imagens, o que manter e o que melhorar nos posts, e o que evitar",
   },
   {
     title: "Nunca fazer",

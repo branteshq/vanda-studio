@@ -2,7 +2,7 @@
 title: Arquivo da marca
 description: O que a Vanda e o Caetano sabem sobre cada negócio, de onde veio cada item e como editar.
 order: 50
-keywords: marca memoria arquivo referencia referencias layout feed padrao exemplo evitar preferencia preferencias identidade visual cor cores fonte fontes paleta logo tom voz brand memory editar
+keywords: marca memoria arquivo manter evoluir melhorar consistencia referencia referencias layout feed padrao exemplo evitar preferencia preferencias identidade visual cor cores fonte fontes paleta logo tom voz brand memory editar
 ---
 
 # Arquivo da marca
@@ -11,9 +11,9 @@ Cada negócio tem um **arquivo da marca**: um documento único com tudo o que a 
 
 ## Como começa
 
-Depois de conectar o Instagram, a configuração termina no **Guia da marca**, uma conversa curta com o Caetano. Primeiro ele lê seu perfil e seus posts recentes, olhando as imagens. Enquanto isso, o chat mostra o que ele está fazendo (**lendo os posts…**, **guardando referências…**, **escrevendo o guia da marca…**). Ele anota no arquivo tudo o que viu, marcado como **(Vanda)**: o que você oferece, para quem, a voz das legendas, as cores, as fontes e o padrão dos posts. Também guarda de 4 a 6 posts que mostram o padrão do seu feed como referências, e eles aparecem em miniatura no chat (veja Referências, abaixo).
+Depois de conectar o Instagram, a configuração termina no **Guia da marca**, uma conversa curta com o Caetano. Primeiro ele lê seu perfil e seus posts recentes, olhando as imagens. Enquanto isso, o chat mostra o que ele está fazendo (**lendo os posts…**, **guardando referências…**, **escrevendo o guia da marca…**). Ele anota no arquivo tudo o que viu, marcado como **(Vanda)**: o que você oferece, para quem, a voz das legendas, as cores, as fontes e o padrão dos posts. Ele também olha o feed como o diretor de arte de uma agência e decide sozinho o que fica e o que melhora (veja **Manter e Evoluir**, abaixo). Se o feed é bem feito, guarda de 4 a 6 posts que mostram o padrão como referências de layout; se não, guarda 2 ou 3 só pelas cores e pela assinatura. Elas aparecem em miniatura no chat (veja Referências, abaixo).
 
-Depois ele manda uma mensagem só, com o que entendeu, diz o que deduziu pelo feed e pergunta de uma vez o que o Instagram não mostra, como o preço, o que você quer conseguir no Instagram ou o que a lei do seu setor proíbe. Responda do seu jeito, ou corrija o que estiver errado. As perguntas são opcionais: dá para aprovar sem responder.
+Depois ele manda uma mensagem só, com o que entendeu, o que fica e o que vai melhorar nos próximos posts, diz o que deduziu pelo feed e pergunta de uma vez o que o Instagram não mostra, como o preço, o que você quer conseguir no Instagram ou o que a lei do seu setor proíbe. Responda do seu jeito, ou corrija o que estiver errado. As perguntas são opcionais: dá para aprovar sem responder.
 
 Se a mesma pessoa aparece em vários posts, ele pergunta se é você e pede 2 ou 3 fotos com o rosto bem visível. Com as fotos, a Vanda passa a colocar você nos posts, do jeito que o arquivo diz (veja Quem aparece, abaixo). Se você confirmar sem mandar fotos, o Caetano recorta seu rosto de um ou dois posts do feed; fotos de verdade ficam melhores, e dá para mandar depois.
 
@@ -33,11 +33,20 @@ Em **Perfil › Negócios**, abra o negócio. Lá você lê o arquivo, clica em 
 - **Público**: para quem você fala.
 - **Voz**: como a marca escreve e a postura (por exemplo, só profissional).
 - **Quem aparece**: cada pessoa que aparece nos posts (você, alguém da equipe), com que frequência ("em cerca de metade dos posts") e como ("retrato de frente, nunca selfie"). Quando ela diz que você aparece, a Vanda e o Caetano colocam você nos posts nessa frequência, usando suas fotos de rosto. Sem nenhuma pessoa aqui, os posts não mostram ninguém real. Para não aparecer, escreva "Ninguém aparece nos posts".
-- **Design**: a paleta, com o papel de cada cor; a tipografia; o logo, se você tiver, e onde ele vai; o estilo das imagens; e o que evitar. O layout dos posts segue as referências (abaixo); o formato é escolhido a cada post.
+- **Design**: a paleta, com o papel de cada cor; a tipografia; o logo, se você tiver, e onde ele vai; o estilo das imagens; **Manter** e **Evoluir** (abaixo); e o que evitar. O formato é escolhido a cada post.
 - **Provas**: registros, resultados e depoimentos confirmados.
 - **Preferências**: o que você gosta ou não gosta nos posts.
 - **Nunca fazer**: restrições e promessas proibidas.
 - **O que funciona**: aprendizados com os resultados dos posts.
+
+## Manter e Evoluir
+
+A Vanda trabalha como uma agência: cada post precisa ser reconhecido como seu e ficar melhor que o post típico do seu feed. Por isso a seção Design tem duas linhas.
+
+- **Manter**: o que faz alguém reconhecer sua marca sem ler o nome, como suas cores, a assinatura (@, site, logo), quem aparece e o humor. Isso vai em todo post.
+- **Evoluir**: o que está fraco na execução de hoje (moldura, clip art, texto apertado, fotos) e como os próximos posts vão ficar melhores.
+
+O Caetano escreve as duas no guia da marca. Se o seu feed já é bem feito, a grade dele entra em Manter e os posts novos seguem o mesmo layout. Em negócios que fizeram o guia antes disso, a Vanda escreve as duas no primeiro post e conta o que mudou. Para os posts seguirem iguais aos de hoje, diga "quero igual" ou edite as linhas em **Perfil › Negócios**.
 
 ## Referências
 
@@ -47,7 +56,7 @@ Referências são imagens que a Vanda e o Caetano seguem ao criar: o padrão do 
 - **Como entram**: o Caetano guarda posts do seu Instagram no guia da marca; a Vanda e o Caetano guardam o que você mostrar como exemplo ("quero assim", "nunca faz assim" vira Evitar); e você marca qualquer imagem na **Galeria**: selecione e use **Marcar como referência**, ou abra a imagem e escolha os rótulos.
 - **Onde ver**: em **Galeria › Filtrar › Referências**, com um filtro por rótulo. Ao abrir uma referência você muda os rótulos, edita a nota ou clica em **Tirar das referências**, que mantém a imagem na galeria. Em **Perfil › Negócios**, o arquivo da marca mostra a linha **Referências** com a contagem por rótulo, as mais recentes e **Ver na galeria**.
 - **Seu rosto**: em **Perfil › Negócios**, logo acima de Referências, ficam as fotos com rótulo Rosto, em círculo. **Enviar foto** guarda uma ou mais fotos suas como Rosto. Mande 2 ou 3, de frente, com boa luz e o rosto bem visível: um post pronto do feed serve menos, porque o gerador mistura seu rosto com o layout. Você também pode mandar as fotos na conversa.
-- **Como são usadas**: antes de pintar um post, a Vanda busca as referências, passa 2 ou 3 de Layout e Estilo para o gerador de imagens e descreve o layout delas, para o post novo caber no seu feed. Evitar nunca vai ao gerador: vira uma instrução do que não fazer. Se você pedir algo diferente, ela usa as referências só para as cores e a assinatura. Quando o post leva você, ela passa também uma foto de Rosto e diz ao gerador qual imagem é o rosto e qual é o layout; sem foto de rosto, ela faz o post sem você e pede as fotos, sem inventar um rosto.
+- **Como são usadas**: antes de pintar um post, a Vanda busca as referências e passa 2 ou 3 de Layout e Estilo para o gerador de imagens. Se o feed é bem feito, ela descreve o layout delas, para o post novo caber no seu feed; se Evoluir pede outra execução, elas entram só pelas cores e pela assinatura. Evitar nunca vai ao gerador: vira uma instrução do que não fazer. Se você pedir algo diferente, ela usa as referências só para as cores e a assinatura. Quando o post leva você, ela passa também uma foto de Rosto e diz ao gerador qual imagem é o rosto e qual é o layout; sem foto de rosto, ela faz o post sem você e pede as fotos, sem inventar um rosto.
 
 ## De onde veio cada item
 

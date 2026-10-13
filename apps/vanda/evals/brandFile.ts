@@ -28,6 +28,6 @@ export function brandFileFor(brand: EvalBrand): string {
     .replace("## Preferências\n", `## Preferências\n\n- ${brand.preferences} (dono)\n`)
     .replace(
       "## Design\n",
-      `## Design\n- Paleta: ${palette} (dono)\n- Tipografia: ${typography} (dono)\n`,
+      `## Design\n- Paleta: ${palette} (dono)\n- Tipografia: ${typography} (dono)\n${(brand.designNotes ?? []).map((line) => `- ${line}\n`).join("")}`,
     );
 }

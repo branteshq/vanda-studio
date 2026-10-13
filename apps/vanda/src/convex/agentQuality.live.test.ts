@@ -15,6 +15,8 @@ import { professionalBrands, professionalCases } from "../../evals/professionalB
 import { feedImage, ownerFaceImage, referenceImage } from "../../evals/references";
 import {
   assertFaceReferenced,
+  assertIdentityKeptExecutionImproved,
+  assertKeepAndEvolveWritten,
   assertFeedReferenced,
   assertImagesWereInspected,
   assertProtectedPixelsPreserved,
@@ -410,7 +412,7 @@ it.skipIf(!enabled).each(suite)(
         const imageId = await insertUpload(
           `Feed publicado · ${post.tag} ${post.title}`,
           `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`,
-          { mimeType: "image/png", width: 1024, height: 1280 },
+          { mimeType: "image/png", width: 1024, height: brand.feedStyle === "weak" ? 1024 : 1280 },
         );
 
         await t.mutation(internal.references.mark, {
@@ -583,7 +585,16 @@ it.skipIf(!enabled).each(suite)(
         });
       }
 
+      const brandFileAfter = await t.query(internal.workspaceData.read, {
+        accountId: ids.accountId,
+        path: "/brand/marca.md",
+      });
+
       const state = await t.run(async (ctx) => ({
+        brandFile:
+          brandFileAfter.ok && brandFileAfter.file.kind === "text"
+            ? brandFileAfter.file.text
+            : null,
         posts: await ctx.db.query("posts").collect(),
         images: await ctx.db.query("images").collect(),
         runs: await ctx.db.query("codeRuns").collect(),
@@ -705,10 +716,37 @@ it.skipIf(!enabled).each(suite)(
         assertImagesWereInspected(trace, finalImageIds);
 
       if (faceImageId) assertFaceReferenced(trace, faceImageId, feedImageIds);
-      else if (feedImageIds.length > 0) assertFeedReferenced(trace, feedImageIds);
+      else if (feedImageIds.length > 0 && brand.feedStyle !== "weak")
+        assertFeedReferenced(trace, feedImageIds);
+
+      // A post on a brand with a feed starts by deciding what stays and what improves.
+      if (feedImageIds.length > 0) assertKeepAndEvolveWritten(state.brandFile ?? "");
+
+      if (brand.feedStyle === "weak") {
+        expect(state.brandFile, "the guide's Imagens line survives").toContain("- Imagens:");
+        assertIdentityKeptExecutionImproved(trace, {
+          hex: brand.design.colors[0]!.hex,
+          signature: brand.handle,
+          dated:
+            /moldura (fina )?dupla|double[- ](thin )?(white )?(frame|border)|starburst|clip[- ]?art|selo (laranja )?de oferta|drop shadow|sombra (dura|no t[ií]tulo)/i,
+        });
+      }
 
       if (entry.agent === "caetano")
         expect(trace.some((step) => step.agent === "vanda")).toBe(false);
+
+      if (entry.formatFile) {
+        const reads = trace.flatMap((step) =>
+          (step.calls ?? []).flatMap((call) =>
+            call.toolName === "read" ? [JSON.stringify(call.input ?? call.args)] : [],
+          ),
+        );
+
+        expect(
+          reads.some((input) => input.includes(`/skills/post/formats/${entry.formatFile}`)),
+          `read formats/${entry.formatFile}`,
+        ).toBe(true);
+      }
 
       const skillCase = skills ? skillCaseFor(entry.id) : undefined;
 
@@ -719,12 +757,10 @@ it.skipIf(!enabled).each(suite)(
           ),
         );
 
-        const purposeSkill = `post-purpose-${skillCase.purpose.replaceAll("_", "-")}`;
-
-        for (const skill of ["post-production", skillCase.typeSkill, purposeSkill])
+        for (const file of ["SKILL.md", skillCase.typeFile, "purposes.md"])
           expect(
-            readSkills.some((input) => input.includes(skill)),
-            `loaded ${skill}`,
+            readSkills.some((input) => input.includes(`/skills/post/${file}`)),
+            `read /skills/post/${file}`,
           ).toBe(true);
 
         const post = state.posts[0]!;
@@ -734,17 +770,14 @@ it.skipIf(!enabled).each(suite)(
         if (skillCase.type === "story") expect(post.format).toBe("9:16");
       }
 
-      if (
-        entry.id === "inf-carrossel-6x1" ||
-        skillCase?.typeSkill === "post-type-infinite-carousel"
-      ) {
+      if (entry.id === "inf-carrossel-6x1" || skillCase?.typeFile === "infinite-carousel.md") {
         const calls = trace.flatMap((step) => step.calls ?? []);
 
         expect(
           calls.some(
             (call) =>
               call.toolName === "read" &&
-              JSON.stringify(call.input).includes("post-type-infinite-carousel"),
+              JSON.stringify(call.input).includes("/skills/post/infinite-carousel.md"),
           ),
         ).toBe(true);
 

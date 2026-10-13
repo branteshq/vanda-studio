@@ -2,19 +2,15 @@ import type { EvalCase } from "./fixtures";
 
 /**
  * Skill coverage benchmark: every post type (image, carousel, infinite carousel,
- * story) and every post purpose skill, on the four fictional brands, with real
+ * story) and every post purpose, on the four fictional brands, with real
  * image generation. Prompts state the facts a post needs, so a missing fact is
  * the agent's fault, not the fixture's. `repeats` runs a case several times to
  * see whether quality holds from one run to the next.
  */
 export interface SkillCase extends EvalCase {
   readonly type: "image" | "carousel" | "story";
-  /** The type skill the agent should load (infinite carousel is a carousel with its own skill). */
-  readonly typeSkill:
-    | "post-type-image"
-    | "post-type-carousel"
-    | "post-type-infinite-carousel"
-    | "post-type-story";
+  /** The post skill file the agent should read for the type (image lives in SKILL.md). */
+  readonly typeFile: "SKILL.md" | "carousel.md" | "infinite-carousel.md" | "story.md";
   readonly purpose: string;
   readonly repeats?: number;
 }
@@ -27,7 +23,7 @@ export const skillCases: readonly SkillCase[] = [
     id: "skill-image-promocional",
     brandId: "cafe-caju",
     type: "image",
-    typeSkill: "post-type-image",
+    typeFile: "SKILL.md",
     purpose: "promocional",
     repeats: 2,
     prompt:
@@ -37,7 +33,7 @@ export const skillCases: readonly SkillCase[] = [
     id: "skill-image-anuncio",
     brandId: "pimba-papelaria",
     type: "image",
-    typeSkill: "post-type-image",
+    typeFile: "SKILL.md",
     purpose: "anuncio",
     prompt:
       "Cria um post de uma imagem anunciando que a nova linha de planners 2027 chega à loja neste sábado.",
@@ -46,7 +42,7 @@ export const skillCases: readonly SkillCase[] = [
     id: "skill-image-produto",
     brandId: "orvalho-botanica",
     type: "image",
-    typeSkill: "post-type-image",
+    typeFile: "SKILL.md",
     purpose: "produto",
     prompt:
       "Quero um post de uma imagem apresentando o Óleo Facial Sereno (30 ml, R$ 68): o produto em destaque e como ele entra na rotina da noite.",
@@ -55,7 +51,7 @@ export const skillCases: readonly SkillCase[] = [
     id: "skill-image-prova-social",
     brandId: "prumo-reparos",
     type: "image",
-    typeSkill: "post-type-image",
+    typeFile: "SKILL.md",
     purpose: "prova_social",
     prompt:
       'Faz um post de uma imagem com este depoimento real de cliente: "Resolveram a infiltração do banheiro em um dia e deixaram tudo limpo." — Marta, Boa Viagem.',
@@ -64,7 +60,7 @@ export const skillCases: readonly SkillCase[] = [
     id: "skill-image-expressao-cultural",
     brandId: "cafe-caju",
     type: "image",
-    typeSkill: "post-type-image",
+    typeFile: "SKILL.md",
     purpose: "expressao_cultural",
     prompt: "Faz um post de uma imagem celebrando o São João aqui no Recife, sem vender nada.",
   }),
@@ -72,7 +68,7 @@ export const skillCases: readonly SkillCase[] = [
     id: "skill-carousel-educacional",
     brandId: "prumo-reparos",
     type: "carousel",
-    typeSkill: "post-type-carousel",
+    typeFile: "carousel.md",
     purpose: "educacional",
     repeats: 2,
     prompt:
@@ -82,7 +78,7 @@ export const skillCases: readonly SkillCase[] = [
     id: "skill-carousel-informativo",
     brandId: "cafe-caju",
     type: "carousel",
-    typeSkill: "post-type-carousel",
+    typeFile: "carousel.md",
     purpose: "informativo",
     prompt:
       "Faz um carrossel de 3 slides avisando o horário do feriado: dia 15 abrimos das 9h às 14h, e lembrando que não fazemos entrega nem reserva.",
@@ -91,7 +87,7 @@ export const skillCases: readonly SkillCase[] = [
     id: "skill-carousel-dados",
     brandId: "orvalho-botanica",
     type: "carousel",
-    typeSkill: "post-type-carousel",
+    typeFile: "carousel.md",
     purpose: "dados",
     prompt:
       "Monta um carrossel de 3 slides com o resultado da nossa enquete com 212 clientes: 64% usam o óleo à noite, 23% de manhã e 13% nos dois.",
@@ -100,7 +96,7 @@ export const skillCases: readonly SkillCase[] = [
     id: "skill-carousel-storytelling",
     brandId: "pimba-papelaria",
     type: "carousel",
-    typeSkill: "post-type-carousel",
+    typeFile: "carousel.md",
     purpose: "storytelling",
     prompt:
       "Conta num carrossel de 4 slides como a Pimba começou: uma mesa de feira em 2019, os primeiros cadernos costurados à mão e a loja própria de hoje.",
@@ -109,7 +105,7 @@ export const skillCases: readonly SkillCase[] = [
     id: "skill-carousel-bastidores",
     brandId: "cafe-caju",
     type: "carousel",
-    typeSkill: "post-type-carousel",
+    typeFile: "carousel.md",
     purpose: "bastidores",
     prompt:
       "Faz um carrossel de 3 slides mostrando os bastidores da nossa torra de sexta de manhã.",
@@ -118,7 +114,7 @@ export const skillCases: readonly SkillCase[] = [
     id: "skill-carousel-institucional",
     brandId: "prumo-reparos",
     type: "carousel",
-    typeSkill: "post-type-carousel",
+    typeFile: "carousel.md",
     purpose: "institucional",
     prompt:
       "Cria um carrossel de 3 slides apresentando quem é a Prumo: o que fazemos, onde atendemos e o nosso jeito de trabalhar.",
@@ -127,7 +123,7 @@ export const skillCases: readonly SkillCase[] = [
     id: "skill-carousel-employer-branding",
     brandId: "prumo-reparos",
     type: "carousel",
-    typeSkill: "post-type-carousel",
+    typeFile: "carousel.md",
     purpose: "employer_branding",
     prompt:
       "Estamos contratando técnico de manutenção predial. Faz um carrossel de 3 slides sobre como é trabalhar na Prumo e como se candidatar pelo direct.",
@@ -136,7 +132,7 @@ export const skillCases: readonly SkillCase[] = [
     id: "skill-story-comunidade",
     brandId: "cafe-caju",
     type: "story",
-    typeSkill: "post-type-story",
+    typeFile: "story.md",
     purpose: "comunidade",
     prompt:
       "Faz um story chamando o pessoal pra votar: coado ou espresso, qual é o café da sua manhã?",
@@ -145,7 +141,7 @@ export const skillCases: readonly SkillCase[] = [
     id: "skill-story-editorial",
     brandId: "orvalho-botanica",
     type: "story",
-    typeSkill: "post-type-story",
+    typeFile: "story.md",
     purpose: "editorial",
     prompt:
       "Cria um story com uma dica editorial: como simplificar a rotina de cuidados no inverno.",
@@ -154,7 +150,7 @@ export const skillCases: readonly SkillCase[] = [
     id: "skill-infinite-educacional",
     brandId: "prumo-reparos",
     type: "carousel",
-    typeSkill: "post-type-infinite-carousel",
+    typeFile: "infinite-carousel.md",
     purpose: "educacional",
     repeats: 3,
     prompt:
@@ -164,7 +160,7 @@ export const skillCases: readonly SkillCase[] = [
     id: "skill-infinite-produto",
     brandId: "pimba-papelaria",
     type: "carousel",
-    typeSkill: "post-type-infinite-carousel",
+    typeFile: "infinite-carousel.md",
     purpose: "produto",
     repeats: 3,
     prompt:
@@ -174,7 +170,7 @@ export const skillCases: readonly SkillCase[] = [
     id: "skill-infinite-storytelling",
     brandId: "cafe-caju",
     type: "carousel",
-    typeSkill: "post-type-infinite-carousel",
+    typeFile: "infinite-carousel.md",
     purpose: "storytelling",
     repeats: 3,
     prompt:

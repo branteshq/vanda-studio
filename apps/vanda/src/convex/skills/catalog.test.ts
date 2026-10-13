@@ -29,9 +29,9 @@ describe("skill catalog", () => {
           alwaysApply: false,
         }),
         expect.objectContaining({
-          name: "post-production",
+          name: "post",
           alwaysApply: false,
-          location: "/skills/post-production/SKILL.md",
+          location: "/skills/post/SKILL.md",
         }),
         expect.objectContaining({
           name: "unslop",
@@ -49,9 +49,21 @@ describe("skill catalog", () => {
     expect(skills.map((entry) => entry.name)).not.toContain("creating-carousel-images");
     expect(skills.map((entry) => entry.name)).not.toContain("post-purposes");
     expect(skills.map((entry) => entry.name)).not.toContain("post-router");
-    const production = skills.find((entry) => entry.name === "post-production");
-    expect(production?.allowedTools).toBe("list read paint create_post present");
-    expect(Object.keys(production?.files ?? {})).toEqual(["SKILL.md"]);
+    // One post skill replaces post-production and its 64 type, purpose and format skills.
+    expect(skills.filter((entry) => entry.name.startsWith("post"))).toHaveLength(1);
+    const post = skills.find((entry) => entry.name === "post");
+    expect(post?.allowedTools).toContain("paint create_post");
+    expect(Object.keys(post?.files ?? {})).toEqual(
+      expect.arrayContaining([
+        "SKILL.md",
+        "purposes.md",
+        "formats.md",
+        "carousel.md",
+        "infinite-carousel.md",
+        "story.md",
+        "formats/tier-list.md",
+      ]),
+    );
 
     for (const entry of skills) {
       expect(entry.allowedTools ?? "").not.toContain("run_code");
@@ -66,7 +78,7 @@ describe("skill catalog", () => {
 
     const onDemand = discoverableSkills();
     expect(onDemand.map((entry) => entry.name)).toEqual(
-      expect.arrayContaining(["instagram-market-research", "post-production", "post-type-story"]),
+      expect.arrayContaining(["instagram-market-research", "post"]),
     );
 
     for (const entry of onDemand) {

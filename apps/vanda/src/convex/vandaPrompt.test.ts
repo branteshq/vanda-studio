@@ -4,9 +4,12 @@ import { caetano, WHATSAPP_CHANNEL_PROMPT } from "./caetanoAgent";
 import { systemPrompt, vanda } from "./vanda";
 
 describe("Vanda routing prompt", () => {
-  it.each(["vanda", "caetano"] as const)("routes %s to post skills through tool_search", (role) => {
+  it.each(["vanda", "caetano"] as const)("routes %s to the post skill", (role) => {
     const prompt = systemPrompt(role);
-    expect(prompt).toContain("busque no tool_search a habilidade post-production");
+    expect(prompt).toContain("leia /skills/post/SKILL.md com read e siga-o");
+    // Identity stays, execution improves: the feed is evidence, not a spec.
+    expect(prompt).toContain("melhor que o post típico do feed");
+    expect(prompt).not.toContain("mude o conteúdo, não a grade:");
     expect(prompt).toContain("produção visual é exclusivamente por paint");
     expect(prompt).not.toContain("<available_skills>");
     expect(prompt).not.toMatch(

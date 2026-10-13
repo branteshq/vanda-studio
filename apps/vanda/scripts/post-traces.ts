@@ -123,8 +123,9 @@ const outputOf = (part: ToolResultPart) => {
     : { failed: false, value: undefined };
 };
 
+// "/skills/post/SKILL.md" is "post"; a resource keeps its path ("post/formats/meme.md").
 const skillName = (path: string): string | null =>
-  /^\/skills\/(.+)\/SKILL\.md$/.exec(path)?.[1] ?? null;
+  /^\/skills\/(.+)\/SKILL\.md$/.exec(path)?.[1] ?? /^\/skills\/(.+\.md)$/.exec(path)?.[1] ?? null;
 
 /** "/images\n(vazio)" is 0; otherwise one entry per listed line. */
 const listedCount = (listing: string): number => {
@@ -274,6 +275,8 @@ export function postTurns(messages: readonly AgentMessage[]): PostTurn[] {
       const worked =
         calls.includes("paint") ||
         calls.includes("create_post") ||
+        // "post-production" is the skill older turns read before "post" replaced it.
+        turn.skillsRead.includes("post") ||
         turn.skillsRead.includes("post-production");
 
       return worked ? [turn] : [];

@@ -125,6 +125,65 @@ export function assertFaceReferenced(
   if (!found) throw new Error("no paint call passed the owner's face photo with a feed post");
 }
 
+/**
+ * The brand file's Design section carries both decisions after a post on a brand
+ * with a feed: `Manter` (identity every post keeps) and `Evoluir` (the execution
+ * the next posts improve on). Presence only; what they say is for the reviewer.
+ */
+export function assertKeepAndEvolveWritten(brandFile: string): void {
+  const design = /^## Design\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(brandFile)?.[1] ?? "";
+
+  for (const label of ["Manter", "Evoluir"])
+    if (!new RegExp(`^- ${label}: \\S`, "m").test(design))
+      throw new Error(`the Design section has no "${label}:" item`);
+}
+
+const paintPrompts = (trace: readonly EvalTraceStep[]): string[] =>
+  trace.flatMap((step) =>
+    (step.calls ?? []).flatMap((call) => {
+      if (call.toolName !== "paint") return [];
+
+      const input = z.object({ prompt: z.string() }).safeParse(call.input ?? call.args);
+
+      return input.success ? [input.data.prompt] : [];
+    }),
+  );
+
+// "no double frame", "sem moldura dupla", "avoid clip art": a dated element named
+// only to exclude it. Looks back over a short window from the match.
+const NEGATED =
+  /\b(no|not|without|avoid|never|instead of|drop|remove|sem|nada de|evite|nunca|em vez de|tire)\b[^.;:]{0,40}$/i;
+
+/**
+ * Identity stays, execution improves: some paint keeps the brand's main colour
+ * and signature, and no paint asks for a dated element of the feed except to
+ * exclude it. A text heuristic over prompts: the pixels are the reviewer's call.
+ */
+export function assertIdentityKeptExecutionImproved(
+  trace: readonly EvalTraceStep[],
+  { hex, signature, dated }: { hex: string; signature: string; dated: RegExp },
+): void {
+  const prompts = paintPrompts(trace);
+
+  if (prompts.length === 0) throw new Error("no paint call");
+
+  if (!prompts.some((prompt) => prompt.toLowerCase().includes(hex.toLowerCase())))
+    throw new Error(`no paint prompt keeps the brand colour ${hex}`);
+
+  if (!prompts.some((prompt) => prompt.includes(signature)))
+    throw new Error(`no paint prompt keeps the signature ${signature}`);
+
+  const global = new RegExp(
+    dated.source,
+    dated.flags.includes("g") ? dated.flags : `${dated.flags}g`,
+  );
+
+  for (const prompt of prompts)
+    for (const match of prompt.matchAll(global))
+      if (!NEGATED.test(prompt.slice(0, match.index)))
+        throw new Error(`a paint prompt asks for a dated element: "${match[0]}"`);
+}
+
 /** Checks execution plus a conservative disclosure signal, not semantic truthfulness. */
 export function assertRejectedPaintWasReported(
   trace: readonly EvalTraceStep[],

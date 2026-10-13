@@ -30,51 +30,22 @@ const searchResultSchema = z.object({
   message: z.string(),
 });
 
-// Per search: enough tools to cover a task, and the skills worth reading. A post
-// search asks for up to five at once (production, type, purpose, a second
-// purpose, ad format), and a format word must not lose its slot to the rest.
-const RESULTS = { tool: 4, skill: 7 } as const;
+// Per search: enough tools to cover a task, and the skills worth reading.
+const RESULTS = { tool: 4, skill: 4 } as const;
 
-// Name words every skill of a family shares; only the rest identify one skill.
-const FAMILY_WORDS = new Set(["post", "purpose", "type", "ad"]);
-
-// A query word that names a skill ("produto" for post-purpose-produto) outweighs
-// any description word; naming the entry exactly, or its name words in order
-// ("nós vs nós" for post-ad-nos-vs-nos), guarantees it a place.
+// A query word that names a skill ("caption" for instagram-caption) outweighs any
+// description word; naming the entry exactly guarantees it a place.
 const NAME_WEIGHT = 3;
 
 const EXACT_NAME = 100;
 
 const normalize = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
-// Every ad format skill (post-ad-*) is described as "Formato de anúncio <nome>" and Vanda
-// searches "formato de anúncio <nome>". The phrase marks a format search; counted as
-// words it would make "anuncio" common and drown the anuncio purpose.
-const AD_FORMAT_MARKER = "formato de anuncio";
-
-const withoutMarker = (text: string) => normalize(text).replaceAll(AD_FORMAT_MARKER, " ");
-
-const isAdFormat = (name: string) => name.startsWith("post-ad-");
-
 const stopWords = new Set(
   "a as o os de da das do dos e em no na nos nas um uma para por com que quero preciso como meu minha meus minhas the a an and or to of for with how my i want need".split(
     " ",
   ),
 );
-
-// A skill's identifying name words ("nos vs nos" for post-ad-nos-vs-nos).
-const identifyingWords = (name: string) => {
-  const parts = name.split("-");
-
-  return parts.slice(parts.findIndex((part) => !FAMILY_WORDS.has(part)));
-};
-
-// As a padded phrase; one word is too loose to guarantee a place.
-const namePhrase = (name: string) => {
-  const identifying = identifyingWords(name);
-
-  return identifying.length > 1 ? ` ${identifying.join(" ")} ` : undefined;
-};
 
 const words = (text: string) =>
   normalize(text)
@@ -103,42 +74,15 @@ export function toolDiscovery<Tools extends ToolSet>(
     ...skills.map((skill) => ({ kind: "skill" as const, keywords: "", ...skill })),
   ];
 
-  // A format's name word identifies it only if no core post skill (type, purpose,
-  // production, instagram-*) uses that word: "story do instagram" is an ordinary story
-  // request, while "combo" or "nós vs nós" can only mean the format.
-  const coreNameWords = new Set(
-    skills.filter((skill) => !isAdFormat(skill.name)).flatMap((skill) => skill.name.split("-")),
-  );
-
-  const formatOwns = (name: string) =>
-    !isAdFormat(name) ||
-    !name.split("-").some((part) => coreNameWords.has(part) && !FAMILY_WORDS.has(part));
-
   const indexed = catalog.map((entry) => ({
     entry,
-    tokens: new Set(words(withoutMarker(`${entry.name} ${entry.description} ${entry.keywords}`))),
-
+    tokens: new Set(words(`${entry.name} ${entry.description} ${entry.keywords}`)),
     // Skill names are chosen to identify; tool names (read_instagram_post) are generic.
-    nameTokens: new Set(
-      entry.kind === "skill"
-        ? words(entry.name).filter(
-            (word) =>
-              !FAMILY_WORDS.has(word) && (!isAdFormat(entry.name) || !coreNameWords.has(word)),
-          )
-        : [],
-    ),
-    // Stop words still count here: "nós vs nós" would otherwise only search "vs".
-    namePhrase:
-      entry.kind === "skill" && formatOwns(entry.name) ? namePhrase(entry.name) : undefined,
-    // "formato de anúncio <nome>", the search Vanda is told to make, always names the format.
-    markedName:
-      entry.kind === "skill" && isAdFormat(entry.name)
-        ? ` ${AD_FORMAT_MARKER} ${identifyingWords(entry.name).join(" ")} `
-        : undefined,
+    nameTokens: new Set(entry.kind === "skill" ? words(entry.name) : []),
   }));
 
-  // Rare words decide the ranking: "post" and "propósito" sit in every purpose
-  // skill, so a plain count lets any incidental word (or the alphabet) pick one.
+  // Rare words decide the ranking: words most entries share ("instagram", "post")
+  // would otherwise let any incidental word (or the alphabet) pick one.
   const weight = (term: string) => {
     const frequency = indexed.filter(({ tokens }) => tokens.has(term)).length;
 
@@ -156,22 +100,18 @@ export function toolDiscovery<Tools extends ToolSet>(
     }),
     outputSchema: searchResultSchema,
     execute: async ({ query }) => {
-      const terms = [...new Set(words(withoutMarker(query)))];
+      const terms = [...new Set(words(query))];
       const normalizedQuery = normalize(query.trim());
-      const spacedQuery = ` ${normalizedQuery.replace(/[^a-z0-9]+/g, " ")} `;
       const exact = catalog.find((entry) => entry.name === normalizedQuery);
+      // Names as whole words: "post" names the post skill, "posts" does not.
+      const spacedQuery = ` ${normalizedQuery.replace(/[^a-z0-9_-]+/g, " ")} `;
 
-      const ranked = indexed.flatMap(({ entry, tokens, nameTokens, namePhrase, markedName }) => {
+      const ranked = indexed.flatMap(({ entry, tokens, nameTokens }) => {
         if (exact && entry !== exact) return [];
 
         if (normalizedQuery === "*") return [{ entry, score: 1 }];
 
-        const named =
-          normalizedQuery.includes(entry.name) ||
-          (namePhrase && spacedQuery.includes(namePhrase)) ||
-          (markedName && spacedQuery.includes(markedName))
-            ? EXACT_NAME
-            : 0;
+        const named = spacedQuery.includes(` ${entry.name} `) ? EXACT_NAME : 0;
 
         const score = terms.reduce(
           (total, term) =>
