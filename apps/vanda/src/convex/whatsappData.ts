@@ -429,7 +429,7 @@ export const ingest = internalMutation({
         await enqueue(
           ctx,
           id,
-          "WhatsApp conectado ao Vanda Studio. Pode falar comigo por aqui. Para desconectar, abra Perfil no aplicativo.",
+          "Fechou, tô no seu zap! Agora é só me mandar um áudio, uma foto ou “faz um post”. Pra parar algo no meio, manda “parar”. Para desconectar, abra Perfil › Conexões no Vanda Studio.",
         );
         continue;
       }

@@ -207,8 +207,28 @@ export function replyParts(text: string): string[] {
 export const isStop = (text: string): boolean =>
   /^(parar|pare|stop|cancelar)[.!]?$/i.test(text.trim());
 
-export const linkToken = (text: string): string | null =>
-  /^vanda conectar ([0-9a-f]{64})$/i.exec(text.trim())?.[1]?.toLowerCase() ?? null;
+/**
+ * The ready-made message that links a WhatsApp: a greeting the owner would send
+ * anyway, with the code on its own line. The code stays 64 hex characters, so
+ * nobody can guess one and link their WhatsApp to someone else's account.
+ */
+export const linkMessage = (token: string): string =>
+  `Oi, Caetano! Quero falar com você por aqui.\n\ncódigo: ${token}`;
+
+/**
+ * The code of a link message: the current greeting (even if the owner edited the
+ * greeting) or the old `vanda conectar <code>`. The code must end the message.
+ */
+export const linkToken = (text: string): string | null => {
+  const trimmed = text.trim();
+
+  if (trimmed.length > 400) return null;
+
+  return (
+    /(?:^|\s)(?:vanda conectar|c[oó]digo:?)\s*([0-9a-f]{64})$/i.exec(trimmed)?.[1]?.toLowerCase() ??
+    null
+  );
+};
 
 /**
  * Meta rejects template parameters with line breaks, tabs or more than four

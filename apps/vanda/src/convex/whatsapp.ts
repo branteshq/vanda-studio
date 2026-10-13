@@ -2,12 +2,12 @@ import { v } from "convex/values";
 import { z } from "zod";
 import { internal } from "./_generated/api";
 import { action, internalAction } from "./_generated/server";
-import { sha256 } from "./whatsapp/protocol";
+import { linkMessage, sha256 } from "./whatsapp/protocol";
 import type { OutboundMedia, TemplateFallback } from "./whatsappData";
 
 export const createLink = action({
   args: {},
-  handler: async (ctx): Promise<{ url: string; expiresAt: number }> => {
+  handler: async (ctx): Promise<{ url: string; webUrl: string; expiresAt: number }> => {
     if (!(await ctx.auth.getUserIdentity())) throw new Error("Not authenticated");
     const number = process.env.KAPSO_WHATSAPP_NUMBER;
 
@@ -29,8 +29,13 @@ export const createLink = action({
       tokenHash: await sha256(token),
     });
 
+    const text = encodeURIComponent(linkMessage(token));
+
     return {
-      url: `https://wa.me/${number}?text=${encodeURIComponent(`vanda conectar ${token}`)}`,
+      // Opens the WhatsApp app (phone, or the QR code scanned on a computer).
+      url: `https://wa.me/${number}?text=${text}`,
+      // For a computer without the phone at hand.
+      webUrl: `https://web.whatsapp.com/send?phone=${number}&text=${text}`,
       expiresAt,
     };
   },

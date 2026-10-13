@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isStop,
+  linkMessage,
   linkToken,
   parseWebhook,
   replyParts,
@@ -182,6 +183,10 @@ describe("Kapso protocol", () => {
     expect(isStop("não parar")).toBe(false);
     expect(linkToken(`vanda conectar ${"a".repeat(64)}`)).toBe("a".repeat(64));
     expect(linkToken("vanda conectar guess")).toBeNull();
+    expect(linkToken(linkMessage("b".repeat(64)))).toBe("b".repeat(64));
+    expect(linkToken(`Oi!\n\nCÓDIGO: ${"C".repeat(64)}`)).toBe("c".repeat(64));
+    expect(linkToken(`meu código ${"a".repeat(64)} tá aqui`)).toBeNull();
+    expect(linkToken("a".repeat(64))).toBeNull();
     expect(serviceWindowOpen(1000, 1001)).toBe(true);
     expect(serviceWindowOpen(1000, 1000 + 86400000)).toBe(false);
   });

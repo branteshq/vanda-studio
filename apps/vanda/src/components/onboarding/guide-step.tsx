@@ -11,6 +11,15 @@ import { Conversation } from "../conversation";
 import { showErrorToast } from "../error-feedback";
 import { GuideFinish } from "./guide-finish";
 import { OnboardingCenter, OnboardingTop } from "./onboarding-shell";
+import {
+  readZapSkipped,
+  skipZapOffer,
+  usePhone,
+  useWhatsAppLink,
+  WhatsAppLinked,
+  WhatsAppOffer,
+  WhatsAppWaiting,
+} from "./whatsapp-offer";
 
 /**
  * Step 2 — Caetano's brand guide, a plain chat. He reads the Instagram, writes the
@@ -27,6 +36,8 @@ export function GuideStep({
 }) {
   const navigate = useNavigate();
   const guide = useQuery(api.brandFile.guide, { accountId });
+  // Loaded early, so "Guia pronto." knows at once whether to offer WhatsApp.
+  useQuery(api.whatsappData.state);
   const approveGuide = useMutation(api.brandProfile.approveGuide);
   const reduced = useReducedMotion();
   // Easter egg: hovering "Terminar depois" makes Caetano sleepy.
@@ -124,6 +135,11 @@ const FLIGHT_MS = 820;
  * The guide is done: Caetano, one line, one button. Coming from the finish button
  * (`from`), he jumps off it in an arc and lands here, and the text follows;
  * otherwise he just jumps in place (and again on click).
+ *
+ * When WhatsApp is set up and not linked yet, he offers it under the line, opt-in:
+ * "Me chama no WhatsApp" and "Agora não" weigh the same. Accepting waits for the
+ * owner's own message (a QR code on a computer, WhatsApp itself on a phone); the
+ * message is the consent, and once it lands he says "Tô no seu zap.".
  */
 function GuideDone({
   onStart,
@@ -139,6 +155,25 @@ function GuideDone({
   const caetano = useRef<CaetanoHandle>(null);
   const flying = from !== undefined && !reduced;
   const [arrived, setArrived] = useState(!flying);
+  const zap = useQuery(api.whatsappData.state);
+  const phone = usePhone();
+  // Decided once, when the state loads: linking later turns the offer into "Tô no seu zap.".
+  const [offer, setOffer] = useState<boolean | null>(null);
+  const [waiting, setWaiting] = useState(false);
+  const linked = offer === true && zap?.connected === true;
+
+  const { link, renewing, failed, retry } = useWhatsAppLink(
+    offer === true && !linked && (waiting || phone),
+  );
+
+  if (offer === null && zap !== undefined) {
+    setOffer(zap.configured && !zap.connected && !readZapSkipped());
+  }
+
+  const skip = () => {
+    skipZapOffer();
+    onStart();
+  };
 
   useLayoutEffect(() => {
     const element = hero.current;
@@ -184,6 +219,24 @@ function GuideDone({
 
   const follow = from !== undefined ? (arrived ? "animate-finish-up" : "opacity-0") : undefined;
 
+  if (linked) return <WhatsAppLinked sender={zap.sender} onStart={onStart} />;
+
+  if (offer === true && waiting) {
+    return (
+      <OnboardingCenter>
+        <Caetano state="read" size={104} />
+        <WhatsAppWaiting
+          phone={phone}
+          link={link}
+          renewing={renewing}
+          failed={failed}
+          retry={retry}
+          onSkip={skip}
+        />
+      </OnboardingCenter>
+    );
+  }
+
   return (
     <OnboardingCenter className={cn(from !== undefined && "bg-transparent")}>
       <div ref={hero} className="relative z-10 origin-top-left">
@@ -201,11 +254,24 @@ function GuideDone({
       >
         A Vanda já usa ele em todo post. Dá pra mudar quando quiser em Perfil › Negócios.
       </p>
-      <div className={cn("finish-follow-3 mt-7", follow)}>
-        <Button variant="brand" size="lg" onClick={onStart}>
-          Começar a criar
-        </Button>
-      </div>
+      {offer === null ? (
+        // The WhatsApp state is still loading: hold the space, don't flash a button.
+        <div className="mt-7 h-9" />
+      ) : offer ? (
+        <WhatsAppOffer
+          className={cn("finish-follow-3", follow)}
+          phone={phone}
+          link={link}
+          onAccept={() => setWaiting(true)}
+          onSkip={skip}
+        />
+      ) : (
+        <div className={cn("finish-follow-3 mt-7", follow)}>
+          <Button variant="brand" size="lg" onClick={onStart}>
+            Começar a criar
+          </Button>
+        </div>
+      )}
     </OnboardingCenter>
   );
 }

@@ -11,6 +11,21 @@ O Caetano é o assistente do Vanda Studio no WhatsApp. Ele trabalha em todos os 
 
 ## Vincular
 
+O WhatsApp é opcional e só vincula quando você manda a mensagem: o Vanda Studio nunca pede o seu número nem escreve antes de você.
+
+### No fim da configuração
+
+Quando o guia da marca termina, o **Guia pronto.** traz o convite do Caetano, com dois botões: **Me chama no WhatsApp** e **Agora não**.
+
+- **No computador**, a tela mostra um QR code. Aponte a câmera do celular, e o WhatsApp abre com a mensagem pronta ("Oi, Caetano! Quero falar com você por aqui." e um código embaixo). Toque em enviar. Sem o celular por perto, use **Abrir no WhatsApp Web**. O QR code se renova sozinho enquanto a tela estiver aberta.
+- **No celular**, o WhatsApp abre direto com a mensagem pronta. Envie e volte ao Vanda Studio; se precisar, toque em **Abrir o WhatsApp de novo**.
+- Quando a mensagem chega, a tela mostra **Tô no seu zap.** com o seu número, e o Caetano já respondeu no WhatsApp. **Começar a criar** abre o app.
+- **Agora não** abre o app direto, e a configuração não pergunta de novo neste navegador. Fica só o cartão da barra lateral (abaixo).
+
+O código da mensagem é longo de propósito: ele liga o WhatsApp à sua conta, então não o compartilhe nem mude.
+
+### Depois
+
 Enquanto o WhatsApp não está vinculado, o rodapé da barra lateral mostra o cartão **Me chama no zap**, com o Caetano. Tocar nele abre **Perfil › Conexões**. O **X** do cartão esconde ele por 7 dias; depois de vincular, ele some.
 
 1. Abra **Perfil › Conexões › Caetano no WhatsApp**.

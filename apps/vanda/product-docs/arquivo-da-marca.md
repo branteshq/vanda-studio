@@ -17,7 +17,7 @@ Depois ele manda uma mensagem só, com o que entendeu, diz o que deduziu pelo fe
 
 Se a mesma pessoa aparece em vários posts, ele pergunta se é você e pede 2 ou 3 fotos com o rosto bem visível. Com as fotos, a Vanda passa a colocar você nos posts, do jeito que o arquivo diz (veja Quem aparece, abaixo). Se você confirmar sem mandar fotos, o Caetano recorta seu rosto de um ou dois posts do feed; fotos de verdade ficam melhores, e dá para mandar depois.
 
-Quando o Caetano termina de responder, aparece acima do campo de mensagem o botão **Fechou, bora criar**. Ele some enquanto o Caetano trabalha e volta quando ele responde. Tocar nele termina o guia na hora: tudo o que estava como **(Vanda)** passa a **(dono)** e aparece **Guia pronto.**, com o botão **Começar a criar**. Escrever "fechou" ou "tá certo" na conversa também termina o guia.
+Quando o Caetano termina de responder, aparece acima do campo de mensagem o botão **Fechou, bora criar**. Ele some enquanto o Caetano trabalha e volta quando ele responde. Tocar nele termina o guia na hora: tudo o que estava como **(Vanda)** passa a **(dono)** e aparece **Guia pronto.**, com o botão **Começar a criar**. Escrever "fechou" ou "tá certo" na conversa também termina o guia. Se o seu WhatsApp ainda não está vinculado, o **Guia pronto.** oferece o Caetano no WhatsApp no lugar do botão (veja [Caetano no WhatsApp](/docs/caetano-no-whatsapp)).
 
 **Fotos e o logo são opcionais, e você pode enviá-los a qualquer momento.** Use o botão **Enviar foto ou logo**, aqui embaixo, ou arraste a imagem para o campo da mensagem (PNG, JPG ou WebP, até 10 MB). Para corrigir uma cor, diga a cor ou mande uma imagem com ela. Sem logo, a Vanda usa o nome da marca em texto.
 
