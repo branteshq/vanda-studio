@@ -301,6 +301,13 @@ describe("evaluation guards", () => {
     const ask = "Pra mostrar a linha nova sem inventar, me manda uma foto dos planners?";
 
     expect(() => assertAskedFirst([], ask, 0)).not.toThrow();
+    expect(() =>
+      assertAskedFirst(
+        [],
+        "Preciso de uma foto dos planners. Assim que você enviar, faço a arte.",
+        0,
+      ),
+    ).not.toThrow();
     expect(() => assertAskedFirst([{ calls: [{ toolName: "paint" }] }], ask, 0)).toThrow(/asking/);
     expect(() => assertAskedFirst([], ask, 1)).toThrow(/asking/);
     expect(() => assertAskedFirst([], "Pronto, criei o rascunho.", 0)).toThrow(/photo/);

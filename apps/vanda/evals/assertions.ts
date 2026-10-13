@@ -159,7 +159,13 @@ export function assertAskedFirst(
 
   if (painted || postCount > 0) throw new Error("painted or drafted instead of asking first");
 
-  if (!/\b(fotos?|imagens?|detalhes|capas?)\b/i.test(response) || !response.includes("?"))
+  const asks =
+    response.includes("?") ||
+    /\b(preciso|precisa|me (manda|envia|mande|envie)|manda|envia|mande|envie|enviar|mandar)\b/i.test(
+      response,
+    );
+
+  if (!/\b(fotos?|imagens?|detalhes|capas?)\b/i.test(response) || !asks)
     throw new Error("the reply does not ask for a photo or the product's details");
 }
 
