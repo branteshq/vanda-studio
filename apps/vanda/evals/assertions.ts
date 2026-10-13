@@ -97,6 +97,34 @@ export function assertFeedReferenced(
     throw new Error(`no paint call referenced ${minimum} feed posts (best: ${best})`);
 }
 
+/**
+ * A post with a real person starts from her photo: some paint call must pass the
+ * `face` reference together with at least one published post for the layout.
+ */
+export function assertFaceReferenced(
+  trace: readonly EvalTraceStep[],
+  faceImageId: string,
+  feedImageIds: readonly string[],
+): void {
+  const feed = new Set(feedImageIds);
+
+  const found = trace.some((step) =>
+    (step.calls ?? []).some((call) => {
+      if (call.toolName !== "paint") return false;
+
+      const input = z
+        .object({ referenceImageIds: z.array(z.string()).optional() })
+        .safeParse(call.input ?? call.args);
+
+      const ids = input.success ? (input.data.referenceImageIds ?? []) : [];
+
+      return ids.includes(faceImageId) && ids.some((id) => feed.has(id));
+    }),
+  );
+
+  if (!found) throw new Error("no paint call passed the owner's face photo with a feed post");
+}
+
 /** Checks execution plus a conservative disclosure signal, not semantic truthfulness. */
 export function assertRejectedPaintWasReported(
   trace: readonly EvalTraceStep[],

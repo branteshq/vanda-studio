@@ -512,6 +512,40 @@ export const imageSize = (bytes: Uint8Array): { width: number; height: number } 
 
 const MAX_IMPORT_BYTES = 12 * 1024 * 1024;
 
+/** An image's bytes from a URL: an Instagram media link or a storage URL. */
+export async function downloadImage(
+  url: string,
+): Promise<{ bytes: Uint8Array<ArrayBuffer>; mimeType: string }> {
+  const response = await fetch(url);
+
+  if (!response.ok)
+    throw new Error(
+      `não consegui baixar a imagem (HTTP ${response.status}); se for de um post, leia os posts de novo para renovar o link`,
+    );
+
+  const bytes = new Uint8Array(await response.arrayBuffer());
+
+  if (bytes.byteLength > MAX_IMPORT_BYTES) throw new Error("imagem grande demais");
+  const mimeType = response.headers.get("content-type")?.split(";")[0]?.trim() || "image/jpeg";
+
+  if (!mimeType.startsWith("image/")) throw new Error("o link não devolveu uma imagem");
+
+  return { bytes, mimeType };
+}
+
+/** An account image to crop: its pixels' URL, its name and where it came from. */
+export const cropSource = internalQuery({
+  args: { accountId: v.id("accounts"), imageId: v.id("images") },
+  handler: async (ctx, { accountId, imageId }) => {
+    const image = await ownedImage(ctx, accountId, imageId);
+    const url = await imageUrl(ctx, image);
+
+    if (!url || image.status !== undefined) throw new Error("a imagem ainda não está pronta");
+
+    return { url, name: image.name ?? null, source: image.referenceSource ?? null };
+  },
+});
+
 /**
  * Copy an Instagram post's image into the account as a reference. Idempotent
  * per post: saving the same post again only relabels the existing copy.
@@ -550,20 +584,7 @@ export const saveFromInstagram = internalAction({
       return { ...saved, source, copied: false };
     }
 
-    const response = await fetch(media.mediaUrl);
-
-    if (!response.ok)
-      throw new Error(
-        `não consegui baixar a imagem do post (HTTP ${response.status}); leia os posts de novo para renovar o link`,
-      );
-
-    const bytes = new Uint8Array(await response.arrayBuffer());
-
-    if (bytes.byteLength > MAX_IMPORT_BYTES) throw new Error("imagem do post grande demais");
-    const mimeType = response.headers.get("content-type")?.split(";")[0]?.trim() || "image/jpeg";
-
-    if (!mimeType.startsWith("image/")) throw new Error("o link do post não devolveu uma imagem");
-
+    const { bytes, mimeType } = await downloadImage(media.mediaUrl);
     const storageId = await ctx.storage.store(new Blob([bytes], { type: mimeType }));
     const size = imageSize(bytes);
 

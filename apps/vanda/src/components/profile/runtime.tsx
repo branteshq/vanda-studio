@@ -6,6 +6,7 @@ import { useQuery } from "convex-helpers/react/cache";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { useActiveAccount } from "../active-account";
+import { uploadImageFile } from "../upload-image";
 import { WhatsAppSettings } from "../whatsapp-settings";
 
 /**
@@ -49,6 +50,22 @@ const profileHooks = {
     };
   },
   useReferences: (accountId: Id<"accounts">) => useQuery(api.gallery.references, { accountId }),
+  useFaceUpload: (accountId: Id<"accounts">) => {
+    const generateUploadUrl = useMutation(api.imageUploads.generateUploadUrl);
+    const uploadReference = useMutation(api.gallery.uploadReference);
+
+    return async (file: File): Promise<void> => {
+      const image = await uploadImageFile(file, () => generateUploadUrl());
+
+      await uploadReference({
+        accountId,
+        ...image,
+        labels: ["face"],
+        name: "Rosto do dono",
+        note: "Foto do rosto do dono, enviada no Perfil.",
+      });
+    };
+  },
   useBrandFile: (accountId: Id<"accounts">) => {
     const save = useMutation(api.brandFile.save);
 

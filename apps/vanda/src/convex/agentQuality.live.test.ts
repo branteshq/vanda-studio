@@ -12,8 +12,9 @@ import { expandedSkillCases, skillCaseFor } from "../../evals/skillBenchmark";
 import { brands, cases } from "../../evals/fixtures";
 import { benchmarkMethods, imageBenchmarkCases } from "../../evals/imageBenchmark";
 import { professionalBrands, professionalCases } from "../../evals/professionalBenchmark";
-import { feedImage, referenceImage } from "../../evals/references";
+import { feedImage, ownerFaceImage, referenceImage } from "../../evals/references";
 import {
+  assertFaceReferenced,
   assertFeedReferenced,
   assertImagesWereInspected,
   assertProtectedPixelsPreserved,
@@ -423,6 +424,28 @@ it.skipIf(!enabled).each(suite)(
         feedImageIds.push(imageId);
       }
 
+      // The owner's face photo, saved the way Perfil's "Seu rosto" saves it.
+      let faceImageId: Id<"images"> | undefined;
+
+      if (brand.owner) {
+        const bytes = ownerFaceImage();
+        await writeFile(resolve(directory, "owner-face.png"), bytes);
+
+        faceImageId = await insertUpload(
+          `Foto de rosto · ${brand.owner.name}`,
+          `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`,
+          { mimeType: "image/png", width: 800, height: 1000 },
+        );
+
+        await t.mutation(internal.references.mark, {
+          accountId: ids.accountId,
+          imageId: faceImageId,
+          labels: ["face"],
+          source: "enviada pela dona",
+          addedBy: "owner",
+        });
+      }
+
       let referenceBytes: Uint8Array | undefined;
       let referenceImageId: Id<"images"> | undefined;
 
@@ -681,7 +704,8 @@ it.skipIf(!enabled).each(suite)(
       if (entry.kind === "creative" || entry.kind === "revision")
         assertImagesWereInspected(trace, finalImageIds);
 
-      if (feedImageIds.length > 0) assertFeedReferenced(trace, feedImageIds);
+      if (faceImageId) assertFaceReferenced(trace, faceImageId, feedImageIds);
+      else if (feedImageIds.length > 0) assertFeedReferenced(trace, feedImageIds);
 
       if (entry.agent === "caetano")
         expect(trace.some((step) => step.agent === "vanda")).toBe(false);

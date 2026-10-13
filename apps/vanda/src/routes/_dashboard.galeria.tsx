@@ -36,6 +36,7 @@ import { useActiveAccount } from "../components/active-account";
 import { FilterMenu, type FilterOption } from "../components/filter-menu";
 import { ImageLightbox, type ImageLightboxData } from "../components/image-lightbox";
 import { PostPreviewDialog } from "../components/post-preview";
+import { uploadImageFile } from "../components/upload-image";
 import { useWorkRail } from "../components/work-rail";
 import {
   MarkReferenceMenu,
@@ -563,19 +564,7 @@ function UploadButton({ accountId }: { accountId: Id<"accounts"> }) {
     try {
       for (const file of Array.from(files)) {
         if (!file.type.startsWith("image/")) continue;
-        const dims = await imageDimensions(file);
-        const url = await generateUploadUrl();
-
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "content-type": file.type },
-          body: file,
-        });
-
-        const payload = z.object({ storageId: z.string() }).parse(await res.json());
-        // SAFETY: Convex's upload endpoint returns an encoded `_storage` document id.
-        const storageId = payload.storageId as Id<"_storage">;
-        await addImage({ accountId, storageId, mimeType: file.type, ...dims });
+        await addImage({ accountId, ...(await uploadImageFile(file, () => generateUploadUrl())) });
       }
     } finally {
       setBusy(false);
@@ -1064,25 +1053,4 @@ function ImageDetailDialog({
       }
     />
   );
-}
-
-// --- helpers ----------------------------------------------------------------
-
-function imageDimensions(file: File): Promise<{ width?: number; height?: number }> {
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-
-    img.addEventListener("load", () => {
-      resolve({ width: img.naturalWidth, height: img.naturalHeight });
-      URL.revokeObjectURL(url);
-    });
-
-    img.addEventListener("error", () => {
-      resolve({});
-      URL.revokeObjectURL(url);
-    });
-
-    img.src = url;
-  });
 }

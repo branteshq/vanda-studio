@@ -95,6 +95,7 @@ import type * as publishScheduledNode from "../publishScheduledNode.js";
 import type * as publisher_uploadpost from "../publisher/uploadpost.js";
 import type * as publisherConnect from "../publisherConnect.js";
 import type * as references from "../references.js";
+import type * as referencesNode from "../referencesNode.js";
 import type * as resourceRefs from "../resourceRefs.js";
 import type * as settings_catalog from "../settings/catalog.js";
 import type * as settings_registry from "../settings/registry.js";
@@ -234,6 +235,7 @@ declare const fullApi: ApiFromModules<{
   "publisher/uploadpost": typeof publisher_uploadpost;
   publisherConnect: typeof publisherConnect;
   references: typeof references;
+  referencesNode: typeof referencesNode;
   resourceRefs: typeof resourceRefs;
   "settings/catalog": typeof settings_catalog;
   "settings/registry": typeof settings_registry;

@@ -49,6 +49,9 @@ export const NON_SETTING_UI_FUNCTIONS = [
   "brandFile.save",
   // References are gallery images with labels; Perfil only summarizes them (the gallery edits).
   "gallery.references",
+  // "Seu rosto" uploads face photos: references, i.e. content the agents save with reference_save.
+  "imageUploads.generateUploadUrl",
+  "gallery.uploadReference",
   // The Calendário's posts are content, not settings.
   "calendar.range",
   // Autopilot posts are content, not settings: the agents change them with autopilot_* tools.

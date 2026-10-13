@@ -33,6 +33,7 @@ const mocks = {
   openUserProfile: vi.fn(),
   saveBrandFile: vi.fn().mockResolvedValue(undefined),
   setTheme: vi.fn().mockResolvedValue(undefined),
+  uploadFace: vi.fn().mockResolvedValue(undefined),
   // SAFETY: the mutable fixture intentionally models Clerk's nullable first name.
   user: { fullName: "Test Owner", firstName: "Test" as string | null },
   path: "/perfil/conta",
@@ -78,6 +79,7 @@ const runtime = {
     disconnect: mocks.action,
   }),
   useReferences: (accountId: string) => mocks.query(api.gallery.references, { accountId }),
+  useFaceUpload: () => mocks.uploadFace,
   useBrandFile: (accountId: string) => ({
     file: mocks.query(api.brandFile.get, { accountId }),
     save: mocks.saveBrandFile,
@@ -353,6 +355,62 @@ it("reads and edits the brand file, then hands off to the conversation", async (
   await click("Ajustar com a Vanda na conversa");
   expect(mocks.selectAccount).toHaveBeenCalledWith("business-a");
   expect(mocks.navigate).toHaveBeenLastCalledWith({ to: "/conversa", search: {} });
+});
+
+it("shows the owner's face photos and takes new ones in the brand file", async () => {
+  answer(
+    [
+      "brandFile:get",
+      {
+        content: brandContent,
+        outline: brandOutline,
+        images: brandImages,
+        design: brandFileDesign(brandOutline, brandImages),
+        persisted: true,
+        updatedAt: null,
+        updatedBy: null,
+        bytes: 60,
+        maxBytes: 24_000,
+      },
+    ],
+    [
+      "gallery:references",
+      {
+        counts: { face: 1, layout: 1 },
+        items: [
+          {
+            id: "face1",
+            url: "https://files.test/face.jpg",
+            name: "Rosto do dono",
+            reference: { labels: ["face"], note: "rosto de Ana" },
+          },
+          {
+            id: "feed1",
+            url: "https://files.test/feed.jpg",
+            name: "Feed",
+            reference: { labels: ["layout"], note: null },
+          },
+        ],
+      },
+    ],
+  );
+  await show(
+    createElement(BusinessPage, { accountId: "business-a" }),
+    "/perfil/negocios/business-a",
+  );
+
+  expect(container.textContent).toContain("Seu rosto");
+  expect(container.textContent).toContain("1 foto");
+  expect(container.querySelector('img[alt="rosto de Ana"]')?.className).toContain("rounded-full");
+
+  const input = container.querySelector<HTMLInputElement>('input[aria-label="Fotos do seu rosto"]');
+  const photo = new File(["x"], "eu.jpg", { type: "image/jpeg" });
+
+  await act(async () => {
+    Object.defineProperty(input, "files", { value: [photo] });
+    input!.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  expect(mocks.uploadFace).toHaveBeenCalledWith(photo);
 });
 
 it("does not open the brand file of a business that has not finished onboarding", async () => {

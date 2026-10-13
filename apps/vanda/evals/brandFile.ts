@@ -19,6 +19,9 @@ export function brandFileFor(brand: EvalBrand): string {
     facts: [
       { kind: "summary", text: brand.notes },
       ...brand.facts.map((text) => ({ kind: "offer" as const, text })),
+      ...(brand.owner
+        ? [{ kind: "character" as const, text: `${brand.owner.name}: ${brand.owner.appears}` }]
+        : []),
     ],
     legacy: [],
   })

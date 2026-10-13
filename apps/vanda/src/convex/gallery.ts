@@ -187,6 +187,62 @@ export const setReference = mutation({
   },
 });
 
+/**
+ * An image the owner uploads straight as a reference (Perfil's "Seu rosto"):
+ * a reference-only photo with the given labels, never a post asset.
+ */
+export const uploadReference = mutation({
+  args: {
+    accountId: v.id("accounts"),
+    storageId: v.id("_storage"),
+    mimeType: v.string(),
+    width: v.optional(v.number()),
+    height: v.optional(v.number()),
+    labels: v.array(referenceLabelValidator),
+    name: v.optional(v.string()),
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, { accountId, labels, note, name, ...upload }): Promise<Id<"images">> => {
+    await requireOwnedAccount(ctx, accountId);
+
+    if (!upload.mimeType.startsWith("image/")) throw new Error("only images can be references");
+
+    if (normalizeLabels(labels).length === 0) throw new Error("no labels");
+
+    if (!(await ctx.storage.getUrl(upload.storageId))) throw new Error("upload not found");
+
+    const existing = await ctx.db
+      .query("images")
+      .withIndex("by_storage", (q) => q.eq("storageId", upload.storageId))
+      .first();
+
+    if (existing && existing.accountId !== accountId) throw new Error("image not found");
+
+    const imageId =
+      existing?._id ??
+      (await ctx.db.insert("images", {
+        accountId,
+        origin: "uploaded",
+        purpose: "reference",
+        storageId: upload.storageId,
+        mimeType: upload.mimeType,
+        createdAt: Date.now(),
+        ...(name !== undefined && { name: name.slice(0, 120) }),
+        ...(upload.width !== undefined && { width: upload.width }),
+        ...(upload.height !== undefined && { height: upload.height }),
+      }));
+
+    await applyReference(ctx, (await ctx.db.get(imageId))!, {
+      labels,
+      note,
+      addedBy: "owner",
+      source: "perfil",
+    });
+
+    return imageId;
+  },
+});
+
 /** Bulk "Marcar como referência": adds the labels to each image, keeping the ones it had. */
 export const markReferences = mutation({
   args: {

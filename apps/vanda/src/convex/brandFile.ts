@@ -41,6 +41,12 @@ const DESIGN_SECTION = "Design";
 /** Labels of the Design items: "- Paleta: #hex nome (papel); …", "- Logo: ![…](image:id)". */
 export const DESIGN_LABELS = { palette: "Paleta", typography: "Tipografia", logo: "Logo" } as const;
 
+/**
+ * The people who appear in the posts, one item each: who they are, how often and
+ * how they appear, and links to their face photos ("fotos: ![rosto](image:<id>)").
+ */
+export const PEOPLE_SECTION = "Quem aparece";
+
 /** Legacy notes: everything under this heading is carried over verbatim, never parsed. */
 const LEGACY_HEADING = "Notas anteriores";
 
@@ -62,10 +68,12 @@ const SECTIONS: { title: string; kinds: readonly BrandFactKind[]; discover?: str
   { title: "Público", kinds: ["audience"], discover: "quem compra e do que precisa ou tem medo" },
   {
     title: "Voz",
-    kinds: ["voice", "character"],
+    kinds: ["voice"],
     discover:
       "se o perfil é só profissional ou também pessoal e descontraído; como fala com os clientes; se usa emojis",
   },
+  // Who shows up in the posts, one item per person: optional, so the guide never waits on it.
+  { title: PEOPLE_SECTION, kinds: ["character"] },
   {
     title: DESIGN_SECTION,
     kinds: [],
@@ -104,7 +112,6 @@ const LABELS: Partial<Record<BrandFactKind, string>> = {
   objective: "Objetivo do perfil",
   audience: "Quem",
   voice: "Voz",
-  character: "Quem aparece",
 };
 
 /** One line per kind and origin: "- Oferta: a; b (dono)". */

@@ -67,6 +67,28 @@ describe("brand file facts, kinds and composition", () => {
     expect(brandFileKinds(file)).not.toContain("audience");
   });
 
+  it("gives the people who appear their own optional section, after Voz", () => {
+    const people = composeBrandFile({
+      name: "Cartório",
+      facts: [
+        { kind: "voice", text: "Formal e próxima" },
+        {
+          kind: "character",
+          text: "Ana Karina, tabeliã: em cerca de metade dos posts",
+          origin: "Vanda",
+        },
+      ],
+      legacy: [],
+    });
+
+    expect(people).toContain(
+      "## Voz\n- Voz: Formal e próxima (dono)\n\n## Quem aparece\n- Ana Karina, tabeliã: em cerca de metade dos posts (Vanda)\n\n## Design",
+    );
+    expect(brandFileKinds(people)).toContain("character");
+    // The guide never waits on it: it is not one of the sections the interview asks for.
+    expect(brandGuide(people).map((section) => section.title)).not.toContain("Quem aparece");
+  });
+
   it("opens with the legend, keeps headings next to their items, and groups one kind and origin", () => {
     expect(file).toContain("\nLido pela Vanda");
     expect(file).toContain("## O negócio\n- O que é:");

@@ -16,6 +16,12 @@ export type EvalBrand = {
    * describes no layout, as after a real onboarding.
    */
   feed?: { tag: string; title: string; subtitle: string }[];
+  /**
+   * The owner, who appears in the posts. The harness draws her (references.ts) in
+   * every feed post and once as a plain face photo, saved as a `face` reference;
+   * the brand file names her under Quem aparece.
+   */
+  owner?: { name: string; appears: string };
 };
 
 export type EvalCase = {
@@ -170,6 +176,41 @@ export const brands: EvalBrand[] = [
       { tag: "DICA 03", title: "LIMITE DO MEI", subtitle: "Some o faturamento todo mês." },
       { tag: "DICA 04", title: "CONTA PJ", subtitle: "Dinheiro da empresa fica na empresa." },
     ],
+  },
+  {
+    id: "rafa-nutri",
+    name: "Rafa Couto Nutrição",
+    handle: "@rafacouto.nutri",
+    notes:
+      "Nutricionista autônoma fictícia em Recife: consultas presenciais e online para adultos que querem comer melhor sem dieta da moda.",
+    design: {
+      colors: [
+        { hex: "#2F5D50", name: "Musgo" },
+        { hex: "#F4A261", name: "Pêssego" },
+        { hex: "#FAF7F2", name: "Creme" },
+      ],
+      fonts: [
+        { family: "Fraunces", role: "títulos" },
+        { family: "Inter", role: "texto" },
+      ],
+      tagline: "Comer bem cabe na rotina.",
+    },
+    preferences:
+      "Voz acolhedora e prática, sem terrorismo nutricional. Nunca prometer perda de peso, cura ou resultado garantido; nada de antes e depois.",
+    facts: [
+      "A consulta online custa R$ 220 e inclui retorno em 30 dias.",
+      "Atende presencialmente na Boa Vista, em Recife, às terças e quintas.",
+    ],
+    feed: [
+      { tag: "DICA 01", title: "PRATO COLORIDO", subtitle: "Três cores no almoço já ajudam." },
+      { tag: "DICA 02", title: "ÁGUA À VISTA", subtitle: "Garrafa na mesa, copo na mão." },
+      { tag: "DICA 03", title: "LANCHE PRONTO", subtitle: "Fruta lavada some mais rápido." },
+    ],
+    owner: {
+      name: "Rafaela Couto (nutricionista, a dona)",
+      appears:
+        "em todos os posts: retrato dela de frente, sorrindo, à direita do título, da cintura para cima",
+    },
   },
 ];
 
@@ -474,6 +515,18 @@ export const cases: EvalCase[] = [
       "Encontra os quatro posts do feed na galeria e passa ao menos dois em referenceImageIds como direção de arte.",
       "A arte nova cabe na grade: fundo Azul-tinta, quarto de círculo Mostarda no canto superior direito, pílula Mostarda no alto à esquerda seguindo a numeração (DICA 05), título branco em caixa alta alinhado à esquerda com um fio Mostarda embaixo, apoio em Papel e @tabua.contabil no rodapé.",
       "Não repete título nem texto de um post antigo e não inventa preço, prazo ou promessa de restituição.",
+    ],
+    kind: "creative",
+  },
+  {
+    id: "rafa-owner-face",
+    brandId: "rafa-nutri",
+    prompt: "faz um post ai pra mim",
+    expectations: [
+      "Lê em Quem aparece que a Rafaela aparece em todos os posts e acha a foto de rosto dela com reference_search (face).",
+      "Passa ao paint a foto de rosto e ao menos um post do feed, e diz no prompt qual é o rosto e qual é o layout.",
+      "A arte mostra a Rafaela reconhecível (cabelo ruivo cacheado, óculos redondos verdes, blusa amarela) à direita, acima do título, na grade do feed: fundo Musgo, pílula Pêssego com DICA 04, título branco em caixa alta sobre um traço Pêssego.",
+      "Não promete perda de peso, cura nem resultado garantido.",
     ],
     kind: "creative",
   },

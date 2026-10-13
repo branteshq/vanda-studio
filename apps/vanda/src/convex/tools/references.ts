@@ -54,8 +54,15 @@ export function referenceSourceOf(args: {
     : { kind: "image", imageId };
 }
 
+/** A crop box the model actually filled in; strict schemas send zeros or null for an unused one. */
+export function cropOf(
+  crop: { x: number; y: number; width: number; height: number } | null | undefined,
+): { x: number; y: number; width: number; height: number } | undefined {
+  return crop && crop.width > 0 && crop.height > 0 ? crop : undefined;
+}
+
 const LABELS_HELP =
-  "layout = composição/grade do feed a seguir; style = cor, luz, tipografia, acabamento; face = a pessoa real (dono ou equipe) que pode aparecer; product = produto real; place = o lugar; logo = a marca gráfica; avoid = o que a marca não quer (orienta o prompt, nunca vai ao paint)";
+  "layout = composição/grade do feed a seguir; style = cor, luz, tipografia, acabamento; face = foto do rosto de uma pessoa real (dono ou equipe) que aparece nos posts: foto limpa ou recorte (crop), nunca o post inteiro; product = produto real; place = o lugar; logo = a marca gráfica; avoid = o que a marca não quer (orienta o prompt, nunca vai ao paint)";
 
 /** Caetano saves for the owner in WhatsApp and the guide; Vanda in the app chat. */
 const authorOf = (ctx: ReferenceToolCtx): ReferenceAuthor =>
@@ -98,7 +105,7 @@ export const referenceTools = {
   }),
 
   reference_save: createTool({
-    description: `Guarda uma imagem como referência da marca, com rótulos e uma nota curta do que tirar dela (ex.: "layout do feed: foto dela à direita, arco rosa atrás, título serifado em caixa alta sobre a foto"). Fonte: imageId (anexo, imagem gerada ou da galeria) OU instagramPost (id ou URL de um post que você acabou de ler com read_instagram_posts/read_instagram_post; a imagem é copiada para a conta). Salvar de novo a mesma imagem troca os rótulos e a nota. Guarde o que o dono mostrar como exemplo ("quero assim", "nunca faz assim" → avoid) e, no guia, os posts que definem o padrão do feed. face só para fotos reais do dono ou da equipe, nunca de outro perfil. Rótulos: ${LABELS_HELP}.`,
+    description: `Guarda uma imagem como referência da marca, com rótulos e uma nota curta do que tirar dela (ex.: "layout do feed: foto dela à direita, arco rosa atrás, título serifado em caixa alta sobre a foto"). Fonte: imageId (anexo, imagem gerada ou da galeria) OU instagramPost (id ou URL de um post que você acabou de ler com read_instagram_posts/read_instagram_post; a imagem é copiada para a conta). Salvar de novo a mesma imagem troca os rótulos e a nota. Guarde o que o dono mostrar como exemplo ("quero assim", "nunca faz assim" → avoid) e, no guia, os posts que definem o padrão do feed. face só para fotos reais do dono ou da equipe, nunca de outro perfil. Para tirar o rosto de um post do feed, passe crop (caixa em frações de 0 a 1, olhando os pixels): salva só o recorte como imagem nova e o post fica como estava. Rótulos: ${LABELS_HELP}.`,
     inputSchema: z.object({
       imageId: z.string().optional().describe("imagem da conta"),
       instagramPost: z.string().optional().describe("id ou URL de post do Instagram já lido"),
@@ -108,14 +115,40 @@ export const referenceTools = {
         .max(MAX_REFERENCE_NOTE)
         .optional()
         .describe("o que tirar desta imagem, em uma ou duas frases"),
+      crop: z
+        .object({
+          x: z.number().describe("esquerda, fração da largura (0–1)"),
+          y: z.number().describe("topo, fração da altura (0–1)"),
+          width: z.number().describe("fração da largura"),
+          height: z.number().describe("fração da altura"),
+        })
+        .nullable()
+        .optional()
+        .describe(
+          "só para recortar parte da imagem (ex.: o rosto do dono num post do feed, com folga em volta da cabeça e dos ombros); omita para guardar a imagem inteira",
+        ),
     }),
     execute: async (ctx: ReferenceToolCtx, args): Promise<ReferenceSaved> => {
       const source = referenceSourceOf(args);
       const note = present(args.note);
+      const crop = cropOf(args.crop);
       const { labels } = args;
 
       const accountId = await agentAccount(ctx);
       const addedBy = authorOf(ctx);
+
+      if (crop)
+        return ctx.runAction(internal.referencesNode.saveCrop, {
+          accountId,
+          crop,
+          labels,
+          addedBy,
+          ...(source.kind === "instagram"
+            ? { post: source.post }
+            : // SAFETY: the action checks the id belongs to this account.
+              { imageId: source.imageId as Id<"images"> }),
+          ...(note !== undefined && { note }),
+        });
 
       if (source.kind === "instagram")
         return ctx.runAction(internal.references.saveFromInstagram, {

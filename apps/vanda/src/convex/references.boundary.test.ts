@@ -1,5 +1,6 @@
 // @vitest-environment edge-runtime
 import { convexTest } from "convex-test";
+import { Jimp } from "jimp";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -265,6 +266,116 @@ describe("references", () => {
         addedBy: "caetano",
       }),
     ).rejects.toThrow(/read_instagram_posts/);
+  });
+
+  it("crops a face out of a feed post into a new reference, leaving the post alone", async () => {
+    const { t, accountId, otherAccountId, image } = await setup();
+
+    const post = await image(accountId, {
+      purpose: "reference",
+      referenceLabels: ["layout"],
+      referenceSource: "@cartorio · feed",
+      referenceAddedAt: Date.now(),
+      name: "Testamento",
+    });
+
+    const source = new Jimp({ width: 400, height: 500, color: 0xffffffff });
+    const bytes = new Uint8Array(await source.getBuffer("image/png"));
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(bytes, { headers: { "content-type": "image/png" } })),
+    );
+
+    const saved = await t.action(internal.referencesNode.saveCrop, {
+      accountId,
+      imageId: post,
+      crop: { x: 0.5, y: 0.1, width: 0.5, height: 0.4 },
+      labels: ["face"],
+      note: "rosto de Ana",
+      addedBy: "caetano",
+    });
+
+    expect(saved).toMatchObject({ labels: ["face"], croppedFrom: "@cartorio · feed" });
+
+    const crop = await t.run((ctx) => ctx.db.get(saved.imageId));
+    expect(crop).toMatchObject({
+      purpose: "reference",
+      mimeType: "image/jpeg",
+      width: 200,
+      height: 200,
+      referenceLabels: ["face"],
+      referenceNote: "rosto de Ana",
+      referenceSource: "recorte de @cartorio · feed",
+    });
+    expect((await t.run((ctx) => ctx.db.get(post)))?.referenceLabels).toEqual(["layout"]);
+
+    await expect(
+      t.action(internal.referencesNode.saveCrop, {
+        accountId,
+        imageId: post,
+        crop: { x: 0.9, y: 0.9, width: 0.5, height: 0.5 },
+        labels: ["face"],
+        addedBy: "caetano",
+      }),
+    ).rejects.toThrow(/pequeno demais/);
+
+    await expect(
+      t.action(internal.referencesNode.saveCrop, {
+        accountId: otherAccountId,
+        imageId: post,
+        crop: { x: 0, y: 0, width: 1, height: 1 },
+        labels: ["face"],
+        addedBy: "caetano",
+      }),
+    ).rejects.toThrow(/não encontrada/);
+  });
+
+  it("takes face photos the owner uploads in Perfil as references", async () => {
+    const { t, accountId, otherAccountId, owner } = await setup();
+
+    const storageId = await t.run((ctx) =>
+      ctx.storage.store(new Blob(["x"], { type: "image/jpeg" })),
+    );
+
+    const imageId = await owner.mutation(api.gallery.uploadReference, {
+      accountId,
+      storageId,
+      mimeType: "image/jpeg",
+      width: 800,
+      height: 1000,
+      labels: ["face"],
+      name: "Rosto do dono",
+    });
+
+    expect(await t.run((ctx) => ctx.db.get(imageId))).toMatchObject({
+      purpose: "reference",
+      origin: "uploaded",
+      referenceLabels: ["face"],
+      referenceAddedBy: "owner",
+      referenceSource: "perfil",
+      name: "Rosto do dono",
+    });
+
+    const found = await t.query(internal.references.search, { accountId, labels: ["face"] });
+    expect(found.items.map((item) => item.imageId)).toEqual([imageId]);
+
+    await expect(
+      owner.mutation(api.gallery.uploadReference, {
+        accountId: otherAccountId,
+        storageId,
+        mimeType: "image/jpeg",
+        labels: ["face"],
+      }),
+    ).rejects.toThrow();
+    await expect(
+      owner.mutation(api.gallery.uploadReference, {
+        accountId,
+        storageId,
+        mimeType: "image/jpeg",
+        labels: [],
+      }),
+    ).rejects.toThrow(/no labels/);
   });
 
   it("counts paint uses and puts the counts in the turn context", async () => {

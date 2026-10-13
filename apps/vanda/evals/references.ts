@@ -68,6 +68,7 @@ const escapeXml = (text: string): string =>
  */
 export function feedImage(brand: EvalBrand, post: FeedPost): Uint8Array {
   const [ink, mustard, paper] = brand.design.colors.map((color) => color.hex);
+  const owner = brand.owner ? person(800, 440, 0.75) : "";
 
   return new Resvg(`<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1280">
     <rect width="1024" height="1280" fill="${ink}"/>
@@ -80,7 +81,51 @@ export function feedImage(brand: EvalBrand, post: FeedPost): Uint8Array {
     <g font-family="DejaVu Sans">
     <text x="80" y="985" font-size="42" fill="${paper}">${escapeXml(post.subtitle)}</text>
     <text x="80" y="1200" font-size="30" fill="white">${escapeXml(brand.handle)}</text></g>
-    </svg>`)
+    ${owner}</svg>`)
+    .render()
+    .asPng();
+}
+
+/**
+ * The brand's owner, drawn the same way in every feed post and in her face photo:
+ * red curly hair, round green glasses, a yellow blouse. Synthetic, so the reviewer
+ * can tell whether the painted post kept her likeness without a real face.
+ */
+function person(cx: number, cy: number, scale: number): string {
+  const curls = [
+    [-120, -150],
+    [-60, -195],
+    [0, -210],
+    [60, -195],
+    [120, -150],
+    [-150, -80],
+    [150, -80],
+    [-160, 0],
+    [160, 0],
+    [-140, 70],
+    [140, 70],
+  ]
+    .map(([x, y]) => `<circle cx="${x}" cy="${y}" r="62" fill="#B3471D"/>`)
+    .join("");
+
+  return `<g transform="translate(${cx},${cy}) scale(${scale})">
+    ${curls}
+    <path d="M-230 420 Q-220 210 0 200 Q220 210 230 420Z" fill="#F2C14E"/>
+    <rect x="-45" y="110" width="90" height="110" fill="#D99A6C"/>
+    <ellipse cx="0" cy="0" rx="120" ry="150" fill="#E8AE80"/>
+    <g fill="none" stroke="#2E8B57" stroke-width="10">
+      <circle cx="-50" cy="-15" r="38"/><circle cx="50" cy="-15" r="38"/>
+      <path d="M-12 -15 H12"/></g>
+    <circle cx="-50" cy="-15" r="9" fill="#3B2A20"/><circle cx="50" cy="-15" r="9" fill="#3B2A20"/>
+    <path d="M-50 70 Q0 115 50 70" fill="none" stroke="#8C3B2E" stroke-width="10" stroke-linecap="round"/>
+  </g>`;
+}
+
+/** A plain face photo of the brand's owner, the kind she sends for her `face` reference. */
+export function ownerFaceImage(): Uint8Array {
+  return new Resvg(`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000">
+    <rect width="800" height="1000" fill="#E9E4DC"/>
+    ${person(400, 520, 1.5)}</svg>`)
     .render()
     .asPng();
 }

@@ -420,7 +420,10 @@ export const getBillingPortalUrl = action({
     const identity = await ctx.auth.getUserIdentity();
 
     if (!identity) throw new Error("Not authenticated");
-    const result = await autumn.customers.billingPortal(ctx, { returnUrl: `${BASE_URL}/perfil/plano` });
+
+    const result = await autumn.customers.billingPortal(ctx, {
+      returnUrl: `${BASE_URL}/perfil/plano`,
+    });
 
     if (result.error) throw new Error(result.error.message || "Failed to open billing portal");
 

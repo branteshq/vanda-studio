@@ -1,7 +1,8 @@
-import { useState, type CSSProperties } from "react";
-import { ArrowRight, Ban, Pencil } from "lucide-react";
+import { useRef, useState, type CSSProperties } from "react";
+import { ArrowRight, Ban, ImagePlus, Pencil } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
+import { Spinner } from "@vanda-studio/ui/components/spinner";
 import type { FunctionReturnType } from "convex/server";
 import type { BrandFileDesign } from "../../convex/brandFile";
 import type { api } from "../../convex/_generated/api";
@@ -130,8 +131,10 @@ function BrandReferences({ accountId }: { accountId: Id<"accounts"> }) {
     return count > 0 ? [`${count} ${referenceLabelNames[label].toLocaleLowerCase("pt-BR")}`] : [];
   });
 
-  // Avoid references last: the preview shows what the posts follow.
+  // Face photos have their own row above; avoid references go last, since the
+  // preview shows what the posts follow.
   const preview = references.items
+    .filter((item) => !isFace(item))
     .toSorted(
       (a, b) =>
         Number(a.reference?.labels.includes("avoid")) -
@@ -144,44 +147,135 @@ function BrandReferences({ accountId }: { accountId: Id<"accounts"> }) {
     void navigate({ to: "/galeria", search: { origem: "referencias" } });
   };
 
+  const faces = references.items.filter(isFace);
+
+  return (
+    <>
+      <FacePhotos accountId={accountId} faces={faces} />
+      <section className="min-w-0 px-4 py-3.5">
+        <div className="flex items-baseline gap-3">
+          <h3 className="text-body font-medium">Referências</h3>
+          <p className="min-w-0 flex-1 truncate text-body-sm text-text-4">
+            {counts.length > 0 ? counts.join(" · ") : "Nenhuma ainda"}
+          </p>
+          <Button variant="ghost" size="sm" className="-mr-2 shrink-0" onClick={openGallery}>
+            Ver na galeria
+            <ArrowRight />
+          </Button>
+        </div>
+        {preview.length > 0 ? (
+          <ul className="mt-2.5 flex gap-2 overflow-x-auto">
+            {preview.map((item) => (
+              <li key={item.id} className="shrink-0">
+                {item.url ? (
+                  <img
+                    src={item.url}
+                    alt={item.reference?.note ?? item.name ?? "Referência"}
+                    title={item.reference?.note ?? undefined}
+                    loading="lazy"
+                    className={
+                      item.reference?.labels.includes("avoid")
+                        ? "h-24 w-20 rounded-md object-cover opacity-60 ring-1 ring-destructive"
+                        : "h-24 w-20 rounded-md object-cover"
+                    }
+                  />
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-1 text-body-sm text-text-4">
+            Posts e fotos que a Vanda segue ao criar. O Caetano guarda os do seu Instagram no guia
+            da marca; você marca outros na Galeria.
+          </p>
+        )}
+      </section>
+    </>
+  );
+}
+
+type ReferenceItem = NonNullable<
+  ReturnType<ReturnType<typeof useProfileRuntime>["useReferences"]>
+>["items"][number];
+
+/**
+ * The photos that let Vanda and Caetano put the owner in a post: face
+ * references. The owner sends them here or in the chat; a finished feed post is
+ * no substitute, since its layout gets mixed into the likeness.
+ */
+function FacePhotos({ accountId, faces }: { accountId: Id<"accounts">; faces: ReferenceItem[] }) {
+  const upload = useProfileRuntime().useFaceUpload(accountId);
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const send = async (files: FileList | null) => {
+    const images = [...(files ?? [])].filter((file) => file.type.startsWith("image/"));
+
+    if (images.length === 0) return;
+    setBusy(true);
+    setError(null);
+
+    try {
+      for (const file of images) await upload(file);
+    } catch (cause) {
+      setError(errorMessage(cause));
+    } finally {
+      setBusy(false);
+
+      if (input.current) input.current.value = "";
+    }
+  };
+
   return (
     <section className="min-w-0 px-4 py-3.5">
       <div className="flex items-baseline gap-3">
-        <h3 className="text-body font-medium">Referências</h3>
+        <h3 className="text-body font-medium">Seu rosto</h3>
         <p className="min-w-0 flex-1 truncate text-body-sm text-text-4">
-          {counts.length > 0 ? counts.join(" · ") : "Nenhuma ainda"}
+          {photoCount(faces.length)}
         </p>
-        <Button variant="ghost" size="sm" className="-mr-2 shrink-0" onClick={openGallery}>
-          Ver na galeria
-          <ArrowRight />
+        <input
+          ref={input}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          aria-label="Fotos do seu rosto"
+          onChange={(event) => void send(event.target.files)}
+        />
+        <Button
+          variant="secondary"
+          size="sm"
+          className="shrink-0"
+          disabled={busy}
+          onClick={() => input.current?.click()}
+        >
+          {busy ? <Spinner /> : <ImagePlus />}
+          Enviar foto
         </Button>
       </div>
-      {preview.length > 0 ? (
+      {faces.length > 0 ? (
         <ul className="mt-2.5 flex gap-2 overflow-x-auto">
-          {preview.map((item) => (
-            <li key={item.id} className="shrink-0">
-              {item.url ? (
+          {faces.map((face) =>
+            face.url ? (
+              <li key={face.id} className="shrink-0">
                 <img
-                  src={item.url}
-                  alt={item.reference?.note ?? item.name ?? "Referência"}
-                  title={item.reference?.note ?? undefined}
+                  src={face.url}
+                  alt={face.reference?.note ?? face.name ?? "Foto do rosto"}
+                  title={face.reference?.note ?? undefined}
                   loading="lazy"
-                  className={
-                    item.reference?.labels.includes("avoid")
-                      ? "h-24 w-20 rounded-md object-cover opacity-60 ring-1 ring-destructive"
-                      : "h-24 w-20 rounded-md object-cover"
-                  }
+                  className="size-16 rounded-full object-cover"
                 />
-              ) : null}
-            </li>
-          ))}
+              </li>
+            ) : null,
+          )}
         </ul>
-      ) : (
-        <p className="mt-1 text-body-sm text-text-4">
-          Posts e fotos que a Vanda segue ao criar. O Caetano guarda os do seu Instagram no guia da
-          marca; você marca outros na Galeria.
-        </p>
-      )}
+      ) : null}
+      <p className="mt-1.5 text-body-sm text-text-4">
+        Para você aparecer nos posts. Mande 2 ou 3 fotos com o rosto bem visível, de frente e com
+        boa luz; a Vanda e o Caetano usam como referência ao criar.
+      </p>
+      {error ? <p className="mt-1 text-body-sm text-destructive">{error}</p> : null}
     </section>
   );
 }
@@ -320,4 +414,14 @@ export function BrandFileCard({ accountId }: { accountId: Id<"accounts"> }) {
       {error ? <p className="mt-3 text-body-sm text-destructive">{error}</p> : null}
     </div>
   );
+}
+
+function photoCount(count: number): string {
+  if (count === 0) return "Nenhuma foto ainda";
+
+  return count === 1 ? "1 foto" : `${count} fotos`;
+}
+
+function isFace(item: { reference?: { labels: readonly string[] } | null }): boolean {
+  return item.reference?.labels.includes("face") ?? false;
 }
