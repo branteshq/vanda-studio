@@ -252,4 +252,27 @@ describe("the guide ends on the owner's approval", () => {
     expect((await owner.query(api.brandFile.guide, { accountId })).done).toBe(true);
     await expect(owner.mutation(api.brandProfile.openGuide, { accountId })).resolves.toBeNull();
   });
+  it("ends from the owner's button the same way, once, and only for the owner", async () => {
+    const { t, accountId } = await setup();
+    const owner = t.withIdentity({ subject: "c1" });
+    const stranger = t.withIdentity({ subject: "someone-else" });
+    await t.run((ctx) => ctx.db.patch(accountId, { onboardedAt: Date.now() }));
+    await owner.mutation(api.brandProfile.openGuide, { accountId });
+    await owner.mutation(api.brandFile.save, { accountId, content: DRAFT });
+
+    await expect(stranger.mutation(api.brandProfile.approveGuide, { accountId })).rejects.toThrow();
+    expect((await owner.query(api.brandFile.guide, { accountId })).done).toBe(false);
+
+    await expect(owner.mutation(api.brandProfile.approveGuide, { accountId })).resolves.toEqual({
+      confirmed: 5,
+    });
+    const content = (await owner.query(api.brandFile.get, { accountId }))?.content ?? "";
+    expect(content).toContain("- Oferta: contabilidade para MEI (dono)");
+    expect((await owner.query(api.brandFile.guide, { accountId })).done).toBe(true);
+
+    // A second press (or Caetano's tool after it) changes nothing.
+    await expect(owner.mutation(api.brandProfile.approveGuide, { accountId })).resolves.toEqual({
+      confirmed: 0,
+    });
+  });
 });

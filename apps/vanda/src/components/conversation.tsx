@@ -503,6 +503,14 @@ export function NewConversationHero() {
   );
 }
 
+/** What `actions` above the composer can react to. */
+export interface ConversationState {
+  /** The agent is running a turn (tools or streamed text). */
+  working: boolean;
+  /** The newest message is the agent's, and he is done with it. */
+  replied: boolean;
+}
+
 const VANDA_COMPOSER = {
   placeholder: "Mande uma mensagem para a Vanda…",
   ariaLabel: "Mensagem para a Vanda",
@@ -525,8 +533,11 @@ export function Conversation({
     agentName: string;
     attachLabel?: string | undefined;
   };
-  /** Quick replies shown just above the composer, aligned with the messages. */
-  actions?: ReactNode;
+  /**
+   * Shown just above the composer, aligned with the messages; gets whether the
+   * agent is working and whether his reply is the newest message.
+   */
+  actions?: (state: ConversationState) => ReactNode;
   /** Shown above the first message. */
   intro?: ReactNode;
   /** The brand guide: Caetano's chat, where only his answers, his reading and the saved references show. */
@@ -696,7 +707,12 @@ export function Conversation({
             </MessageScrollerProvider>
 
             {actions ? (
-              <div className="mx-auto w-full max-w-3xl px-4 md:px-6">{actions}</div>
+              <div className="mx-auto w-full max-w-3xl px-4 md:px-6">
+                {actions({
+                  working,
+                  replied: !loading && !working && lastMessage?.role === "assistant",
+                })}
+              </div>
             ) : null}
 
             <ImageMessageComposer

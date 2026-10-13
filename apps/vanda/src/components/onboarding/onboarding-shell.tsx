@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cn } from "@vanda-studio/ui/lib/utils";
 import { VandaMark } from "../vanda-mark";
 
 /** The Vanda lockup: orchid mark + wordmark, shared across every onboarding frame. */
@@ -25,9 +26,15 @@ export function OnboardingTop({ children }: { children?: ReactNode }) {
 }
 
 /** A full-screen moment outside the chat (Conectar, Guia pronto): Caetano, one line, one button. */
-export function OnboardingCenter({ children }: { children: ReactNode }) {
+export function OnboardingCenter({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="flex min-h-svh flex-col bg-app text-text antialiased">
+    <div className={cn("flex min-h-svh flex-col bg-app text-text antialiased", className)}>
       <OnboardingTop />
       <main className="flex flex-1 items-center justify-center px-6 pb-13">
         <div className="flex w-full max-w-105 flex-col items-center text-center">{children}</div>

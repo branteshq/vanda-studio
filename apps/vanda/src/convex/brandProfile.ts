@@ -9,6 +9,7 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
+import { publicError } from "../errors";
 import { requireOwnedAccount } from "./authz";
 import {
   brandFileContent,
@@ -142,31 +143,56 @@ export const openGuide = mutation({
  * become (dono) and the guide ends (the onboarding page shows "Guia pronto.").
  * Only the account's guide thread may end it.
  */
+async function endGuide(
+  ctx: MutationCtx,
+  accountId: Id<"accounts">,
+  threadId: string,
+): Promise<{ ok: true; confirmed: number } | { ok: false; error: string }> {
+  const account = await ctx.db.get(accountId);
+
+  if (!account || account.brandGuideThreadId !== threadId) {
+    return { ok: false, error: "só a conversa do guia da marca pode encerrar o guia" };
+  }
+
+  const { content, confirmed } = confirmBrandGuesses(await brandFileContent(ctx, accountId));
+
+  if (confirmed > 0) {
+    const saved = await saveBrandFile(ctx, accountId, content, "vanda");
+
+    if (!saved.ok) return { ok: false, error: saved.error };
+  }
+
+  if (account.brandGuideDoneAt === undefined) {
+    await ctx.db.patch(accountId, { brandGuideDoneAt: Date.now() });
+  }
+
+  return { ok: true, confirmed };
+}
+
+/** Caetano ends the guide (brand_guide_finish) after the owner says "fechou". */
 export const finishGuide = internalMutation({
   args: { accountId: v.id("accounts"), threadId: v.string() },
-  handler: async (
-    ctx,
-    { accountId, threadId },
-  ): Promise<{ ok: true; confirmed: number } | { ok: false; error: string }> => {
-    const account = await ctx.db.get(accountId);
+  handler: async (ctx, { accountId, threadId }) => endGuide(ctx, accountId, threadId),
+});
 
-    if (!account || account.brandGuideThreadId !== threadId) {
-      return { ok: false, error: "só a conversa do guia da marca pode encerrar o guia" };
-    }
+/**
+ * The owner ends the guide from the "Fechou, bora criar" button: the same step as
+ * Caetano's tool, without a model turn. Ending it twice is a no-op.
+ */
+export const approveGuide = mutation({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }): Promise<{ confirmed: number }> => {
+    const account = await requireOwnedAccount(ctx, accountId);
 
-    const { content, confirmed } = confirmBrandGuesses(await brandFileContent(ctx, accountId));
+    if (account.brandGuideDoneAt !== undefined) return { confirmed: 0 };
 
-    if (confirmed > 0) {
-      const saved = await saveBrandFile(ctx, accountId, content, "vanda");
+    if (!account.brandGuideThreadId) throw publicError("NOT_FOUND");
 
-      if (!saved.ok) return { ok: false, error: saved.error };
-    }
+    const ended = await endGuide(ctx, accountId, account.brandGuideThreadId);
 
-    if (account.brandGuideDoneAt === undefined) {
-      await ctx.db.patch(accountId, { brandGuideDoneAt: Date.now() });
-    }
+    if (!ended.ok) throw publicError("UNEXPECTED");
 
-    return { ok: true, confirmed };
+    return { confirmed: ended.confirmed };
   },
 });
 

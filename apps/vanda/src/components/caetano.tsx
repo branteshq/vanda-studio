@@ -49,7 +49,7 @@ const FRAME_NAMES = Object.keys(FRAMES) as Frame[];
 
 export type CaetanoState = "idle" | "read" | "think" | "cheer" | "sleepy";
 
-export type CaetanoMove = "wave" | "jump";
+export type CaetanoMove = "wave" | "jump" | "land";
 
 /** Per state: the frames it alternates (like scrolling the feed), its blink and its body motion. */
 const STATES: Record<
@@ -87,6 +87,14 @@ const JUMP: Keyframe[] = [
   { transform: "translateY(0) scale(1, 1)", offset: 1 },
 ];
 
+/** Landing after a flight: a squash at his feet, then a settle. */
+const LAND: Keyframe[] = [
+  { transform: "scale(1.12, 0.86)", offset: 0 },
+  { transform: "scale(0.96, 1.05)", offset: 0.4 },
+  { transform: "scale(1.02, 0.98)", offset: 0.7 },
+  { transform: "scale(1, 1)", offset: 1 },
+];
+
 const between = ([min, max]: readonly [number, number]) => min + Math.random() * (max - min);
 
 /** Hovering "Terminar depois" makes every Caetano on the page sleepy. */
@@ -102,7 +110,7 @@ const subscribeReducedMotion = (onChange: () => void) => {
 };
 
 /** The system's reduced-motion setting, live; the server renders him still. */
-const useReducedMotion = (): boolean =>
+export const useReducedMotion = (): boolean =>
   useSyncExternalStore(
     subscribeReducedMotion,
     () => window.matchMedia(REDUCED_MOTION).matches,
@@ -199,8 +207,11 @@ function useCaetano(
     (move: CaetanoMove) => {
       if (!alive) return;
 
-      if (move === "jump") {
-        body.current?.animate(JUMP, { duration: 900, easing: "cubic-bezier(0.23, 1, 0.32, 1)" });
+      if (move === "jump" || move === "land") {
+        body.current?.animate(move === "jump" ? JUMP : LAND, {
+          duration: move === "jump" ? 900 : 550,
+          easing: "cubic-bezier(0.23, 1, 0.32, 1)",
+        });
 
         return;
       }

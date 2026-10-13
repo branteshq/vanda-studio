@@ -13,9 +13,9 @@ Cada negócio tem um **arquivo da marca**: um documento único com tudo o que a 
 
 Depois de conectar o Instagram, a configuração termina no **Guia da marca**, uma conversa curta com o Caetano. Primeiro ele lê seu perfil e seus posts recentes, olhando as imagens. Enquanto isso, o chat mostra o que ele está fazendo (**lendo os posts…**, **guardando referências…**, **escrevendo o guia da marca…**). Ele anota no arquivo tudo o que viu, marcado como **(Vanda)**: o que você oferece, para quem, a voz das legendas, as cores, as fontes e o padrão dos posts. Também guarda de 4 a 6 posts que mostram o padrão do seu feed como referências, e eles aparecem em miniatura no chat (veja Referências, abaixo).
 
-Depois ele manda uma mensagem só, com o que entendeu, diz o que deduziu pelo feed e pergunta de uma vez o que o Instagram não mostra, como o preço, o que você quer conseguir no Instagram ou o que a lei do seu setor proíbe. Responda do seu jeito, ou corrija o que estiver errado. Ele anota e pergunta **Fechou?**.
+Depois ele manda uma mensagem só, com o que entendeu, diz o que deduziu pelo feed e pergunta de uma vez o que o Instagram não mostra, como o preço, o que você quer conseguir no Instagram ou o que a lei do seu setor proíbe. Responda do seu jeito, ou corrija o que estiver errado. As perguntas são opcionais: dá para aprovar sem responder.
 
-Quando você aprova ("fechou", "tá certo"), o guia termina: tudo o que estava como **(Vanda)** passa a **(dono)** e aparece **Guia pronto.**, com o botão **Começar a criar**.
+Quando o Caetano termina de responder, aparece acima do campo de mensagem o botão **Fechou, bora criar**. Ele some enquanto o Caetano trabalha e volta quando ele responde. Tocar nele termina o guia na hora: tudo o que estava como **(Vanda)** passa a **(dono)** e aparece **Guia pronto.**, com o botão **Começar a criar**. Escrever "fechou" ou "tá certo" na conversa também termina o guia.
 
 **Fotos e o logo são opcionais, e você pode enviá-los a qualquer momento.** Use o botão **Enviar foto ou logo**, aqui embaixo, ou arraste a imagem para o campo da mensagem (PNG, JPG ou WebP, até 10 MB). Para corrigir uma cor, diga a cor ou mande uma imagem com ela. Sem logo, a Vanda usa o nome da marca em texto.
 
