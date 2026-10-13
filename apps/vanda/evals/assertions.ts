@@ -151,8 +151,9 @@ const paintPrompts = (trace: readonly EvalTraceStep[]): string[] =>
 
 // "no double frame", "sem moldura dupla", "avoid clip art": a dated element named
 // only to exclude it. Looks back over a short window from the match.
+// \b is ASCII-only, so "não" needs letter lookarounds under the u flag.
 const NEGATED =
-  /\b(no|not|without|avoid|never|instead of|drop|remove|sem|nada de|evite|nunca|em vez de|tire)\b[^.;:]{0,40}$/i;
+  /(?<!\p{L})(no|not|without|avoid|never|instead of|drop|remove|sem|nada de|evite|nunca|em vez de|tire|não|nem)(?!\p{L})[^.;:]{0,60}$/iu;
 
 /**
  * Identity stays, execution improves: some paint keeps the brand's main colour

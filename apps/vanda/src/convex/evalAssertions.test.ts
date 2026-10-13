@@ -239,6 +239,15 @@ describe("evaluation guards", () => {
     ];
 
     expect(() => assertIdentityKeptExecutionImproved([], options)).toThrow("no paint");
+    // From a live run: Portuguese "não" before the dated element is an exclusion.
+    expect(() =>
+      assertIdentityKeptExecutionImproved(
+        prompt(
+          "turquesa #00999E, @plugue.loja. Referências: não copie a moldura dupla, os títulos cortados ou a sombra pesada.",
+        ),
+        options,
+      ),
+    ).not.toThrow();
     expect(() =>
       assertIdentityKeptExecutionImproved(prompt("teal #00999e, footer @plugue.loja"), options),
     ).not.toThrow();
