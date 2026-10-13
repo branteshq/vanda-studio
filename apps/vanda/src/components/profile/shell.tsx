@@ -1,14 +1,5 @@
 import type { MouseEvent, ReactNode } from "react";
-import {
-  ArrowLeft,
-  Cpu,
-  Gauge,
-  LifeBuoy,
-  Plug,
-  Plus,
-  Store,
-  UserRound,
-} from "lucide-react";
+import { ArrowLeft, Cpu, Gauge, LifeBuoy, Plug, Plus, Store, UserRound } from "lucide-react";
 import { cn } from "@vanda-studio/ui/lib/utils";
 import { Monogram } from "./layout";
 import { useProfileRuntime } from "./runtime";
@@ -67,12 +58,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
           <NavLink target={to.conta} icon={<UserRound />} active={path === to.conta.href}>
             Conta
           </NavLink>
-          <NavLink
-            target={to.plano}
-            icon={<Gauge />}
-            active={path === to.plano.href}
-            count={usage}
-          >
+          <NavLink target={to.plano} icon={<Gauge />} active={path === to.plano.href} count={usage}>
             Plano e uso
           </NavLink>
           <NavLink target={to.conexoes} icon={<Plug />} active={path === to.conexoes.href}>

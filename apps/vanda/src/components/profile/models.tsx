@@ -180,11 +180,7 @@ export function ModelsCard() {
         </p>
       ) : null}
 
-      {error ? (
-        <p className="mt-3 text-body-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
+      {error ? <p className="mt-3 text-body-sm text-destructive">{error}</p> : null}
     </div>
   );
 }

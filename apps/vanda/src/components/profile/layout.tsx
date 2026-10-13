@@ -205,7 +205,12 @@ const DOT_TONE = {
 export type StatusTone = keyof typeof DOT_TONE;
 
 export function StatusDot({ tone }: { tone: StatusTone }) {
-  return <span aria-hidden className={cn("inline-block size-1.5 shrink-0 rounded-full", DOT_TONE[tone])} />;
+  return (
+    <span
+      aria-hidden
+      className={cn("inline-block size-1.5 shrink-0 rounded-full", DOT_TONE[tone])}
+    />
+  );
 }
 
 /**

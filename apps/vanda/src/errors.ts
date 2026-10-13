@@ -20,7 +20,8 @@ export type ErrorCode = (typeof errorCodes)[number];
 export const errorCopy = {
   USAGE_LIMIT: {
     title: "Limite do plano atingido",
-    message: "Seu limite de uso foi atingido. Confira seu plano em Perfil › Plano e uso para continuar.",
+    message:
+      "Seu limite de uso foi atingido. Confira seu plano em Perfil › Plano e uso para continuar.",
     action: "Ver plano",
     href: "/perfil/plano",
   },

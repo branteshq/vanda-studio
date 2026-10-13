@@ -61,11 +61,7 @@ export function InstagramConnectionRow({
       footer={error ? <p className="mt-2 text-body-sm text-destructive">{error}</p> : null}
     >
       {status?.connected ? (
-        <StatusMenu
-          tone="on"
-          label="Conectado"
-          meta={status.handle ? `@${status.handle}` : name}
-        >
+        <StatusMenu tone="on" label="Conectado" meta={status.handle ? `@${status.handle}` : name}>
           <DropdownMenuItem disabled={busy} onClick={() => void connect()}>
             <RefreshCw />
             Reconectar

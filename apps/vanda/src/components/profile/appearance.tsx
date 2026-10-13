@@ -35,7 +35,12 @@ export function AppearanceControl() {
 
   return (
     <div className="flex flex-col items-end gap-1.5">
-      <Segmented label="Tema" value={current} options={OPTIONS} onChange={(next) => void choose(next)} />
+      <Segmented
+        label="Tema"
+        value={current}
+        options={OPTIONS}
+        onChange={(next) => void choose(next)}
+      />
       {error ? <p className="text-body-sm text-destructive">{error}</p> : null}
     </div>
   );

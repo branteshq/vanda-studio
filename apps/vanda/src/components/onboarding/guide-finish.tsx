@@ -111,7 +111,9 @@ export function GuideFinish({
               </Button>
             </div>
           </div>
-          <p className="mt-2.5 text-body-sm text-text-4">Dá pra mudar depois em Perfil › Negócios.</p>
+          <p className="mt-2.5 text-body-sm text-text-4">
+            Dá pra mudar depois em Perfil › Negócios.
+          </p>
         </div>
       </div>
     </div>

@@ -110,11 +110,7 @@ export function GuideStep({
 
         {showDone ? (
           <div className="absolute inset-0 overflow-y-auto">
-            <GuideDone
-              onStart={onStart}
-              from={flight ?? undefined}
-              onLanded={onLanded}
-            />
+            <GuideDone onStart={onStart} from={flight ?? undefined} onLanded={onLanded} />
           </div>
         ) : null}
       </div>
@@ -201,10 +197,7 @@ function GuideDone({
       </div>
       <h1 className={cn("mt-2 text-2xl font-semibold tracking-tight", follow)}>Guia pronto.</h1>
       <p
-        className={cn(
-          "finish-follow-2 mt-2 max-w-xs text-sm leading-relaxed text-text-3",
-          follow,
-        )}
+        className={cn("finish-follow-2 mt-2 max-w-xs text-sm leading-relaxed text-text-3", follow)}
       >
         A Vanda já usa ele em todo post. Dá pra mudar quando quiser em Perfil › Negócios.
       </p>

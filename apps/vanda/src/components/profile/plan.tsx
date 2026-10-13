@@ -388,11 +388,7 @@ export function PlansPicker() {
         ) : null}
       </div>
 
-      {error ? (
-        <p className="mt-3 text-body-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
+      {error ? <p className="mt-3 text-body-sm text-destructive">{error}</p> : null}
 
       {currentTier ? (
         <fieldset className="mt-4 flex flex-wrap gap-4" disabled={busy !== null}>

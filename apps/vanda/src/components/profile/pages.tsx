@@ -3,10 +3,7 @@ import { ChevronRight, Cpu, Instagram, LogOut, MessageCircle, Pencil, Plus } fro
 import { Avatar, AvatarFallback, AvatarImage } from "@vanda-studio/ui/components/avatar";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
-import {
-  DEFAULT_CAETANO_MODEL,
-  DEFAULT_ORCHESTRATOR_MODEL,
-} from "../../convex/agentModels";
+import { DEFAULT_CAETANO_MODEL, DEFAULT_ORCHESTRATOR_MODEL } from "../../convex/agentModels";
 import { tierOfPlan } from "../../convex/billing/plans";
 import type { Id } from "../../convex/_generated/dataModel";
 import { AppearanceControl } from "./appearance";
