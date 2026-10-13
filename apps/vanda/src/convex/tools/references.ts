@@ -16,6 +16,44 @@ type ReferenceToolCtx = ToolCtx & AgentCtx;
 
 const labelSchema = z.enum(referenceLabels);
 
+const present = (value: string | undefined): string | undefined => value?.trim() || undefined;
+
+/** An Instagram media id or link; account image ids are never all digits and never URLs. */
+const looksLikeInstagramPost = (value: string): boolean =>
+  /^\d+$/.test(value) || value.includes("instagram.com");
+
+export type ReferenceSource =
+  | { kind: "image"; imageId: string }
+  | { kind: "instagram"; post: string };
+
+/**
+ * Where a reference comes from. Strict tool schemas make the model send every field, so an unused
+ * one arrives as ""; and it sometimes puts an Instagram post id in `imageId`.
+ */
+export function referenceSourceOf(args: {
+  imageId?: string | undefined;
+  instagramPost?: string | undefined;
+}): ReferenceSource {
+  const imageId = present(args.imageId);
+  const instagramPost = present(args.instagramPost);
+
+  if (instagramPost !== undefined) {
+    if (imageId !== undefined && imageId !== instagramPost && !looksLikeInstagramPost(imageId))
+      throw new Error(
+        "informe só um: imageId para imagem da conta, instagramPost para post do Instagram; deixe o outro vazio",
+      );
+
+    return { kind: "instagram", post: instagramPost };
+  }
+
+  if (imageId === undefined)
+    throw new Error("informe imageId (imagem da conta) ou instagramPost (post do Instagram)");
+
+  return looksLikeInstagramPost(imageId)
+    ? { kind: "instagram", post: imageId }
+    : { kind: "image", imageId };
+}
+
 const LABELS_HELP =
   "layout = composição/grade do feed a seguir; style = cor, luz, tipografia, acabamento; face = a pessoa real (dono ou equipe) que pode aparecer; product = produto real; place = o lugar; logo = a marca gráfica; avoid = o que a marca não quer (orienta o prompt, nunca vai ao paint)";
 
@@ -71,20 +109,18 @@ export const referenceTools = {
         .optional()
         .describe("o que tirar desta imagem, em uma ou duas frases"),
     }),
-    execute: async (
-      ctx: ReferenceToolCtx,
-      { imageId, instagramPost, labels, note },
-    ): Promise<ReferenceSaved> => {
-      if ((imageId === undefined) === (instagramPost === undefined))
-        throw new Error("informe imageId OU instagramPost");
+    execute: async (ctx: ReferenceToolCtx, args): Promise<ReferenceSaved> => {
+      const source = referenceSourceOf(args);
+      const note = present(args.note);
+      const { labels } = args;
 
       const accountId = await agentAccount(ctx);
       const addedBy = authorOf(ctx);
 
-      if (instagramPost !== undefined)
+      if (source.kind === "instagram")
         return ctx.runAction(internal.references.saveFromInstagram, {
           accountId,
-          post: instagramPost,
+          post: source.post,
           labels,
           addedBy,
           ...(note !== undefined && { note }),
@@ -93,7 +129,7 @@ export const referenceTools = {
       return ctx.runMutation(internal.references.mark, {
         accountId,
         // SAFETY: the mutation checks the id belongs to this account.
-        imageId: imageId as Id<"images">,
+        imageId: source.imageId as Id<"images">,
         labels,
         addedBy,
         ...(note !== undefined && { note }),

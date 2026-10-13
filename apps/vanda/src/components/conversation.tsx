@@ -75,6 +75,12 @@ const TOOL_LABEL = {
   autopilot_measure_account: "Medindo a conta",
   autopilot_save_audit: "Gravando o diagnóstico",
   autopilot_save_plan: "Gravando o plano da semana",
+  read_instagram_profile: "Lendo o perfil do Instagram",
+  read_instagram_posts: "Lendo os posts do Instagram",
+  reference_search: "Buscando referências",
+  reference_save: "Guardando referência",
+  reference_remove: "Tirando uma referência",
+  brand_guide_finish: "Fechando o guia da marca",
 };
 
 /**
@@ -157,8 +163,32 @@ const isRunning = (part: ToolPartView): boolean =>
 const isBrandWrite = (part: ToolPartView): boolean =>
   toolNameOf(part) === "write" && toolPathOf(part) === BRAND_FILE_PATH;
 
-/** Guide mode shows only failures; reads, writes and saves stay behind Caetano's working line. */
-const guideRowOf = (part: ToolPartView): boolean => part.state === "output-error";
+interface GuideFailure {
+  part: ToolPartView;
+  times: number;
+}
+
+/**
+ * Guide mode shows only failures, one row per tool, and only for tools that never worked in the
+ * turn: a retry that went through is Caetano's business, not the owner's.
+ */
+function guideFailuresOf(parts: ToolPartView[]): GuideFailure[] {
+  const worked = new Set(
+    parts.flatMap((part) => (part.state === "output-available" ? [toolNameOf(part)] : [])),
+  );
+
+  const failures = new Map<string, GuideFailure>();
+
+  for (const part of parts) {
+    const name = toolNameOf(part);
+
+    if (part.state !== "output-error" || worked.has(name)) continue;
+    const seen = failures.get(name);
+    failures.set(name, { part: seen?.part ?? part, times: (seen?.times ?? 0) + 1 });
+  }
+
+  return [...failures.values()];
+}
 
 /** The tool parts of an assistant message, in their loose view. */
 function toolPartsOf(message: UIMessage): ToolPartView[] {
@@ -211,16 +241,22 @@ function guideActivityOf(parts: ToolPartView[]): GuideActivity {
   return { state: "think", label: "pensando" };
 }
 
-/** Caetano at work in the guide: the full figure while he reads, beside what he is doing. */
+/**
+ * Caetano at work in the guide: the full figure while he reads, his name and what he is doing
+ * beside it. It stands in for the name line, so a message never shows two Caetanos.
+ */
 function GuideWorking({ state, label }: { state: CaetanoState; label: string }) {
   return (
     <div role="status" className="flex items-end gap-3.5">
       <Caetano state={state} size={88} className="-mb-1.5" />
-      <Marker className="mb-3">
-        <MarkerContent tone="muted" loading>
-          {label}…
-        </MarkerContent>
-      </Marker>
+      <div className="mb-2 flex flex-col gap-0.5">
+        <span className="text-body-sm text-text-3">Caetano</span>
+        <Marker>
+          <MarkerContent tone="muted" loading>
+            {label}…
+          </MarkerContent>
+        </Marker>
+      </div>
     </div>
   );
 }
@@ -407,7 +443,6 @@ export function PendingFirstMessage({
         <MessageContent>
           {guide ? (
             <>
-              <CaetanoName state="think" still={false} />
               <GuideWorking state="think" label="pensando" />
             </>
           ) : (
@@ -642,7 +677,6 @@ export function Conversation({
                             <MessageScrollerItem messageId="caetano-pending">
                               <Message align="start">
                                 <MessageContent>
-                                  <CaetanoName state="read" still={false} />
                                   {visibleMessages.length === 0 ? (
                                     <GuideWorking state="read" label="lendo seu Instagram" />
                                   ) : (
@@ -832,7 +866,8 @@ function ChatMessage({
   const answers = guide ? textAnswers.slice(-1) : textAnswers;
 
   const toolRows = toolPartsOf(message);
-  const traceRows = guide ? toolRows.filter(guideRowOf) : toolRows;
+  const guideFailures = guide ? guideFailuresOf(toolRows) : [];
+  const traceRows = guide ? guideFailures.map(({ part }) => part) : toolRows;
 
   const paintedImages: PaintedImageView[] = [];
 
@@ -860,10 +895,11 @@ function ChatMessage({
   return (
     <Message align="start" enter={enter}>
       <MessageContent>
-        {guide ? (
-          <CaetanoName state={guideWorking ? activity.state : "idle"} still={live !== true} />
+        {guideWorking ? (
+          <GuideWorking state={activity.state} label={activity.label} />
+        ) : guide ? (
+          <CaetanoName state="idle" still={live !== true} />
         ) : null}
-        {guideWorking ? <GuideWorking state={activity.state} label={activity.label} /> : null}
         {savedReferences.length > 0 ? (
           <GuideReferences accountId={accountId} images={savedReferences} />
         ) : null}
@@ -877,7 +913,7 @@ function ChatMessage({
             </BubbleContent>
           </Bubble>
         ))}
-        {guide ? <GuideTrace parts={traceRows} /> : null}
+        {guide ? <GuideTrace failures={guideFailures} /> : null}
         {paintedImages.map((image) => (
           <ThreadImage
             key={image.imageId}
@@ -911,13 +947,13 @@ function StreamingText({ text, streaming }: { text: string; streaming: boolean }
 }
 
 /** Guide mode: only failed tools keep a row; the rest is Caetano's working line. */
-function GuideTrace({ parts }: { parts: ToolPartView[] }) {
-  if (parts.length === 0) return null;
+function GuideTrace({ failures }: { failures: GuideFailure[] }) {
+  if (failures.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-1">
-      {parts.map((part) => (
-        <ToolRow key={part.toolCallId ?? part.type} part={part} />
+      {failures.map(({ part, times }) => (
+        <ToolRow key={part.toolCallId ?? part.type} part={part} times={times} />
       ))}
     </div>
   );
@@ -967,7 +1003,7 @@ function ToolTrace({ parts, running }: { parts: ToolPartView[]; running: boolean
   );
 }
 
-function ToolRow({ part }: { part: ToolPartView }) {
+function ToolRow({ part, times = 1 }: { part: ToolPartView; times?: number }) {
   const name = toolNameOf(part);
 
   if (name === "run_code") return <CodeRunRow part={part} />;
@@ -990,6 +1026,7 @@ function ToolRow({ part }: { part: ToolPartView }) {
         {label}
         {toolPathOf(part) ? <span className="font-mono"> {toolPathOf(part)}</span> : null}
         {failed ? " — Não foi possível concluir esta etapa." : null}
+        {failed && times > 1 ? ` (${times} tentativas)` : null}
       </MarkerContent>
     </Marker>
   );
