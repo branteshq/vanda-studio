@@ -9,41 +9,30 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
-import { Route as OnboardingRouteImport } from './routes/onboarding'
-import { Route as ErrorPreviewRouteImport } from './routes/error-preview'
-import { Route as DocsRouteImport } from './routes/docs'
 import { Route as DashboardRouteImport } from './routes/_dashboard'
-import { Route as DocsIndexRouteImport } from './routes/docs.index'
+import { Route as DocsRouteImport } from './routes/docs'
+import { Route as ErrorPreviewRouteImport } from './routes/error-preview'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
 import { Route as DashboardIndexRouteImport } from './routes/_dashboard.index'
-import { Route as LoginSplatRouteImport } from './routes/login.$'
-import { Route as DocsSlugRouteImport } from './routes/docs.$slug'
-import { Route as DashboardPostsAutomaticosRouteImport } from './routes/_dashboard.posts-automaticos'
-import { Route as DashboardPerfilRouteImport } from './routes/_dashboard.perfil'
-import { Route as DashboardGaleriaRouteImport } from './routes/_dashboard.galeria'
-import { Route as DashboardConversaRouteImport } from './routes/_dashboard.conversa'
 import { Route as DashboardCalendarioRouteImport } from './routes/_dashboard.calendario'
+import { Route as DashboardConversaRouteImport } from './routes/_dashboard.conversa'
+import { Route as DashboardGaleriaRouteImport } from './routes/_dashboard.galeria'
+import { Route as DashboardPerfilRouteImport } from './routes/_dashboard.perfil'
+import { Route as DashboardPostsAutomaticosRouteImport } from './routes/_dashboard.posts-automaticos'
+import { Route as DocsIndexRouteImport } from './routes/docs.index'
+import { Route as DocsSlugRouteImport } from './routes/docs.$slug'
+import { Route as LoginSplatRouteImport } from './routes/login.$'
 import { Route as DashboardPerfilIndexRouteImport } from './routes/_dashboard.perfil.index'
-import { Route as DashboardPerfilPlanoRouteImport } from './routes/_dashboard.perfil.plano'
-import { Route as DashboardPerfilModelosRouteImport } from './routes/_dashboard.perfil.modelos'
-import { Route as DashboardPerfilContaRouteImport } from './routes/_dashboard.perfil.conta'
 import { Route as DashboardPerfilConexoesRouteImport } from './routes/_dashboard.perfil.conexoes'
+import { Route as DashboardPerfilContaRouteImport } from './routes/_dashboard.perfil.conta'
+import { Route as DashboardPerfilModelosRouteImport } from './routes/_dashboard.perfil.modelos'
+import { Route as DashboardPerfilPlanoRouteImport } from './routes/_dashboard.perfil.plano'
 import { Route as DashboardPerfilNegociosIndexRouteImport } from './routes/_dashboard.perfil.negocios.index'
 import { Route as DashboardPerfilNegociosAccountIdRouteImport } from './routes/_dashboard.perfil.negocios.$accountId'
 
-const SsoCallbackRoute = SsoCallbackRouteImport.update({
-  id: '/sso-callback',
-  path: '/sso-callback',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OnboardingRoute = OnboardingRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ErrorPreviewRoute = ErrorPreviewRouteImport.update({
-  id: '/error-preview',
-  path: '/error-preview',
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/_dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DocsRoute = DocsRouteImport.update({
@@ -51,49 +40,24 @@ const DocsRoute = DocsRouteImport.update({
   path: '/docs',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/_dashboard',
+const ErrorPreviewRoute = ErrorPreviewRouteImport.update({
+  id: '/error-preview',
+  path: '/error-preview',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DocsIndexRoute = DocsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => DocsRoute,
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SsoCallbackRoute = SsoCallbackRouteImport.update({
+  id: '/sso-callback',
+  path: '/sso-callback',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const LoginSplatRoute = LoginSplatRouteImport.update({
-  id: '/login/$',
-  path: '/login/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DocsSlugRoute = DocsSlugRouteImport.update({
-  id: '/$slug',
-  path: '/$slug',
-  getParentRoute: () => DocsRoute,
-} as any)
-const DashboardPostsAutomaticosRoute =
-  DashboardPostsAutomaticosRouteImport.update({
-    id: '/posts-automaticos',
-    path: '/posts-automaticos',
-    getParentRoute: () => DashboardRoute,
-  } as any)
-const DashboardPerfilRoute = DashboardPerfilRouteImport.update({
-  id: '/perfil',
-  path: '/perfil',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardGaleriaRoute = DashboardGaleriaRouteImport.update({
-  id: '/galeria',
-  path: '/galeria',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardConversaRoute = DashboardConversaRouteImport.update({
-  id: '/conversa',
-  path: '/conversa',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardCalendarioRoute = DashboardCalendarioRouteImport.update({
@@ -101,19 +65,50 @@ const DashboardCalendarioRoute = DashboardCalendarioRouteImport.update({
   path: '/calendario',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardConversaRoute = DashboardConversaRouteImport.update({
+  id: '/conversa',
+  path: '/conversa',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardGaleriaRoute = DashboardGaleriaRouteImport.update({
+  id: '/galeria',
+  path: '/galeria',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardPerfilRoute = DashboardPerfilRouteImport.update({
+  id: '/perfil',
+  path: '/perfil',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardPostsAutomaticosRoute =
+  DashboardPostsAutomaticosRouteImport.update({
+    id: '/posts-automaticos',
+    path: '/posts-automaticos',
+    getParentRoute: () => DashboardRoute,
+  } as any)
+const DocsIndexRoute = DocsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DocsRoute,
+} as any)
+const DocsSlugRoute = DocsSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => DocsRoute,
+} as any)
+const LoginSplatRoute = LoginSplatRouteImport.update({
+  id: '/login/$',
+  path: '/login/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardPerfilIndexRoute = DashboardPerfilIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => DashboardPerfilRoute,
 } as any)
-const DashboardPerfilPlanoRoute = DashboardPerfilPlanoRouteImport.update({
-  id: '/plano',
-  path: '/plano',
-  getParentRoute: () => DashboardPerfilRoute,
-} as any)
-const DashboardPerfilModelosRoute = DashboardPerfilModelosRouteImport.update({
-  id: '/modelos',
-  path: '/modelos',
+const DashboardPerfilConexoesRoute = DashboardPerfilConexoesRouteImport.update({
+  id: '/conexoes',
+  path: '/conexoes',
   getParentRoute: () => DashboardPerfilRoute,
 } as any)
 const DashboardPerfilContaRoute = DashboardPerfilContaRouteImport.update({
@@ -121,9 +116,14 @@ const DashboardPerfilContaRoute = DashboardPerfilContaRouteImport.update({
   path: '/conta',
   getParentRoute: () => DashboardPerfilRoute,
 } as any)
-const DashboardPerfilConexoesRoute = DashboardPerfilConexoesRouteImport.update({
-  id: '/conexoes',
-  path: '/conexoes',
+const DashboardPerfilModelosRoute = DashboardPerfilModelosRouteImport.update({
+  id: '/modelos',
+  path: '/modelos',
+  getParentRoute: () => DashboardPerfilRoute,
+} as any)
+const DashboardPerfilPlanoRoute = DashboardPerfilPlanoRouteImport.update({
+  id: '/plano',
+  path: '/plano',
   getParentRoute: () => DashboardPerfilRoute,
 } as any)
 const DashboardPerfilNegociosIndexRoute =
@@ -284,25 +284,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/sso-callback': {
-      id: '/sso-callback'
-      path: '/sso-callback'
-      fullPath: '/sso-callback'
-      preLoaderRoute: typeof SsoCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/onboarding': {
-      id: '/onboarding'
-      path: '/onboarding'
-      fullPath: '/onboarding'
-      preLoaderRoute: typeof OnboardingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/error-preview': {
-      id: '/error-preview'
-      path: '/error-preview'
-      fullPath: '/error-preview'
-      preLoaderRoute: typeof ErrorPreviewRouteImport
+    '/_dashboard': {
+      id: '/_dashboard'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/docs': {
@@ -312,67 +298,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_dashboard': {
-      id: '/_dashboard'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof DashboardRouteImport
+    '/error-preview': {
+      id: '/error-preview'
+      path: '/error-preview'
+      fullPath: '/error-preview'
+      preLoaderRoute: typeof ErrorPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/docs/': {
-      id: '/docs/'
-      path: '/'
-      fullPath: '/docs/'
-      preLoaderRoute: typeof DocsIndexRouteImport
-      parentRoute: typeof DocsRoute
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sso-callback': {
+      id: '/sso-callback'
+      path: '/sso-callback'
+      fullPath: '/sso-callback'
+      preLoaderRoute: typeof SsoCallbackRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_dashboard/': {
       id: '/_dashboard/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof DashboardIndexRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/login/$': {
-      id: '/login/$'
-      path: '/login/$'
-      fullPath: '/login/$'
-      preLoaderRoute: typeof LoginSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/docs/$slug': {
-      id: '/docs/$slug'
-      path: '/$slug'
-      fullPath: '/docs/$slug'
-      preLoaderRoute: typeof DocsSlugRouteImport
-      parentRoute: typeof DocsRoute
-    }
-    '/_dashboard/posts-automaticos': {
-      id: '/_dashboard/posts-automaticos'
-      path: '/posts-automaticos'
-      fullPath: '/posts-automaticos'
-      preLoaderRoute: typeof DashboardPostsAutomaticosRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/_dashboard/perfil': {
-      id: '/_dashboard/perfil'
-      path: '/perfil'
-      fullPath: '/perfil'
-      preLoaderRoute: typeof DashboardPerfilRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/_dashboard/galeria': {
-      id: '/_dashboard/galeria'
-      path: '/galeria'
-      fullPath: '/galeria'
-      preLoaderRoute: typeof DashboardGaleriaRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/_dashboard/conversa': {
-      id: '/_dashboard/conversa'
-      path: '/conversa'
-      fullPath: '/conversa'
-      preLoaderRoute: typeof DashboardConversaRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/_dashboard/calendario': {
@@ -382,6 +333,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardCalendarioRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/_dashboard/conversa': {
+      id: '/_dashboard/conversa'
+      path: '/conversa'
+      fullPath: '/conversa'
+      preLoaderRoute: typeof DashboardConversaRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/galeria': {
+      id: '/_dashboard/galeria'
+      path: '/galeria'
+      fullPath: '/galeria'
+      preLoaderRoute: typeof DashboardGaleriaRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/perfil': {
+      id: '/_dashboard/perfil'
+      path: '/perfil'
+      fullPath: '/perfil'
+      preLoaderRoute: typeof DashboardPerfilRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/posts-automaticos': {
+      id: '/_dashboard/posts-automaticos'
+      path: '/posts-automaticos'
+      fullPath: '/posts-automaticos'
+      preLoaderRoute: typeof DashboardPostsAutomaticosRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/docs/': {
+      id: '/docs/'
+      path: '/'
+      fullPath: '/docs/'
+      preLoaderRoute: typeof DocsIndexRouteImport
+      parentRoute: typeof DocsRoute
+    }
+    '/docs/$slug': {
+      id: '/docs/$slug'
+      path: '/$slug'
+      fullPath: '/docs/$slug'
+      preLoaderRoute: typeof DocsSlugRouteImport
+      parentRoute: typeof DocsRoute
+    }
+    '/login/$': {
+      id: '/login/$'
+      path: '/login/$'
+      fullPath: '/login/$'
+      preLoaderRoute: typeof LoginSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_dashboard/perfil/': {
       id: '/_dashboard/perfil/'
       path: '/'
@@ -389,18 +389,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardPerfilIndexRouteImport
       parentRoute: typeof DashboardPerfilRoute
     }
-    '/_dashboard/perfil/plano': {
-      id: '/_dashboard/perfil/plano'
-      path: '/plano'
-      fullPath: '/perfil/plano'
-      preLoaderRoute: typeof DashboardPerfilPlanoRouteImport
-      parentRoute: typeof DashboardPerfilRoute
-    }
-    '/_dashboard/perfil/modelos': {
-      id: '/_dashboard/perfil/modelos'
-      path: '/modelos'
-      fullPath: '/perfil/modelos'
-      preLoaderRoute: typeof DashboardPerfilModelosRouteImport
+    '/_dashboard/perfil/conexoes': {
+      id: '/_dashboard/perfil/conexoes'
+      path: '/conexoes'
+      fullPath: '/perfil/conexoes'
+      preLoaderRoute: typeof DashboardPerfilConexoesRouteImport
       parentRoute: typeof DashboardPerfilRoute
     }
     '/_dashboard/perfil/conta': {
@@ -410,11 +403,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardPerfilContaRouteImport
       parentRoute: typeof DashboardPerfilRoute
     }
-    '/_dashboard/perfil/conexoes': {
-      id: '/_dashboard/perfil/conexoes'
-      path: '/conexoes'
-      fullPath: '/perfil/conexoes'
-      preLoaderRoute: typeof DashboardPerfilConexoesRouteImport
+    '/_dashboard/perfil/modelos': {
+      id: '/_dashboard/perfil/modelos'
+      path: '/modelos'
+      fullPath: '/perfil/modelos'
+      preLoaderRoute: typeof DashboardPerfilModelosRouteImport
+      parentRoute: typeof DashboardPerfilRoute
+    }
+    '/_dashboard/perfil/plano': {
+      id: '/_dashboard/perfil/plano'
+      path: '/plano'
+      fullPath: '/perfil/plano'
+      preLoaderRoute: typeof DashboardPerfilPlanoRouteImport
       parentRoute: typeof DashboardPerfilRoute
     }
     '/_dashboard/perfil/negocios/': {
