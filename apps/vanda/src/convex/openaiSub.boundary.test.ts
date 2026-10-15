@@ -1,4 +1,5 @@
 // @vitest-environment edge-runtime
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "./_generated/api";
@@ -22,6 +23,7 @@ interface SubscriberPatch {
 
 const setup = async (userPatch: SubscriberPatch) => {
   const t = convexTest(schema, modules);
+  rateLimiterTest.register(t);
 
   const ids = await t.run(async (ctx) => {
     const now = Date.now();

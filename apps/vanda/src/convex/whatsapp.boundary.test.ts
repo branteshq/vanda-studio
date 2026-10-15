@@ -1,6 +1,7 @@
 // @vitest-environment edge-runtime
 import { createThread } from "@convex-dev/agent";
 import agentComponent from "@convex-dev/agent/test";
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, components, internal } from "./_generated/api";
@@ -32,6 +33,7 @@ afterEach(() => {
 async function setup() {
   vi.stubEnv("KAPSO_PHONE_NUMBER_ID", "sandbox");
   const t = convexTest(schema, modules);
+  rateLimiterTest.register(t);
   agentComponent.register(t);
 
   const userId = await t.run((ctx) =>

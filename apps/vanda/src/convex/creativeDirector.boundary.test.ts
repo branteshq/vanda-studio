@@ -1,4 +1,5 @@
 // @vitest-environment edge-runtime
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import { Match } from "effect";
 import { describe, expect, it } from "vitest";
@@ -170,6 +171,7 @@ const seedQualifiedOpportunity = async (t: ReturnType<typeof convexTest>) =>
 describe("creative director persistence", () => {
   it("persists the complete reviewed decision chain", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
     const { opportunityId } = await seedQualifiedOpportunity(t);
 
     const analysisId = await t.mutation(internal.market.saveCreativeAnalysis, {
@@ -227,6 +229,7 @@ describe("creative director persistence", () => {
 
   it("stops an opportunity when the mechanism cannot be honestly adapted", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
     const { opportunityId } = await seedQualifiedOpportunity(t);
     await t.mutation(internal.market.saveCreativeAnalysis, {
       opportunityId,

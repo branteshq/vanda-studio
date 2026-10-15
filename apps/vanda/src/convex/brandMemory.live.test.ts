@@ -6,6 +6,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createThread, saveMessage } from "@convex-dev/agent";
 import agentComponent from "@convex-dev/agent/test";
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import { afterEach, expect, it, vi } from "vitest";
 import { z } from "zod";
@@ -112,6 +113,7 @@ it.skipIf(!enabled).each(Array.from({ length: repeats }, (_, index) => index + 1
     await mkdir(directory, { recursive: true });
 
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
     agentComponent.register(t);
     vi.stubEnv("OPENAI_TOKEN_ENCRYPTION_KEY", randomBytes(32).toString("hex"));
     const realFetch = globalThis.fetch;

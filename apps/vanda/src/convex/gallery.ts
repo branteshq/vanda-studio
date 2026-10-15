@@ -10,6 +10,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
+import { enforce, subjectOf } from "./rateLimits";
 import { isConnectedImageModel, isKnownImageModel } from "./imageModels";
 import { isConnectedSubscriber } from "./openaiSub";
 import { isErrorCode, type ErrorCode } from "../errors";
@@ -204,6 +205,7 @@ export const uploadReference = mutation({
   },
   handler: async (ctx, { accountId, labels, note, name, ...upload }): Promise<Id<"images">> => {
     await requireOwnedAccount(ctx, accountId);
+    await enforce(ctx, "upload", await subjectOf(ctx));
 
     if (!upload.mimeType.startsWith("image/")) throw new Error("only images can be references");
 
@@ -458,6 +460,10 @@ export const generate = mutation({
     if (total > MAX_GENERATION_FANOUT) {
       throw new Error(`máximo de ${MAX_GENERATION_FANOUT} imagens por geração`);
     }
+
+    const subject = await subjectOf(ctx);
+    await enforce(ctx, "imageGeneration", subject, total);
+    await enforce(ctx, "imageGenerationHourly", subject, total);
 
     // Placeholder dimensions only drive the skeleton's aspect ratio in the grid;
     // the real dimensions overwrite them when the paint lands.

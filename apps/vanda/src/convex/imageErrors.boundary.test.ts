@@ -2,6 +2,7 @@
 import { createThread } from "@convex-dev/agent";
 import agentComponent from "@convex-dev/agent/test";
 import { MockLanguageModelV3 } from "ai/test";
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Jimp } from "jimp";
@@ -35,6 +36,7 @@ async function setup() {
   vi.stubEnv("OPENROUTER_API_KEY", secret);
   vi.spyOn(console, "error").mockImplementation(() => {});
   const t = convexTest(schema, modules);
+  rateLimiterTest.register(t);
   agentComponent.register(t);
 
   const accountId = await t.run((ctx) =>

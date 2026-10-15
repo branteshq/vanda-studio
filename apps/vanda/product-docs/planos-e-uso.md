@@ -25,6 +25,7 @@ Em **Perfil › Plano e uso › Gerenciar plano** ficam os planos, as mudanças 
 - Usam a cota: conversas e criação de imagens (fora do plano ChatGPT), pesquisa de perfis no Instagram, o radar de mercado e as análises, pesquisa na web e a transcrição de áudios do WhatsApp quando o Caetano precisa transcrever.
 - A pesquisa na web também tem um limite de 100 por 24 horas.
 - Quando a cota acaba, novos pedidos que usam a cota ficam bloqueados até a renovação ou uma mudança de plano.
+- Há também um ritmo para evitar pedidos disparados sem querer: poucos pedidos seguidos por minuto ou por hora, bem acima do que um uso normal faz. Quando ele passa, aparece "Muitos pedidos seguidos" com o tempo para tentar de novo. Esse bloqueio não gasta a cota.
 
 ## Planos
 

@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { action } from "./_generated/server";
+import { enforceAction } from "./rateLimits";
 import type { MarketRunResult } from "./marketNode";
 
 /** Owner-triggered legacy market pass. */
@@ -17,6 +18,7 @@ export const runNow = action({
       accountId,
       clerkId: identity.subject,
     });
+    await enforceAction(ctx, "marketScan", identity.subject);
 
     // SAFETY: runAccount's generated Convex reference erases its declared MarketRunResult return type.
     return (await ctx.runAction(internal.marketNode.runAccount, {
@@ -36,6 +38,7 @@ export const adaptNow = action({
       accountId,
       clerkId: identity.subject,
     });
+    await enforceAction(ctx, "marketAdapt", identity.subject);
 
     const source: {
       opportunity: { status: string };

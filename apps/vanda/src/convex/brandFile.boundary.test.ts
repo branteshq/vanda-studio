@@ -1,4 +1,5 @@
 // @vitest-environment edge-runtime
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "./_generated/api";
@@ -34,6 +35,7 @@ const DESIGN =
 /** An account whose owner is signed in as clerk id "c2". */
 const ownedAccount = async (handle: string) => {
   const t = convexTest(schema, modules);
+  rateLimiterTest.register(t);
 
   const accountId = await t.run(async (ctx) => {
     const ownerUserId = await ctx.db.insert("users", {
@@ -285,6 +287,7 @@ describe("brand context design and radar", () => {
 
   it("reads the brand file and quotes its items from the immutable snapshot", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
 
     const accountId = await t.run(async (ctx) => {
       const id = await ctx.db.insert("accounts", {

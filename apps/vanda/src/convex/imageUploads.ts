@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { mutation } from "./_generated/server";
 import { requireOwnedAccount, requireUser } from "./authz";
+import { enforce, subjectOf } from "./rateLimits";
 
 /** Short-lived upload URL for composer image attachments. */
 export const generateUploadUrl = mutation({
@@ -24,6 +25,7 @@ export const addImage = mutation({
   },
   handler: async (ctx, { accountId, storageId, mimeType, width, height }) => {
     await requireOwnedAccount(ctx, accountId);
+    await enforce(ctx, "upload", await subjectOf(ctx));
 
     if (!mimeType.startsWith("image/")) throw new Error("only image attachments are supported");
     const url = await ctx.storage.getUrl(storageId);

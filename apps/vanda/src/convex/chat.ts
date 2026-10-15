@@ -25,6 +25,7 @@ import {
 import { resolveOrchestratorModel } from "./agentModels";
 import { agentActivityIdValidator } from "./agentActivity";
 import { requireOwnedAccount } from "./authz";
+import { enforce, subjectOf } from "./rateLimits";
 import { codexChatModel, codexResponsesText } from "./pipeline/codex";
 import { budgetOf } from "./usage";
 import { isConnectedSubscriber } from "./openaiSub";
@@ -184,6 +185,8 @@ export const sendMessage = mutation({
         throw publicError("USAGE_LIMIT");
       }
     }
+
+    await enforce(ctx, "agentTurn", await subjectOf(ctx));
 
     const trimmed = prompt.trim();
     const images = await resolveMessageImages(ctx, accountId, imageIds ?? []);

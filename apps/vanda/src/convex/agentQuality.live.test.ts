@@ -4,6 +4,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createThread, saveMessage } from "@convex-dev/agent";
 import agentComponent from "@convex-dev/agent/test";
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import { expect, it, vi } from "vitest";
 import { z } from "zod";
@@ -117,6 +118,7 @@ it.skipIf(!enabled).each(suite)(
     const directory = resolve(outputRoot, entry.id);
     await mkdir(directory, { recursive: true });
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
     agentComponent.register(t);
     const startedAt = Date.now();
     const trace: EvalTraceStep[] = [];

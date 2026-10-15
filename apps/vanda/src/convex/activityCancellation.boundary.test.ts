@@ -1,4 +1,5 @@
 // @vitest-environment edge-runtime
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { internal } from "./_generated/api";
@@ -22,6 +23,7 @@ describe("tool output activity identity", () => {
       // Isolate cancellation from the pre-existing stable() recursion on string cache inputs.
       vi.spyOn(instagramCache, "instagramRequestKey").mockReturnValue("search:late-profile");
       const t = convexTest(schema, modules);
+      rateLimiterTest.register(t);
 
       const setup = await t.run(async (ctx) => {
         const now = Date.now();
@@ -125,6 +127,7 @@ describe("tool output activity identity", () => {
     vi.stubEnv("OPENROUTER_API_KEY", "test-only");
     vi.spyOn(console, "error").mockImplementation(() => {});
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
 
     const setup = await t.run(async (ctx) => {
       const now = Date.now();
@@ -192,6 +195,7 @@ describe("tool output activity identity", () => {
 
   it("rejects expired turn A even while turn B on the same thread is active", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
 
     const setup = await t.run(async (ctx) => {
       const now = Date.now();
@@ -246,6 +250,7 @@ describe("tool output activity identity", () => {
 
   it("bounds Caetano persistence and charges to the exact owned activity", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
 
     const setup = await t.run(async (ctx) => {
       const now = Date.now();

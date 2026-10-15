@@ -2,11 +2,13 @@
 import { createThread, saveMessage } from "@convex-dev/agent";
 import agentComponent from "@convex-dev/agent/test";
 import { convertArrayToReadableStream, MockLanguageModelV3 } from "ai/test";
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it, vi } from "vitest";
 import { api, components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { caetano, caetanoToolDiscovery } from "./caetanoAgent";
+import { errorCode, errorMessage, retryAfterMs } from "../errors";
 import { failedModelAttempt } from "./chatModel";
 import { vanda, vandaToolDiscovery } from "./vanda";
 import { capabilityResult } from "./resourceRefs";
@@ -22,6 +24,7 @@ type StreamResult = Awaited<ReturnType<typeof caetano.streamText>>;
 
 const setup = async () => {
   const t = convexTest(schema, modules);
+  rateLimiterTest.register(t);
   agentComponent.register(t);
 
   const ids = await t.run(async (ctx) => {
@@ -411,6 +414,33 @@ describe("Caetano control plane", () => {
         path: "/notes/pinned.md",
       }),
     ).toHaveProperty("ok", false);
+  });
+
+  it("holds a burst of Caetano turns at the owner's agent-turn limit, in Portuguese", async () => {
+    const { t } = await setup();
+    const owner = t.withIdentity({ subject: "ana" });
+    const sent = await owner.mutation(api.caetano.sendMessage, { prompt: "Oi, Caetano" });
+    const capacity = 5;
+
+    for (let i = 1; i < capacity; i++) {
+      await owner.mutation(api.caetano.sendMessage, {
+        threadId: sent.threadId,
+        prompt: `Mensagem ${i}`,
+      });
+    }
+
+    const refused = await owner
+      .mutation(api.caetano.sendMessage, { threadId: sent.threadId, prompt: "Mais uma" })
+      .then(
+        () => {
+          throw new Error("the sixth message was not refused");
+        },
+        (error) => error,
+      );
+
+    expect(errorCode(refused)).toBe("RATE_LIMITED");
+    expect(retryAfterMs(refused)).toBeGreaterThan(0);
+    expect(errorMessage(refused)).toMatch(/^Você fez muitos pedidos/);
   });
 
   it("keeps one canonical user thread and exposes it through the public chat API", async () => {

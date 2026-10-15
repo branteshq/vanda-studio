@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireOwnedAccount, requireUser } from "./authz";
+import { enforce, subjectOf } from "./rateLimits";
 import {
   applyApprove,
   applyRegenerate,
@@ -61,6 +62,7 @@ export const retry = mutation({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<void> => {
     await requireOwnedAccount(ctx, accountId);
+    await enforce(ctx, "autopilotRun", await subjectOf(ctx));
     await requestRefresh(ctx, accountId, true);
   },
 });
@@ -107,6 +109,7 @@ export const regenerateSlot = mutation({
   args: { accountId: v.id("accounts"), slotId: v.id("autopilotSlots") },
   handler: async (ctx, { accountId, slotId }) => {
     await requireOwnedAccount(ctx, accountId);
+    await enforce(ctx, "autopilotRun", await subjectOf(ctx));
     await applyRegenerate(ctx, accountId, slotId);
   },
 });

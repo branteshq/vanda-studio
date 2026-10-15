@@ -1,4 +1,5 @@
 // @vitest-environment edge-runtime
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { internal } from "./_generated/api";
@@ -9,6 +10,7 @@ const modules = import.meta.glob("./**/*.ts");
 describe("migrations.runAll", () => {
   it("rewrites legacy feed posts once per deployment and is idempotent", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
 
     const ids = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", { name: "Me", email: "me@e.com", clerkId: "me" });

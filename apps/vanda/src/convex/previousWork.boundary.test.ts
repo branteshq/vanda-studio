@@ -1,6 +1,7 @@
 // @vitest-environment edge-runtime
 import { createThread, saveMessage, updateThreadMetadata } from "@convex-dev/agent";
 import agentComponent from "@convex-dev/agent/test";
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { components, internal } from "./_generated/api";
@@ -10,6 +11,7 @@ const modules = import.meta.glob("./**/*.ts");
 
 async function setup() {
   const t = convexTest(schema, modules);
+  rateLimiterTest.register(t);
   agentComponent.register(t);
 
   const ids = await t.run(async (ctx) => {

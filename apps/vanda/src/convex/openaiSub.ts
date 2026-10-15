@@ -10,6 +10,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { requireUser } from "./authz";
+import { enforceAction } from "./rateLimits";
 import { tierOfPlan } from "./billing/plans";
 import * as Schema from "effect/Schema";
 import * as Match from "effect/Match";
@@ -100,6 +101,7 @@ export const startDeviceAuth = action({
     const identity = await ctx.auth.getUserIdentity();
 
     if (!identity) throw new Error("Not authenticated");
+    await enforceAction(ctx, "connectionCall", identity.subject);
 
     const response = await fetch(DEVICE_USER_CODE_URL, {
       method: "POST",
@@ -142,6 +144,7 @@ export const pollDeviceAuth = action({
     const identity = await ctx.auth.getUserIdentity();
 
     if (!identity) throw new Error("Not authenticated");
+    await enforceAction(ctx, "connectionCall", identity.subject);
 
     const response = await fetch(DEVICE_TOKEN_URL, {
       method: "POST",

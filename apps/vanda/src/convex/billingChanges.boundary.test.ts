@@ -1,4 +1,5 @@
 // @vitest-environment edge-runtime
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "./_generated/api";
@@ -15,6 +16,7 @@ afterEach(() => {
 
 async function setup() {
   const t = convexTest(schema, modules);
+  rateLimiterTest.register(t);
 
   const userId = await t.run((ctx) =>
     ctx.db.insert("users", {

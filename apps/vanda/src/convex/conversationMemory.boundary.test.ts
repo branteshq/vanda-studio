@@ -2,6 +2,7 @@
 import { Agent, createThread, saveMessage, type ContextHandler } from "@convex-dev/agent";
 import agentComponent from "@convex-dev/agent/test";
 import { MockLanguageModelV3 } from "ai/test";
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { components, internal } from "./_generated/api";
@@ -29,6 +30,7 @@ const emptyContext: Parameters<ContextHandler>[1] = {
 
 async function setup(turns: number, textSize: number, stalePending = false) {
   const t = convexTest(schema, modules);
+  rateLimiterTest.register(t);
   agentComponent.register(t);
 
   const ids = await t.run(async (ctx) => {

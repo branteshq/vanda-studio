@@ -1,6 +1,7 @@
 // @vitest-environment edge-runtime
 import { createThread, listUIMessages, listStreams, saveMessage } from "@convex-dev/agent";
 import agentComponent from "@convex-dev/agent/test";
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { components, internal } from "./_generated/api";
@@ -13,6 +14,7 @@ const failureText = "Algo deu errado. Tente novamente em instantes.";
 describe("agent generation failures", () => {
   it("clears broken references without blocking valid records in the same sweep", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
     agentComponent.register(t);
 
     const setup = await t.run(async (ctx) => {
@@ -67,6 +69,7 @@ describe("agent generation failures", () => {
 
   it("leaves a visible message when a Vanda turn fails", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
     agentComponent.register(t);
 
     const setup = await t.run(async (ctx) => {
@@ -120,6 +123,7 @@ describe("agent generation failures", () => {
 
   it("does not turn a user-requested stop into an error message", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
     agentComponent.register(t);
 
     const setup = await t.run(async (ctx) => {
@@ -167,6 +171,7 @@ describe("agent generation failures", () => {
 
   it("expires only the matching Vanda activity and persists safe timeout copy", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
     agentComponent.register(t);
 
     const setup = await t.run(async (ctx) => {
@@ -254,6 +259,7 @@ describe("agent generation failures", () => {
 
   it.each(["failure", "timeout"])("leaves a visible message for Caetano %s", async (kind) => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
     agentComponent.register(t);
 
     const setup = await t.run(async (ctx) => {

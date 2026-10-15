@@ -94,6 +94,7 @@ import type * as publishScheduled from "../publishScheduled.js";
 import type * as publishScheduledNode from "../publishScheduledNode.js";
 import type * as publisher_uploadpost from "../publisher/uploadpost.js";
 import type * as publisherConnect from "../publisherConnect.js";
+import type * as rateLimits from "../rateLimits.js";
 import type * as references from "../references.js";
 import type * as referencesNode from "../referencesNode.js";
 import type * as resourceRefs from "../resourceRefs.js";
@@ -234,6 +235,7 @@ declare const fullApi: ApiFromModules<{
   publishScheduledNode: typeof publishScheduledNode;
   "publisher/uploadpost": typeof publisher_uploadpost;
   publisherConnect: typeof publisherConnect;
+  rateLimits: typeof rateLimits;
   references: typeof references;
   referencesNode: typeof referencesNode;
   resourceRefs: typeof resourceRefs;
@@ -312,4 +314,5 @@ export declare const components: {
   agent: import("@convex-dev/agent/_generated/component.js").ComponentApi<"agent">;
   autumn: import("@useautumn/convex/_generated/component.js").ComponentApi<"autumn">;
   workflow: import("@convex-dev/workflow/_generated/component.js").ComponentApi<"workflow">;
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
 };

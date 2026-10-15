@@ -39,6 +39,7 @@ import { conversationContext } from "./conversationContext";
 import { budgetOf } from "./usage";
 import { errorMessage, publicError } from "../errors";
 import { errorCodeValidator, safeFailure } from "./publicErrors";
+import { enforce } from "./rateLimits";
 import { dedupeResources, type ThreadResource } from "./resourceRefs";
 import { enqueueItems, type OutboundItem } from "./whatsappData";
 
@@ -131,6 +132,7 @@ const submitMessage = async (
 ): Promise<{ threadId: string; messageId: string }> => {
   if (!isConnectedSubscriber(user) && !(await budgetOf(ctx, user)).ok)
     throw publicError("USAGE_LIMIT");
+  await enforce(ctx, "agentTurn", user.clerkId);
   const text = input.prompt.trim();
   const images = input.images ?? [];
 

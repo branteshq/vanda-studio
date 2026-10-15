@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { action, internalAction, internalMutation, query } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
+import { enforceAction, subjectOf } from "./rateLimits";
 import {
   deleteProfile,
   ensureProfile,
@@ -106,6 +107,7 @@ export const startConnect = action({
     const identity = await ctx.auth.getUserIdentity();
 
     if (!identity) throw new Error("Not authenticated");
+    await enforceAction(ctx, "connectionCall", identity.subject);
     let accountId = args.accountId;
 
     if (accountId) {
@@ -144,6 +146,9 @@ export const startConnect = action({
 export const syncConnection = action({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<{ connected: boolean; handle: string | null }> => {
+    // Owner only: this writes the account's connection state, so an unknown caller must not reach it.
+    await ctx.runMutation(internal.publisherConnect.assertOwned, { accountId });
+    await enforceAction(ctx, "connectionCall", await subjectOf(ctx));
     const profile = await getProfile(String(accountId));
 
     const state = profile ? instagramStateOf(profile) : { connected: false, username: null };

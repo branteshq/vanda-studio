@@ -43,6 +43,7 @@ O Caetano cuida do marketing dos seus negócios e de dúvidas sobre o Vanda Stud
 ## Parar
 
 - Envie "parar" para interromper o pedido em andamento e limpar a fila. Ações já concluídas, como publicações, não são desfeitas.
+- Se chegarem muitas mensagens em poucos segundos, o Caetano segura as seguintes por um instante e avisa para aguardar. "parar" nunca é segurado.
 
 ## Janela de 24 horas
 

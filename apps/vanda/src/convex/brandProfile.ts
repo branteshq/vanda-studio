@@ -11,6 +11,7 @@ import {
 } from "./_generated/server";
 import { publicError } from "../errors";
 import { requireOwnedAccount } from "./authz";
+import { enforce, subjectOf } from "./rateLimits";
 import {
   brandFileContent,
   brandGuide,
@@ -102,6 +103,7 @@ export const openGuide = mutation({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<string | null> => {
     const account = await requireOwnedAccount(ctx, accountId);
+    await enforce(ctx, "agentTurn", await subjectOf(ctx));
 
     const sections = await guideSections(ctx, accountId);
     // A cleared file restarts only a thread the owner already answered in; an untouched one is reused.
@@ -231,6 +233,7 @@ export const addReferencePhoto = mutation({
   },
   handler: async (ctx, { accountId, storageId, width, height, kind }) => {
     await requireOwnedAccount(ctx, accountId);
+    await enforce(ctx, "upload", await subjectOf(ctx));
 
     // getUrl is null for an unknown/expired upload — reject before linking a dead id.
     if ((await ctx.storage.getUrl(storageId)) === null) throw new Error("upload not found");

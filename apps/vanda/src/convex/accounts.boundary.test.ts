@@ -1,4 +1,5 @@
 // @vitest-environment edge-runtime
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "./_generated/api";
@@ -9,6 +10,7 @@ const modules = import.meta.glob("./**/*.ts");
 describe("accounts.listMine — the owner's businesses", () => {
   it("returns only my accounts, names defaulted from the connected handle", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
     const now = Date.now();
 
     const { withHandle, override } = await t.run(async (ctx) => {
@@ -51,6 +53,7 @@ describe("accounts.listMine — the owner's businesses", () => {
 
   it("returns [] when signed out", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
     expect(await t.query(api.accounts.listMine, {})).toEqual([]);
   });
 });
@@ -58,6 +61,7 @@ describe("accounts.listMine — the owner's businesses", () => {
 describe("accounts.selectActive", () => {
   it("persists an owned onboarded business and rejects pending or unowned accounts", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
     const now = Date.now();
 
     const { me, ready, pending, theirs } = await t.run(async (ctx) => {
@@ -100,6 +104,7 @@ describe("accounts.selectActive", () => {
 describe("publisherConnect.applyConnection", () => {
   it("caches the synced handle, defaults the name, and clears on disconnect", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
     const now = Date.now();
 
     const accountId = await t.run(async (ctx) => {
@@ -147,6 +152,7 @@ describe("publisherConnect.applyConnection", () => {
 describe("accounts.remove", () => {
   it("removes an owned business and clears its account data", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
     const now = Date.now();
 
     const { mine, theirs, canonId } = await t.run(async (ctx) => {
@@ -189,6 +195,7 @@ describe("accounts.remove", () => {
 
   it("moves active selection to the oldest remaining onboarded business", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
     const now = Date.now();
 
     const { me, active, fallback } = await t.run(async (ctx) => {

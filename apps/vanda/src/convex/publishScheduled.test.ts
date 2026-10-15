@@ -1,4 +1,5 @@
 // @vitest-environment edge-runtime
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -14,6 +15,7 @@ const modules = import.meta.glob("./**/*.ts");
 describe("schedulePost + calendar", () => {
   it("pins a post to a datetime and lists it within a calendar range", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
 
     const { accountId, postId } = await t.run(async (ctx) => {
       const now = Date.now();
@@ -66,6 +68,7 @@ describe("schedulePost + calendar", () => {
 describe("publishDue through the ctx-backed store + fake publisher", () => {
   it("publishes a carousel and records the external id on the row", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
 
     const scheduledPostId = await t.run(async (ctx) => {
       const now = Date.now();

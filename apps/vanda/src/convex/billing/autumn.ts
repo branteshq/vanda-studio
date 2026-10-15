@@ -4,6 +4,7 @@ import { internal } from "../_generated/api";
 import { action, internalAction, internalMutation, internalQuery } from "../_generated/server";
 import { autumn } from "../autumn";
 import { allowanceForPlan } from "../usage";
+import { enforceAction } from "../rateLimits";
 import { customerOrNull } from "./customerLookup";
 import { PLAN_PRODUCT_IDS } from "./plans";
 import {
@@ -154,6 +155,7 @@ export const syncBilling = action({
     const identity = await ctx.auth.getUserIdentity();
 
     if (!identity) return null;
+    await enforceAction(ctx, "billingCall", identity.subject);
     const result = await billingDependencies.getCustomer(ctx);
     const customer = customerOrNull(result);
     const snapshot = snapshotOf(customer);
@@ -175,6 +177,7 @@ export const startCheckout = action({
     const identity = await ctx.auth.getUserIdentity();
 
     if (!identity) throw new Error("Not authenticated");
+    await enforceAction(ctx, "billingCall", identity.subject);
     // A NEW subscriber must always land on the Stripe page — without
     // forceCheckout, a customer with a card on file (e.g. from an earlier
     // subscription) gets silently charged by attach, which reads as "the
@@ -263,6 +266,7 @@ export const previewPlanChange = action({
     const identity = await ctx.auth.getUserIdentity();
 
     if (!identity) throw new Error("Not authenticated");
+    await enforceAction(ctx, "billingCall", identity.subject);
     const current = snapshotOf(customerOrNull(await billingDependencies.getCustomer(ctx)));
 
     if (!current.planId) throw new Error("Assine um plano antes de solicitar uma mudança.");
@@ -327,6 +331,7 @@ export const changePlan = action({
     const identity = await ctx.auth.getUserIdentity();
 
     if (!identity) throw new Error("Not authenticated");
+    await enforceAction(ctx, "billingCall", identity.subject);
 
     const startedAt = await ctx.runMutation(internal.billing.autumn.acquireChangeLock, {
       clerkId: identity.subject,
@@ -420,6 +425,7 @@ export const getBillingPortalUrl = action({
     const identity = await ctx.auth.getUserIdentity();
 
     if (!identity) throw new Error("Not authenticated");
+    await enforceAction(ctx, "billingCall", identity.subject);
 
     const result = await autumn.customers.billingPortal(ctx, {
       returnUrl: `${BASE_URL}/perfil/plano`,

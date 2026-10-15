@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { z } from "zod";
 import { internal } from "./_generated/api";
 import { action, internalAction } from "./_generated/server";
+import { enforceAction, subjectOf } from "./rateLimits";
 import { linkMessage, sha256 } from "./whatsapp/protocol";
 import type { OutboundMedia, TemplateFallback } from "./whatsappData";
 
@@ -9,6 +10,7 @@ export const createLink = action({
   args: {},
   handler: async (ctx): Promise<{ url: string; webUrl: string; expiresAt: number }> => {
     if (!(await ctx.auth.getUserIdentity())) throw new Error("Not authenticated");
+    await enforceAction(ctx, "connectionCall", await subjectOf(ctx));
     const number = process.env.KAPSO_WHATSAPP_NUMBER;
 
     if (

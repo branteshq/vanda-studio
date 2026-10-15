@@ -1,4 +1,5 @@
 // @vitest-environment node
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { internal } from "./_generated/api";
@@ -9,6 +10,7 @@ const modules = import.meta.glob("./**/*.ts");
 describe("runScheduledPost credential phase", () => {
   it("marks the row failed when the account has no connection", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
 
     const scheduledPostId = await t.run(async (ctx) => {
       const now = Date.now();
@@ -49,6 +51,7 @@ describe("runScheduledPost credential phase", () => {
 describe("getPublishProfile", () => {
   it("resolves the publisher profile for a connected account", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
 
     const { scheduledPostId, accountId } = await t.run(async (ctx) => {
       const now = Date.now();
@@ -92,6 +95,7 @@ describe("getPublishProfile", () => {
 
   it("returns null for an account that never connected", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
 
     const scheduledPostId = await t.run(async (ctx) => {
       const now = Date.now();

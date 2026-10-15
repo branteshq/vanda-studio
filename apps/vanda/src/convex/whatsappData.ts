@@ -9,6 +9,8 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { requireUser } from "./authz";
+import { errorCode, errorMessage, type ErrorCode } from "../errors";
+import { enforce, rateLimiter } from "./rateLimits";
 import { chargeUsage } from "./usage";
 import { isStop, replyParts, serviceWindowOpen, templateParam } from "./whatsapp/protocol";
 
@@ -153,6 +155,35 @@ export async function enqueueItems(
 
   await ctx.scheduler.runAfter(0, internal.whatsapp.deliver, { connectionId });
 }
+
+const startFailureReply = (code: ErrorCode, message: string): string =>
+  code === "RATE_LIMITED"
+    ? message
+    : "Não consegui iniciar esse pedido. Confira o limite do plano e a fila de mensagens no Vanda Studio antes de tentar novamente.";
+
+const RATE_LIMITED_NOTICE =
+  "Recebi muitas mensagens seguidas e vou segurar as próximas por um instante. Aguarde uns segundos e envie de novo.";
+
+/**
+ * Admit one inbound WhatsApp message to paid work, keyed by the connection
+ * (one per sender). A held message is logged, never dropped silently; the
+ * sender gets the notice at most three times an hour so replies cannot flood either.
+ */
+const admitInbound = async (
+  ctx: MutationCtx,
+  connectionId: Id<"whatsappConnections">,
+): Promise<boolean> => {
+  const key = String(connectionId);
+  const inbound = await rateLimiter.limit(ctx, "whatsappInbound", { key, throws: false });
+
+  if (inbound.ok) return true;
+  console.warn("whatsapp inbound held: rate limited", { retryAfterMs: inbound.retryAfter });
+  const notice = await rateLimiter.limit(ctx, "whatsappNotice", { key, throws: false });
+
+  if (notice.ok) await enqueue(ctx, connectionId, RATE_LIMITED_NOTICE);
+
+  return false;
+};
 
 const enqueue = (
   ctx: MutationCtx,
@@ -469,6 +500,8 @@ export const ingest = internalMutation({
           connection._id,
           "Ainda não consigo abrir esse tipo de mensagem. Envie texto, foto ou áudio.",
         );
+      } else if (!(await admitInbound(ctx, connection._id))) {
+        // Held and logged by admitInbound; the sender was told once, in a notice.
       } else if (media.length > 0) {
         // Downloads and transcription run in an action; it submits the turn when ready.
         await ctx.scheduler.runAfter(0, internal.whatsappMedia.prepareTurn, {
@@ -491,11 +524,11 @@ export const ingest = internalMutation({
           await ctx.scheduler.runAfter(0, internal.whatsapp.markRead, {
             messageId: lastMessageId,
           });
-        } catch {
+        } catch (error) {
           await enqueue(
             ctx,
             connection._id,
-            "Não consegui iniciar esse pedido. Confira o limite do plano e a fila de mensagens no Vanda Studio antes de tentar novamente.",
+            startFailureReply(errorCode(error), errorMessage(error)),
           );
         }
       }
@@ -574,12 +607,8 @@ export const submitMediaTurn = internalMutation({
         connectionId,
         externalMessageId,
       });
-    } catch {
-      await enqueue(
-        ctx,
-        connectionId,
-        "Não consegui iniciar esse pedido. Confira o limite do plano e a fila de mensagens no Vanda Studio antes de tentar novamente.",
-      );
+    } catch (error) {
+      await enqueue(ctx, connectionId, startFailureReply(errorCode(error), errorMessage(error)));
     }
   },
 });
@@ -757,6 +786,7 @@ export const retryDelivery = mutation({
   args: { id: v.id("whatsappOutbox") },
   handler: async (ctx, { id }) => {
     const user = await requireUser(ctx);
+    await enforce(ctx, "whatsappResend", user.clerkId);
     const row = await ctx.db.get(id);
     const connection = row ? await ctx.db.get(row.connectionId) : null;
 

@@ -1,4 +1,5 @@
 // @vitest-environment edge-runtime
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import { Jimp } from "jimp";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -21,6 +22,7 @@ async function setup() {
   vi.stubEnv("OPENROUTER_API_KEY", "sk-test");
   vi.stubEnv("VANDA_WEAVE_CONCURRENCY", "1");
   const t = convexTest(schema, modules);
+  rateLimiterTest.register(t);
 
   const accountId = await t.run((ctx) =>
     ctx.db.insert("accounts", { createdAt: Date.now(), updatedAt: Date.now() }),

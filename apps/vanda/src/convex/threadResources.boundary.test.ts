@@ -1,4 +1,5 @@
 // @vitest-environment edge-runtime
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { internal } from "./_generated/api";
@@ -9,6 +10,7 @@ const modules = import.meta.glob("./**/*.ts");
 describe("thread resource manifests", () => {
   it("deduplicates resources across a turn and updates retried tool calls", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
 
     const accountId = await t.run((ctx) =>
       ctx.db.insert("accounts", {
@@ -56,6 +58,7 @@ describe("thread resource manifests", () => {
 
   it("resolves presentable resources only inside the selected account", async () => {
     const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
 
     const { accountId, imageId, foreignImageId } = await t.run(async (ctx) => {
       const now = Date.now();
