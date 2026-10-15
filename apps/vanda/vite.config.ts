@@ -4,6 +4,7 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import tailwindcss from "@tailwindcss/vite";
 import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
+import { securityHeaders } from "./security-headers";
 
 const rootEnvDir = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -50,6 +51,29 @@ export default defineConfig(({ mode }) => {
         },
       ],
     },
-    plugins: [tailwindcss(), tanstackStart(), nitro({ noExternals: true }), viteReact()],
+    plugins: [
+      tailwindcss(),
+      tanstackStart(),
+      nitro({
+        noExternals: true,
+        // Security headers on every path (see security-headers.ts).
+        // Vercel: Nitro's routeRules headers become a route without
+        // `continue: true`, which stops Vercel's matching before the filesystem
+        // and SSR routes. So on the vercel preset the header route is supplied
+        // directly with `continue` and routeRules is left empty. Other presets
+        // (dev, node) use routeRules.
+        ...(process.env.NITRO_PRESET === "vercel"
+          ? {
+              vercel: {
+                config: {
+                  version: 3,
+                  routes: [{ src: "/(.*)", headers: securityHeaders, continue: true }],
+                },
+              },
+            }
+          : { routeRules: { "/**": { headers: securityHeaders } } }),
+      }),
+      viteReact(),
+    ],
   };
 });
