@@ -16,12 +16,26 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    env:
+      # Pinned so the cache step below and turbo agree on one directory.
+      TURBO_CACHE_DIR: .turbo/cache
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
       - name: Set up workspace
         uses: ./.github/actions/setup
+
+      # pnpm store is cached by actions/setup-node (cache: pnpm) in the setup action.
+      # Turbo cache: every save gets a fresh sha key; a restore falls back to the
+      # newest entry for the same lockfile. Build outputs are restored from it.
+      - name: Restore Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
 
       - name: Lint
         run: pnpm lint
