@@ -1,7 +1,9 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { internalMutation, internalQuery } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { internalMutation, internalQuery, type MutationCtx } from "./_generated/server";
 import { scheduledStatuses } from "./pipeline/constants";
+import { publishRestrictionUntil, restrictionMessage } from "./publishPacing";
 
 /** Joins a scheduled post to its post + ordered images, for the publisher. */
 export const loadScheduledPostData = internalQuery({
@@ -71,6 +73,54 @@ export const getPublishProfile = internalQuery({
   },
 });
 
+/**
+ * The publish job's claim on its row, taken atomically before anything reaches
+ * Instagram. A reschedule arms a new job, and the old one may already be
+ * running: only the job armed for the row's current time publishes, and only
+ * once. A restricted account fails here without another attempt.
+ */
+export const claimScheduledPost = internalMutation({
+  args: { scheduledPostId: v.id("scheduledPosts"), scheduledFor: v.optional(v.number()) },
+  handler: async (ctx, { scheduledPostId, scheduledFor }): Promise<boolean> => {
+    const scheduled = await ctx.db.get(scheduledPostId);
+
+    if (scheduled?.status !== "scheduled") return false;
+    const now = Date.now();
+
+    // Jobs armed before the claim carried their time are stale once the row moved later.
+    if (
+      scheduledFor !== undefined
+        ? scheduled.scheduledFor !== scheduledFor
+        : scheduled.scheduledFor > now
+    )
+      return false;
+
+    const restrictedUntil = (await ctx.db.get(scheduled.accountId))?.publishRestrictedUntil;
+
+    if (restrictedUntil !== undefined && restrictedUntil > now) {
+      await recordScheduledStatus(ctx, {
+        scheduledPostId,
+        status: "failed",
+        lastError: `InstagramRestricted: ${restrictionMessage(restrictedUntil)}`,
+      });
+
+      return false;
+    }
+
+    await ctx.db.patch(scheduledPostId, { status: "publishing", updatedAt: now });
+
+    return true;
+  },
+});
+
+interface ScheduledStatusUpdate {
+  readonly scheduledPostId: Id<"scheduledPosts">;
+  readonly status: (typeof scheduledStatuses)[number];
+  readonly externalPostId?: string | undefined;
+  readonly permalink?: string | undefined;
+  readonly lastError?: string | undefined;
+}
+
 export const setScheduledStatus = internalMutation({
   args: {
     scheduledPostId: v.id("scheduledPosts"),
@@ -79,64 +129,79 @@ export const setScheduledStatus = internalMutation({
     permalink: v.optional(v.string()),
     lastError: v.optional(v.string()),
   },
-  handler: async (ctx, { scheduledPostId, status, externalPostId, permalink, lastError }) => {
-    const scheduled = await ctx.db.get(scheduledPostId);
-
-    if (!scheduled) return;
-    const now = Date.now();
-
-    const patch: Pick<
-      Partial<typeof scheduled>,
-      "status" | "externalPostId" | "permalink" | "lastError" | "updatedAt"
-    > = {
-      status,
-      updatedAt: now,
-    };
-
-    if (externalPostId !== undefined) patch.externalPostId = externalPostId;
-
-    if (permalink !== undefined) patch.permalink = permalink;
-
-    if (lastError !== undefined) patch.lastError = lastError;
-    await ctx.db.patch(scheduledPostId, patch);
-    const post = await ctx.db.get(scheduled.postId);
-
-    if (!post) return;
-
-    if (status === "published") await ctx.db.patch(post._id, { status: "published" });
-
-    const slot = post.autopilotSlotId ? await ctx.db.get(post.autopilotSlotId) : null;
-
-    // Only the slot's current post speaks for it, never a version it replaced.
-    if (slot?.postId === post._id && (status === "published" || status === "failed")) {
-      await ctx.db.patch(slot._id, { status, lastError, updatedAt: now });
-    }
-
-    // The follow-up also notifies a linked WhatsApp, even for posts created outside chat.
-    if (scheduled.status !== status && (status === "published" || status === "failed")) {
-      await ctx.scheduler.runAfter(0, internal.threadResources.postPublicationFollowup, {
-        scheduledPostId,
-      });
-    }
-
-    const opportunity = post.opportunityId ? await ctx.db.get(post.opportunityId) : null;
-
-    if (opportunity) {
-      if (status === "published")
-        await ctx.db.patch(opportunity._id, {
-          status: "published",
-          lastError: undefined,
-          updatedAt: now,
-        });
-      else if (status === "failed")
-        await ctx.db.patch(opportunity._id, {
-          status: "failed",
-          lastError: lastError ?? "publication failed",
-          updatedAt: now,
-        });
-    }
-  },
+  handler: (ctx, args) => recordScheduledStatus(ctx, args),
 });
+
+const recordScheduledStatus = async (
+  ctx: MutationCtx,
+  { scheduledPostId, status, externalPostId, permalink, lastError }: ScheduledStatusUpdate,
+): Promise<void> => {
+  const scheduled = await ctx.db.get(scheduledPostId);
+
+  if (!scheduled) return;
+  const now = Date.now();
+
+  const restrictedUntil =
+    status === "failed" && lastError !== undefined ? publishRestrictionUntil(lastError, now) : null;
+
+  if (restrictedUntil !== null) {
+    const account = await ctx.db.get(scheduled.accountId);
+
+    if (account && (account.publishRestrictedUntil ?? 0) < restrictedUntil)
+      await ctx.db.patch(account._id, { publishRestrictedUntil: restrictedUntil });
+  }
+
+  const patch: Pick<
+    Partial<typeof scheduled>,
+    "status" | "externalPostId" | "permalink" | "lastError" | "updatedAt"
+  > = {
+    status,
+    updatedAt: now,
+  };
+
+  if (externalPostId !== undefined) patch.externalPostId = externalPostId;
+
+  if (permalink !== undefined) patch.permalink = permalink;
+
+  if (lastError !== undefined) patch.lastError = lastError;
+  await ctx.db.patch(scheduledPostId, patch);
+  const post = await ctx.db.get(scheduled.postId);
+
+  if (!post) return;
+
+  if (status === "published") await ctx.db.patch(post._id, { status: "published" });
+
+  const slot = post.autopilotSlotId ? await ctx.db.get(post.autopilotSlotId) : null;
+
+  // Only the slot's current post speaks for it, never a version it replaced.
+  if (slot?.postId === post._id && (status === "published" || status === "failed")) {
+    await ctx.db.patch(slot._id, { status, lastError, updatedAt: now });
+  }
+
+  // The follow-up also notifies a linked WhatsApp, even for posts created outside chat.
+  if (scheduled.status !== status && (status === "published" || status === "failed")) {
+    await ctx.scheduler.runAfter(0, internal.threadResources.postPublicationFollowup, {
+      scheduledPostId,
+    });
+  }
+
+  const opportunity = post.opportunityId ? await ctx.db.get(post.opportunityId) : null;
+
+  if (opportunity) {
+    if (status === "published")
+      await ctx.db.patch(opportunity._id, {
+        status: "published",
+        lastError: undefined,
+        updatedAt: now,
+      });
+    else if (status === "failed")
+      await ctx.db.patch(opportunity._id, {
+        status: "failed",
+        lastError: lastError ?? "publication failed",
+        updatedAt: now,
+      });
+  }
+};
 
 /** Pin a post to a datetime (the calendar) and schedule its publish. */
 export const schedulePost = internalMutation({
@@ -159,7 +224,7 @@ export const schedulePost = internalMutation({
     const scheduledJobId = await ctx.scheduler.runAt(
       scheduledFor,
       internal.publishScheduledNode.runScheduledPost,
-      { scheduledPostId },
+      { scheduledPostId, scheduledFor },
     );
 
     await ctx.db.patch(scheduledPostId, { scheduledJobId });

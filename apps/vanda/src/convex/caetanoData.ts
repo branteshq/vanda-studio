@@ -9,6 +9,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { modelPreferencesOf } from "./settings/registry";
+import { brasiliaTime } from "./publishPacing";
 
 const accountThreadKey = (accountId: Id<"accounts">): string => String(accountId);
 
@@ -69,6 +70,11 @@ export const accountStatus = internalQuery({
       name: account.name ?? account.handle ?? "Novo negócio",
       handle: account.handle ?? null,
       instagramConnected: account.publisherConnectedAt !== undefined,
+      // Instagram is refusing this account's feed posts until then; null when it isn't.
+      instagramPublishingBlockedUntil:
+        account.publishRestrictedUntil !== undefined && account.publishRestrictedUntil > Date.now()
+          ? brasiliaTime(account.publishRestrictedUntil)
+          : null,
       onboardingComplete: account.onboardedAt !== undefined,
       brandFacts: facts.length,
       kind: account.kind ?? null,

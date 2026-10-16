@@ -31,6 +31,7 @@ import {
 import { BRAND_FILE_PATH, MAX_BRAND_FILE_BYTES, SECTION_TITLES } from "./brandFile";
 import { postFormats } from "./pipeline/constants";
 import { postPurposes, type PostPurpose } from "./postPurposes";
+import { brasiliaTime, MAX_FEED_POSTS_PER_DAY, MIN_PUBLISH_GAP_MS } from "./publishPacing";
 import {
   discoverableSkills,
   findInstalledSkill,
@@ -181,7 +182,7 @@ Regras de comportamento:
   - Em todo create_post, informe type, propósito, format e justificativa conforme a habilidade post, e diga ao dono em uma frase por que escolheu esse tipo, propósito e formato.
 - Revise seu próprio trabalho antes de entregar. paint devolve os pixels; para imagens da galeria, use read. Confira cada slide final: texto inteiro legível em tamanho de feed, sem sobreposição com ícones/produtos e sem cortes, além de logo, fidelidade aos anexos, marca, pedido, legenda e estado real do post. Mostrar uma imagem ao dono não significa tê-la inspecionado. Se houver um defeito concreto, corrija e inspecione a nova versão, preservando o que já está certo. Faça no máximo duas rodadas de correção por pedido e explique limitações restantes. Não dependa de um revisor separado.
 - Se uma restrição explícita impedir uma peça legível, explique o conflito. Por exemplo, manter texto branco ao trocar o fundo para claro reduz o contraste. Preserve o que o dono proibiu alterar, avise que a peça ainda precisa de ajuste e peça autorização para a menor mudança necessária. Não declare pronta uma arte com esse problema nem altere detalhes protegidos sem autorização.
-- Agendamentos: o contexto traz a data/hora atual e o fuso é sempre America/Sao_Paulo — calcule "amanhã", "sexta" etc. a partir dela e NÃO pergunte fuso horário. Para mudar o horário de um post já agendado, chame schedule_post de novo com a nova data (reagenda, não duplica). cancel_schedule desarma; delete_post apaga rascunhos e agendados (nunca publicados).
+- Agendamentos: o contexto traz a data/hora atual e o fuso é sempre America/Sao_Paulo — calcule "amanhã", "sexta" etc. a partir dela e NÃO pergunte fuso horário. Para mudar o horário de um post já agendado, chame schedule_post de novo com a nova data (reagenda, não duplica). cancel_schedule desarma; delete_post apaga rascunhos e agendados (nunca publicados). Para publicar vários posts, chame schedule_post uma vez por post: o Vanda espaça as publicações sozinho e devolve o horário de cada uma; conte ao dono quando cada post sai. Se a publicação falhar porque o Instagram restringiu a conta, não tente de novo: diga até quando vale a restrição e ofereça agendar para depois. Só diga que um post foi publicado quando /posts mostrar published para ele.
 - Não invente fatos sobre a marca: o que você sabe vem de /brand/marca.md. Isso inclui modo de uso, dose, duração e benefícios de produtos, não só preços e promoções. Sem orientação confirmada, não crie instruções específicas de aplicação; use os fatos disponíveis ou remeta ao modo de uso da embalagem. Se faltar contexto indispensável, pergunte.
 - Imagens (paint) — regra de roteamento, siga à risca:
   - A imagem que o usuário ANEXA na conversa já pertence à conta e já está autorizada. Use-a direto. Nunca peça "autorização" nem invente uma etapa de autorizar — esse passo não existe.
@@ -566,8 +567,7 @@ const createPost = createTool({
 });
 
 const schedulePost = createTool({
-  description:
-    "Agenda ou publica SOMENTE quando o dono pedir explicitamente. Criar um post, aprovar a arte ou mencionar uma data no briefing não autoriza esta ferramenta. Opcionalmente com data/hora futura (ISO 8601 com offset, ex.: 2026-08-12T08:00:00-03:00); omita a data apenas se o dono pedir publicar agora. Se o post JÁ estiver agendado, REAGENDA sem duplicar.",
+  description: `Agenda ou publica SOMENTE quando o dono pedir explicitamente. Criar um post, aprovar a arte ou mencionar uma data no briefing não autoriza esta ferramenta. Opcionalmente com data/hora futura (ISO 8601 com offset, ex.: 2026-08-12T08:00:00-03:00); omita a data apenas se o dono pedir publicar agora. Se o post JÁ estiver agendado, REAGENDA sem duplicar. O Instagram bloqueia contas que publicam vários posts em sequência, então cada conta publica no máximo ${MAX_FEED_POSTS_PER_DAY} posts de feed por dia, com ${MIN_PUBLISH_GAP_MS / 3_600_000}h entre eles: se o horário pedido estiver ocupado, o post vai para o próximo horário livre (requestedFor mostra o pedido). Chame uma vez por post.`,
   inputSchema: z.object({
     postId: z
       .string()
@@ -604,7 +604,15 @@ const schedulePost = createTool({
     if (ctx.threadId) mutationArgs.originThreadId = ctx.threadId;
 
     if (ctx.caetanoThreadId) mutationArgs.caetanoThreadId = ctx.caetanoThreadId;
-    const data = await ctx.runMutation(internal.posts.schedulePostInternal, mutationArgs);
+    const scheduled = await ctx.runMutation(internal.posts.schedulePostInternal, mutationArgs);
+
+    const data = {
+      ...scheduled,
+      scheduledForLocal: brasiliaTime(scheduled.scheduledFor),
+      ...(scheduled.requestedFor !== undefined && {
+        note: `Horário ajustado para ${brasiliaTime(scheduled.scheduledFor)} para espaçar as publicações e evitar o bloqueio por spam do Instagram. Diga ao dono o novo horário e o motivo.`,
+      }),
+    };
 
     const post = postResource(accountId, typedPostId);
 

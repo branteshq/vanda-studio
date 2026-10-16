@@ -14,9 +14,18 @@ import { publishDue } from "./pipeline/publish";
  * records the outcome on the scheduled-post row.
  */
 export const runScheduledPost = internalAction({
-  args: { scheduledPostId: v.id("scheduledPosts") },
-  handler: async (ctx, { scheduledPostId }) => {
+  // `scheduledFor` is the time this job was armed for; jobs armed before it existed omit it.
+  args: { scheduledPostId: v.id("scheduledPosts"), scheduledFor: v.optional(v.number()) },
+  handler: async (ctx, { scheduledPostId, scheduledFor }) => {
     if (await ctx.runMutation(internal.publishScheduled.holdUnapproved, { scheduledPostId }))
+      return;
+
+    if (
+      !(await ctx.runMutation(internal.publishScheduled.claimScheduledPost, {
+        scheduledPostId,
+        ...(scheduledFor !== undefined && { scheduledFor }),
+      }))
+    )
       return;
 
     // The credential phase (profile lookup) runs before publishDue, so its

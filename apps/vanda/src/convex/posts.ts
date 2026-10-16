@@ -10,6 +10,7 @@ import {
 } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
 import { postPurposeValidator } from "./postPurposes";
+import { nextPublishSlot, restrictionMessage } from "./publishPacing";
 import { postFormats, type postTypes } from "./pipeline/constants";
 
 /**
@@ -186,6 +187,31 @@ export const createPostInternal = internalMutation({
 });
 
 /**
+ * When the post may publish: `requested`, or later if it would land too close
+ * to the account's other feed publications (see publishPacing.ts).
+ */
+const pacedPublishTime = async (
+  ctx: MutationCtx,
+  accountId: Id<"accounts">,
+  postId: Id<"posts">,
+  requested: number,
+): Promise<number> => {
+  const nearby = await ctx.db
+    .query("scheduledPosts")
+    .withIndex("by_account_scheduledFor", (q) =>
+      q.eq("accountId", accountId).gte("scheduledFor", requested - 24 * 60 * 60_000),
+    )
+    .collect();
+
+  // A failed attempt is not on the feed; the post being re-aimed gives up its own time.
+  const taken = nearby
+    .filter((row) => row.status !== "failed" && row.postId !== postId)
+    .map((row) => row.scheduledFor);
+
+  return nextPublishSlot(requested, taken);
+};
+
+/**
  * Approved commit: pin the post to a datetime and arm the publisher. A post
  * that is already scheduled (and hasn't started publishing) is RE-AIMED —
  * the old scheduler job is disarmed and the new time armed — so "muda para
@@ -213,6 +239,8 @@ export const schedulePostIn = async (
 ): Promise<{
   scheduledPostId: Id<"scheduledPosts">;
   scheduledFor: number;
+  /** The time asked for, when pacing moved the publication later. */
+  requestedFor?: number;
   rescheduled: boolean;
 }> => {
   const post = await ctx.db.get(postId);
@@ -230,8 +258,16 @@ export const schedulePostIn = async (
     );
   }
 
-  const at = scheduledFor ?? Date.now() + 5_000;
   const now = Date.now();
+  const requested = scheduledFor ?? now + 5_000;
+  const restrictedUntil = (await ctx.db.get(accountId))?.publishRestrictedUntil;
+
+  // The posts automáticos keep their slot; the publish gate fails it with the reason instead.
+  if (!autopilot && restrictedUntil !== undefined && restrictedUntil > requested)
+    throw new Error(restrictionMessage(restrictedUntil));
+
+  const at = await pacedPublishTime(ctx, accountId, postId, requested);
+  const moved = at !== requested ? { requestedFor: requested } : {};
 
   if (originThreadId || caetanoThreadId) {
     const patch: Pick<Partial<Doc<"posts">>, "originThreadId" | "caetanoThreadId"> = {};
@@ -257,12 +293,12 @@ export const schedulePostIn = async (
     const scheduledJobId = await ctx.scheduler.runAt(
       at,
       internal.publishScheduledNode.runScheduledPost,
-      { scheduledPostId: existing._id },
+      { scheduledPostId: existing._id, scheduledFor: at },
     );
 
     await ctx.db.patch(existing._id, { scheduledFor: at, scheduledJobId, updatedAt: now });
 
-    return { scheduledPostId: existing._id, scheduledFor: at, rescheduled: true };
+    return { scheduledPostId: existing._id, scheduledFor: at, ...moved, rescheduled: true };
   }
 
   if (post.status !== "draft" && post.status !== "ready") {
@@ -283,12 +319,12 @@ export const schedulePostIn = async (
   const scheduledJobId = await ctx.scheduler.runAt(
     at,
     internal.publishScheduledNode.runScheduledPost,
-    { scheduledPostId },
+    { scheduledPostId, scheduledFor: at },
   );
 
   await ctx.db.patch(scheduledPostId, { scheduledJobId });
 
-  return { scheduledPostId, scheduledFor: at, rescheduled: false };
+  return { scheduledPostId, scheduledFor: at, ...moved, rescheduled: false };
 };
 
 export const schedulePostInternal = internalMutation({

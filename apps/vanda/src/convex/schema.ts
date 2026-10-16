@@ -234,6 +234,9 @@ export default defineSchema({
     handle: v.optional(v.string()),
     // Set when the publisher profile reports a live Instagram connection.
     publisherConnectedAt: v.optional(v.number()),
+    // Instagram refuses this account's feed posts until then (spam or quota
+    // restriction reported by the publisher); see publishPacing.ts.
+    publishRestrictedUntil: v.optional(v.number()),
     // Set when onboarding reads the Instagram and opens the brand file — the
     // onboarding gate. Unset means connected-but-not-yet-onboarded.
     onboardedAt: v.optional(v.number()),

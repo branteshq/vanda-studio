@@ -4,6 +4,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
+import type { Id } from "./_generated/dataModel";
 import type { PostPurpose } from "./postPurposes";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -277,6 +278,69 @@ describe("posts.schedulePostInternal — the approved commit", () => {
     });
     const rearmed = (await t.run((ctx) => ctx.db.get(result.scheduledPostId)))!;
     expect(rearmed.scheduledFor).toBe(later);
+  });
+
+  it("spaces a burst of publish-now requests instead of sending them together", async () => {
+    const { t, accountId, imageId } = await setup();
+
+    const results: {
+      scheduledPostId: Id<"scheduledPosts">;
+      scheduledFor: number;
+      requestedFor?: number;
+    }[] = [];
+
+    const postIds: Id<"posts">[] = [];
+
+    for (let index = 0; index < 3; index++) {
+      const postId = await t.mutation(internal.posts.createPostInternal, {
+        accountId,
+        imageIds: [imageId],
+        caption: `post ${index}`,
+      });
+
+      postIds.push(postId);
+      results.push(await t.mutation(internal.posts.schedulePostInternal, { accountId, postId }));
+    }
+
+    const times = results.map((result) => result.scheduledFor);
+    expect(results[0]!.requestedFor).toBeUndefined();
+    expect(results[1]!.requestedFor).toBeDefined();
+    expect(times[1]! - times[0]!).toBeGreaterThanOrEqual(2 * 3_600_000);
+    expect(times[2]! - times[1]!).toBeGreaterThanOrEqual(2 * 3_600_000);
+
+    // Re-aiming a post does not count its own old time as taken.
+    const again = await t.mutation(internal.posts.schedulePostInternal, {
+      accountId,
+      postId: postIds[0]!,
+      scheduledFor: times[0]!,
+    });
+
+    expect(again).toMatchObject({ scheduledFor: times[0], rescheduled: true });
+    expect(again.requestedFor).toBeUndefined();
+  });
+
+  it("refuses to publish while Instagram restricts the account, but allows after", async () => {
+    const { t, accountId, imageId } = await setup();
+    const until = Date.now() + 24 * 3_600_000;
+    await t.run((ctx) => ctx.db.patch(accountId, { publishRestrictedUntil: until }));
+
+    const postId = await t.mutation(internal.posts.createPostInternal, {
+      accountId,
+      imageIds: [imageId],
+      caption: "x",
+    });
+
+    await expect(
+      t.mutation(internal.posts.schedulePostInternal, { accountId, postId }),
+    ).rejects.toThrow("restringiu");
+
+    const after = await t.mutation(internal.posts.schedulePostInternal, {
+      accountId,
+      postId,
+      scheduledFor: until + 60_000,
+    });
+
+    expect(after.scheduledFor).toBe(until + 60_000);
   });
 });
 
