@@ -108,6 +108,61 @@ describe("OpenRouter prompt caching", () => {
       }
     },
   );
+
+  it("keeps Claude within four cache breakpoints after parallel tool calls", async () => {
+    const bodies: string[] = [];
+    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+      bodies.push(z.string().parse(init.body));
+
+      return Response.json({
+        id: "gen-tools",
+        model: "anthropic/claude-haiku-5.5",
+        created: 1,
+        choices: [
+          { index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" },
+        ],
+        usage: { prompt_tokens: 5000, completion_tokens: 1, total_tokens: 5001 },
+      });
+    });
+    const calls = ["a", "b", "c", "d"];
+
+    await openrouterChatModel("anthropic/claude-haiku-5.5").doGenerate({
+      prompt: [
+        { role: "system", content: "Instructions and complete brand knowledge" },
+        { role: "user", content: [{ type: "text", text: "Faz um post" }] },
+        {
+          role: "assistant",
+          content: calls.map((id) => ({
+            type: "tool-call" as const,
+            toolCallId: id,
+            toolName: "read",
+            input: { path: `/skills/${id}` },
+          })),
+        },
+        {
+          role: "tool",
+          content: calls.map((id) => ({
+            type: "tool-result" as const,
+            toolCallId: id,
+            toolName: "read",
+            output: { type: "text" as const, value: `skill ${id}` },
+          })),
+        },
+      ],
+      maxOutputTokens: 4096,
+    });
+
+    const messages = z
+      .object({ messages: z.array(z.object({ role: z.string() }).loose()) })
+      .parse(JSON.parse(bodies[0]!)).messages;
+
+    expect((bodies[0]!.match(/cache_control/g) ?? []).length).toBeLessThanOrEqual(4);
+    expect(messages.at(-1)).toMatchObject({
+      role: "tool",
+      tool_call_id: "d",
+      cache_control: { type: "ephemeral" },
+    });
+  });
 });
 
 describe("OpenRouter image URLs", () => {

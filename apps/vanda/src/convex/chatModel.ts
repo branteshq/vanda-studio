@@ -1,6 +1,6 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { UsageHandler } from "@convex-dev/agent";
-import { wrapLanguageModel } from "ai";
+import { wrapLanguageModel, type TextPart } from "ai";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { modelCharge } from "./usageDetails";
@@ -106,22 +106,39 @@ export const openrouterChatModel = (modelId: string, onFailedAttempt?: () => Pro
 
         if (clock > 0) boundaries.add(clock - 1);
 
+        const withCacheControl = <T extends { providerOptions?: TextPart["providerOptions"] }>(
+          part: T,
+        ): T => ({
+          ...part,
+          providerOptions: {
+            ...part.providerOptions,
+            openrouter: {
+              ...part.providerOptions?.openrouter,
+              cacheControl: { type: "ephemeral" },
+            },
+          },
+        });
+
         return {
           ...params,
-          prompt: params.prompt.map((message, index) =>
-            boundaries.has(index)
-              ? {
-                  ...message,
-                  providerOptions: {
-                    ...message.providerOptions,
-                    openrouter: {
-                      ...message.providerOptions?.openrouter,
-                      cacheControl: { type: "ephemeral" },
-                    },
-                  },
-                }
-              : message,
-          ),
+          prompt: params.prompt.map((message, index) => {
+            if (!boundaries.has(index)) return message;
+
+            // OpenRouter copies a message-level marker onto every tool result, and
+            // Anthropic rejects more than four; parallel tool calls exceed that.
+            if (message.role === "tool") {
+              const last = message.content.length - 1;
+
+              return {
+                ...message,
+                content: message.content.map((part, partIndex) =>
+                  partIndex === last ? withCacheControl(part) : part,
+                ),
+              };
+            }
+
+            return withCacheControl(message);
+          }),
         };
       },
     },
