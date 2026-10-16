@@ -53,7 +53,7 @@ describe("platform settings registry", () => {
 
     expect(result).toMatchObject({
       id: "models.caetano",
-      previous: "openai/gpt-6-luna",
+      previous: "anthropic/claude-haiku-5.5",
       value: "openai/gpt-6.1-sol",
       label: "GPT-6.1 Sol",
     });
@@ -65,7 +65,9 @@ describe("platform settings registry", () => {
       id: "models.caetano",
       value: String(result.previous),
     });
-    expect((await owner.query(api.users.modelPreferences))?.caetano).toBe("openai/gpt-6-luna");
+    expect((await owner.query(api.users.modelPreferences))?.caetano).toBe(
+      "anthropic/claude-haiku-5.5",
+    );
   });
 
   it("switches the theme by its name and exposes it to the app", async () => {
@@ -105,7 +107,7 @@ describe("platform settings registry", () => {
     const byId = Object.fromEntries((settings ?? []).map((setting) => [setting.id, setting.value]));
 
     expect(byId).toMatchObject({
-      "models.vanda": "GPT-6 Luna",
+      "models.vanda": "Claude Haiku 5.5",
       "billing.plan": { plan: "Teste grátis", limited: false },
       "connections.instagram": { connected: true, handle: "@cafedaana" },
       "connections.whatsapp": { linked: false },

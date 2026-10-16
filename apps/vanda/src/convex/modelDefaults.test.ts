@@ -3,6 +3,7 @@ import {
   DEFAULT_CAETANO_MODEL,
   DEFAULT_CODEX_ORCHESTRATOR_MODEL,
   DEFAULT_ORCHESTRATOR_MODEL,
+  defaultTextModel,
   requireTextModel,
   resolveCaetanoModel,
   resolveOrchestratorModel,
@@ -41,7 +42,7 @@ describe("model defaults", () => {
       expect(resolveCaetanoModel("openai/gpt-6.1-sol", { conectado })).toBe("openai/gpt-6.1-sol");
       expect(() => requireTextModel("openai/gpt-6-sol", conectado)).toThrow("modelo desconhecido");
       expect(resolveOrchestratorModel("openai/gpt-6-sol", { conectado })).toBe(
-        DEFAULT_ORCHESTRATOR_MODEL,
+        defaultTextModel(conectado),
       );
     }
   });
@@ -65,15 +66,20 @@ describe("model defaults", () => {
     expect(resolveConnectedImageModel("google/gemini-3-pro-image")).toBe(DEFAULT_IMAGE_MODEL);
   });
 
-  it("defaults both agents to Luna on both transports and images to Sunburst", () => {
-    expect(DEFAULT_ORCHESTRATOR_MODEL).toBe("openai/gpt-6-luna");
-    expect(DEFAULT_CAETANO_MODEL).toBe("openai/gpt-6-luna");
+  it("defaults both agents to Haiku 5.5, Luna on the ChatGPT plan, and images to Sunburst", () => {
+    expect(DEFAULT_ORCHESTRATOR_MODEL).toBe("anthropic/claude-haiku-5.5");
+    expect(DEFAULT_CAETANO_MODEL).toBe("anthropic/claude-haiku-5.5");
     expect(DEFAULT_IMAGE_MODEL).toBe("openai/gpt-image-2.5-sunburst");
 
-    for (const conectado of [false, true]) {
+    for (const [conectado, expected] of [
+      [false, "anthropic/claude-haiku-5.5"],
+      [true, "openai/gpt-6-luna"],
+    ] as const) {
+      expect(defaultTextModel(conectado)).toBe(expected);
+
       for (const preferred of [undefined, null, "retired/model"]) {
-        expect(resolveOrchestratorModel(preferred, { conectado })).toBe("openai/gpt-6-luna");
-        expect(resolveCaetanoModel(preferred, { conectado })).toBe("openai/gpt-6-luna");
+        expect(resolveOrchestratorModel(preferred, { conectado })).toBe(expected);
+        expect(resolveCaetanoModel(preferred, { conectado })).toBe(expected);
       }
 
       expect(resolveCaetanoModel("openai/gpt-5.6-terra", { conectado })).toBe(

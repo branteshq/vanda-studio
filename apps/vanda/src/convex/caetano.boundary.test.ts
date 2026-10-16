@@ -187,8 +187,8 @@ describe("Caetano control plane", () => {
     const { t, userId, foreignUserId } = await setup();
     const owner = t.withIdentity({ subject: "ana" });
     expect(await owner.query(api.users.modelPreferences)).toMatchObject({
-      caetano: "openai/gpt-6-luna",
-      orchestrator: "openai/gpt-6-luna",
+      caetano: "anthropic/claude-haiku-5.5",
+      orchestrator: "anthropic/claude-haiku-5.5",
       image: "openai/gpt-image-2.5-sunburst",
     });
     await connectChatGpt(t, userId);
@@ -367,7 +367,7 @@ describe("Caetano control plane", () => {
           { id: "models.caetano", value: "GPT-6.1 Sol" },
           { toolCallId: "update", messages: [] },
         ),
-      ).resolves.toHaveProperty("data.previous", "openai/gpt-6-luna");
+      ).resolves.toHaveProperty("data.previous", "anthropic/claude-haiku-5.5");
 
       const select = Object.assign({}, vanda.options.tools!.select_account, { ctx: toolCtx });
       await expect(

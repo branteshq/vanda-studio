@@ -3,7 +3,7 @@ import { ChevronRight, Cpu, Instagram, LogOut, MessageCircle, Pencil, Plus } fro
 import { Avatar, AvatarFallback, AvatarImage } from "@vanda-studio/ui/components/avatar";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
-import { DEFAULT_CAETANO_MODEL, DEFAULT_ORCHESTRATOR_MODEL } from "../../convex/agentModels";
+import { defaultTextModel } from "../../convex/agentModels";
 import { tierOfPlan } from "../../convex/billing/plans";
 import type { Id } from "../../convex/_generated/dataModel";
 import { AppearanceControl } from "./appearance";
@@ -45,8 +45,9 @@ export function AccountPage() {
   const customModels =
     preferences !== undefined &&
     preferences !== null &&
-    ((preferences.orchestrator ?? DEFAULT_ORCHESTRATOR_MODEL) !== DEFAULT_ORCHESTRATOR_MODEL ||
-      (preferences.caetano ?? DEFAULT_CAETANO_MODEL) !== DEFAULT_CAETANO_MODEL);
+    [preferences.orchestrator, preferences.caetano].some(
+      (model) => model !== defaultTextModel(preferences.conectado),
+    );
 
   const signOut = async () => {
     await clerk.signOut();

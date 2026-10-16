@@ -15,9 +15,8 @@ import {
 } from "@vanda-studio/ui/components/select";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import {
-  DEFAULT_CAETANO_MODEL,
-  DEFAULT_ORCHESTRATOR_MODEL,
   ORCHESTRATOR_MODELS,
+  defaultTextModel,
   isTextModelAvailable,
   type ModelMaker,
 } from "../../convex/agentModels";
@@ -49,8 +48,8 @@ export function ModelsCard() {
   const [error, setError] = useState<string | null>(null);
 
   const conectado = prefs?.conectado ?? false;
-  const orchestratorId = prefs?.orchestrator ?? DEFAULT_ORCHESTRATOR_MODEL;
-  const caetanoId = prefs?.caetano ?? DEFAULT_CAETANO_MODEL;
+  const orchestratorId = prefs?.orchestrator ?? defaultTextModel(conectado);
+  const caetanoId = prefs?.caetano ?? defaultTextModel(conectado);
 
   const imageId = conectado
     ? resolveConnectedImageModel(prefs?.image)
